@@ -29,9 +29,16 @@ export const CreateUserFormValidation = z
     path: ["confirmPassword"],
   });
 
+// Categories
 export const CategoryFormValidation = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   description: z.string().optional(),
 });
-
 export type CategoryFormValues = z.infer<typeof CategoryFormValidation>;
+
+// Types
+export const TypeFormValidation = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  description: z.string().optional(),
+});
+export type TypeFormValues = z.infer<typeof TypeFormValidation>;

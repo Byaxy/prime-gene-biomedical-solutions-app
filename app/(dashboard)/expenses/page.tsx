@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 const Expenses = () => {
   return (
     <Suspense fallback={<Loading />}>
-      <div>Expenses page</div>;
+      <div>Expenses page</div>
     </Suspense>
   );
 };

@@ -1,35 +1,31 @@
-import { CategoryFormValues } from "@/lib/validation";
-import { Categories } from "@/types/appwrite.types";
 import { useState } from "react";
-import { CategoryDialog } from "./CategoryDialog";
+import { useTypes } from "@/hooks/useTypes";
+import { TypeFormValues } from "@/lib/validation";
+import { ProductTypes } from "@/types/appwrite.types";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { useCategories } from "@/hooks/useCategories";
+import ProductTypeDialog from "./ProductTypeDialog";
 
-const CategoryActions = ({ category }: { category: Categories }) => {
+const TypeActions = ({ productType }: { productType: ProductTypes }) => {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"add" | "edit" | "delete">("add");
 
-  const {
-    softDeleteCategory,
-    editCategory,
-    isSoftDeletingCategory,
-    isEditingCategory,
-  } = useCategories();
+  const { softDeleteType, editType, isSoftDeletingType, isEditingType } =
+    useTypes();
 
-  const handleAction = async (data: CategoryFormValues) => {
+  const handleAction = async (data: TypeFormValues) => {
     // Handle different actions based on mode
     try {
       if (mode === "edit") {
         // Edit category
-        await editCategory(
-          { id: category.$id, data },
+        await editType(
+          { id: productType.$id, data },
           { onSuccess: () => setOpen(false) }
         );
         setOpen(false);
       } else if (mode === "delete") {
         // Delete category
-        await softDeleteCategory(category.$id, {
+        await softDeleteType(productType.$id, {
           onSuccess: () => setOpen(false),
         });
       }
@@ -37,7 +33,6 @@ const CategoryActions = ({ category }: { category: Categories }) => {
       console.error("Error:", error);
     }
   };
-
   return (
     <div className="flex items-center">
       <span
@@ -58,16 +53,16 @@ const CategoryActions = ({ category }: { category: Categories }) => {
       >
         <DeleteIcon className="h-4 w-4" />
       </span>
-      <CategoryDialog
+      <ProductTypeDialog
         mode={mode}
         open={open}
         onOpenChange={setOpen}
-        category={category}
+        productType={productType}
         onSubmit={handleAction}
-        isLoading={isSoftDeletingCategory || isEditingCategory}
+        isLoading={isSoftDeletingType || isEditingType}
       />
     </div>
   );
 };
 
-export default CategoryActions;
+export default TypeActions;

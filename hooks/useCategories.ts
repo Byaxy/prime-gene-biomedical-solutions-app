@@ -24,7 +24,6 @@ export const useCategories = () => {
     queryFn: async () => {
       const result = await getCategories();
 
-      console.log("result", result);
       if (!result) {
         throw new Error("Failed to fetch categories");
       }

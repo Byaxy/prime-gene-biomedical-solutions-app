@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 const Colors = () => {
   return (
     <Suspense fallback={<Loading />}>
-      <div>Colors page</div>;
+      <div>Colors page</div>
     </Suspense>
   );
 };

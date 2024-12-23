@@ -57,6 +57,7 @@ export const editCategory = async (
       categoryId,
       categoryData
     );
+
     revalidatePath("/products/categories");
     return parseStringify(response);
   } catch (error) {
@@ -73,6 +74,7 @@ export const deleteCategory = async (categoryId: string) => {
       NEXT_PUBLIC_CATEGORIES_COLLECTION_ID!,
       categoryId
     );
+
     revalidatePath("/products/categories");
     return parseStringify(response);
   } catch (error) {
@@ -90,6 +92,7 @@ export const softDeleteCategory = async (categoryId: string) => {
       categoryId,
       { isActive: false }
     );
+
     revalidatePath("/products/categories");
     return parseStringify(response);
   } catch (error) {

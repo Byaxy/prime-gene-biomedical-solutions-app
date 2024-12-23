@@ -2,13 +2,13 @@
 
 import { ColumnDef } from "@tanstack/table-core";
 import { formatDateTime } from "@/lib/utils";
-import { Categories } from "@/types/appwrite.types";
+import { ProductTypes } from "@/types/appwrite.types";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-import CategoryActions from "@/components/categories/CategoryActions";
+import TypeActions from "@/components/productTypes/TypeActions";
 
-export const categoriesColumns: ColumnDef<Categories>[] = [
+export const typesColumns: ColumnDef<ProductTypes>[] = [
   {
     header: "#",
     cell: ({ row }) => {
@@ -30,16 +30,16 @@ export const categoriesColumns: ColumnDef<Categories>[] = [
     },
 
     cell: ({ row }) => {
-      const category = row.original;
-      return <p className="text-14-medium ">{category.name}</p>;
+      const type = row.original;
+      return <p className="text-14-medium ">{type.name}</p>;
     },
   },
   {
     accessorKey: "description",
     header: "Description",
     cell: ({ row }) => {
-      const category = row.original;
-      return <p className="text-14-medium ">{category.description || "-"}</p>;
+      const type = row.original;
+      return <p className="text-14-medium ">{type.description || "-"}</p>;
     },
   },
   {
@@ -56,10 +56,10 @@ export const categoriesColumns: ColumnDef<Categories>[] = [
       );
     },
     cell: ({ row }) => {
-      const category = row.original;
+      const type = row.original;
       return (
         <p className="text-14-medium ">
-          {formatDateTime(category.$createdAt).dateTime}
+          {formatDateTime(type.$createdAt).dateTime}
         </p>
       );
     },
@@ -78,10 +78,10 @@ export const categoriesColumns: ColumnDef<Categories>[] = [
       );
     },
     cell: ({ row }) => {
-      const category = row.original;
+      const type = row.original;
       return (
         <p className="text-14-medium">
-          {formatDateTime(category.$updatedAt).dateTime}
+          {formatDateTime(type.$updatedAt).dateTime}
         </p>
       );
     },
@@ -90,7 +90,7 @@ export const categoriesColumns: ColumnDef<Categories>[] = [
     id: "actions",
     header: () => <div className="pl-4">Actions</div>,
     cell: ({ row }) => {
-      return <CategoryActions category={row.original} />;
+      return <TypeActions productType={row.original} />;
     },
   },
 ];

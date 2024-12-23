@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 const Settings = () => {
   return (
     <Suspense fallback={<Loading />}>
-      <div>Settings page</div>;
+      <div>Settings page</div>
     </Suspense>
   );
 };
