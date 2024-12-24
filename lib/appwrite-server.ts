@@ -18,8 +18,6 @@ export const {
 } = process.env;
 
 const client = new sdk.Client();
-console.log("ENDPOINT:", ENDPOINT);
-console.log("PROJECT_ID:", PROJECT_ID);
 
 client.setEndpoint(ENDPOINT!).setProject(PROJECT_ID!).setKey(API_KEY!);
 

@@ -1,36 +1,34 @@
-import { TypeFormValidation, TypeFormValues } from "@/lib/validation";
+import { MaterialFormValidation, MaterialFormValues } from "@/lib/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { Form } from "../ui/form";
+import CustomFormField, { FormFieldType } from "../CustomFormField";
 import { Button } from "../ui/button";
 import SubmitButton from "../SubmitButton";
-import CustomFormField, { FormFieldType } from "../CustomFormField";
-import { Form } from "../ui/form";
 
-interface ProductTypeFormProps {
+interface MaterialFormProps {
   mode: "create" | "edit";
-  initialData?: TypeFormValues;
-  onSubmit: (data: TypeFormValues) => Promise<void>;
+  initialData?: MaterialFormValues;
+  onSubmit: (data: MaterialFormValues) => Promise<void>;
   onCancel?: () => void;
 }
-
-const ProductTypeForm = ({
+const MaterialForm = ({
   mode,
   initialData,
   onSubmit,
   onCancel,
-}: ProductTypeFormProps) => {
+}: MaterialFormProps) => {
   const [isLoading, setIsLoading] = useState(false);
 
-  const form = useForm<TypeFormValues>({
-    resolver: zodResolver(TypeFormValidation),
+  const form = useForm<MaterialFormValues>({
+    resolver: zodResolver(MaterialFormValidation),
     defaultValues: initialData || {
       name: "",
-      description: "",
     },
   });
 
-  const handleSubmit = async (values: TypeFormValues) => {
+  const handleSubmit = async (values: MaterialFormValues) => {
     setIsLoading(true);
     try {
       await onSubmit(values);
@@ -51,16 +49,8 @@ const ProductTypeForm = ({
           fieldType={FormFieldType.INPUT}
           control={form.control}
           name="name"
-          label="Product Type Name"
-          placeholder="Enter Product Type name"
-        />
-
-        <CustomFormField
-          fieldType={FormFieldType.TEXTAREA}
-          control={form.control}
-          name="description"
-          label="Description"
-          placeholder="Enter product type description"
+          label="Name"
+          placeholder="Enter material name"
         />
 
         <div className="flex justify-end gap-4">
@@ -74,7 +64,7 @@ const ProductTypeForm = ({
             </Button>
           )}
           <SubmitButton isLoading={isLoading} className="shad-primary-btn">
-            {mode === "create" ? "Create Type" : "Update Type"}
+            {mode === "create" ? "Create Material" : "Update Material"}
           </SubmitButton>
         </div>
       </form>
@@ -82,4 +72,4 @@ const ProductTypeForm = ({
   );
 };
 
-export default ProductTypeForm;
+export default MaterialForm;

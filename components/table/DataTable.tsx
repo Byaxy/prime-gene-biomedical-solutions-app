@@ -60,7 +60,7 @@ export function DataTable<TData, TValue>({
   });
 
   return (
-    <div className="">
+    <div>
       <div className="flex items-center py-4">
         <Input
           placeholder="Search by name"
@@ -84,7 +84,7 @@ export function DataTable<TData, TValue>({
                   return (
                     <TableHead
                       key={header.id}
-                      className="text-sm font-semibold"
+                      className="text-sm font-semibold first:pl-4"
                     >
                       {header.isPlaceholder
                         ? null

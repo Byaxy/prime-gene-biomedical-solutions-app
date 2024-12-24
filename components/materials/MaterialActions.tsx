@@ -1,31 +1,35 @@
 import { useState } from "react";
-import { useTypes } from "@/hooks/useTypes";
-import { TypeFormValues } from "@/lib/validation";
-import { ProductTypes } from "@/types/appwrite.types";
+import { MaterialFormValues } from "@/lib/validation";
+import { Materials } from "@/types/appwrite.types";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
-import ProductTypeDialog from "./ProductTypeDialog";
+import { useMaterials } from "@/hooks/useMaterials";
+import MaterialDialog from "./MaterialDialog";
 
-const TypeActions = ({ productType }: { productType: ProductTypes }) => {
+const MaterialActions = ({ material }: { material: Materials }) => {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"add" | "edit" | "delete">("add");
 
-  const { softDeleteType, editType, isSoftDeletingType, isEditingType } =
-    useTypes();
+  const {
+    softDeleteMaterial,
+    editMaterial,
+    isSoftDeletingMaterial,
+    isEditingMaterial,
+  } = useMaterials();
 
-  const handleAction = async (data: TypeFormValues) => {
+  const handleAction = async (data: MaterialFormValues) => {
     // Handle different actions based on mode
     try {
       if (mode === "edit") {
-        // Edit type
-        await editType(
-          { id: productType.$id, data },
+        // Edit material
+        await editMaterial(
+          { id: material.$id, data },
           { onSuccess: () => setOpen(false) }
         );
         setOpen(false);
       } else if (mode === "delete") {
-        // Delete type
-        await softDeleteType(productType.$id, {
+        // Delete material
+        await softDeleteMaterial(material.$id, {
           onSuccess: () => setOpen(false),
         });
       }
@@ -53,16 +57,16 @@ const TypeActions = ({ productType }: { productType: ProductTypes }) => {
       >
         <DeleteIcon className="h-4 w-4" />
       </span>
-      <ProductTypeDialog
+      <MaterialDialog
         mode={mode}
         open={open}
         onOpenChange={setOpen}
-        productType={productType}
+        material={material}
         onSubmit={handleAction}
-        isLoading={isSoftDeletingType || isEditingType}
+        isLoading={isSoftDeletingMaterial || isEditingMaterial}
       />
     </div>
   );
 };
 
-export default TypeActions;
+export default MaterialActions;

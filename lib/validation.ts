@@ -42,3 +42,9 @@ export const TypeFormValidation = z.object({
   description: z.string().optional(),
 });
 export type TypeFormValues = z.infer<typeof TypeFormValidation>;
+
+// Materials
+export const MaterialFormValidation = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
+});
+export type MaterialFormValues = z.infer<typeof MaterialFormValidation>;

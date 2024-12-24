@@ -15,3 +15,11 @@ export interface ProductTypes {
   $createdAt: Date;
   $updatedAt: Date;
 }
+
+// Materials
+export interface Materials {
+  $id: string;
+  name: string;
+  $createdAt: Date;
+  $updatedAt: Date;
+}

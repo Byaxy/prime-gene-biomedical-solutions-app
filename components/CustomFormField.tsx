@@ -5,7 +5,7 @@ import Image from "next/image";
 import ReactDatePicker from "react-datepicker";
 import { Control } from "react-hook-form";
 import PhoneInput from "react-phone-number-input";
-
+import { HexColorPicker } from "react-colorful";
 import { Checkbox } from "./ui/checkbox";
 import {
   FormControl,
@@ -17,6 +17,7 @@ import {
 import { Input } from "./ui/input";
 import { Select, SelectContent, SelectTrigger, SelectValue } from "./ui/select";
 import { Textarea } from "./ui/textarea";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 
 export enum FormFieldType {
   INPUT = "input",
@@ -27,6 +28,7 @@ export enum FormFieldType {
   DATE_PICKER = "datePicker",
   SELECT = "select",
   SKELETON = "skeleton",
+  COLOR_PICKER = "colorPicker",
 }
 
 interface CustomProps {
@@ -144,6 +146,27 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
               {props.children}
             </SelectContent>
           </Select>
+        </FormControl>
+      );
+    case FormFieldType.COLOR_PICKER:
+      return (
+        <FormControl>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="w-10 h-10 rounded-md border border-input shadow-sm"
+                style={{ backgroundColor: field.value || "#000000" }}
+                aria-label="Pick a color"
+              />
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-3">
+              <HexColorPicker
+                color={field.value || "#000000"}
+                onChange={field.onChange}
+              />
+            </PopoverContent>
+          </Popover>
         </FormControl>
       );
     case FormFieldType.SKELETON:

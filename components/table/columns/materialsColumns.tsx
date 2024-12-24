@@ -2,13 +2,12 @@
 
 import { ColumnDef } from "@tanstack/table-core";
 import { formatDateTime } from "@/lib/utils";
-import { ProductTypes } from "@/types/appwrite.types";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Materials } from "@/types/appwrite.types";
+import MaterialActions from "@/components/materials/MaterialActions";
 
-import TypeActions from "@/components/productTypes/TypeActions";
-
-export const typesColumns: ColumnDef<ProductTypes>[] = [
+export const materialsColumns: ColumnDef<Materials>[] = [
   {
     header: "#",
     cell: ({ row }) => {
@@ -32,14 +31,6 @@ export const typesColumns: ColumnDef<ProductTypes>[] = [
     cell: ({ row }) => {
       const type = row.original;
       return <p className="text-14-medium ">{type.name}</p>;
-    },
-  },
-  {
-    accessorKey: "description",
-    header: "Description",
-    cell: ({ row }) => {
-      const type = row.original;
-      return <p className="text-14-medium ">{type.description || "-"}</p>;
     },
   },
   {
@@ -90,7 +81,7 @@ export const typesColumns: ColumnDef<ProductTypes>[] = [
     id: "actions",
     header: () => <div className="pl-4">Actions</div>,
     cell: ({ row }) => {
-      return <TypeActions productType={row.original} />;
+      return <MaterialActions material={row.original} />;
     },
   },
 ];
