@@ -47,7 +47,7 @@ const CategoryActions = ({ category }: { category: Categories }) => {
         }}
         className="text-[#475BE8] p-1 hover:bg-light-200 hover:rounded-md"
       >
-        <EditIcon className="h-4 w-4" />
+        <EditIcon className="h-5 w-5" />
       </span>
       <span
         onClick={() => {
@@ -56,7 +56,7 @@ const CategoryActions = ({ category }: { category: Categories }) => {
         }}
         className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md"
       >
-        <DeleteIcon className="h-4 w-4" />
+        <DeleteIcon className="h-5 w-5" />
       </span>
       <CategoryDialog
         mode={mode}

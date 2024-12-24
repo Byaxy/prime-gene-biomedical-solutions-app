@@ -22,6 +22,7 @@ export const typesColumns: ColumnDef<ProductTypes>[] = [
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="font-semibold"
         >
           Name
           <ArrowUpDown className="ml-2 h-4 w-4" />
@@ -49,6 +50,7 @@ export const typesColumns: ColumnDef<ProductTypes>[] = [
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="font-semibold"
         >
           Created At
           <ArrowUpDown className="ml-2 h-4 w-4" />
@@ -71,6 +73,7 @@ export const typesColumns: ColumnDef<ProductTypes>[] = [
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="font-semibold"
         >
           Updated At
           <ArrowUpDown className="ml-2 h-4 w-4" />
@@ -88,7 +91,7 @@ export const typesColumns: ColumnDef<ProductTypes>[] = [
   },
   {
     id: "actions",
-    header: () => <div className="pl-4">Actions</div>,
+    header: "Actions",
     cell: ({ row }) => {
       return <TypeActions productType={row.original} />;
     },

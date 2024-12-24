@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // Categories
 export interface Categories {
   $id: string;
@@ -29,6 +30,21 @@ export interface Colors {
   $id: string;
   name: string;
   code: string;
+  $createdAt: Date;
+  $updatedAt: Date;
+}
+
+// Products
+export interface Product {
+  $id: string;
+  name: string;
+  description: string;
+  price: number;
+  quantity: number;
+  categoryId: any;
+  typeId: any;
+  materialId: any;
+  colorId: any;
   $createdAt: Date;
   $updatedAt: Date;
 }

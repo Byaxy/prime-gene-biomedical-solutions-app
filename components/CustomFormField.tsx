@@ -22,6 +22,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 export enum FormFieldType {
   INPUT = "input",
   PASSWORD = "password",
+  NUMBER = "number",
   TEXTAREA = "textarea",
   PHONE_INPUT = "phoneInput",
   CHECKBOX = "checkbox",
@@ -71,10 +72,23 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
           </FormControl>
         </div>
       );
+    case FormFieldType.NUMBER:
+      return (
+        <FormControl>
+          <Input
+            type="number"
+            placeholder={props.placeholder}
+            {...field}
+            onChange={(e) => field.onChange(Number(e.target.value))}
+            className="shad-input"
+          />
+        </FormControl>
+      );
     case FormFieldType.TEXTAREA:
       return (
         <FormControl>
           <Textarea
+            rows={6}
             placeholder={props.placeholder}
             {...field}
             className="shad-textArea"

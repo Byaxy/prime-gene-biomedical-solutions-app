@@ -1,35 +1,35 @@
 import { useState } from "react";
-import { MaterialFormValues } from "@/lib/validation";
-import { Materials } from "@/types/appwrite.types";
+import { useProducts } from "@/hooks/useProducts";
+import { ProductFormValues } from "@/lib/validation";
+import { Product } from "@/types/appwrite.types";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { useMaterials } from "@/hooks/useMaterials";
-import MaterialDialog from "./MaterialDialog";
+import { ProductDialog } from "./ProductDialog";
 
-const MaterialActions = ({ material }: { material: Materials }) => {
+const ProductActions = ({ product }: { product: Product }) => {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"add" | "edit" | "delete">("add");
 
   const {
-    softDeleteMaterial,
-    editMaterial,
-    isSoftDeletingMaterial,
-    isEditingMaterial,
-  } = useMaterials();
+    softDeleteProduct,
+    editProduct,
+    isSoftDeletingProduct,
+    isEditingProduct,
+  } = useProducts();
 
-  const handleAction = async (data: MaterialFormValues) => {
+  const handleAction = async (data: ProductFormValues) => {
     // Handle different actions based on mode
     try {
       if (mode === "edit") {
-        // Edit material
-        await editMaterial(
-          { id: material.$id, data },
+        // Edit product
+        await editProduct(
+          { id: product.$id, data },
           { onSuccess: () => setOpen(false) }
         );
         setOpen(false);
       } else if (mode === "delete") {
-        // Delete material
-        await softDeleteMaterial(material.$id, {
+        // Delete product
+        await softDeleteProduct(product.$id, {
           onSuccess: () => setOpen(false),
         });
       }
@@ -37,6 +37,7 @@ const MaterialActions = ({ material }: { material: Materials }) => {
       console.error("Error:", error);
     }
   };
+
   return (
     <div className="flex items-center">
       <span
@@ -57,16 +58,16 @@ const MaterialActions = ({ material }: { material: Materials }) => {
       >
         <DeleteIcon className="h-5 w-5" />
       </span>
-      <MaterialDialog
+      <ProductDialog
         mode={mode}
         open={open}
         onOpenChange={setOpen}
-        material={material}
+        product={product}
         onSubmit={handleAction}
-        isLoading={isSoftDeletingMaterial || isEditingMaterial}
+        isLoading={isSoftDeletingProduct || isEditingProduct}
       />
     </div>
   );
 };
 
-export default MaterialActions;
+export default ProductActions;

@@ -55,3 +55,19 @@ export const ColorFormValidation = z.object({
   code: z.string().nonempty("Code is required"),
 });
 export type ColorFormValues = z.infer<typeof ColorFormValidation>;
+
+// Products
+export const ProductFormValidation = z.object({
+  name: z
+    .string()
+    .nonempty("Name is required")
+    .min(2, "Name must be at least 2 characters"),
+  description: z.string().optional(),
+  price: z.number().min(0, "Price must be 0 or more"),
+  quantity: z.number().int().min(0, "Quantity must be 0 or more"),
+  categoryId: z.string().nonempty("Category is required"),
+  typeId: z.string().nonempty("Type is required"),
+  materialId: z.string().nonempty("Material is required"),
+  colorId: z.string().nonempty("Color is required"),
+});
+export type ProductFormValues = z.infer<typeof ProductFormValidation>;
