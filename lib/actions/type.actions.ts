@@ -79,7 +79,7 @@ export const deleteType = async (typeId: string) => {
   }
 };
 
-// Soft Delete Category
+// Soft Delete Type
 export const softDeleteType = async (typeId: string) => {
   try {
     const response = await databases.updateDocument(

@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CategoryFormValues } from "@/lib/validation";
 import toast from "react-hot-toast";
@@ -39,7 +37,7 @@ export const useCategories = () => {
         queryClient.invalidateQueries({ queryKey: ["categories"] });
         toast.success("Category added successfully");
       },
-      onError: (error: any) => {
+      onError: (error) => {
         console.error("Error adding category:", error);
         toast.error("Failed to add category");
       },

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   addType,
   deleteType,
@@ -37,7 +36,7 @@ export const useTypes = () => {
       queryClient.invalidateQueries({ queryKey: ["types"] });
       toast.success("Type added successfully");
     },
-    onError: (error: any) => {
+    onError: (error) => {
       console.error("Error adding type:", error);
       toast.error("Failed to add type");
     },

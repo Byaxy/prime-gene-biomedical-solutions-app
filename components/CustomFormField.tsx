@@ -151,22 +151,24 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
     case FormFieldType.COLOR_PICKER:
       return (
         <FormControl>
-          <Popover>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                className="w-10 h-10 rounded-md border border-input shadow-sm"
-                style={{ backgroundColor: field.value || "#000000" }}
-                aria-label="Pick a color"
-              />
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-3">
-              <HexColorPicker
-                color={field.value || "#000000"}
-                onChange={field.onChange}
-              />
-            </PopoverContent>
-          </Popover>
+          <div>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="w-8 h-8 rounded-md border border-input shadow-sm"
+                  style={{ backgroundColor: field.value || "#000000" }}
+                  aria-label="Choose a color"
+                />
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-3 bg-white">
+                <HexColorPicker
+                  color={field.value || "#000000"}
+                  onChange={field.onChange}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
         </FormControl>
       );
     case FormFieldType.SKELETON:

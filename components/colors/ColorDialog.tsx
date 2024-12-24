@@ -1,5 +1,5 @@
-import { TypeFormValues } from "@/lib/validation";
-import { ProductTypes } from "@/types/appwrite.types";
+import { ColorFormValues } from "@/lib/validation";
+import { Colors } from "@/types/appwrite.types";
 import {
   Dialog,
   DialogContent,
@@ -8,50 +8,50 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 import { Button } from "../ui/button";
-import ProductTypeForm from "../forms/ProductTypeForm";
+import ColorForm from "../forms/ColorForm";
 
-interface ProductTypeDialogProps {
+interface ColorDialogProps {
   mode: "add" | "edit" | "delete";
   open: boolean;
   onOpenChange: (open: boolean) => void;
   isLoading?: boolean;
-  productType?: ProductTypes;
-  onSubmit: (data: TypeFormValues) => Promise<void>;
+  color?: Colors;
+  onSubmit: (data: ColorFormValues) => Promise<void>;
 }
-const ProductTypeDialog = ({
+
+const ColorDialog = ({
   mode,
   open,
   onOpenChange,
-  productType,
   isLoading,
+  color,
   onSubmit,
-}: ProductTypeDialogProps) => {
+}: ColorDialogProps) => {
   const handleDelete = async () => {
     try {
       await onSubmit({
-        name: productType?.name || "",
-        description: productType?.description,
+        name: color?.name || "",
+        code: color?.code || "",
       });
       onOpenChange(false);
     } catch (error) {
-      console.error("Error deleting type:", error);
+      console.error("Error deleting color:", error);
     } finally {
     }
   };
 
   const dialogTitle = {
-    add: "Add Type",
-    edit: "Edit Type",
-    delete: "Delete Type",
+    add: "Add Color",
+    edit: "Edit Color",
+    delete: "Delete Color",
   }[mode];
 
   const dialogDescription = {
-    add: "Add a new product type to your collection.",
-    edit: "Edit the selected type.",
+    add: "Add a new product color to your collection.",
+    edit: "Edit the selected color.",
     delete:
-      "Are you sure you want to delete this product type? This action cannot be undone.",
+      "Are you sure you want to delete this product color? This action cannot be undone.",
   }[mode];
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg bg-light-200">
@@ -67,8 +67,7 @@ const ProductTypeDialog = ({
         {mode === "delete" ? (
           <div className="flex flex-col gap-4">
             <p className="text-sm text-red-500">
-              Category:{" "}
-              <span className="font-semibold">{productType?.name}</span>
+              Category: <span className="font-semibold">{color?.name}</span>
             </p>
             <div className="flex justify-end gap-4">
               <Button
@@ -92,13 +91,13 @@ const ProductTypeDialog = ({
             </div>
           </div>
         ) : (
-          <ProductTypeForm
+          <ColorForm
             mode={mode === "add" ? "create" : "edit"}
             initialData={
               mode === "edit"
                 ? {
-                    name: productType?.name || "",
-                    description: productType?.description,
+                    name: color?.name || "",
+                    code: color?.code || "",
                   }
                 : undefined
             }
@@ -111,4 +110,4 @@ const ProductTypeDialog = ({
   );
 };
 
-export default ProductTypeDialog;
+export default ColorDialog;

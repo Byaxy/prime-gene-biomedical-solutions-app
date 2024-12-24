@@ -23,3 +23,12 @@ export interface Materials {
   $createdAt: Date;
   $updatedAt: Date;
 }
+
+// Colors
+export interface Colors {
+  $id: string;
+  name: string;
+  code: string;
+  $createdAt: Date;
+  $updatedAt: Date;
+}

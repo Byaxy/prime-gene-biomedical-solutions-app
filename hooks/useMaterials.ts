@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   addMaterial,
   deleteMaterial,
@@ -38,7 +37,7 @@ export const useMaterials = () => {
         queryClient.invalidateQueries({ queryKey: ["materials"] });
         toast.success("Material added successfully");
       },
-      onError: (error: any) => {
+      onError: (error) => {
         console.error("Error adding material:", error);
         toast.error("Failed to add material");
       },

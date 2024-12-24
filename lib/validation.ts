@@ -48,3 +48,10 @@ export const MaterialFormValidation = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
 });
 export type MaterialFormValues = z.infer<typeof MaterialFormValidation>;
+
+// Colors
+export const ColorFormValidation = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  code: z.string().nonempty("Code is required"),
+});
+export type ColorFormValues = z.infer<typeof ColorFormValidation>;
