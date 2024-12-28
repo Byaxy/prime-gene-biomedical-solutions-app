@@ -48,3 +48,14 @@ export interface Product {
   $createdAt: Date;
   $updatedAt: Date;
 }
+
+// Expenses
+export interface Expenses {
+  $id: string;
+  title: string;
+  description: string;
+  amount: number;
+  expenseDate: Date;
+  $createdAt: Date;
+  $updatedAt: Date;
+}

@@ -71,3 +71,17 @@ export const ProductFormValidation = z.object({
   colorId: z.string().nonempty("Color is required"),
 });
 export type ProductFormValues = z.infer<typeof ProductFormValidation>;
+
+// Expenses
+export const ExpenseFormValidation = z.object({
+  title: z
+    .string()
+    .nonempty("Title is required")
+    .min(2, "Name must be at least 2 characters"),
+  description: z.string().nonempty("Description is required"),
+  amount: z.number().min(0, "Amount must be 0 or more"),
+  expenseDate: z.date().refine((date) => date <= new Date(), {
+    message: "Expense date cannot be in the future",
+  }),
+});
+export type ExpenseFormValues = z.infer<typeof ExpenseFormValidation>;

@@ -1,8 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { E164Number } from "libphonenumber-js/core";
-import Image from "next/image";
-import ReactDatePicker from "react-datepicker";
 import { Control } from "react-hook-form";
 import PhoneInput from "react-phone-number-input";
 import { HexColorPicker } from "react-colorful";
@@ -18,6 +16,9 @@ import { Input } from "./ui/input";
 import { Select, SelectContent, SelectTrigger, SelectValue } from "./ui/select";
 import { Textarea } from "./ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import { CalendarIcon } from "lucide-react";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
 export enum FormFieldType {
   INPUT = "input",
@@ -80,7 +81,7 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
             placeholder={props.placeholder}
             {...field}
             onChange={(e) => field.onChange(Number(e.target.value))}
-            className="shad-input"
+            className="shad-input border-dark-700"
           />
         </FormControl>
       );
@@ -125,28 +126,29 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
           </div>
         </FormControl>
       );
+
     case FormFieldType.DATE_PICKER:
       return (
-        <div className="flex rounded-md border border-dark-500 bg-dark-400">
-          <Image
-            src="/assets/icons/calendar.svg"
-            height={24}
-            width={24}
-            alt="user"
-            className="ml-2"
-          />
+        <div className="flex items-center rounded-md border border-dark-700 bg-white">
           <FormControl>
-            <ReactDatePicker
-              showTimeSelect={props.showTimeSelect ?? false}
+            <DatePicker
               selected={field.value}
-              onChange={(date: Date | null) => field.onChange(date)}
-              timeInputLabel="Time:"
-              dateFormat={props.dateFormat ?? "MM/dd/yyyy"}
-              wrapperClassName="date-picker"
+              onChange={(date) => field.onChange(date)}
+              placeholderText={props.placeholder}
+              dateFormat={props.dateFormat || "MM/dd/yyyy"}
+              showTimeSelect={props.showTimeSelect}
+              className="shad-input w-full cursor-pointer px-3 py-2"
+              shouldCloseOnSelect={true}
+              calendarClassName="shadow-lg"
+              popperClassName="react-datepicker-popper"
+              disabled={props.disabled}
+              wrapperClassName="date-picker w-full"
             />
           </FormControl>
+          <CalendarIcon className="mr-3 h-4 w-4 opacity-50" />
         </div>
       );
+
     case FormFieldType.SELECT:
       return (
         <FormControl>
