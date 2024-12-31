@@ -158,14 +158,13 @@ export const getUsers = async () => {
   }
 };
 
-// soft delete user
-export const softDeleteUser = async (userId: string) => {
+// delete user
+export const deleteUser = async (userId: string) => {
   try {
-    const response = await databases.updateDocument(
+    const response = await databases.deleteDocument(
       DATABASE_ID!,
       NEXT_PUBLIC_USERS_COLLECTION_ID!,
-      userId,
-      { isActive: false }
+      userId
     );
 
     // delete user from Appwrite Authentication
@@ -182,21 +181,6 @@ export const softDeleteUser = async (userId: string) => {
     return parseStringify(response);
   } catch (error) {
     console.error("Error soft deleting user:", error);
-    throw error;
-  }
-};
-
-// permanently delete user
-export const permanentlyDeleteUser = async (userId: string) => {
-  try {
-    const response = await databases.deleteDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_USERS_COLLECTION_ID!,
-      userId
-    );
-    return parseStringify(response);
-  } catch (error) {
-    console.error("Error permanently deleting user:", error);
     throw error;
   }
 };

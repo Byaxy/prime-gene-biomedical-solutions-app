@@ -6,7 +6,7 @@ import { DataTable } from "@/components/table/DataTable";
 import { UserDialog } from "@/components/users/UserDialog";
 import { useAuth } from "@/context/AuthContext";
 import { useUsers } from "@/hooks/useUsers";
-import { UserFormValues } from "@/lib/validation";
+import { CreateUserFormValues, EditUserFormValues } from "@/lib/validation";
 import { useState } from "react";
 import toast from "react-hot-toast";
 
@@ -15,17 +15,26 @@ const Users = () => {
   const { users, addUser, isLoading, isCreatingUser } = useUsers();
   const { isAdmin } = useAuth();
 
-  const handleCreateUser = async (data: UserFormValues): Promise<void> => {
+  const handleCreateUser = async (
+    data: CreateUserFormValues | EditUserFormValues
+  ): Promise<void> => {
+    // Type guard to check if this is a create operation
+    const isCreateForm = (
+      data: CreateUserFormValues | EditUserFormValues
+    ): data is CreateUserFormValues => "password" in data;
+
     return new Promise((resolve, reject) => {
-      addUser(data, {
-        onSuccess: () => {
-          setIsAddDialogOpen(false);
-          resolve();
-        },
-        onError: (error) => {
-          reject(error);
-        },
-      });
+      if (isCreateForm(data)) {
+        addUser(data, {
+          onSuccess: () => {
+            setIsAddDialogOpen(false);
+            resolve();
+          },
+          onError: (error) => {
+            reject(error);
+          },
+        });
+      }
     });
   };
 

@@ -12,8 +12,7 @@ const UserActions = ({ user }: { user: Users }) => {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"add" | "edit" | "delete">("add");
 
-  const { editUser, softDeleteUser, isSoftDeletingUser, isEditingUser } =
-    useUsers();
+  const { editUser, deleteUser, isDeletingUser, isEditingUser } = useUsers();
   const { isAdmin } = useAuth();
 
   const handleAction = async (data: UserFormValues, prevImageId?: string) => {
@@ -27,7 +26,7 @@ const UserActions = ({ user }: { user: Users }) => {
         );
         setOpen(false);
       } else if (mode === "delete") {
-        await softDeleteUser(user.$id, {
+        await deleteUser(user.$id, {
           onSuccess: () => setOpen(false),
         });
       }
@@ -72,7 +71,7 @@ const UserActions = ({ user }: { user: Users }) => {
         onOpenChange={setOpen}
         user={user}
         onSubmit={handleAction}
-        isLoading={isSoftDeletingUser || isEditingUser}
+        isLoading={isDeletingUser || isEditingUser}
       />
     </div>
   );

@@ -6,7 +6,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { UserFormValues } from "@/lib/validation";
+import { CreateUserFormValues, EditUserFormValues } from "@/lib/validation";
 import { Users } from "@/types/appwrite.types";
 import UserForm from "../forms/UserForm";
 
@@ -16,7 +16,10 @@ interface UserDialogProps {
   onOpenChange: (open: boolean) => void;
   isLoading?: boolean;
   user?: Users;
-  onSubmit: (data: UserFormValues) => Promise<void>;
+  onSubmit: (
+    data: CreateUserFormValues | EditUserFormValues,
+    prevImageId?: string
+  ) => Promise<void>;
 }
 
 export function UserDialog({
@@ -28,20 +31,20 @@ export function UserDialog({
   onSubmit,
 }: UserDialogProps) {
   const handleDelete = async () => {
+    if (!user) return;
+
     try {
-      await onSubmit({
-        email: user?.email || "",
-        phone: user?.phone || "",
-        name: user?.name || "",
-        role: user?.role || "",
-        password: "",
-        confirmPassword: "",
+      const deleteData: EditUserFormValues = {
+        name: user.name,
+        phone: user.phone,
+        role: user.role,
         image: [],
-      });
+      };
+
+      await onSubmit(deleteData);
       onOpenChange(false);
     } catch (error) {
       console.error("Error deleting user:", error);
-    } finally {
     }
   };
 
@@ -100,21 +103,21 @@ export function UserDialog({
           <UserForm
             mode={mode === "add" ? "create" : "edit"}
             initialData={
-              mode === "edit"
+              mode === "edit" && user
                 ? {
-                    $id: user?.$id || "",
-                    name: user?.name || "",
-                    email: user?.email || "",
-                    phone: user?.phone || "",
-                    role: user?.role || "",
-                    profileImageId: user?.profileImageId || "",
-                    profileImageUrl: user?.profileImageUrl || "",
-                    $createdAt: user?.$createdAt || new Date(),
-                    $updatedAt: user?.$updatedAt || new Date(),
+                    $id: user.$id,
+                    name: user.name,
+                    email: user.email,
+                    phone: user.phone,
+                    role: user.role,
+                    profileImageId: user.profileImageId,
+                    profileImageUrl: user.profileImageUrl,
+                    $createdAt: user.$createdAt,
+                    $updatedAt: user.$updatedAt,
                   }
                 : undefined
             }
-            onSubmit={onSubmit}
+            onSubmit={(data) => onSubmit(data, user?.profileImageId)}
             onCancel={() => onOpenChange(false)}
           />
         )}

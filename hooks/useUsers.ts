@@ -2,7 +2,7 @@ import {
   addUser,
   editUser,
   getUsers,
-  softDeleteUser,
+  deleteUser,
 } from "@/lib/actions/user.actions";
 import { storage } from "@/lib/appwrite-client";
 import { CreateUserFormValues, EditUserFormValues } from "@/lib/validation";
@@ -74,8 +74,6 @@ export const useUsers = () => {
         profileImageUrl,
       };
 
-      console.log(userData);
-
       return addUser(userData);
     },
     onSuccess: () => {
@@ -146,34 +144,15 @@ export const useUsers = () => {
   });
 
   // Delete user mutation
-  const { mutate: softDeleteUserMutation, status: softDeleteUserStatus } =
-    useMutation({
-      mutationFn: (id: string) => softDeleteUser(id),
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["users"] });
-        toast.success("User deleted successfully");
-      },
-      onError: (error) => {
-        console.error("Error deleting user:", error);
-        toast.error("Failed to delete user");
-      },
-    });
-
-  // permanently delete user mutation
   const { mutate: deleteUserMutation, status: deleteUserStatus } = useMutation({
-    mutationFn: async (id: string) => {
-      const response = await fetch(`/api/users/${id}`, {
-        method: "DELETE",
-      });
-      return response.json();
-    },
+    mutationFn: (id: string) => deleteUser(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
-      toast.success("User permanently deleted successfully");
+      toast.success("User deleted successfully");
     },
     onError: (error) => {
-      console.error("Error permanently deleting user:", error);
-      toast.error("Failed to permanently delete user");
+      console.error("Error deleting user:", error);
+      toast.error("Failed to delete user");
     },
   });
 
@@ -185,9 +164,7 @@ export const useUsers = () => {
     isCreatingUser: addUserStatus === "pending",
     editUser: editUserMutation,
     isEditingUser: editUserStatus === "pending",
-    softDeleteUser: softDeleteUserMutation,
-    isSoftDeletingUser: softDeleteUserStatus === "pending",
-    permanentlyDeleteUser: deleteUserMutation,
-    isPermanentlyDeletingUser: deleteUserStatus === "pending",
+    deleteUser: deleteUserMutation,
+    isDeletingUser: deleteUserStatus === "pending",
   };
 };
