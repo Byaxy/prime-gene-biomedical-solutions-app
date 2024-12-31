@@ -16,6 +16,7 @@ export const categoriesColumns: ColumnDef<Categories>[] = [
     },
   },
   {
+    id: "name",
     accessorKey: "name",
     header: ({ column }) => {
       return (

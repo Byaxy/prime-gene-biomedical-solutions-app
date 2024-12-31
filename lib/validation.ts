@@ -7,27 +7,31 @@ export const LoginFormValidation = z.object({
     .min(8, "Password is required and must be at least 8 characters"),
 });
 
-export const CreateUserFormValidation = z
+export const CreateUserValidation = z
   .object({
-    name: z
-      .string()
-      .trim()
-      .min(2, "Name must be at least 2 characters")
-      .max(50, "Name must be at most 50 characters"),
+    name: z.string().min(1, "Name is required"),
     email: z.string().email("Invalid email address"),
-    phone: z
-      .string()
-      .refine((phone) => /^\+\d{10,15}$/.test(phone), "Invalid phone number"),
-    role: z.string().min(1, "Role is required"),
-    password: z
-      .string()
-      .min(8, "Password is required and must be at least 8 characters"),
+    phone: z.string().min(1, "Phone number is required"),
+    password: z.string().min(6, "Password must be at least 6 characters"),
     confirmPassword: z.string(),
+    role: z.string().min(1, "Role is required"),
+    image: z.any().optional(),
   })
   .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords do not match",
+    message: "Passwords don't match",
     path: ["confirmPassword"],
   });
+
+export const EditUserValidation = z.object({
+  name: z.string().min(1, "Name is required"),
+  role: z.string().min(1, "Role is required"),
+  phone: z.string().min(1, "Phone number is required"),
+  image: z.any().optional(),
+});
+
+export type CreateUserFormValues = z.infer<typeof CreateUserValidation>;
+export type EditUserFormValues = z.infer<typeof EditUserValidation>;
+export type UserFormValues = CreateUserFormValues | EditUserFormValues;
 
 // Categories
 export const CategoryFormValidation = z.object({

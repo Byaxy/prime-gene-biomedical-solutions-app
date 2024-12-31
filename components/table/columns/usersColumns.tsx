@@ -2,16 +2,35 @@
 
 import { ColumnDef } from "@tanstack/table-core";
 import { formatDateTime } from "@/lib/utils";
+import { Users } from "@/types/appwrite.types";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Materials } from "@/types/appwrite.types";
-import MaterialActions from "@/components/materials/MaterialActions";
+import UserActions from "@/components/users/UserActions";
+import Image from "next/image";
 
-export const materialsColumns: ColumnDef<Materials>[] = [
+export const usersColumns: ColumnDef<Users>[] = [
   {
     header: "#",
     cell: ({ row }) => {
       return <p className="text-14-medium pl-2">{row.index + 1}</p>;
+    },
+  },
+  {
+    header: "Image",
+    cell: ({ row }) => {
+      const user = row.original;
+      return (
+        <div className="flex items-center">
+          <Image
+            src={user.profileImageUrl || "/assets/images/user.png"}
+            alt={user.name}
+            width={50}
+            height={50}
+            className="h-12 w-12 rounded-full object-cover"
+            priority={true}
+          />
+        </div>
+      );
     },
   },
   {
@@ -31,8 +50,32 @@ export const materialsColumns: ColumnDef<Materials>[] = [
     },
 
     cell: ({ row }) => {
-      const type = row.original;
-      return <p className="text-14-medium ">{type.name}</p>;
+      const user = row.original;
+      return <p className="text-14-medium ">{user.name}</p>;
+    },
+  },
+  {
+    accessorKey: "email",
+    header: "Email",
+    cell: ({ row }) => {
+      const user = row.original;
+      return <p className="text-14-medium ">{user.email || "-"}</p>;
+    },
+  },
+  {
+    accessorKey: "phone",
+    header: "Phone",
+    cell: ({ row }) => {
+      const user = row.original;
+      return <p className="text-14-medium ">{user.phone || "-"}</p>;
+    },
+  },
+  {
+    accessorKey: "role",
+    header: "Role",
+    cell: ({ row }) => {
+      const user = row.original;
+      return <p className="text-14-medium ">{user.role || "-"}</p>;
     },
   },
   {
@@ -50,10 +93,10 @@ export const materialsColumns: ColumnDef<Materials>[] = [
       );
     },
     cell: ({ row }) => {
-      const type = row.original;
+      const user = row.original;
       return (
         <p className="text-14-medium ">
-          {formatDateTime(type.$createdAt).dateTime}
+          {formatDateTime(user.$createdAt).dateTime}
         </p>
       );
     },
@@ -73,10 +116,10 @@ export const materialsColumns: ColumnDef<Materials>[] = [
       );
     },
     cell: ({ row }) => {
-      const type = row.original;
+      const user = row.original;
       return (
         <p className="text-14-medium">
-          {formatDateTime(type.$updatedAt).dateTime}
+          {formatDateTime(user.$updatedAt).dateTime}
         </p>
       );
     },
@@ -85,7 +128,7 @@ export const materialsColumns: ColumnDef<Materials>[] = [
     id: "actions",
     header: "Actions",
     cell: ({ row }) => {
-      return <MaterialActions material={row.original} />;
+      return <UserActions user={row.original} />;
     },
   },
 ];

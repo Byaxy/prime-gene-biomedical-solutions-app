@@ -1,33 +1,25 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use server";
 
-import { ID } from "node-appwrite";
+import { ID, Query } from "node-appwrite";
 import { revalidatePath } from "next/cache";
 import { parseStringify } from "../utils";
 import {
+  users,
   databases,
   DATABASE_ID,
   NEXT_PUBLIC_USERS_COLLECTION_ID,
 } from "../appwrite-server";
 import { account } from "../appwrite-client";
+import { CreateUserFormValues, EditUserFormValues } from "../validation";
+
+interface UserDataWithImage extends Omit<CreateUserFormValues, "image"> {
+  profileImageId: string;
+  profileImageUrl: string;
+}
 
 // create user
-export const createUser = async (user: CreateUserParams) => {
+export const addUser = async (user: UserDataWithImage) => {
   try {
-    // Verify admin status
-    //const admin = await account.get();
-
-    // Fetch user's role from the database
-    //const adminDoc = await databases.getDocument(
-    //  DATABASE_ID!,
-    //  USERS_COLLECTION_ID!,
-    //  admin.$id
-    //);
-
-    //if (adminDoc.role !== "admin") {
-    //  throw new Error("Unauthorized: Only admins can create users");
-    //}
-
     // Create user in Appwrite Authentication
     const newUser = await account.create(
       ID.unique(),
@@ -36,12 +28,15 @@ export const createUser = async (user: CreateUserParams) => {
       user.name
     );
 
+    // store user image in Appwrite Storage
     if (newUser) {
       const dbUser = {
         name: user.name,
         email: user.email,
         phone: user.phone,
         role: user.role,
+        profileImageId: user.profileImageId || "", // Store as separate fields
+        profileImageUrl: user.profileImageUrl || "",
       };
 
       // Create user document in database
@@ -55,8 +50,153 @@ export const createUser = async (user: CreateUserParams) => {
       revalidatePath("/users");
       return parseStringify(newDbUser);
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error creating user:", error);
+    throw error;
+  }
+};
+
+// Edite user
+interface EditUserWithImage extends Omit<EditUserFormValues, "image"> {
+  profileImageId: string;
+  profileImageUrl: string;
+}
+export const editUser = async (user: EditUserWithImage, userId: string) => {
+  try {
+    let response;
+
+    // First get the current user data to compare
+    const currentUser = await databases.getDocument(
+      DATABASE_ID!,
+      NEXT_PUBLIC_USERS_COLLECTION_ID!,
+      userId
+    );
+
+    // Update name only if changed
+    if (currentUser.name !== user.name) {
+      try {
+        await users.updateName(userId, user.name);
+      } catch (error) {
+        console.error("Error updating user name:", error);
+        throw new Error("Failed to update user name");
+      }
+    }
+
+    // Update phone only if changed
+    if (currentUser.phone !== user.phone) {
+      try {
+        await users.updatePhone(userId, user.phone);
+      } catch (error) {
+        console.error("Error updating user phone:", error);
+        throw new Error("Failed to update user phone");
+      }
+    }
+
+    // Update database document only if there are changes
+    const hasChanges =
+      currentUser.name !== user.name ||
+      currentUser.phone !== user.phone ||
+      currentUser.role !== user.role ||
+      (user.profileImageId && user.profileImageUrl); // Always update if new image
+
+    if (hasChanges) {
+      try {
+        if (user.profileImageId && user.profileImageUrl) {
+          response = await databases.updateDocument(
+            DATABASE_ID!,
+            NEXT_PUBLIC_USERS_COLLECTION_ID!,
+            userId,
+            {
+              name: user.name,
+              phone: user.phone,
+              role: user.role,
+              profileImageId: user.profileImageId,
+              profileImageUrl: user.profileImageUrl,
+            }
+          );
+        } else {
+          response = await databases.updateDocument(
+            DATABASE_ID!,
+            NEXT_PUBLIC_USERS_COLLECTION_ID!,
+            userId,
+            {
+              name: user.name,
+              phone: user.phone,
+              role: user.role,
+            }
+          );
+        }
+      } catch (error) {
+        console.error("Error updating user document:", error);
+        throw new Error("Failed to update user information in database");
+      }
+    } else {
+      // If no changes, return the current user data
+      response = currentUser;
+    }
+
+    revalidatePath("/users");
+    return parseStringify(response);
+  } catch (error) {
+    console.error("Error updating user:", error);
+    throw error;
+  }
+};
+
+// get users
+export const getUsers = async () => {
+  try {
+    const response = await databases.listDocuments(
+      DATABASE_ID!,
+      NEXT_PUBLIC_USERS_COLLECTION_ID!,
+      [Query.equal("isActive", true), Query.orderDesc("$createdAt")]
+    );
+    return parseStringify(response.documents);
+  } catch (error) {
+    console.error("Error getting users:", error);
+    throw error;
+  }
+};
+
+// soft delete user
+export const softDeleteUser = async (userId: string) => {
+  try {
+    const response = await databases.updateDocument(
+      DATABASE_ID!,
+      NEXT_PUBLIC_USERS_COLLECTION_ID!,
+      userId,
+      { isActive: false }
+    );
+
+    // delete user from Appwrite Authentication
+    try {
+      await users.delete(userId);
+    } catch (error) {
+      console.warn(
+        "Warning: Could not delete user from authentication:",
+        error
+      );
+    }
+
+    revalidatePath("/users");
+    return parseStringify(response);
+  } catch (error) {
+    console.error("Error soft deleting user:", error);
+    throw error;
+  }
+};
+
+// permanently delete user
+export const permanentlyDeleteUser = async (userId: string) => {
+  try {
+    const response = await databases.deleteDocument(
+      DATABASE_ID!,
+      NEXT_PUBLIC_USERS_COLLECTION_ID!,
+      userId
+    );
+    return parseStringify(response);
+  } catch (error) {
+    console.error("Error permanently deleting user:", error);
     throw error;
   }
 };

@@ -3,6 +3,17 @@ const nextConfig = {
   reactStrictMode: true,
   output: "standalone",
   poweredByHeader: false,
+  images: {
+    domains: ["cloud.appwrite.io"],
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "cloud.appwrite.io",
+        port: "",
+        pathname: "/**",
+      },
+    ],
+  },
   // Force dynamic rendering for all pages
   staticPageGenerationTimeout: 0,
   experimental: {

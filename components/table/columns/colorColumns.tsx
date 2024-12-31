@@ -15,6 +15,7 @@ export const colorColumns: ColumnDef<Colors>[] = [
     },
   },
   {
+    id: "name",
     accessorKey: "name",
     header: ({ column }) => {
       return (

@@ -38,6 +38,7 @@ export const expensesColumns: ColumnDef<Expenses>[] = [
     },
   },
   {
+    id: "title",
     accessorKey: "title",
     header: ({ column }) => {
       return (

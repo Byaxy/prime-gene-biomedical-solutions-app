@@ -59,3 +59,16 @@ export interface Expenses {
   $createdAt: Date;
   $updatedAt: Date;
 }
+
+// Users
+export interface Users {
+  $id: string;
+  name: string;
+  email: string;
+  phone: string;
+  role: string;
+  profileImageId: string;
+  profileImageUrl: string;
+  $createdAt: Date;
+  $updatedAt: Date;
+}
