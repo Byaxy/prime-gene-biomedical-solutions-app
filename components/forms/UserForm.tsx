@@ -108,10 +108,12 @@ const UserForm = ({ mode, initialData, onSubmit, onCancel }: UserFormProps) => {
             placeholder="Select a role"
           >
             {RoleOptions.map((role, i) => (
-              <SelectItem key={role + i} value={role}>
-                <div className="flex cursor-pointer items-center gap-2 capitalize">
-                  <span>{role}</span>
-                </div>
+              <SelectItem
+                key={role + i}
+                value={role}
+                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
+              >
+                {role}
               </SelectItem>
             ))}
           </CustomFormField>

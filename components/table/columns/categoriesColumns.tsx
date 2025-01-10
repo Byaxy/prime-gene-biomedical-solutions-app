@@ -23,7 +23,7 @@ export const categoriesColumns: ColumnDef<Categories>[] = [
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="font-semibold"
+          className="font-semibold px-0"
         >
           Name
           <ArrowUpDown className="ml-2 h-4 w-4" />
@@ -51,7 +51,7 @@ export const categoriesColumns: ColumnDef<Categories>[] = [
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="font-semibold"
+          className="font-semibold px-0"
         >
           Created At
           <ArrowUpDown className="ml-2 h-4 w-4" />
@@ -74,7 +74,7 @@ export const categoriesColumns: ColumnDef<Categories>[] = [
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="font-semibold"
+          className="font-semibold px-0"
         >
           Updated At
           <ArrowUpDown className="ml-2 h-4 w-4" />

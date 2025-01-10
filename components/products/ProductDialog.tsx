@@ -34,7 +34,8 @@ export function ProductDialog({
       await onSubmit({
         name: product?.name || "",
         description: product?.description || "",
-        price: product?.price || 0,
+        costPrice: product?.costPrice || 0,
+        sellingPrice: product?.sellingPrice || 0,
         quantity: product?.quantity || 0,
         categoryId: product?.categoryId || "",
         typeId: product?.typeId || "",
@@ -65,7 +66,7 @@ export function ProductDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={cn(
-          "sm:max-w-xl bg-light-200 mx-2 sm:mx-0",
+          "sm:max-w-2xl bg-light-200 mx-2 sm:mx-0",
           mode === "delete" && "sm:max-w-lg"
         )}
       >
@@ -108,16 +109,17 @@ export function ProductDialog({
           <ProductForm
             mode={mode === "add" ? "create" : "edit"}
             initialData={
-              mode === "edit"
+              mode === "edit" && product
                 ? {
-                    name: product?.name || "",
-                    description: product?.description || "",
-                    price: product?.price || 0,
-                    quantity: product?.quantity || 0,
-                    categoryId: product?.categoryId.$id || "",
-                    typeId: product?.typeId.$id || "",
-                    materialId: product?.materialId.$id || "",
-                    colorId: product?.colorId.$id || "",
+                    name: product.name,
+                    description: product.description,
+                    costPrice: product.costPrice,
+                    sellingPrice: product.sellingPrice,
+                    quantity: product.quantity,
+                    categoryId: product.categoryId.$id,
+                    typeId: product.typeId.$id,
+                    materialId: product.materialId.$id,
+                    colorId: product.colorId.$id,
                   }
                 : undefined
             }

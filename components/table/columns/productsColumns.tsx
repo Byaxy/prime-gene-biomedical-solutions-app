@@ -21,7 +21,7 @@ export const productsColumns: ColumnDef<Product>[] = [
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="font-semibold"
+          className="font-semibold px-0"
         >
           Name
           <ArrowUpDown className="ml-2 h-4 w-4" />
@@ -35,27 +35,11 @@ export const productsColumns: ColumnDef<Product>[] = [
     },
   },
   {
-    accessorKey: "description",
-    header: "Description",
+    accessorKey: "material",
+    header: "Material",
     cell: ({ row }) => {
       const product = row.original;
-      return <p className="text-14-medium">{product.description || "-"}</p>;
-    },
-  },
-  {
-    accessorKey: "quantity",
-    header: "Quantity Available",
-    cell: ({ row }) => {
-      const product = row.original;
-      return <p className="text-14-medium">{product.quantity}</p>;
-    },
-  },
-  {
-    accessorKey: "price",
-    header: "Price",
-    cell: ({ row }) => {
-      const product = row.original;
-      return <p className="text-14-medium">{product.price}</p>;
+      return <p className="text-14-medium">{product.materialId.name || "-"}</p>;
     },
   },
   {
@@ -72,14 +56,6 @@ export const productsColumns: ColumnDef<Product>[] = [
     },
   },
   {
-    accessorKey: "category",
-    header: "Category",
-    cell: ({ row }) => {
-      const product = row.original;
-      return <p className="text-14-medium">{product.categoryId.name || "-"}</p>;
-    },
-  },
-  {
     accessorKey: "type",
     header: "Type",
     cell: ({ row }) => {
@@ -88,11 +64,35 @@ export const productsColumns: ColumnDef<Product>[] = [
     },
   },
   {
-    accessorKey: "material",
-    header: "Material",
+    accessorKey: "category",
+    header: "Category",
     cell: ({ row }) => {
       const product = row.original;
-      return <p className="text-14-medium">{product.materialId.name || "-"}</p>;
+      return <p className="text-14-medium">{product.categoryId.name || "-"}</p>;
+    },
+  },
+  {
+    accessorKey: "quantity",
+    header: "Quantity Available",
+    cell: ({ row }) => {
+      const product = row.original;
+      return <p className="text-14-medium">{product.quantity}</p>;
+    },
+  },
+  {
+    accessorKey: "price",
+    header: "Price",
+    cell: ({ row }) => {
+      const product = row.original;
+      return <p className="text-14-medium">{product.sellingPrice}</p>;
+    },
+  },
+  {
+    accessorKey: "description",
+    header: "Description",
+    cell: ({ row }) => {
+      const product = row.original;
+      return <p className="text-14-medium">{product.description || "-"}</p>;
     },
   },
 

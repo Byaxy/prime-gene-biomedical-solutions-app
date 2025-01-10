@@ -67,7 +67,8 @@ export const ProductFormValidation = z.object({
     .nonempty("Name is required")
     .min(2, "Name must be at least 2 characters"),
   description: z.string().optional(),
-  price: z.number().min(0, "Price must be 0 or more"),
+  costPrice: z.number().min(0, "Price must be 0 or more"),
+  sellingPrice: z.number().min(0, "Price must be 0 or more"),
   quantity: z.number().int().min(0, "Quantity must be 0 or more"),
   categoryId: z.string().nonempty("Category is required"),
   typeId: z.string().nonempty("Type is required"),
@@ -89,3 +90,35 @@ export const ExpenseFormValidation = z.object({
   }),
 });
 export type ExpenseFormValues = z.infer<typeof ExpenseFormValidation>;
+
+// Purchases
+export const PurchaseFormValidation = z.object({
+  purchaseOrderNumber: z.string().nonempty("Purchase order number is required"),
+  purchaseDate: z.date().refine((date) => date <= new Date(), {
+    message: "Purchase date cannot be in the future",
+  }),
+  totalAmount: z.number().min(0, "Total amount must be 0 or more"),
+  amountPaid: z.number().min(0, "Amount paid must be 0 or more"),
+  supplierId: z.string().nonempty("Supplier is required"),
+  status: z.enum(["pending", "completed", "cancelled"]).default("pending"),
+  notes: z.string().optional(),
+  products: z
+    .array(
+      z.object({
+        productId: z.string().nonempty("Product is required"),
+        quantity: z.number().int().min(0, "Quantity must be 0 or more"),
+        unitPrice: z.number().min(0, "Unit price must be 0 or more"),
+        totalPrice: z.number().min(0, "Total price must be 0 or more"),
+        productName: z.string().optional(),
+        productMaterial: z.string().optional(),
+        productColor: z.string().optional(),
+        productColorCode: z.string().optional(),
+      })
+    )
+    .min(1, "At least one product is required"),
+  // Temporary fields for product selection
+  selectedProduct: z.string().optional(),
+  tempQuantity: z.number().optional(),
+  tempPrice: z.number().optional(),
+});
+export type PurchaseFormValues = z.infer<typeof PurchaseFormValidation>;

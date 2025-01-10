@@ -29,6 +29,22 @@ export const addProduct = async (productData: ProductFormValues) => {
   }
 };
 
+// Get Product
+export const getProductById = async (productId: string) => {
+  try {
+    const response = await databases.getDocument(
+      DATABASE_ID!,
+      NEXT_PUBLIC_PRODUCTS_COLLECTION_ID!,
+      productId
+    );
+
+    return parseStringify(response);
+  } catch (error) {
+    console.error("Error getting product:", error);
+    throw error;
+  }
+};
+
 // Get Products
 export const getProducts = async () => {
   try {

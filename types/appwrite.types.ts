@@ -39,7 +39,8 @@ export interface Product {
   $id: string;
   name: string;
   description: string;
-  price: number;
+  costPrice: number;
+  sellingPrice: number;
   quantity: number;
   categoryId: any;
   typeId: any;
@@ -69,6 +70,33 @@ export interface Users {
   role: string;
   profileImageId: string;
   profileImageUrl: string;
+  $createdAt: Date;
+  $updatedAt: Date;
+}
+
+// Purchases
+export interface Purchase {
+  $id: string;
+  purchaseOrderNumber: string;
+  productId: any;
+  quantity: number;
+  totalAmount: number;
+  amountPaid: number;
+  purchaseDate: Date;
+  supplierId: any;
+  products: any[];
+  status: "pending" | "completed" | "cancelled";
+  notes?: string;
+  $createdAt: Date;
+  $updatedAt: Date;
+}
+
+// Suppliers
+export interface Supplier {
+  $id: string;
+  name: string;
+  email: string;
+  phone: string;
   $createdAt: Date;
   $updatedAt: Date;
 }

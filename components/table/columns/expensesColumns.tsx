@@ -21,7 +21,7 @@ export const expensesColumns: ColumnDef<Expenses>[] = [
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="font-semibold"
+          className="font-semibold px-0"
         >
           Date
           <ArrowUpDown className="ml-2 h-4 w-4" />
@@ -45,7 +45,7 @@ export const expensesColumns: ColumnDef<Expenses>[] = [
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="font-semibold"
+          className="font-semibold px-0"
         >
           Title
           <ArrowUpDown className="ml-2 h-4 w-4" />
@@ -65,7 +65,7 @@ export const expensesColumns: ColumnDef<Expenses>[] = [
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="font-semibold"
+          className="font-semibold px-0"
         >
           Amount
           <ArrowUpDown className="ml-2 h-4 w-4" />

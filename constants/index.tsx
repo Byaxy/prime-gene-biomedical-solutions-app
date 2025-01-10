@@ -91,3 +91,5 @@ export const sidebarData: SidebarDataType[] = [
 ];
 
 export const RoleOptions = ["user", "admin"];
+
+export const purchaseStatus = ["pending", "completed", "cancelled"];
