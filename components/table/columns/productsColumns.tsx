@@ -39,7 +39,11 @@ export const productsColumns: ColumnDef<Product>[] = [
     header: "Material",
     cell: ({ row }) => {
       const product = row.original;
-      return <p className="text-14-medium">{product.materialId.name || "-"}</p>;
+      return (
+        <p className="text-14-medium">
+          {(product?.materialId && product?.materialId.name) || "-"}
+        </p>
+      );
     },
   },
   {
@@ -49,7 +53,7 @@ export const productsColumns: ColumnDef<Product>[] = [
       const product = row.original;
       return (
         <div
-          style={{ backgroundColor: product.colorId.code }}
+          style={{ backgroundColor: product?.colorId && product?.colorId.code }}
           className="h-5 w-5 rounded-full"
         />
       );
@@ -60,7 +64,11 @@ export const productsColumns: ColumnDef<Product>[] = [
     header: "Type",
     cell: ({ row }) => {
       const product = row.original;
-      return <p className="text-14-medium">{product.typeId.name || "-"}</p>;
+      return (
+        <p className="text-14-medium">
+          {(product?.typeId && product?.typeId.name) || "-"}
+        </p>
+      );
     },
   },
   {
@@ -68,7 +76,11 @@ export const productsColumns: ColumnDef<Product>[] = [
     header: "Category",
     cell: ({ row }) => {
       const product = row.original;
-      return <p className="text-14-medium">{product.categoryId.name || "-"}</p>;
+      return (
+        <p className="text-14-medium">
+          {(product?.categoryId && product?.categoryId.name) || "-"}
+        </p>
+      );
     },
   },
   {
@@ -76,7 +88,12 @@ export const productsColumns: ColumnDef<Product>[] = [
     header: "Quantity Available",
     cell: ({ row }) => {
       const product = row.original;
-      return <p className="text-14-medium">{product.quantity}</p>;
+      return (
+        <p className="text-14-medium">
+          {product.quantity || 0}
+          {(product?.unitId && product?.unitId.code) || ""}
+        </p>
+      );
     },
   },
   {

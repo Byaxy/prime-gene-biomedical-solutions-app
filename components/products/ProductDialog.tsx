@@ -41,6 +41,7 @@ export function ProductDialog({
         typeId: product?.typeId || "",
         materialId: product?.materialId || "",
         colorId: product?.colorId || "",
+        unitId: product?.unitId || "",
       });
       onOpenChange(false);
     } catch (error) {
@@ -116,10 +117,15 @@ export function ProductDialog({
                     costPrice: product.costPrice,
                     sellingPrice: product.sellingPrice,
                     quantity: product.quantity,
-                    categoryId: product.categoryId.$id,
-                    typeId: product.typeId.$id,
-                    materialId: product.materialId.$id,
-                    colorId: product.colorId.$id,
+                    categoryId: product.categoryId
+                      ? product.categoryId.$id
+                      : "",
+                    typeId: product.typeId ? product.typeId.$id : "",
+                    materialId: product.materialId
+                      ? product.materialId.$id
+                      : "",
+                    colorId: product.colorId ? product.colorId.$id : "",
+                    unitId: product.unitId ? product.unitId.$id : "",
                   }
                 : undefined
             }

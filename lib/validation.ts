@@ -75,6 +75,7 @@ export const ProductFormValidation = z.object({
   typeId: z.string().nonempty("Type is required"),
   materialId: z.string().nonempty("Material is required"),
   colorId: z.string().nonempty("Color is required"),
+  unitId: z.string().nonempty("Unit is required"),
 });
 export type ProductFormValues = z.infer<typeof ProductFormValidation>;
 
@@ -135,3 +136,14 @@ export const SupplierFormValidation = z.object({
   phone: z.string().optional(),
 });
 export type SupplierFormValues = z.infer<typeof SupplierFormValidation>;
+
+// Units
+export const UnitFormValidation = z.object({
+  name: z
+    .string()
+    .min(2, "Name must be at least 2 characters")
+    .nonempty("Name is required"),
+  code: z.string().nonempty("Code is required"),
+  description: z.string().optional(),
+});
+export type UnitFormValues = z.infer<typeof UnitFormValidation>;

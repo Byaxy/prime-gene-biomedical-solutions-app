@@ -12,11 +12,13 @@ import {
   Colors,
   Materials,
   ProductTypes,
+  Unit,
 } from "@/types/appwrite.types";
 import { SelectItem } from "../ui/select";
 import { useTypes } from "@/hooks/useTypes";
 import { useMaterials } from "@/hooks/useMaterials";
 import { useColors } from "@/hooks/useColors";
+import { useUnits } from "@/hooks/useUnits";
 
 interface ProductFormProps {
   mode: "create" | "edit";
@@ -33,6 +35,7 @@ const ProductForm = ({
   const [isLoading, setIsLoading] = useState(false);
   const { categories } = useCategories();
   const { types } = useTypes();
+  const { units } = useUnits();
   const { materials } = useMaterials();
   const { productColors } = useColors();
 
@@ -76,13 +79,7 @@ const ProductForm = ({
             label="Product Name"
             placeholder="Enter product name"
           />
-          <CustomFormField
-            fieldType={FormFieldType.NUMBER}
-            control={form.control}
-            name="quantity"
-            label="Quantity"
-            placeholder="Enter quantity in stock"
-          />
+
           <div className="flex flex-col sm:flex-row gap-4">
             <CustomFormField
               fieldType={FormFieldType.NUMBER}
@@ -99,6 +96,33 @@ const ProductForm = ({
               label="Selling Price"
               placeholder="Enter product selling price"
             />
+          </div>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <CustomFormField
+              fieldType={FormFieldType.NUMBER}
+              control={form.control}
+              name="quantity"
+              label="Quantity"
+              placeholder="Enter quantity in stock"
+            />
+
+            <CustomFormField
+              fieldType={FormFieldType.SELECT}
+              control={form.control}
+              name="unitId"
+              label="Unit of Measure"
+              placeholder="Select unit of measure"
+            >
+              {units?.map((unit: Unit) => (
+                <SelectItem
+                  key={unit.$id}
+                  value={unit.$id}
+                  className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+                >
+                  {unit.name} ({unit.code})
+                </SelectItem>
+              ))}
+            </CustomFormField>
           </div>
           <div className="flex flex-col sm:flex-row gap-4">
             <CustomFormField

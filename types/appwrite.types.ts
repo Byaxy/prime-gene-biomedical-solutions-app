@@ -46,6 +46,7 @@ export interface Product {
   typeId: any;
   materialId: any;
   colorId: any;
+  unitId: any;
   $createdAt: Date;
   $updatedAt: Date;
 }
@@ -97,6 +98,16 @@ export interface Supplier {
   name: string;
   email: string;
   phone: string;
+  $createdAt: Date;
+  $updatedAt: Date;
+}
+
+// Units
+export interface Unit {
+  $id: string;
+  name: string;
+  code: string;
+  description: string;
   $createdAt: Date;
   $updatedAt: Date;
 }
