@@ -1,28 +1,32 @@
 import { useState } from "react";
-import { ColorFormValues } from "@/lib/validation";
-import { Colors } from "@/types/appwrite.types";
+import { SupplierFormValues } from "@/lib/validation";
+import { Supplier } from "@/types/appwrite.types";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { useColors } from "@/hooks/useColors";
-import ColorDialog from "./ColorDialog";
+import { useSuppliers } from "@/hooks/useSuppliers";
+import SupplierDialog from "./SupplierDialog";
 
-const ColorActions = ({ color }: { color: Colors }) => {
+const SupplierActions = ({ supplier }: { supplier: Supplier }) => {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"add" | "edit" | "delete">("add");
 
-  const { softDeleteColor, editColor, isSoftDeletingColor, isEditingColor } =
-    useColors();
+  const {
+    softDeleteSupplier,
+    editSupplier,
+    isSoftDeletingSupplier,
+    isEditingSupplier,
+  } = useSuppliers();
 
-  const handleAction = async (data: ColorFormValues) => {
+  const handleAction = async (data: SupplierFormValues) => {
     try {
       if (mode === "edit") {
-        await editColor(
-          { id: color.$id, data },
+        await editSupplier(
+          { id: supplier.$id, data },
           { onSuccess: () => setOpen(false) }
         );
         setOpen(false);
       } else if (mode === "delete") {
-        await softDeleteColor(color.$id, {
+        await softDeleteSupplier(supplier.$id, {
           onSuccess: () => setOpen(false),
         });
       }
@@ -50,16 +54,16 @@ const ColorActions = ({ color }: { color: Colors }) => {
       >
         <DeleteIcon className="h-5 w-5" />
       </span>
-      <ColorDialog
+      <SupplierDialog
         mode={mode}
         open={open}
         onOpenChange={setOpen}
-        color={color}
+        supplier={supplier}
         onSubmit={handleAction}
-        isLoading={isSoftDeletingColor || isEditingColor}
+        isLoading={isSoftDeletingSupplier || isEditingSupplier}
       />
     </div>
   );
 };
 
-export default ColorActions;
+export default SupplierActions;

@@ -15,7 +15,6 @@ import {
 import { Input } from "./ui/input";
 import { Select, SelectContent, SelectTrigger, SelectValue } from "./ui/select";
 import { Textarea } from "./ui/textarea";
-import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { CalendarIcon } from "lucide-react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -167,23 +166,11 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
     case FormFieldType.COLOR_PICKER:
       return (
         <FormControl>
-          <div>
-            <Popover>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  className="w-8 h-8 rounded-md border border-input shadow-sm"
-                  style={{ backgroundColor: field.value || "#000000" }}
-                  aria-label="Choose a color"
-                />
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-3 bg-white">
-                <HexColorPicker
-                  color={field.value || "#000000"}
-                  onChange={field.onChange}
-                />
-              </PopoverContent>
-            </Popover>
+          <div className="relative">
+            <HexColorPicker
+              color={field.value || "#24bbc0"}
+              onChange={field.onChange}
+            />
           </div>
         </FormControl>
       );

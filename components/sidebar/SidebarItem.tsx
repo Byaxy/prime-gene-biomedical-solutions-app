@@ -29,7 +29,7 @@ export default function SidebarItem({
         href={data.path}
         onClick={handleClick}
         className={clsx(
-          "w-full flex flex-row gap-2 items-center justify-start  hover:text-green-200 hover:bg-blue-800 border-0 rounded-md p-2 cursor-pointer",
+          "w-full flex flex-row gap-2 items-center justify-start  hover:text-green-200 hover:bg-blue-800 border-0 rounded-md px-2 py-[6px] cursor-pointer",
           {
             "text-green-200 bg-blue-800": pathname === data.path,
             "text-blue-800 bg-white": pathname !== data.path,

@@ -7,6 +7,7 @@ export const LoginFormValidation = z.object({
     .min(8, "Password is required and must be at least 8 characters"),
 });
 
+// Users
 export const CreateUserValidation = z
   .object({
     name: z.string().min(1, "Name is required"),
@@ -116,9 +117,21 @@ export const PurchaseFormValidation = z.object({
       })
     )
     .min(1, "At least one product is required"),
+
   // Temporary fields for product selection
   selectedProduct: z.string().optional(),
   tempQuantity: z.number().optional(),
   tempPrice: z.number().optional(),
 });
 export type PurchaseFormValues = z.infer<typeof PurchaseFormValidation>;
+
+// Suppliers
+export const SupplierFormValidation = z.object({
+  name: z
+    .string()
+    .min(2, "Name must be at least 2 characters")
+    .nonempty("Name is required"),
+  email: z.string().email("Invalid email address").optional(),
+  phone: z.string().optional(),
+});
+export type SupplierFormValues = z.infer<typeof SupplierFormValidation>;

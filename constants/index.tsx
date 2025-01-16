@@ -42,11 +42,6 @@ export const sidebarData: SidebarDataType[] = [
       },
       {
         id: generateId(),
-        title: "Types",
-        path: "/products/types",
-      },
-      {
-        id: generateId(),
         title: "Materials",
         path: "/products/materials",
       },
@@ -54,6 +49,16 @@ export const sidebarData: SidebarDataType[] = [
         id: generateId(),
         title: "Colors",
         path: "/products/colors",
+      },
+      {
+        id: generateId(),
+        title: "Types",
+        path: "/products/types",
+      },
+      {
+        id: generateId(),
+        title: "Units",
+        path: "/products/units",
       },
     ],
   },
@@ -80,6 +85,12 @@ export const sidebarData: SidebarDataType[] = [
     id: generateId(),
     title: "Users",
     path: "/users",
+    icon: <UsersRound className="h-5 w-5" />,
+  },
+  {
+    id: generateId(),
+    title: "Suppliers",
+    path: "/suppliers",
     icon: <UsersRound className="h-5 w-5" />,
   },
   {

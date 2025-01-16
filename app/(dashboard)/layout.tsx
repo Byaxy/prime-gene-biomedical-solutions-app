@@ -14,7 +14,7 @@ import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import MuiAppBar, { AppBarProps as MuiAppBarProps } from "@mui/material/AppBar";
 import MuiDrawer from "@mui/material/Drawer";
-import { useEffect, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import Header from "@/components/Header";
 import Link from "next/link";
 import SidebarMenu from "@/components/sidebar/SidebarMenu";
@@ -38,7 +38,7 @@ const closedMixin = (theme: Theme): CSSObject => ({
     duration: theme.transitions.duration.leavingScreen,
   }),
   overflowX: "hidden",
-  width: `calc(${theme.spacing(6)} + 1px)`,
+  width: `calc(${theme.spacing(5)} + 1px)`,
 });
 
 const DrawerHeader = styled("div")(({ theme }) => ({
@@ -89,11 +89,7 @@ const Drawer = styled(MuiDrawer, {
   }),
 }));
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const matchesMidium = useMediaQuery(theme.breakpoints.down("md"));
 
@@ -186,7 +182,7 @@ export default function RootLayout({
             </IconButton>
           </DrawerHeader>
 
-          <Divider />
+          <Divider className="mb-4" />
 
           {/** Side bar */}
           <SidebarMenu data={sidebarData} open={open} />

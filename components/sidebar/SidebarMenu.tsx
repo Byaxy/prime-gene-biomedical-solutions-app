@@ -16,7 +16,7 @@ export default function SidebarMenu({
   };
 
   return (
-    <ul className="flex flex-col gap-2 items-start justify-center px-1 w-full bg-white mt-2 remove-scrollbar">
+    <ul className="flex flex-col gap-2 items-start justify-center px-1 w-full bg-white remove-scrollbar">
       {data.map((item, index) => (
         <SidebarItem
           key={item.title}
