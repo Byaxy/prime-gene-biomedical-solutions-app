@@ -1,5 +1,5 @@
-import { SupplierFormValues } from "@/lib/validation";
-import { Supplier } from "@/types/appwrite.types";
+import { CustomerFormValues } from "@/lib/validation";
+import { Customer } from "@/types/appwrite.types";
 import {
   Dialog,
   DialogContent,
@@ -8,51 +8,51 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 import { Button } from "../ui/button";
-import SupplierForm from "../forms/SupplierForm";
+import CustomerForm from "../forms/CustomerForm";
 
-interface SupplierDialogProps {
+interface CustomerDialogProps {
   mode: "add" | "edit" | "delete";
   open: boolean;
   onOpenChange: (open: boolean) => void;
   isLoading?: boolean;
-  supplier?: Supplier;
-  onSubmit: (data: SupplierFormValues) => Promise<void>;
+  customer?: Customer;
+  onSubmit: (data: CustomerFormValues) => Promise<void>;
 }
 
-const SupplierDialog = ({
+const CustomerDialog = ({
   mode,
   open,
   onOpenChange,
   isLoading,
-  supplier,
+  customer,
   onSubmit,
-}: SupplierDialogProps) => {
+}: CustomerDialogProps) => {
   const handleDelete = async () => {
     try {
       await onSubmit({
-        name: supplier?.name || "",
-        email: supplier?.email || "",
-        phone: supplier?.phone || "",
-        address: supplier?.address || "",
+        name: customer?.name || "",
+        email: customer?.email || "",
+        phone: customer?.phone || "",
+        address: customer?.address || "",
       });
       onOpenChange(false);
     } catch (error) {
-      console.error("Error deleting supplier:", error);
+      console.error("Error deleting customer:", error);
     } finally {
     }
   };
 
   const dialogTitle = {
-    add: "Add Supplier",
-    edit: "Edit Supplier",
-    delete: "Delete Supplier",
+    add: "Add Customer",
+    edit: "Edit Customer",
+    delete: "Delete Customer",
   }[mode];
 
   const dialogDescription = {
-    add: "Add a new product supplier to your collection.",
-    edit: "Edit the selected supplier.",
+    add: "Add a new product customer to your collection.",
+    edit: "Edit the selected customer.",
     delete:
-      "Are you sure you want to delete this supplier? This action cannot be undone.",
+      "Are you sure you want to delete this customer? This action cannot be undone.",
   }[mode];
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -69,7 +69,7 @@ const SupplierDialog = ({
         {mode === "delete" ? (
           <div className="flex flex-col gap-4">
             <p className="text-sm text-red-500">
-              Category: <span className="font-semibold">{supplier?.name}</span>
+              Category: <span className="font-semibold">{customer?.name}</span>
             </p>
             <div className="flex justify-end gap-4">
               <Button
@@ -93,15 +93,15 @@ const SupplierDialog = ({
             </div>
           </div>
         ) : (
-          <SupplierForm
+          <CustomerForm
             mode={mode === "add" ? "create" : "edit"}
             initialData={
-              mode === "edit" && supplier
+              mode === "edit" && customer
                 ? {
-                    name: supplier?.name,
-                    email: supplier?.email || "",
-                    phone: supplier?.phone || "",
-                    address: supplier?.address || "",
+                    name: customer?.name,
+                    email: customer?.email || "",
+                    phone: customer?.phone || "",
+                    address: customer?.address || "",
                   }
                 : undefined
             }
@@ -114,4 +114,4 @@ const SupplierDialog = ({
   );
 };
 
-export default SupplierDialog;
+export default CustomerDialog;

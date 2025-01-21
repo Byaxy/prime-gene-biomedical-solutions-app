@@ -1,4 +1,4 @@
-import { SupplierFormValidation, SupplierFormValues } from "@/lib/validation";
+import { CustomerFormValidation, CustomerFormValues } from "@/lib/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -7,23 +7,23 @@ import SubmitButton from "../SubmitButton";
 import CustomFormField, { FormFieldType } from "../CustomFormField";
 import { Form } from "../ui/form";
 
-interface SupplierFormProps {
+interface CustomerFormProps {
   mode: "create" | "edit";
-  initialData?: SupplierFormValues;
-  onSubmit: (data: SupplierFormValues) => Promise<void>;
+  initialData?: CustomerFormValues;
+  onSubmit: (data: CustomerFormValues) => Promise<void>;
   onCancel?: () => void;
 }
 
-const SupplierForm = ({
+const CustomerForm = ({
   mode,
   initialData,
   onSubmit,
   onCancel,
-}: SupplierFormProps) => {
+}: CustomerFormProps) => {
   const [isLoading, setIsLoading] = useState(false);
 
-  const form = useForm<SupplierFormValues>({
-    resolver: zodResolver(SupplierFormValidation),
+  const form = useForm<CustomerFormValues>({
+    resolver: zodResolver(CustomerFormValidation),
     defaultValues: initialData || {
       name: "",
       email: "",
@@ -31,7 +31,7 @@ const SupplierForm = ({
     },
   });
 
-  const handleSubmit = async (values: SupplierFormValues) => {
+  const handleSubmit = async (values: CustomerFormValues) => {
     setIsLoading(true);
     try {
       await onSubmit(values);
@@ -53,7 +53,7 @@ const SupplierForm = ({
           control={form.control}
           name="name"
           label="Name"
-          placeholder="Enter supplier name"
+          placeholder="Enter customer name"
         />
 
         <CustomFormField
@@ -71,13 +71,12 @@ const SupplierForm = ({
           label="Phone number"
           placeholder="(555) 123-4567"
         />
-
         <CustomFormField
           fieldType={FormFieldType.TEXTAREA}
           control={form.control}
           name="address"
           label="Address"
-          placeholder="Enter supplier address"
+          placeholder="Enter customer address"
         />
 
         <div className="flex justify-end gap-4">
@@ -91,7 +90,7 @@ const SupplierForm = ({
             </Button>
           )}
           <SubmitButton isLoading={isLoading} className="shad-primary-btn">
-            {mode === "create" ? "Create Supplier" : "Update Supplier"}
+            {mode === "create" ? "Create Customer" : "Update Customer"}
           </SubmitButton>
         </div>
       </form>
@@ -99,4 +98,4 @@ const SupplierForm = ({
   );
 };
 
-export default SupplierForm;
+export default CustomerForm;

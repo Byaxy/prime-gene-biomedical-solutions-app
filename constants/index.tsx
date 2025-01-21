@@ -95,6 +95,12 @@ export const sidebarData: SidebarDataType[] = [
   },
   {
     id: generateId(),
+    title: "Customers",
+    path: "/customers",
+    icon: <UsersRound className="h-5 w-5" />,
+  },
+  {
+    id: generateId(),
     title: "Settings",
     path: "/settings",
     icon: <Settings className="h-5 w-5" />,

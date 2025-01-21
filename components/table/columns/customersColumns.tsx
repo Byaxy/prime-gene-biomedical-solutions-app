@@ -2,12 +2,12 @@
 
 import { ColumnDef } from "@tanstack/table-core";
 import { formatDateTime } from "@/lib/utils";
-import { Colors } from "@/types/appwrite.types";
+import { Customer } from "@/types/appwrite.types";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import ColorActions from "@/components/colors/ColorActions";
+import CustomerActions from "@/components/customers/CustomerActions";
 
-export const colorColumns: ColumnDef<Colors>[] = [
+export const customersColumns: ColumnDef<Customer>[] = [
   {
     header: "#",
     cell: ({ row }) => {
@@ -31,21 +31,32 @@ export const colorColumns: ColumnDef<Colors>[] = [
     },
 
     cell: ({ row }) => {
-      const color = row.original;
-      return <p className="text-14-medium">{color.name}</p>;
+      const customer = row.original;
+      return <p className="text-14-medium ">{customer.name}</p>;
     },
   },
   {
-    accessorKey: "code",
-    header: "Color",
+    accessorKey: "email",
+    header: "Email",
     cell: ({ row }) => {
-      const color = row.original;
-      return (
-        <div
-          style={{ backgroundColor: color.code }}
-          className="h-6 w-6 rounded-full"
-        />
-      );
+      const customer = row.original;
+      return <p className="text-14-medium ">{customer.email || "-"}</p>;
+    },
+  },
+  {
+    accessorKey: "phone",
+    header: "Phone",
+    cell: ({ row }) => {
+      const customer = row.original;
+      return <p className="text-14-medium ">{customer.phone || "-"}</p>;
+    },
+  },
+  {
+    accessorKey: "address",
+    header: "Address",
+    cell: ({ row }) => {
+      const customer = row.original;
+      return <p className="text-14-medium ">{customer.address || "-"}</p>;
     },
   },
   {
@@ -55,7 +66,7 @@ export const colorColumns: ColumnDef<Colors>[] = [
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="font-semibold"
+          className="font-semibold px-0"
         >
           Created At
           <ArrowUpDown className="ml-2 h-4 w-4" />
@@ -63,10 +74,10 @@ export const colorColumns: ColumnDef<Colors>[] = [
       );
     },
     cell: ({ row }) => {
-      const color = row.original;
+      const customer = row.original;
       return (
         <p className="text-14-medium ">
-          {formatDateTime(color.$createdAt).dateTime}
+          {formatDateTime(customer.$createdAt).dateTime}
         </p>
       );
     },
@@ -86,10 +97,10 @@ export const colorColumns: ColumnDef<Colors>[] = [
       );
     },
     cell: ({ row }) => {
-      const color = row.original;
+      const customer = row.original;
       return (
         <p className="text-14-medium">
-          {formatDateTime(color.$updatedAt).dateTime}
+          {formatDateTime(customer.$updatedAt).dateTime}
         </p>
       );
     },
@@ -98,7 +109,7 @@ export const colorColumns: ColumnDef<Colors>[] = [
     id: "actions",
     header: "Actions",
     cell: ({ row }) => {
-      return <ColorActions color={row.original} />;
+      return <CustomerActions customer={row.original} />;
     },
   },
 ];

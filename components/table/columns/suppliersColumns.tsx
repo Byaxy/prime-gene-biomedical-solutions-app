@@ -31,24 +31,32 @@ export const suppliersColumns: ColumnDef<Supplier>[] = [
     },
 
     cell: ({ row }) => {
-      const user = row.original;
-      return <p className="text-14-medium ">{user.name}</p>;
+      const supplier = row.original;
+      return <p className="text-14-medium ">{supplier.name}</p>;
     },
   },
   {
     accessorKey: "email",
     header: "Email",
     cell: ({ row }) => {
-      const user = row.original;
-      return <p className="text-14-medium ">{user.email || "-"}</p>;
+      const supplier = row.original;
+      return <p className="text-14-medium ">{supplier.email || "-"}</p>;
     },
   },
   {
     accessorKey: "phone",
     header: "Phone",
     cell: ({ row }) => {
-      const user = row.original;
-      return <p className="text-14-medium ">{user.phone || "-"}</p>;
+      const supplier = row.original;
+      return <p className="text-14-medium ">{supplier.phone || "-"}</p>;
+    },
+  },
+  {
+    accessorKey: "address",
+    header: "Address",
+    cell: ({ row }) => {
+      const supplier = row.original;
+      return <p className="text-14-medium ">{supplier.address || "-"}</p>;
     },
   },
   {
@@ -66,10 +74,10 @@ export const suppliersColumns: ColumnDef<Supplier>[] = [
       );
     },
     cell: ({ row }) => {
-      const user = row.original;
+      const supplier = row.original;
       return (
         <p className="text-14-medium ">
-          {formatDateTime(user.$createdAt).dateTime}
+          {formatDateTime(supplier.$createdAt).dateTime}
         </p>
       );
     },
@@ -89,10 +97,10 @@ export const suppliersColumns: ColumnDef<Supplier>[] = [
       );
     },
     cell: ({ row }) => {
-      const user = row.original;
+      const supplier = row.original;
       return (
         <p className="text-14-medium">
-          {formatDateTime(user.$updatedAt).dateTime}
+          {formatDateTime(supplier.$updatedAt).dateTime}
         </p>
       );
     },

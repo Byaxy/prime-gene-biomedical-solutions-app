@@ -31,8 +31,8 @@ export const materialsColumns: ColumnDef<Materials>[] = [
     },
 
     cell: ({ row }) => {
-      const type = row.original;
-      return <p className="text-14-medium ">{type.name}</p>;
+      const material = row.original;
+      return <p className="text-14-medium ">{material.name}</p>;
     },
   },
   {
@@ -50,10 +50,10 @@ export const materialsColumns: ColumnDef<Materials>[] = [
       );
     },
     cell: ({ row }) => {
-      const type = row.original;
+      const material = row.original;
       return (
         <p className="text-14-medium ">
-          {formatDateTime(type.$createdAt).dateTime}
+          {formatDateTime(material.$createdAt).dateTime}
         </p>
       );
     },
@@ -73,10 +73,10 @@ export const materialsColumns: ColumnDef<Materials>[] = [
       );
     },
     cell: ({ row }) => {
-      const type = row.original;
+      const material = row.original;
       return (
         <p className="text-14-medium">
-          {formatDateTime(type.$updatedAt).dateTime}
+          {formatDateTime(material.$updatedAt).dateTime}
         </p>
       );
     },
