@@ -1,13 +1,13 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/table-core";
-import { Purchase } from "@/types/appwrite.types";
+import { Sale } from "@/types/appwrite.types";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import PurchaseActions from "@/components/purchases/PurchaseActions";
+import SaleActions from "@/components/sales/SaleActions";
 import { formatDateTime } from "@/lib/utils";
 
-export const purchasesColumns: ColumnDef<Purchase>[] = [
+export const salesColumns: ColumnDef<Sale>[] = [
   {
     header: "#",
     cell: ({ row }) => {
@@ -15,7 +15,7 @@ export const purchasesColumns: ColumnDef<Purchase>[] = [
     },
   },
   {
-    accessorKey: "purchaseDate",
+    accessorKey: "saleDate",
     header: ({ column }) => {
       return (
         <Button
@@ -23,23 +23,23 @@ export const purchasesColumns: ColumnDef<Purchase>[] = [
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           className="font-semibold px-0"
         >
-          Purchase Date
+          Sale Date
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       );
     },
     cell: ({ row }) => {
-      const purchase = row.original;
+      const sale = row.original;
       return (
         <p className="text-14-medium ">
-          {formatDateTime(purchase.purchaseDate).dateTime}
+          {formatDateTime(sale.saleDate).dateTime}
         </p>
       );
     },
   },
   {
     id: "name",
-    accessorKey: "purchaseOrderNumber",
+    accessorKey: "invoiceNumber",
     header: ({ column }) => {
       return (
         <Button
@@ -47,29 +47,27 @@ export const purchasesColumns: ColumnDef<Purchase>[] = [
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           className="font-semibold px-0"
         >
-          Purchase Order Number
+          Invoice Number
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       );
     },
     cell: ({ row }) => {
-      const purchase = row.original;
-      return (
-        <p className="text-14-medium ">{purchase.purchaseOrderNumber || "-"}</p>
-      );
+      const sale = row.original;
+      return <p className="text-14-medium ">{sale.invoiceNumber || "-"}</p>;
     },
   },
   {
     accessorKey: "quantity",
     header: "Quantity",
     cell: ({ row }) => {
-      const purchase = row.original;
+      const sale = row.original;
       return (
         <p className="text-14-medium ">
-          {purchase.products.reduce(
+          {sale.products.reduce(
             (total, product) => total + product.quantity,
             0
-          ) || "-"}
+          ) || 0}
         </p>
       );
     },
@@ -89,8 +87,8 @@ export const purchasesColumns: ColumnDef<Purchase>[] = [
       );
     },
     cell: ({ row }) => {
-      const purchase = row.original;
-      return <p className="text-14-medium ">{purchase.totalAmount || "-"}</p>;
+      const sale = row.original;
+      return <p className="text-14-medium ">{sale.totalAmount || "-"}</p>;
     },
   },
   {
@@ -108,8 +106,8 @@ export const purchasesColumns: ColumnDef<Purchase>[] = [
       );
     },
     cell: ({ row }) => {
-      const purchase = row.original;
-      return <p className="text-14-medium ">{purchase.amountPaid || "-"}</p>;
+      const sale = row.original;
+      return <p className="text-14-medium ">{sale.amountPaid || 0}</p>;
     },
   },
 
@@ -117,19 +115,19 @@ export const purchasesColumns: ColumnDef<Purchase>[] = [
     accessorKey: "status",
     header: "Status",
     cell: ({ row }) => {
-      const purchase = row.original;
-      return <p className="text-14-medium ">{purchase.status}</p>;
+      const sale = row.original;
+      return <p className="text-14-medium ">{sale.status}</p>;
     },
   },
 
   {
-    accessorKey: "supplierId",
-    header: "Supplier",
+    accessorKey: "customerId",
+    header: "Customer",
     cell: ({ row }) => {
-      const purchase = row.original;
+      const sale = row.original;
       return (
         <p className="text-14-medium ">
-          {purchase.supplierId ? purchase.supplierId.name : "-"}
+          {sale.customerId ? sale.customerId.name : "-"}
         </p>
       );
     },
@@ -139,7 +137,7 @@ export const purchasesColumns: ColumnDef<Purchase>[] = [
     id: "actions",
     header: "Actions",
     cell: ({ row }) => {
-      return <PurchaseActions purchase={row.original} />;
+      return <SaleActions sale={row.original} />;
     },
   },
 ];

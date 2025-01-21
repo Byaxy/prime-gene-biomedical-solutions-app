@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
 // Categories
 export interface Categories {
   $id: string;
@@ -79,7 +80,6 @@ export interface Users {
 export interface Purchase {
   $id: string;
   purchaseOrderNumber: string;
-  productId: any;
   quantity: number;
   totalAmount: number;
   amountPaid: number;
@@ -92,12 +92,38 @@ export interface Purchase {
   $updatedAt: Date;
 }
 
+// Sales
+export interface Sale {
+  $id: string;
+  invoiceNumber: string;
+  saleDate: Date;
+  customerId: any;
+  totalAmount: number;
+  amountPaid: number;
+  status: "pending" | "completed" | "cancelled";
+  notes: string;
+  products: any[];
+  $createdAt: Date;
+  $updatedAt: Date;
+}
+
 // Suppliers
 export interface Supplier {
   $id: string;
   name: string;
   email: string;
   phone: string;
+  $createdAt: Date;
+  $updatedAt: Date;
+}
+
+// Customers
+export interface Customer {
+  $id: string;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
   $createdAt: Date;
   $updatedAt: Date;
 }

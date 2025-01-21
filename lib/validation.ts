@@ -132,7 +132,7 @@ export const SupplierFormValidation = z.object({
     .string()
     .min(2, "Name must be at least 2 characters")
     .nonempty("Name is required"),
-  email: z.string().email("Invalid email address").optional(),
+  email: z.string().optional(),
   phone: z.string().optional(),
 });
 export type SupplierFormValues = z.infer<typeof SupplierFormValidation>;
@@ -147,3 +147,37 @@ export const UnitFormValidation = z.object({
   description: z.string().optional(),
 });
 export type UnitFormValues = z.infer<typeof UnitFormValidation>;
+
+// Sales
+export const SaleFormValidation = z.object({
+  invoiceNumber: z.string().nonempty("Invoice number is required"),
+  saleDate: z.date().refine((date) => date <= new Date(), {
+    message: "Sale date cannot be in the future",
+  }),
+  customerId: z.string().nonempty("Supplier is required"),
+  totalAmount: z.number().min(0, "Total amount must be 0 or more"),
+  amountPaid: z.number().min(0, "Amount paid must be 0 or more"),
+  status: z.enum(["pending", "completed", "cancelled"]).default("pending"),
+  notes: z.string().optional(),
+  products: z
+    .array(
+      z.object({
+        productId: z.string().nonempty("Product is required"),
+        quantity: z.number().int().min(0, "Quantity must be 0 or more"),
+        unitPrice: z.number().min(0, "Unit price must be 0 or more"),
+        totalPrice: z.number().min(0, "Total price must be 0 or more"),
+        productName: z.string().optional(),
+        productMaterial: z.string().optional(),
+        productColor: z.string().optional(),
+        productColorCode: z.string().optional(),
+        productUnit: z.string().optional(),
+      })
+    )
+    .min(1, "At least one product is required"),
+
+  // Temporary fields for product selection
+  selectedProduct: z.string().optional(),
+  tempQuantity: z.number().optional(),
+  tempPrice: z.number().optional(),
+});
+export type SaleFormValues = z.infer<typeof SaleFormValidation>;

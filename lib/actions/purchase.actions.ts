@@ -11,6 +11,16 @@ import {
 } from "../appwrite-server";
 import { PurchaseFormValues } from "../validation";
 
+// Purchase item document interface
+interface PurchaseItemDocument extends Models.Document {
+  purchaseId: string;
+  productId: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+}
+
+// add purchase
 export const addPurchase = async (purchase: PurchaseFormValues) => {
   try {
     // Create purchase
@@ -60,15 +70,7 @@ export const addPurchase = async (purchase: PurchaseFormValues) => {
   }
 };
 
-// Define interface for purchase item document
-interface PurchaseItemDocument extends Models.Document {
-  purchaseId: string;
-  productId: string;
-  quantity: number;
-  unitPrice: number;
-  totalPrice: number;
-}
-
+// edit purchase
 export const editPurchase = async (
   purchase: PurchaseFormValues,
   purchaseId: string
@@ -167,6 +169,7 @@ export const editPurchase = async (
   }
 };
 
+// get all purchases
 export const getPurchases = async () => {
   try {
     // Get all purchases
@@ -199,6 +202,7 @@ export const getPurchases = async () => {
   }
 };
 
+// permanently delete purchase
 export const deletePurchase = async (purchaseId: string) => {
   try {
     // Get existing purchase items first
@@ -234,6 +238,7 @@ export const deletePurchase = async (purchaseId: string) => {
   }
 };
 
+// softe delete purchase
 export const softDeletePurchase = async (purchaseId: string) => {
   try {
     const response = await databases.updateDocument(

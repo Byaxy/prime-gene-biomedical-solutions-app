@@ -1,14 +1,17 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import SubmitButton from "../SubmitButton";
-import CustomFormField, { FormFieldType } from "../CustomFormField";
-import { Form } from "../ui/form";
-import { useFieldArray, useForm } from "react-hook-form";
-import { Button } from "../ui/button";
-import { SelectItem } from "../ui/select";
+import Loading from "@/app/(dashboard)/loading";
 import { useProducts } from "@/hooks/useProducts";
-import { Product, Supplier } from "@/types/appwrite.types";
-import { purchaseStatus } from "@/constants";
+import { getProductById } from "@/lib/actions/product.actions";
+import { SaleFormValidation, SaleFormValues } from "@/lib/validation";
+import { Customer, Product } from "@/types/appwrite.types";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useState } from "react";
+import { useFieldArray, useForm } from "react-hook-form";
+import toast from "react-hot-toast";
+import { Form } from "../ui/form";
+import CustomFormField, { FormFieldType } from "../CustomFormField";
+import { SelectItem } from "../ui/select";
+import { Button } from "../ui/button";
+import { X } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -19,13 +22,9 @@ import {
 } from "../ui/table";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { getProductById } from "@/lib/actions/product.actions";
-import toast from "react-hot-toast";
-import { X } from "lucide-react";
-import { PurchaseFormValidation, PurchaseFormValues } from "@/lib/validation";
-import { useSuppliers } from "@/hooks/useSuppliers";
-import { zodResolver } from "@hookform/resolvers/zod";
-import Loading from "@/app/(dashboard)/loading";
+import { purchaseStatus } from "@/constants";
+import SubmitButton from "../SubmitButton";
+import { useCustomers } from "@/hooks/useCustomers";
 
 interface ProductType extends Product {
   $id: string;
@@ -37,11 +36,15 @@ interface ProductType extends Product {
     name: string;
     code: string;
   };
+  unitId: {
+    name: string;
+    code: string;
+  };
   quantity: number;
-  costPrice: number;
+  sellingPrice: number;
 }
 
-interface PurchaseProduct {
+interface SaleProduct {
   productId: string | ProductType;
   quantity: number;
   unitPrice: number;
@@ -50,53 +53,55 @@ interface PurchaseProduct {
   productMaterial?: string;
   productColor?: string;
   productColorCode?: string;
+  productUnit?: string;
 }
 
-interface PurchaseFormProps {
+interface SaleFormProps {
   mode: "create" | "edit";
-  initialData?: PurchaseFormValues;
-  onSubmit: (data: PurchaseFormValues) => Promise<void>;
+  initialData?: SaleFormValues;
+  onSubmit: (data: SaleFormValues) => Promise<void>;
   onCancel: () => void;
   isLoading: boolean;
 }
 
-type FormProduct = Omit<PurchaseProduct, "productId"> & {
+type FormProduct = Omit<SaleProduct, "productId"> & {
   productId: string;
 };
 
-type ExtendedPurchaseFormValues = Omit<PurchaseFormValues, "products"> & {
+type ExtendedSaleFormValues = Omit<SaleFormValues, "products"> & {
   products: FormProduct[];
 };
 
-const PurchaseForm = ({
+const SaleForm = ({
   mode,
   initialData,
   onSubmit,
   onCancel,
   isLoading,
-}: PurchaseFormProps) => {
+}: SaleFormProps) => {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [selectedProductName, setSelectedProductName] = useState<string>("");
   const [isLoadingEdit, setIsLoadingEdit] = useState(mode === "edit");
   const { products } = useProducts();
-  const { suppliers } = useSuppliers();
+  const { customers } = useCustomers();
 
   const defaultValues = {
-    purchaseOrderNumber: "",
-    purchaseDate: new Date(),
+    invoiceNumber: "",
+    saleDate: new Date(),
     products: [] as FormProduct[],
-    supplierId: "",
+    customerId: "",
     status: "pending" as "pending" | "completed" | "cancelled",
     notes: "",
     amountPaid: 0,
     totalAmount: 0,
+
     selectedProduct: "",
     tempQuantity: 0,
     tempPrice: 0,
   };
 
-  const form = useForm<ExtendedPurchaseFormValues>({
-    resolver: zodResolver(PurchaseFormValidation),
+  const form = useForm<ExtendedSaleFormValues>({
+    resolver: zodResolver(SaleFormValidation),
     mode: "all",
     defaultValues:
       mode === "create" ? defaultValues : { ...defaultValues, ...initialData },
@@ -122,13 +127,13 @@ const PurchaseForm = ({
           // Initialize form fields except products
           Object.entries(initialData).forEach(([key, value]) => {
             if (key !== "products") {
-              form.setValue(key as keyof PurchaseFormValues, value);
+              form.setValue(key as keyof SaleFormValues, value);
             }
           });
 
           // Fetch and update product details
           const updatedProducts = await Promise.all(
-            initialData.products.map(async (product: PurchaseProduct) => {
+            initialData.products.map(async (product: SaleProduct) => {
               const productId =
                 typeof product.productId === "object"
                   ? product.productId.$id
@@ -143,6 +148,7 @@ const PurchaseForm = ({
                   productMaterial: productDetails.materialId.name,
                   productColor: productDetails.colorId.name,
                   productColorCode: productDetails.colorId.code,
+                  productUnit: productDetails.unitId.code,
                 };
               } catch (error) {
                 console.error(`Error fetching product ${productId}:`, error);
@@ -178,7 +184,7 @@ const PurchaseForm = ({
         if (editingIndex === null) {
           // Only set default values when adding new product
           form.setValue("tempQuantity", product.quantity);
-          form.setValue("tempPrice", product.costPrice);
+          form.setValue("tempPrice", product.sellingPrice);
         }
       } catch (error) {
         console.error("Error fetching product:", error);
@@ -218,7 +224,7 @@ const PurchaseForm = ({
       const quantity =
         form.getValues("tempQuantity") || selectedProduct.quantity;
       const unitPrice =
-        form.getValues("tempPrice") || selectedProduct.costPrice;
+        form.getValues("tempPrice") || selectedProduct.sellingPrice;
 
       const newProduct: FormProduct = {
         productId: selectedProduct.$id,
@@ -229,6 +235,7 @@ const PurchaseForm = ({
         productMaterial: selectedProduct.materialId.name,
         productColor: selectedProduct.colorId.name,
         productColorCode: selectedProduct.colorId.code,
+        productUnit: selectedProduct.unitId.code,
       };
 
       if (editingIndex !== null) {
@@ -317,16 +324,16 @@ const PurchaseForm = ({
           <CustomFormField
             fieldType={FormFieldType.INPUT}
             control={form.control}
-            name="purchaseOrderNumber"
-            label="Purchase Order Number"
-            placeholder="Enter purchase order number"
+            name="invoiceNumber"
+            label="Invoice Number"
+            placeholder="Enter invoice number"
           />
 
           <CustomFormField
             fieldType={FormFieldType.DATE_PICKER}
             control={form.control}
-            name="purchaseDate"
-            label="Purchase Date"
+            name="saleDate"
+            label="Sale Date"
             dateFormat="MM/dd/yyyy"
           />
         </div>
@@ -431,7 +438,10 @@ const PurchaseForm = ({
                       className="w-3 h-3 rounded-full inline-block"
                     />
                   </TableCell>
-                  <TableCell>{entry.quantity}</TableCell>
+                  <TableCell>
+                    {entry.quantity}
+                    {entry.productUnit}
+                  </TableCell>
                   <TableCell>${entry.totalPrice}</TableCell>
                   <TableCell>
                     <div className="flex flex-row items-center">
@@ -486,17 +496,17 @@ const PurchaseForm = ({
           <CustomFormField
             fieldType={FormFieldType.SELECT}
             control={form.control}
-            name="supplierId"
-            label="Supplier"
-            placeholder="Select supplier"
+            name="customerId"
+            label="Customer"
+            placeholder="Select customer"
           >
-            {suppliers?.map((supplier: Supplier) => (
+            {customers?.map((customer: Customer) => (
               <SelectItem
-                key={supplier.$id}
-                value={supplier.$id}
+                key={customer.$id}
+                value={customer.$id}
                 className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
               >
-                {supplier.name}
+                {customer.name}
               </SelectItem>
             ))}
           </CustomFormField>
@@ -525,7 +535,7 @@ const PurchaseForm = ({
           control={form.control}
           name="notes"
           label="Notes"
-          placeholder="Enter purchase notes"
+          placeholder="Enter sale notes"
         />
 
         <div className="flex justify-end gap-4">
@@ -539,7 +549,7 @@ const PurchaseForm = ({
             </Button>
           )}
           <SubmitButton isLoading={isLoading} className="shad-primary-btn">
-            {mode === "create" ? "Create Purchase" : "Update Purchase"}
+            {mode === "create" ? "Create Sale" : "Update Sale"}
           </SubmitButton>
         </div>
       </form>
@@ -547,4 +557,4 @@ const PurchaseForm = ({
   );
 };
 
-export default PurchaseForm;
+export default SaleForm;

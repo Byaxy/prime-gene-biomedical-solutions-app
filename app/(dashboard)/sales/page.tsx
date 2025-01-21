@@ -1,13 +1,53 @@
-import { Suspense } from "react";
-import Loading from "../loading";
+"use client";
 
-export const dynamic = "force-dynamic";
+import { useState } from "react";
+import { useSales } from "@/hooks/useSales";
+import { SaleFormValues } from "@/lib/validation";
+import PageWraper from "@/components/PageWraper";
+import { DataTable } from "@/components/table/DataTable";
+import { salesColumns } from "@/components/table/columns/salesColumns";
+import SaleSheet from "@/components/sales/SaleSheet";
 
 const Sales = () => {
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const { sales, addSale, isLoading, isAddingSale } = useSales();
+
+  const handleCreateSale = async (data: SaleFormValues): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      addSale(data, {
+        onSuccess: () => {
+          setIsAddDialogOpen(false);
+          resolve();
+        },
+        onError: (error) => {
+          reject(error);
+        },
+      });
+    });
+  };
+
   return (
-    <Suspense fallback={<Loading />}>
-      <div>Sales page</div>
-    </Suspense>
+    <PageWraper
+      title="Sales"
+      buttonText="Add Sale"
+      buttonAction={() => setIsAddDialogOpen(true)}
+    >
+      <>
+        <DataTable
+          columns={salesColumns}
+          data={sales || []}
+          isLoading={isLoading}
+        />
+
+        <SaleSheet
+          mode="add"
+          open={isAddDialogOpen}
+          onOpenChange={setIsAddDialogOpen}
+          isLoading={isAddingSale}
+          onSubmit={handleCreateSale}
+        />
+      </>
+    </PageWraper>
   );
 };
 

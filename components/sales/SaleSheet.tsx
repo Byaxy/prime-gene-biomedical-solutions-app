@@ -1,42 +1,39 @@
+import { SaleFormValues } from "@/lib/validation";
+import { Sale } from "@/types/appwrite.types";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet";
+} from "../ui/sheet";
+import SaleForm from "../forms/SaleForm";
 
-import { PurchaseFormValues } from "@/lib/validation";
-import { Purchase } from "@/types/appwrite.types";
-import PurchaseForm from "../forms/PurchaseForm";
-
-interface PurchaseSheetProps {
+interface SaleSheetProps {
   mode: "add" | "edit";
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  purchase?: Purchase;
-  onSubmit: (data: PurchaseFormValues) => Promise<void>;
+  sale?: Sale;
+  onSubmit: (data: SaleFormValues) => Promise<void>;
   isLoading: boolean;
 }
-
-export default function PurchaseSheet({
+const SaleSheet = ({
   mode,
   open,
   onOpenChange,
-  purchase,
+  sale,
   onSubmit,
   isLoading,
-}: PurchaseSheetProps) {
+}: SaleSheetProps) => {
   const sheetTitle = {
-    add: "Add Purchase",
-    edit: "Edit Purchase",
+    add: "Add Sale",
+    edit: "Edit Sale",
   }[mode];
 
   const sheetDescription = {
-    add: "Create a new purchase record for your inventory.",
-    edit: "Modify the details of the existing purchase.",
+    add: "Create a new sale record for your inventory.",
+    edit: "Modify the details of the existing sale.",
   }[mode];
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="h-[90vh] bg-light-200">
@@ -50,21 +47,19 @@ export default function PurchaseSheet({
             </SheetDescription>
           </SheetHeader>
 
-          <PurchaseForm
+          <SaleForm
             mode={mode === "add" ? "create" : "edit"}
             initialData={
-              mode === "edit" && purchase
+              mode === "edit" && sale
                 ? {
-                    purchaseOrderNumber: purchase?.purchaseOrderNumber,
-                    totalAmount: purchase?.totalAmount,
-                    amountPaid: purchase?.amountPaid,
-                    supplierId: purchase?.supplierId
-                      ? purchase?.supplierId.$id
-                      : "",
-                    purchaseDate: new Date(purchase?.purchaseDate),
-                    status: purchase?.status,
-                    notes: purchase?.notes,
-                    products: purchase.products,
+                    invoiceNumber: sale?.invoiceNumber,
+                    totalAmount: sale?.totalAmount,
+                    amountPaid: sale?.amountPaid,
+                    customerId: sale?.customerId ? sale?.customerId.$id : "",
+                    saleDate: new Date(sale?.saleDate),
+                    status: sale?.status,
+                    notes: sale?.notes,
+                    products: sale.products,
                   }
                 : undefined
             }
@@ -76,4 +71,6 @@ export default function PurchaseSheet({
       </SheetContent>
     </Sheet>
   );
-}
+};
+
+export default SaleSheet;
