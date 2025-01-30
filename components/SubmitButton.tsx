@@ -5,15 +5,21 @@ import { Button } from "./ui/button";
 interface ButtonProps {
   isLoading: boolean;
   className?: string;
+  disabled?: boolean;
   children: React.ReactNode;
 }
 
-const SubmitButton = ({ isLoading, className, children }: ButtonProps) => {
+const SubmitButton = ({
+  isLoading,
+  className,
+  children,
+  disabled,
+}: ButtonProps) => {
   return (
     <Button
       type="submit"
-      disabled={isLoading}
-      className={className ?? "shad-primary-btn w-full !py-6"}
+      disabled={isLoading || disabled}
+      className={className ?? "shad-primary-btn w-full !py-[20px]"}
     >
       {isLoading ? (
         <div className="flex items-center gap-4">

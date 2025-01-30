@@ -2,9 +2,7 @@ import { z } from "zod";
 
 export const LoginFormValidation = z.object({
   email: z.string().email("Invalid email address"),
-  password: z
-    .string()
-    .min(8, "Password is required and must be at least 8 characters"),
+  password: z.string().nonempty("Password is required"),
 });
 
 // Users
@@ -194,3 +192,40 @@ export const SaleFormValidation = z.object({
   tempPrice: z.number().optional(),
 });
 export type SaleFormValues = z.infer<typeof SaleFormValidation>;
+
+// Update Password
+export const UpdatePasswordFormValidation = z
+  .object({
+    newPassword: z
+      .string()
+      .nonempty("New password is required")
+      .min(6, "New password must be at least 6 characters"),
+    confirmPassword: z
+      .string()
+      .nonempty("Confirm password is required")
+      .min(6, "Confirm password must be at least 6 characters"),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
+  });
+export type UpdatePasswordFormValues = z.infer<
+  typeof UpdatePasswordFormValidation
+>;
+
+// Company Settings
+export const CompanySettingsFormValidation = z.object({
+  name: z.string().nonempty("Company name is required"),
+  email: z.string().email("Invalid email address").optional(),
+  phone: z.string().nonempty("Phone number is required"),
+  address: z.string().nonempty("Address is required"),
+  city: z.string().nonempty("City is required"),
+  state: z.string().nonempty("State is required"),
+  country: z.string().nonempty("Country is required"),
+  image: z.any().optional(),
+  currency: z.string().nonempty("Currency is required"),
+  currencySymbol: z.string().nonempty("Currency Symbol is required"),
+});
+export type CompanySettingsFormValues = z.infer<
+  typeof CompanySettingsFormValidation
+>;

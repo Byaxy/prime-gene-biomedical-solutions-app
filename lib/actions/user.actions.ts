@@ -10,7 +10,11 @@ import {
   NEXT_PUBLIC_USERS_COLLECTION_ID,
 } from "../appwrite-server";
 import { account } from "../appwrite-client";
-import { CreateUserFormValues, EditUserFormValues } from "../validation";
+import {
+  CreateUserFormValues,
+  EditUserFormValues,
+  UpdatePasswordFormValues,
+} from "../validation";
 
 interface UserDataWithImage extends Omit<CreateUserFormValues, "image"> {
   profileImageId: string;
@@ -136,6 +140,7 @@ export const editUser = async (user: EditUserWithImage, userId: string) => {
     }
 
     revalidatePath("/users");
+    revalidatePath("/settings");
     return parseStringify(response);
   } catch (error) {
     console.error("Error updating user:", error);
@@ -181,6 +186,28 @@ export const deleteUser = async (userId: string) => {
     return parseStringify(response);
   } catch (error) {
     console.error("Error soft deleting user:", error);
+    throw error;
+  }
+};
+
+// updated user password
+
+export const updatePassword = async (
+  userId: string,
+  data: UpdatePasswordFormValues
+) => {
+  try {
+    if (!data.newPassword || !data.confirmPassword) {
+      throw new Error("Please enter a new password");
+    }
+    if (data.newPassword.trim() !== data.confirmPassword.trim()) {
+      throw new Error("Passwords do not match");
+    }
+
+    await users.updatePassword(userId, data.newPassword);
+    return true;
+  } catch (error) {
+    console.error("Error updating user password:", error);
     throw error;
   }
 };

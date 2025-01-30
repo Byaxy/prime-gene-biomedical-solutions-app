@@ -138,3 +138,21 @@ export interface Unit {
   $createdAt: Date;
   $updatedAt: Date;
 }
+
+// Company Settings
+export interface CompanySettings {
+  $id: string;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  state: string;
+  country: string;
+  logoId: string;
+  logoUrl: string;
+  currency: string;
+  currencySymbol: string;
+  $createdAt: Date;
+  $updatedAt: Date;
+}

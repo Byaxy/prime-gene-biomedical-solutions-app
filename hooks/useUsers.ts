@@ -3,9 +3,14 @@ import {
   editUser,
   getUsers,
   deleteUser,
+  updatePassword,
 } from "@/lib/actions/user.actions";
 import { storage } from "@/lib/appwrite-client";
-import { CreateUserFormValues, EditUserFormValues } from "@/lib/validation";
+import {
+  CreateUserFormValues,
+  EditUserFormValues,
+  UpdatePasswordFormValues,
+} from "@/lib/validation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ID } from "appwrite";
 import toast from "react-hot-toast";
@@ -31,6 +36,17 @@ export const useUsers = () => {
       return result;
     },
   });
+
+  // get user by id
+  const getUserById = async (userId: string) => {
+    try {
+      const response = await users?.find((user: User) => user.$id === userId);
+      return response;
+    } catch (error) {
+      console.error("Error getting user by id:", error);
+      throw error;
+    }
+  };
 
   // Create user mutation
   const { mutate: addUserMutation, status: addUserStatus } = useMutation({
@@ -143,6 +159,27 @@ export const useUsers = () => {
     },
   });
 
+  // update user password mutation
+  const { mutate: updatePasswordMutation, status: updatePasswordStatus } =
+    useMutation({
+      mutationFn: async ({
+        userId,
+        data,
+      }: {
+        userId: string;
+        data: UpdatePasswordFormValues;
+      }) => {
+        return updatePassword(userId, data);
+      },
+      onSuccess: () => {
+        toast.success("Password updated successfully");
+      },
+      onError: (error) => {
+        console.error("Error updating password:", error);
+        toast.error("Failed to update password");
+      },
+    });
+
   // Delete user mutation
   const { mutate: deleteUserMutation, status: deleteUserStatus } = useMutation({
     mutationFn: (id: string) => deleteUser(id),
@@ -157,6 +194,7 @@ export const useUsers = () => {
   });
 
   return {
+    getUserById,
     users,
     isLoading,
     error,
@@ -166,5 +204,7 @@ export const useUsers = () => {
     isEditingUser: editUserStatus === "pending",
     deleteUser: deleteUserMutation,
     isDeletingUser: deleteUserStatus === "pending",
+    updatePassword: updatePasswordMutation,
+    isUpdatingPassword: updatePasswordStatus === "pending",
   };
 };
