@@ -25,6 +25,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import { purchaseStatus } from "@/constants";
 import SubmitButton from "../SubmitButton";
 import { useCustomers } from "@/hooks/useCustomers";
+import FormatNumber from "@/components/FormatNumber";
 
 interface ProductType extends Product {
   $id: string;
@@ -380,7 +381,7 @@ const SaleForm = ({
             />
 
             <CustomFormField
-              fieldType={FormFieldType.NUMBER}
+              fieldType={FormFieldType.AMOUNT}
               control={form.control}
               name="tempPrice"
               label="Unit Price"
@@ -442,7 +443,9 @@ const SaleForm = ({
                     {entry.quantity}
                     {entry.productUnit}
                   </TableCell>
-                  <TableCell>${entry.totalPrice}</TableCell>
+                  <TableCell>
+                    <FormatNumber value={entry.totalPrice} />
+                  </TableCell>
                   <TableCell>
                     <div className="flex flex-row items-center">
                       <span
@@ -471,7 +474,7 @@ const SaleForm = ({
                     Total Amount:
                   </TableCell>
                   <TableCell className="font-semibold text-blue-800 text-[17px] py-4">
-                    ${calculateTotalAmount()}
+                    <FormatNumber value={calculateTotalAmount()} />
                   </TableCell>
                 </TableRow>
               )}
@@ -485,7 +488,7 @@ const SaleForm = ({
         </div>
 
         <CustomFormField
-          fieldType={FormFieldType.NUMBER}
+          fieldType={FormFieldType.AMOUNT}
           control={form.control}
           name="amountPaid"
           label="Amount Paid"

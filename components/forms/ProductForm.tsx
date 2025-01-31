@@ -82,7 +82,7 @@ const ProductForm = ({
 
           <div className="flex flex-col sm:flex-row gap-4">
             <CustomFormField
-              fieldType={FormFieldType.NUMBER}
+              fieldType={FormFieldType.AMOUNT}
               control={form.control}
               name="costPrice"
               label="Cost Price"
@@ -90,7 +90,7 @@ const ProductForm = ({
             />
 
             <CustomFormField
-              fieldType={FormFieldType.NUMBER}
+              fieldType={FormFieldType.AMOUNT}
               control={form.control}
               name="sellingPrice"
               label="Selling Price"

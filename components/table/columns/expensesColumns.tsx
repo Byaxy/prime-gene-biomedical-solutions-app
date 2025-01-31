@@ -6,6 +6,7 @@ import { Expenses } from "@/types/appwrite.types";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ExpenseActions from "@/components/expenses/ExpenseActions";
+import FormatNumber from "@/components/FormatNumber";
 
 export const expensesColumns: ColumnDef<Expenses>[] = [
   {
@@ -74,7 +75,11 @@ export const expensesColumns: ColumnDef<Expenses>[] = [
     },
     cell: ({ row }) => {
       const expense = row.original;
-      return <p className="text-14-medium ">{expense.amount || "-"}</p>;
+      return (
+        <p className="text-14-medium ">
+          <FormatNumber value={expense.amount} />
+        </p>
+      );
     },
   },
   {

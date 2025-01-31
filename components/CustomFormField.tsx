@@ -18,11 +18,14 @@ import { Textarea } from "./ui/textarea";
 import { CalendarIcon } from "lucide-react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import { useCompanySettings } from "@/hooks/useCompanySettings";
+import { NumericFormat } from "react-number-format";
 
 export enum FormFieldType {
   INPUT = "input",
   PASSWORD = "password",
   NUMBER = "number",
+  AMOUNT = "amount",
   TEXTAREA = "textarea",
   PHONE_INPUT = "phoneInput",
   CHECKBOX = "checkbox",
@@ -47,10 +50,13 @@ interface CustomProps {
 }
 
 const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
+  const { companySettings } = useCompanySettings();
+  const currencySymbol = companySettings?.[0]?.currencySymbol || "$";
+
   switch (props.fieldType) {
     case FormFieldType.INPUT:
       return (
-        <div className="flex rounded-md border border-dark-700 bg-white">
+        <div className="flex rounded-md bg-white">
           <FormControl>
             <Input
               placeholder={props.placeholder}
@@ -61,9 +67,10 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
           </FormControl>
         </div>
       );
+
     case FormFieldType.PASSWORD:
       return (
-        <div className="flex rounded-md border border-dark-700 bg-white">
+        <div className="flex rounded-md  bg-white">
           <FormControl>
             <Input
               type="password"
@@ -75,46 +82,80 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
           </FormControl>
         </div>
       );
+
     case FormFieldType.NUMBER:
       return (
-        <FormControl>
-          <Input
-            type="number"
-            placeholder={props.placeholder}
-            {...field}
-            onChange={(e) => field.onChange(Number(e.target.value))}
-            className="shad-input border-dark-700"
-            disabled={props.disabled}
-          />
-        </FormControl>
+        <div className="flex rounded-md bg-white">
+          <FormControl>
+            <NumericFormat
+              customInput={Input}
+              thousandSeparator=","
+              decimalSeparator="."
+              decimalScale={2}
+              placeholder={props.placeholder}
+              value={field.value}
+              onValueChange={(values) => field.onChange(values.floatValue)}
+              className="shad-input border-0"
+              disabled={props.disabled}
+            />
+          </FormControl>
+        </div>
       );
+
+    case FormFieldType.AMOUNT:
+      return (
+        <div className="flex rounded-md bg-white">
+          <FormControl>
+            <NumericFormat
+              customInput={Input}
+              thousandSeparator=","
+              decimalSeparator="."
+              decimalScale={2}
+              fixedDecimalScale
+              prefix={currencySymbol}
+              placeholder={props.placeholder}
+              value={field.value}
+              onValueChange={(values) => field.onChange(values.floatValue)}
+              className="shad-input border-0"
+              disabled={props.disabled}
+            />
+          </FormControl>
+        </div>
+      );
+
     case FormFieldType.TEXTAREA:
       return (
-        <FormControl>
-          <Textarea
-            rows={6}
-            placeholder={props.placeholder}
-            {...field}
-            className="shad-textArea"
-            disabled={props.disabled}
-          />
-        </FormControl>
+        <div className="flex rounded-md  bg-white">
+          <FormControl>
+            <Textarea
+              rows={6}
+              placeholder={props.placeholder}
+              {...field}
+              className="shad-textArea"
+              disabled={props.disabled}
+            />
+          </FormControl>
+        </div>
       );
+
     case FormFieldType.PHONE_INPUT:
       return (
-        <FormControl>
-          <PhoneInput
-            defaultCountry="US"
-            placeholder={props.placeholder}
-            international
-            withCountryCallingCode
-            value={field.value as E164Number | undefined}
-            onChange={field.onChange}
-            className="input-phone"
-            disabled={props.disabled}
-          />
-        </FormControl>
+        <div className="flex rounded-md bg-white">
+          <FormControl>
+            <PhoneInput
+              defaultCountry="US"
+              placeholder={props.placeholder}
+              international
+              withCountryCallingCode
+              value={field.value as E164Number | undefined}
+              onChange={field.onChange}
+              className="input-phone"
+              disabled={props.disabled}
+            />
+          </FormControl>
+        </div>
       );
+
     case FormFieldType.CHECKBOX:
       return (
         <FormControl>
@@ -134,7 +175,7 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
 
     case FormFieldType.DATE_PICKER:
       return (
-        <div className="flex items-center rounded-md border border-dark-700 bg-white">
+        <div className="flex items-center rounded-md bg-white">
           <FormControl>
             <DatePicker
               selected={field.value}
@@ -156,38 +197,45 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
 
     case FormFieldType.SELECT:
       return (
-        <FormControl>
-          <Select
-            onValueChange={
-              props.onValueChange ? props.onValueChange : field.onChange
-            }
-            defaultValue={field.value}
-            disabled={props.disabled}
-          >
-            <FormControl>
-              <SelectTrigger className="shad-select-trigger">
-                <SelectValue placeholder={props.placeholder} />
-              </SelectTrigger>
-            </FormControl>
-            <SelectContent className="shad-select-content">
-              {props.children}
-            </SelectContent>
-          </Select>
-        </FormControl>
+        <div className="flex rounded-md bg-white">
+          <FormControl>
+            <Select
+              onValueChange={
+                props.onValueChange ? props.onValueChange : field.onChange
+              }
+              defaultValue={field.value}
+              disabled={props.disabled}
+            >
+              <FormControl>
+                <SelectTrigger className="shad-select-trigger">
+                  <SelectValue placeholder={props.placeholder} />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent className="shad-select-content">
+                {props.children}
+              </SelectContent>
+            </Select>
+          </FormControl>
+        </div>
       );
+
     case FormFieldType.COLOR_PICKER:
       return (
-        <FormControl>
-          <div className="relative">
-            <HexColorPicker
-              color={field.value || "#24bbc0"}
-              onChange={field.onChange}
-            />
-          </div>
-        </FormControl>
+        <div className="flex rounded-md  bg-white">
+          <FormControl>
+            <div className="relative">
+              <HexColorPicker
+                color={field.value || "#24bbc0"}
+                onChange={field.onChange}
+              />
+            </div>
+          </FormControl>
+        </div>
       );
+
     case FormFieldType.SKELETON:
       return props.renderSkeleton ? props.renderSkeleton(field) : null;
+
     default:
       return null;
   }

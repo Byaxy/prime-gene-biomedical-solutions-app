@@ -26,6 +26,7 @@ import { PurchaseFormValidation, PurchaseFormValues } from "@/lib/validation";
 import { useSuppliers } from "@/hooks/useSuppliers";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Loading from "@/app/(dashboard)/loading";
+import FormatNumber from "@/components/FormatNumber";
 
 interface ProductType extends Product {
   $id: string;
@@ -373,7 +374,7 @@ const PurchaseForm = ({
             />
 
             <CustomFormField
-              fieldType={FormFieldType.NUMBER}
+              fieldType={FormFieldType.AMOUNT}
               control={form.control}
               name="tempPrice"
               label="Unit Price"
@@ -432,7 +433,9 @@ const PurchaseForm = ({
                     />
                   </TableCell>
                   <TableCell>{entry.quantity}</TableCell>
-                  <TableCell>${entry.totalPrice}</TableCell>
+                  <TableCell>
+                    <FormatNumber value={entry.totalPrice} />
+                  </TableCell>
                   <TableCell>
                     <div className="flex flex-row items-center">
                       <span
@@ -461,7 +464,7 @@ const PurchaseForm = ({
                     Total Amount:
                   </TableCell>
                   <TableCell className="font-semibold text-blue-800 text-[17px] py-4">
-                    ${calculateTotalAmount()}
+                    <FormatNumber value={calculateTotalAmount()} />
                   </TableCell>
                 </TableRow>
               )}
@@ -475,7 +478,7 @@ const PurchaseForm = ({
         </div>
 
         <CustomFormField
-          fieldType={FormFieldType.NUMBER}
+          fieldType={FormFieldType.AMOUNT}
           control={form.control}
           name="amountPaid"
           label="Amount Paid"

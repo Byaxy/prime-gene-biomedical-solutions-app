@@ -6,6 +6,7 @@ import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import PurchaseActions from "@/components/purchases/PurchaseActions";
 import { formatDateTime } from "@/lib/utils";
+import FormatNumber from "@/components/FormatNumber";
 
 export const purchasesColumns: ColumnDef<Purchase>[] = [
   {
@@ -90,7 +91,11 @@ export const purchasesColumns: ColumnDef<Purchase>[] = [
     },
     cell: ({ row }) => {
       const purchase = row.original;
-      return <p className="text-14-medium ">{purchase.totalAmount || "-"}</p>;
+      return (
+        <p className="text-14-medium ">
+          <FormatNumber value={purchase.totalAmount} />
+        </p>
+      );
     },
   },
   {
@@ -109,7 +114,11 @@ export const purchasesColumns: ColumnDef<Purchase>[] = [
     },
     cell: ({ row }) => {
       const purchase = row.original;
-      return <p className="text-14-medium ">{purchase.amountPaid || "-"}</p>;
+      return (
+        <p className="text-14-medium ">
+          <FormatNumber value={purchase.amountPaid} />
+        </p>
+      );
     },
   },
 

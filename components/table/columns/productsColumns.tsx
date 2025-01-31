@@ -5,6 +5,7 @@ import { Product } from "@/types/appwrite.types";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ProductActions from "@/components/products/ProductActions";
+import FormatNumber from "@/components/FormatNumber";
 
 export const productsColumns: ColumnDef<Product>[] = [
   {
@@ -101,7 +102,13 @@ export const productsColumns: ColumnDef<Product>[] = [
     header: "Price",
     cell: ({ row }) => {
       const product = row.original;
-      return <p className="text-14-medium">{product.sellingPrice}</p>;
+      return (
+        <>
+          <p className="text-14-medium">
+            <FormatNumber value={product.sellingPrice} />
+          </p>
+        </>
+      );
     },
   },
   {

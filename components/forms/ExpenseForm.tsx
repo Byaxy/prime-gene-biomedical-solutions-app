@@ -64,7 +64,7 @@ const ExpenseForm = ({
         />
 
         <CustomFormField
-          fieldType={FormFieldType.NUMBER}
+          fieldType={FormFieldType.AMOUNT}
           control={form.control}
           name="amount"
           label="Amount"
