@@ -47,7 +47,7 @@ const CompanySettings = () => {
         await updateCompanySettings({
           id: companySettings[0].$id,
           data: data,
-          prevLogoId: prevLogoId || "",
+          prevLogoId: data?.image && data.image.length > 0 ? prevLogoId! : "",
         });
       }
     } catch (error) {
@@ -78,7 +78,7 @@ const CompanySettings = () => {
               }
             : null
         }
-        onSubmit={(data) => handleSubmit(data, companySettings[0]?.logoId)}
+        onSubmit={handleSubmit}
         isAdmin={userData?.role === "admin"}
       />
     </div>

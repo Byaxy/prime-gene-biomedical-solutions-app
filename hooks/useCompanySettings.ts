@@ -102,12 +102,11 @@ export const useCompanySettings = () => {
       let logoId = "";
       let logoUrl = "";
 
-      if (prevLogoId) {
+      if (prevLogoId && data.image && data.image.length > 0) {
         try {
           await storage.deleteFile(BUCKET_ID!, prevLogoId);
         } catch (error) {
           console.warn("Error deleting previous logo:", error);
-          // Continue with upload even if delete fails
         }
       }
 

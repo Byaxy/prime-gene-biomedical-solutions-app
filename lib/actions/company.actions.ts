@@ -59,19 +59,36 @@ export const updateCompanySettings = async (
   companySettings: CompanySettingsWithLogo
 ) => {
   try {
-    const dbCompanySettings = {
-      name: companySettings.name,
-      email: companySettings.email,
-      phone: companySettings.phone,
-      address: companySettings.address,
-      city: companySettings.city,
-      state: companySettings.state,
-      country: companySettings.country,
-      currency: companySettings.currency,
-      currencySymbol: companySettings.currencySymbol,
-      logoId: companySettings.logoId || "",
-      logoUrl: companySettings.logoUrl || "",
-    };
+    let dbCompanySettings;
+    if (companySettings.logoId && companySettings.logoUrl) {
+      dbCompanySettings = {
+        name: companySettings.name,
+        email: companySettings.email,
+        phone: companySettings.phone,
+        address: companySettings.address,
+        city: companySettings.city,
+        state: companySettings.state,
+        country: companySettings.country,
+        currency: companySettings.currency,
+        currencySymbol: companySettings.currencySymbol,
+        logoId: companySettings.logoId,
+        logoUrl: companySettings.logoUrl,
+      };
+    } else {
+      dbCompanySettings = {
+        name: companySettings.name,
+        email: companySettings.email,
+        phone: companySettings.phone,
+        address: companySettings.address,
+        city: companySettings.city,
+        state: companySettings.state,
+        country: companySettings.country,
+        currency: companySettings.currency,
+        currencySymbol: companySettings.currencySymbol,
+      };
+    }
+
+    console.log("Updating company settings:", dbCompanySettings);
 
     const updatedDbCompanySettings = await databases.updateDocument(
       DATABASE_ID!,

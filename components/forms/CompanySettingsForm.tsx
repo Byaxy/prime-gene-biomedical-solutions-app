@@ -110,8 +110,9 @@ const CompanySettingsForm = ({
     try {
       if (initialData && values?.image) {
         await onSubmit(values, initialData.logoId);
+      } else {
+        await onSubmit(values);
       }
-      await onSubmit(values);
     } catch (error) {
       console.error("Error submitting form:", error);
     } finally {

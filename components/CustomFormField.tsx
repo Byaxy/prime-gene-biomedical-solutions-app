@@ -56,7 +56,7 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
   switch (props.fieldType) {
     case FormFieldType.INPUT:
       return (
-        <div className="flex rounded-md bg-white">
+        <div className="flex rounded-md border border-dark-700 bg-white">
           <FormControl>
             <Input
               placeholder={props.placeholder}
@@ -70,7 +70,7 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
 
     case FormFieldType.PASSWORD:
       return (
-        <div className="flex rounded-md  bg-white">
+        <div className="flex rounded-md border border-dark-700 bg-white">
           <FormControl>
             <Input
               type="password"
@@ -85,7 +85,7 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
 
     case FormFieldType.NUMBER:
       return (
-        <div className="flex rounded-md bg-white">
+        <div className="flex rounded-md border border-dark-700 bg-white">
           <FormControl>
             <NumericFormat
               customInput={Input}
@@ -104,7 +104,7 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
 
     case FormFieldType.AMOUNT:
       return (
-        <div className="flex rounded-md bg-white">
+        <div className="flex rounded-md border border-dark-700 bg-white">
           <FormControl>
             <NumericFormat
               customInput={Input}
@@ -125,7 +125,7 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
 
     case FormFieldType.TEXTAREA:
       return (
-        <div className="flex rounded-md  bg-white">
+        <div className="flex rounded-md border border-dark-700 bg-white">
           <FormControl>
             <Textarea
               rows={6}
@@ -175,7 +175,7 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
 
     case FormFieldType.DATE_PICKER:
       return (
-        <div className="flex items-center rounded-md bg-white">
+        <div className="flex items-center rounded-md border border-dark-700 bg-white">
           <FormControl>
             <DatePicker
               selected={field.value}
@@ -197,7 +197,7 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
 
     case FormFieldType.SELECT:
       return (
-        <div className="flex rounded-md bg-white">
+        <div className="flex rounded-md border border-dark-700 bg-white">
           <FormControl>
             <Select
               onValueChange={
@@ -221,7 +221,7 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
 
     case FormFieldType.COLOR_PICKER:
       return (
-        <div className="flex rounded-md  bg-white">
+        <div className="flex rounded-md border border-dark-700 bg-white">
           <FormControl>
             <div className="relative">
               <HexColorPicker
