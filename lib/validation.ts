@@ -64,7 +64,7 @@ export type MaterialFormValues = z.infer<typeof MaterialFormValidation>;
 // Colors
 export const ColorFormValidation = z.object({
   name: z.string().nonempty("Name is required"),
-  code: z.string().nonempty("Code is required"),
+  code: z.string().nonempty("Color Code is required"),
 });
 export type ColorFormValues = z.infer<typeof ColorFormValidation>;
 
