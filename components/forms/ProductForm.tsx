@@ -80,7 +80,7 @@ const ProductForm = ({
             placeholder="Enter product name"
           />
 
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex flex-col sm:flex-row gap-5">
             <CustomFormField
               fieldType={FormFieldType.AMOUNT}
               control={form.control}
@@ -97,7 +97,7 @@ const ProductForm = ({
               placeholder="Enter product selling price"
             />
           </div>
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex flex-col sm:flex-row gap-5">
             <CustomFormField
               fieldType={FormFieldType.NUMBER}
               control={form.control}
@@ -124,7 +124,7 @@ const ProductForm = ({
               ))}
             </CustomFormField>
           </div>
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex flex-col sm:flex-row gap-5">
             <CustomFormField
               fieldType={FormFieldType.SELECT}
               control={form.control}
@@ -162,7 +162,7 @@ const ProductForm = ({
             </CustomFormField>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex flex-col sm:flex-row gap-5">
             <CustomFormField
               fieldType={FormFieldType.SELECT}
               control={form.control}

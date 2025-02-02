@@ -64,90 +64,92 @@ const UserForm = ({ mode, initialData, onSubmit, onCancel }: UserFormProps) => {
         onSubmit={form.handleSubmit(handleSubmit)}
         className="space-y-5 text-dark-500 overflow-y-auto h-full"
       >
-        <CustomFormField
-          fieldType={FormFieldType.SKELETON}
-          control={form.control}
-          name="image"
-          label="Profile Image"
-          renderSkeleton={(field) => (
-            <FormControl>
-              <FileUploader
-                files={field.value}
-                onChange={field.onChange}
-                mode={mode}
-                currentImageUrl={initialData?.profileImageUrl}
-              />
-            </FormControl>
-          )}
-        />
-        <div className="w-full flex flex-col sm:flex-row gap-5">
+        <div className="flex flex-col space-y-5 overflow-y-auto max-h-[60vh] pb-5 remove-scrollbar">
           <CustomFormField
-            fieldType={FormFieldType.INPUT}
+            fieldType={FormFieldType.SKELETON}
             control={form.control}
-            name="name"
-            label="Full Name"
-            placeholder="John Doe"
+            name="image"
+            label="Profile Image"
+            renderSkeleton={(field) => (
+              <FormControl>
+                <FileUploader
+                  files={field.value}
+                  onChange={field.onChange}
+                  mode={mode}
+                  currentImageUrl={initialData?.profileImageUrl}
+                />
+              </FormControl>
+            )}
           />
-          {mode === "create" && (
-            <CustomFormField
-              fieldType={FormFieldType.INPUT}
-              control={form.control}
-              name="email"
-              label="Email"
-              placeholder="johndoe@gmail.com"
-            />
-          )}
-        </div>
-
-        <div className="w-full flex flex-col sm:flex-row gap-5">
-          <CustomFormField
-            fieldType={FormFieldType.SELECT}
-            control={form.control}
-            name="role"
-            label="Role"
-            placeholder="Select a role"
-          >
-            {RoleOptions.map((role, i) => (
-              <SelectItem
-                key={role + i}
-                value={role}
-                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
-              >
-                {role}
-              </SelectItem>
-            ))}
-          </CustomFormField>
-
-          <CustomFormField
-            fieldType={FormFieldType.PHONE_INPUT}
-            control={form.control}
-            name="phone"
-            label="Phone number"
-            placeholder="(555) 123-4567"
-          />
-        </div>
-
-        {mode === "create" && (
           <div className="w-full flex flex-col sm:flex-row gap-5">
             <CustomFormField
               fieldType={FormFieldType.INPUT}
               control={form.control}
-              name="password"
-              label="Password"
-              placeholder="********"
+              name="name"
+              label="Full Name"
+              placeholder="John Doe"
             />
+            {mode === "create" && (
+              <CustomFormField
+                fieldType={FormFieldType.INPUT}
+                control={form.control}
+                name="email"
+                label="Email"
+                placeholder="johndoe@gmail.com"
+              />
+            )}
+          </div>
+
+          <div className="w-full flex flex-col sm:flex-row gap-5">
+            <CustomFormField
+              fieldType={FormFieldType.SELECT}
+              control={form.control}
+              name="role"
+              label="Role"
+              placeholder="Select a role"
+            >
+              {RoleOptions.map((role, i) => (
+                <SelectItem
+                  key={role + i}
+                  value={role}
+                  className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
+                >
+                  {role}
+                </SelectItem>
+              ))}
+            </CustomFormField>
 
             <CustomFormField
-              fieldType={FormFieldType.INPUT}
+              fieldType={FormFieldType.PHONE_INPUT}
               control={form.control}
-              name="confirmPassword"
-              label="Confirm Password"
-              placeholder="********"
+              name="phone"
+              label="Phone number"
+              placeholder="(555) 123-4567"
             />
           </div>
-        )}
 
-        <div className="flex justify-end gap-4">
+          {mode === "create" && (
+            <div className="w-full flex flex-col sm:flex-row gap-5">
+              <CustomFormField
+                fieldType={FormFieldType.INPUT}
+                control={form.control}
+                name="password"
+                label="Password"
+                placeholder="********"
+              />
+
+              <CustomFormField
+                fieldType={FormFieldType.INPUT}
+                control={form.control}
+                name="confirmPassword"
+                label="Confirm Password"
+                placeholder="********"
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-4 mt-4">
           {onCancel && (
             <Button
               type="button"

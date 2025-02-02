@@ -34,7 +34,7 @@ interface DataTableProps<TData, TValue> {
 import { HeaderGroup, Header } from "@tanstack/react-table";
 import { useState } from "react";
 import { Input } from "../ui/input";
-import Loading from "@/app/(dashboard)/loading";
+import Loading from "@/components/loading";
 
 export function DataTable<TData, TValue>({
   columns,

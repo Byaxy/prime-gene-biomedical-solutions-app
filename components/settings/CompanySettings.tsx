@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { useUsers } from "@/hooks/useUsers";
 import { useAuth } from "@/context/AuthContext";
 import { Users } from "@/types/appwrite.types";
-import Loading from "@/app/(dashboard)/loading";
+import Loading from "@/components/loading";
 
 const CompanySettings = () => {
   const { user } = useAuth();

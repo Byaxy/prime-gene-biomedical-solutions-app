@@ -2,7 +2,7 @@
 
 import { Suspense } from "react";
 import "@/app/dynamic-routes";
-import Loading from "./loading";
+import Loading from "../../components/loading";
 
 export const dynamic = "force-dynamic";
 

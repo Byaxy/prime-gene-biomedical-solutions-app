@@ -46,40 +46,42 @@ const ExpenseForm = ({
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit(handleSubmit)}
-        className="space-y-6 text-dark-500"
+        className="text-dark-500"
       >
-        <CustomFormField
-          fieldType={FormFieldType.DATE_PICKER}
-          control={form.control}
-          name="expenseDate"
-          label="Expense Date"
-          dateFormat="MM/dd/yyyy"
-        />
-        <CustomFormField
-          fieldType={FormFieldType.INPUT}
-          control={form.control}
-          name="title"
-          label="Expense Title"
-          placeholder="Enter expense title"
-        />
+        <div className="flex flex-col space-y-5 overflow-y-auto max-h-[60vh] pb-5 remove-scrollbar">
+          <CustomFormField
+            fieldType={FormFieldType.DATE_PICKER}
+            control={form.control}
+            name="expenseDate"
+            label="Expense Date"
+            dateFormat="MM/dd/yyyy"
+          />
+          <CustomFormField
+            fieldType={FormFieldType.INPUT}
+            control={form.control}
+            name="title"
+            label="Expense Title"
+            placeholder="Enter expense title"
+          />
 
-        <CustomFormField
-          fieldType={FormFieldType.AMOUNT}
-          control={form.control}
-          name="amount"
-          label="Amount"
-          placeholder="Enter amount"
-        />
+          <CustomFormField
+            fieldType={FormFieldType.AMOUNT}
+            control={form.control}
+            name="amount"
+            label="Amount"
+            placeholder="Enter amount"
+          />
 
-        <CustomFormField
-          fieldType={FormFieldType.TEXTAREA}
-          control={form.control}
-          name="description"
-          label="Description"
-          placeholder="Enter expense description"
-        />
+          <CustomFormField
+            fieldType={FormFieldType.TEXTAREA}
+            control={form.control}
+            name="description"
+            label="Description"
+            placeholder="Enter expense description"
+          />
+        </div>
 
-        <div className="flex justify-end gap-4">
+        <div className="flex justify-end gap-4 mt-4">
           {onCancel && (
             <Button
               type="button"

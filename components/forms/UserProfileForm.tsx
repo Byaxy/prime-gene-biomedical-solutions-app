@@ -100,7 +100,12 @@ const UserProfileForm = ({
             disabled={!isAdmin}
           >
             {RoleOptions.map((role) => (
-              <SelectItem disabled={!isAdmin} key={role} value={role}>
+              <SelectItem
+                disabled={!isAdmin}
+                key={role}
+                value={role}
+                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+              >
                 {role}
               </SelectItem>
             ))}

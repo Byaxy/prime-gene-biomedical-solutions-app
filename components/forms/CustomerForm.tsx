@@ -46,40 +46,42 @@ const CustomerForm = ({
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit(handleSubmit)}
-        className="space-y-6 text-dark-500"
+        className="text-dark-500"
       >
-        <CustomFormField
-          fieldType={FormFieldType.INPUT}
-          control={form.control}
-          name="name"
-          label="Name"
-          placeholder="Enter customer name"
-        />
+        <div className="flex flex-col space-y-5 overflow-y-auto max-h-[60vh] pb-5 remove-scrollbar">
+          <CustomFormField
+            fieldType={FormFieldType.INPUT}
+            control={form.control}
+            name="name"
+            label="Name"
+            placeholder="Enter customer name"
+          />
 
-        <CustomFormField
-          fieldType={FormFieldType.INPUT}
-          control={form.control}
-          name="email"
-          label="Email"
-          placeholder="johndoe@gmail.com"
-        />
+          <CustomFormField
+            fieldType={FormFieldType.INPUT}
+            control={form.control}
+            name="email"
+            label="Email"
+            placeholder="johndoe@gmail.com"
+          />
 
-        <CustomFormField
-          fieldType={FormFieldType.PHONE_INPUT}
-          control={form.control}
-          name="phone"
-          label="Phone number"
-          placeholder="(555) 123-4567"
-        />
-        <CustomFormField
-          fieldType={FormFieldType.TEXTAREA}
-          control={form.control}
-          name="address"
-          label="Address"
-          placeholder="Enter customer address"
-        />
+          <CustomFormField
+            fieldType={FormFieldType.PHONE_INPUT}
+            control={form.control}
+            name="phone"
+            label="Phone number"
+            placeholder="(555) 123-4567"
+          />
+          <CustomFormField
+            fieldType={FormFieldType.TEXTAREA}
+            control={form.control}
+            name="address"
+            label="Address"
+            placeholder="Enter customer address"
+          />
+        </div>
 
-        <div className="flex justify-end gap-4">
+        <div className="flex justify-end gap-4 mt-4">
           {onCancel && (
             <Button
               type="button"

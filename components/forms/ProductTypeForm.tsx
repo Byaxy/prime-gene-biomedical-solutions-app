@@ -45,25 +45,27 @@ const ProductTypeForm = ({
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit(handleSubmit)}
-        className="space-y-6 text-dark-500"
+        className="text-dark-500"
       >
-        <CustomFormField
-          fieldType={FormFieldType.INPUT}
-          control={form.control}
-          name="name"
-          label="Product Type Name"
-          placeholder="Enter Product Type name"
-        />
+        <div className="flex flex-col space-y-5 overflow-y-auto max-h-[60vh] pb-5 remove-scrollbar">
+          <CustomFormField
+            fieldType={FormFieldType.INPUT}
+            control={form.control}
+            name="name"
+            label="Product Type Name"
+            placeholder="Enter Product Type name"
+          />
 
-        <CustomFormField
-          fieldType={FormFieldType.TEXTAREA}
-          control={form.control}
-          name="description"
-          label="Description"
-          placeholder="Enter product type description"
-        />
+          <CustomFormField
+            fieldType={FormFieldType.TEXTAREA}
+            control={form.control}
+            name="description"
+            label="Description"
+            placeholder="Enter product type description"
+          />
+        </div>
 
-        <div className="flex justify-end gap-4">
+        <div className="flex justify-end gap-4 mt-4">
           {onCancel && (
             <Button
               type="button"

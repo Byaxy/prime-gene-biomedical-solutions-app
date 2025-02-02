@@ -25,7 +25,7 @@ import { X } from "lucide-react";
 import { PurchaseFormValidation, PurchaseFormValues } from "@/lib/validation";
 import { useSuppliers } from "@/hooks/useSuppliers";
 import { zodResolver } from "@hookform/resolvers/zod";
-import Loading from "@/app/(dashboard)/loading";
+import Loading from "@/components/loading";
 import FormatNumber from "@/components/FormatNumber";
 
 interface ProductType extends Product {
@@ -314,7 +314,7 @@ const PurchaseForm = ({
         onSubmit={form.handleSubmit(handleSubmit)}
         className="space-y-5 text-dark-500"
       >
-        <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex flex-col sm:flex-row gap-5">
           <CustomFormField
             fieldType={FormFieldType.INPUT}
             control={form.control}
@@ -358,29 +358,31 @@ const PurchaseForm = ({
               ))}
             </CustomFormField>
           </div>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex flex-col gap-2">
-              <p>Product Name</p>
-              <p className="text-14-medium bg-white text-dark-500 h-11 rounded-md flex items-center px-3 w-full shadow-sm min-w-[200px]">
-                {selectedProductName || "Select a product"}
-              </p>
-            </div>
-            <CustomFormField
-              fieldType={FormFieldType.NUMBER}
-              control={form.control}
-              name="tempQuantity"
-              label="Quantity"
-              placeholder="Enter quantity"
-            />
+          <div className="flex flex-col justify-between sm:flex-row gap-4">
+            <div className="flex flex-col sm:flex-row gap-5">
+              <div className="flex flex-col gap-2">
+                <p>Product Name</p>
+                <p className="text-14-medium bg-white text-dark-500 border border-dark-700 h-11 rounded-md flex items-center px-3 w-full shadow-sm min-w-[200px]">
+                  {selectedProductName || "Select a product"}
+                </p>
+              </div>
+              <CustomFormField
+                fieldType={FormFieldType.NUMBER}
+                control={form.control}
+                name="tempQuantity"
+                label="Quantity"
+                placeholder="Enter quantity"
+              />
 
-            <CustomFormField
-              fieldType={FormFieldType.AMOUNT}
-              control={form.control}
-              name="tempPrice"
-              label="Unit Price"
-              placeholder="Enter unit price"
-            />
-            <div className="flex flex-row gap-2">
+              <CustomFormField
+                fieldType={FormFieldType.AMOUNT}
+                control={form.control}
+                name="tempPrice"
+                label="Unit Price"
+                placeholder="Enter unit price"
+              />
+            </div>
+            <div className="flex flex-row gap-2 justify-end">
               <Button
                 type="button"
                 size={"icon"}
@@ -485,7 +487,7 @@ const PurchaseForm = ({
           placeholder="Enter amount paid"
         />
 
-        <div className="w-full flex flex-col sm:flex-row items-center gap-5">
+        <div className="w-full flex flex-col sm:flex-row gap-5">
           <CustomFormField
             fieldType={FormFieldType.SELECT}
             control={form.control}

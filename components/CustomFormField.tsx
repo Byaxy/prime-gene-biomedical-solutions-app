@@ -3,7 +3,7 @@
 import { E164Number } from "libphonenumber-js/core";
 import { Control } from "react-hook-form";
 import PhoneInput from "react-phone-number-input";
-import { HexColorPicker } from "react-colorful";
+import { HexColorInput, HexColorPicker } from "react-colorful";
 import { Checkbox } from "./ui/checkbox";
 import {
   FormControl,
@@ -140,20 +140,18 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
 
     case FormFieldType.PHONE_INPUT:
       return (
-        <div className="flex rounded-md bg-white">
-          <FormControl>
-            <PhoneInput
-              defaultCountry="US"
-              placeholder={props.placeholder}
-              international
-              withCountryCallingCode
-              value={field.value as E164Number | undefined}
-              onChange={field.onChange}
-              className="input-phone"
-              disabled={props.disabled}
-            />
-          </FormControl>
-        </div>
+        <FormControl>
+          <PhoneInput
+            defaultCountry="US"
+            placeholder={props.placeholder}
+            international
+            withCountryCallingCode
+            value={field.value as E164Number | undefined}
+            onChange={field.onChange}
+            className="input-phone"
+            disabled={props.disabled}
+          />
+        </FormControl>
       );
 
     case FormFieldType.CHECKBOX:
@@ -221,16 +219,21 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
 
     case FormFieldType.COLOR_PICKER:
       return (
-        <div className="flex rounded-md border border-dark-700 bg-white">
-          <FormControl>
-            <div className="relative">
-              <HexColorPicker
+        <FormControl>
+          <div className="relative flex flex-col gap-4">
+            <HexColorPicker
+              color={field.value || "#24bbc0"}
+              onChange={field.onChange}
+            />
+            <div className="flex rounded-md border border-dark-700 bg-white">
+              <HexColorInput
+                className="shad-input border-0 px-2 !outline-none w-full rounded-md"
                 color={field.value || "#24bbc0"}
                 onChange={field.onChange}
               />
             </div>
-          </FormControl>
-        </div>
+          </div>
+        </FormControl>
       );
 
     case FormFieldType.SKELETON:

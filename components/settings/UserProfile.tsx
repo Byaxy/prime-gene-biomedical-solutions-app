@@ -1,6 +1,6 @@
 "use client";
 
-import Loading from "@/app/(dashboard)/loading";
+import Loading from "@/components/loading";
 import { useAuth } from "@/context/AuthContext";
 import { useUsers } from "@/hooks/useUsers";
 import { Users } from "@/types/appwrite.types";

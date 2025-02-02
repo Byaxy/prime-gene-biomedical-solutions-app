@@ -1,6 +1,6 @@
 "use client";
 
-import Loading from "@/app/(dashboard)/loading";
+import Loading from "@/components/loading";
 import { Button } from "./ui/button";
 import AddIcon from "@mui/icons-material/Add";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
