@@ -13,6 +13,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import MenuIcon from "@mui/icons-material/Menu";
+import { X } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,13 @@ const Settings = () => {
             <Popover open={open} onOpenChange={setOpen}>
               <div className="w-full flex justify-end">
                 <PopoverTrigger asChild>
-                  <MenuIcon className="cursor-pointer text-lg bg-white w-10 h-10 p-2 rounded-full text-blue-800" />
+                  <span className="text-lg">
+                    {open ? (
+                      <X className="cursor-pointer bg-white w-10 h-10 p-2 rounded-full text-blue-800" />
+                    ) : (
+                      <MenuIcon className="cursor-pointer bg-white w-10 h-10 p-2 rounded-full text-blue-800" />
+                    )}
+                  </span>
                 </PopoverTrigger>
               </div>
               <PopoverContent className="w-48 min-h-52 flex flex-col ring-0 bg-white rounded-lg z-50 mr-8">
