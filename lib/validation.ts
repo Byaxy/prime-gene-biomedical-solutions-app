@@ -1,19 +1,28 @@
 import { z } from "zod";
 
 export const LoginFormValidation = z.object({
-  email: z.string().email("Invalid email address"),
+  email: z
+    .string()
+    .nonempty("Email is required")
+    .email("Invalid email address"),
   password: z.string().nonempty("Password is required"),
 });
 
 // Users
 export const CreateUserValidation = z
   .object({
-    name: z.string().min(1, "Name is required"),
-    email: z.string().email("Invalid email address"),
-    phone: z.string().min(1, "Phone number is required"),
-    password: z.string().min(6, "Password must be at least 6 characters"),
+    name: z.string().nonempty("Name is required"),
+    email: z
+      .string()
+      .nonempty("Email is required")
+      .email("Invalid email address"),
+    phone: z.string().nonempty("Phone number is required"),
+    password: z
+      .string()
+      .nonempty("Password is required")
+      .min(6, "Password must be at least 6 characters"),
     confirmPassword: z.string(),
-    role: z.string().min(1, "Role is required"),
+    role: z.string().nonempty("Role is required"),
     image: z.any().optional(),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -22,9 +31,9 @@ export const CreateUserValidation = z
   });
 
 export const EditUserValidation = z.object({
-  name: z.string().min(1, "Name is required"),
-  role: z.string().min(1, "Role is required"),
-  phone: z.string().min(1, "Phone number is required"),
+  name: z.string().nonempty("Name is required"),
+  role: z.string().nonempty("Role is required"),
+  phone: z.string().nonempty("Phone number is required"),
   image: z.any().optional(),
 });
 
@@ -34,27 +43,27 @@ export type UserFormValues = CreateUserFormValues | EditUserFormValues;
 
 // Categories
 export const CategoryFormValidation = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
+  name: z.string().nonempty("Name is required"),
   description: z.string().optional(),
 });
 export type CategoryFormValues = z.infer<typeof CategoryFormValidation>;
 
 // Types
 export const TypeFormValidation = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
+  name: z.string().nonempty("Name is required"),
   description: z.string().optional(),
 });
 export type TypeFormValues = z.infer<typeof TypeFormValidation>;
 
 // Materials
 export const MaterialFormValidation = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
+  name: z.string().nonempty("Name is required"),
 });
 export type MaterialFormValues = z.infer<typeof MaterialFormValidation>;
 
 // Colors
 export const ColorFormValidation = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
+  name: z.string().nonempty("Name is required"),
   code: z.string().nonempty("Code is required"),
 });
 export type ColorFormValues = z.infer<typeof ColorFormValidation>;
@@ -126,10 +135,7 @@ export type PurchaseFormValues = z.infer<typeof PurchaseFormValidation>;
 
 // Suppliers
 export const SupplierFormValidation = z.object({
-  name: z
-    .string()
-    .min(2, "Name must be at least 2 characters")
-    .nonempty("Name is required"),
+  name: z.string().nonempty("Name is required"),
   email: z.string().optional(),
   phone: z.string().optional(),
   address: z.string().optional(),
@@ -138,10 +144,7 @@ export type SupplierFormValues = z.infer<typeof SupplierFormValidation>;
 
 // Customers
 export const CustomerFormValidation = z.object({
-  name: z
-    .string()
-    .min(2, "Name must be at least 2 characters")
-    .nonempty("Name is required"),
+  name: z.string().nonempty("Name is required"),
   email: z.string().optional(),
   phone: z.string().optional(),
   address: z.string().optional(),
@@ -150,10 +153,7 @@ export type CustomerFormValues = z.infer<typeof CustomerFormValidation>;
 
 // Units
 export const UnitFormValidation = z.object({
-  name: z
-    .string()
-    .min(2, "Name must be at least 2 characters")
-    .nonempty("Name is required"),
+  name: z.string().nonempty("Name is required"),
   code: z.string().nonempty("Code is required"),
   description: z.string().optional(),
 });
