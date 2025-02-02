@@ -165,7 +165,7 @@ export const SaleFormValidation = z.object({
   saleDate: z.date().refine((date) => date <= new Date(), {
     message: "Sale date cannot be in the future",
   }),
-  customerId: z.string().nonempty("Supplier is required"),
+  customerId: z.string().nonempty("Customer is required"),
   totalAmount: z.number().min(0, "Total amount must be 0 or more"),
   amountPaid: z.number().min(0, "Amount paid must be 0 or more"),
   status: z.enum(["pending", "completed", "cancelled"]).default("pending"),

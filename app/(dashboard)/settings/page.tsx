@@ -27,14 +27,14 @@ const Settings = () => {
             <Popover open={open} onOpenChange={setOpen}>
               <div className="w-full flex justify-end">
                 <PopoverTrigger asChild>
-                  <MenuIcon className="cursor-pointer bg-white w-10 h-10 p-2 rounded-full text-blue-800" />
+                  <MenuIcon className="cursor-pointer text-lg bg-white w-10 h-10 p-2 rounded-full text-blue-800" />
                 </PopoverTrigger>
               </div>
               <PopoverContent className="w-48 min-h-52 flex flex-col ring-0 bg-white rounded-lg z-50 mr-8">
                 <TabsList className="grid w-full grid-cols-1 gap-4">
                   <TabsTrigger
                     value="profile"
-                    className="w-full bg-light-200 py-3 data-[state=active]:bg-blue-800 data-[state=active]:text-white"
+                    className="w-full bg-light-200 py-2 data-[state=active]:bg-blue-800 data-[state=active]:text-white"
                     onClick={() => setOpen(false)}
                   >
                     User Profile
@@ -42,7 +42,7 @@ const Settings = () => {
 
                   <TabsTrigger
                     value="company"
-                    className="w-full bg-light-200 py-3 data-[state=active]:bg-blue-800 data-[state=active]:text-white"
+                    className="w-full bg-light-200 py-2 data-[state=active]:bg-blue-800 data-[state=active]:text-white"
                     onClick={() => setOpen(false)}
                   >
                     Company Settings
@@ -50,7 +50,7 @@ const Settings = () => {
 
                   <TabsTrigger
                     value="password"
-                    className="w-full bg-light-200 py-3 data-[state=active]:bg-blue-800 data-[state=active]:text-white"
+                    className="w-full bg-light-200 py-2 data-[state=active]:bg-blue-800 data-[state=active]:text-white"
                     onClick={() => setOpen(false)}
                   >
                     Update Password
