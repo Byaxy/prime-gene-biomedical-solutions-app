@@ -112,11 +112,8 @@ const UserProfileForm = ({
           </CustomFormField>
         </div>
 
-        <div className="flex w-full">
-          <SubmitButton
-            className="shad-primary-btn w-full mt-6"
-            isLoading={isEditing || isLoading}
-          >
+        <div className="flex w-full pt-6">
+          <SubmitButton isLoading={isEditing || isLoading}>
             {isEditing ? "Updating..." : "Update Profile"}
           </SubmitButton>
         </div>

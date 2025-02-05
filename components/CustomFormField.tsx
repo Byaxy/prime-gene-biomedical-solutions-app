@@ -221,14 +221,11 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
       return (
         <FormControl>
           <div className="relative flex flex-col gap-4">
-            <HexColorPicker
-              color={field.value || "#24bbc0"}
-              onChange={field.onChange}
-            />
+            <HexColorPicker color={field.value} onChange={field.onChange} />
             <div className="flex rounded-md border border-dark-700 bg-white">
               <HexColorInput
                 className="shad-input border-0 px-2 !outline-none w-full rounded-md"
-                color={field.value || "#24bbc0"}
+                color={field.value}
                 onChange={field.onChange}
               />
             </div>

@@ -1,4 +1,5 @@
 import { type ClassValue, clsx } from "clsx";
+import { numericFormatter } from "react-number-format";
 import { twMerge } from "tailwind-merge";
 import { v4 as uuidv4 } from "uuid";
 
@@ -72,4 +73,25 @@ export const formatDateTime = (dateString: Date | string) => {
     dateOnly: formattedDate,
     timeOnly: formattedTime,
   };
+};
+
+// Format numner  with currency
+export const formatCurrency = (value: string, currency: string) => {
+  return numericFormatter(value, {
+    thousandSeparator: ",",
+    displayType: "text",
+    thousandsGroupStyle: "thousand",
+    type: "text",
+    prefix: currency,
+  });
+};
+
+// Format numner
+export const formatNumber = (value: string) => {
+  return numericFormatter(value, {
+    thousandSeparator: ",",
+    displayType: "text",
+    thousandsGroupStyle: "thousand",
+    type: "text",
+  });
 };
