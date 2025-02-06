@@ -217,10 +217,10 @@ const SalesBarChart = ({
                           numberOfMonths={2}
                           classNames={{
                             day_selected: "bg-blue-800 text-white",
-                            day_range_middle: "bg-[#EDF3F6] !text-blue-800/50",
+                            day_range_middle: "!bg-[#EDF3F6] !text-blue-800/50",
                             day: "m-1 px-2 py-1 rounded",
                             caption:
-                              "text-2xl font-semibold text-blue-800 text-center",
+                              "!text-xl !font-semibold text-blue-800 text-center",
                             nav_button:
                               "bg-blue-800 text-white p-1 rounded mx-1",
                           }}
@@ -248,8 +248,8 @@ const SalesBarChart = ({
           <ResponsiveContainer width="100%" minHeight={300}>
             <BarChart data={chartData}>
               <CartesianGrid stroke="#EDF3F6" />
-              <XAxis dataKey="date" />
-              <YAxis tickFormatter={formatYAxis} />
+              <XAxis dataKey="date" tick={{ fontSize: 14 }} />
+              <YAxis tickFormatter={formatYAxis} tick={{ fontSize: 14 }} />
               <Tooltip
                 cursor={{ fill: "#EDF3F6" }}
                 formatter={(value) =>
