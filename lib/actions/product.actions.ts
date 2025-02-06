@@ -11,8 +11,13 @@ import {
 } from "../appwrite-server";
 import { ProductFormValues } from "../validation";
 
+interface ProductDataWithImage extends Omit<ProductFormValues, "image"> {
+  imageId: string;
+  imageUrl: string;
+}
+
 // Add Product
-export const addProduct = async (productData: ProductFormValues) => {
+export const addProduct = async (productData: ProductDataWithImage) => {
   try {
     const response = await databases.createDocument(
       DATABASE_ID!,
@@ -63,15 +68,46 @@ export const getProducts = async () => {
 
 // Edit Product
 export const editProduct = async (
-  productData: ProductFormValues,
+  productData: ProductDataWithImage,
   productId: string
 ) => {
+  let updatedProductData;
+
+  if (productData.imageId && productData.imageUrl) {
+    updatedProductData = {
+      name: productData.name,
+      costPrice: productData.costPrice,
+      sellingPrice: productData.sellingPrice,
+      quantity: productData.quantity,
+      categoryId: productData.categoryId,
+      typeId: productData.typeId,
+      materialId: productData.materialId,
+      colorId: productData.colorId,
+      unitId: productData.unitId,
+      description: productData.description,
+      imageId: productData.imageId,
+      imageUrl: productData.imageUrl,
+    };
+  } else {
+    updatedProductData = {
+      name: productData.name,
+      costPrice: productData.costPrice,
+      sellingPrice: productData.sellingPrice,
+      quantity: productData.quantity,
+      categoryId: productData.categoryId,
+      typeId: productData.typeId,
+      materialId: productData.materialId,
+      colorId: productData.colorId,
+      unitId: productData.unitId,
+      description: productData.description,
+    };
+  }
   try {
     const response = await databases.updateDocument(
       DATABASE_ID!,
       NEXT_PUBLIC_PRODUCTS_COLLECTION_ID!,
       productId,
-      productData
+      updatedProductData
     );
 
     revalidatePath("/products");

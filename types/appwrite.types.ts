@@ -48,6 +48,8 @@ export interface Product {
   materialId: any;
   colorId: any;
   unitId: any;
+  imageId: string;
+  imageUrl: string;
   $createdAt: Date;
   $updatedAt: Date;
 }

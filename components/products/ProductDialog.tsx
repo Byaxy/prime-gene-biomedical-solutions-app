@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 
 import { ProductFormValues } from "@/lib/validation";
 import { Product } from "@/types/appwrite.types";
-import ProductForm from "../forms/ProductForm";
 import { cn } from "@/lib/utils";
 
 interface ProductDialogProps {
@@ -64,76 +63,52 @@ export function ProductDialog({
   }[mode];
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className={cn(
-          "sm:max-w-2xl bg-light-200 mx-2 sm:mx-0",
-          mode === "delete" && "sm:max-w-lg"
-        )}
-      >
-        <DialogHeader className="space-y-2">
-          <DialogTitle className="text-xl text-blue-800">
-            {dialogTitle}
-          </DialogTitle>
-          <DialogDescription className="text-dark-500">
-            {dialogDescription}
-          </DialogDescription>
-        </DialogHeader>
+    <div>
+      {mode === "delete" && (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <DialogContent
+            className={cn(
+              "sm:max-w-2xl bg-light-200 mx-2 sm:mx-0",
+              mode === "delete" && "sm:max-w-lg"
+            )}
+          >
+            <DialogHeader className="space-y-2">
+              <DialogTitle className="text-xl text-blue-800">
+                {dialogTitle}
+              </DialogTitle>
+              <DialogDescription className="text-dark-500">
+                {dialogDescription}
+              </DialogDescription>
+            </DialogHeader>
 
-        {mode === "delete" ? (
-          <div className="flex flex-col gap-4">
-            <p className="text-sm text-red-500">
-              Product: <span className="font-semibold">{product?.name}</span>
-            </p>
-            <div className="flex justify-end gap-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                disabled={isLoading}
-                className="shad-primary-btn"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={handleDelete}
-                disabled={isLoading}
-                className="shad-danger-btn"
-              >
-                Delete
-              </Button>
+            <div className="flex flex-col gap-4">
+              <p className="text-sm text-red-500">
+                Product: <span className="font-semibold">{product?.name}</span>
+              </p>
+              <div className="flex justify-end gap-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                  disabled={isLoading}
+                  className="shad-primary-btn"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={handleDelete}
+                  disabled={isLoading}
+                  className="shad-danger-btn"
+                >
+                  Delete
+                </Button>
+              </div>
             </div>
-          </div>
-        ) : (
-          <ProductForm
-            mode={mode === "add" ? "create" : "edit"}
-            initialData={
-              mode === "edit" && product
-                ? {
-                    name: product.name,
-                    description: product.description,
-                    costPrice: product.costPrice,
-                    sellingPrice: product.sellingPrice,
-                    quantity: product.quantity,
-                    categoryId: product.categoryId
-                      ? product.categoryId.$id
-                      : "",
-                    typeId: product.typeId ? product.typeId.$id : "",
-                    materialId: product.materialId
-                      ? product.materialId.$id
-                      : "",
-                    colorId: product.colorId ? product.colorId.$id : "",
-                    unitId: product.unitId ? product.unitId.$id : "",
-                  }
-                : undefined
-            }
-            onSubmit={onSubmit}
-            onCancel={() => onOpenChange(false)}
-          />
-        )}
-      </DialogContent>
-    </Dialog>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
   );
 }

@@ -207,7 +207,7 @@ const SalesBarChart = ({
                       <DropdownMenuSubTrigger className="cursor-pointer m-1 text-blue-800 font-medium hover:bg-blue-800 hover:text-white rounded-md">
                         Custom
                       </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent className="bg-white z-30">
+                      <DropdownMenuSubContent className="bg-white z-30 pb-4 px-2">
                         <Calendar
                           mode="range"
                           disabled={{ after: new Date() }}

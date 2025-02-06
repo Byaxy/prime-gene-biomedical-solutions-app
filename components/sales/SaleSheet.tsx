@@ -34,6 +34,7 @@ const SaleSheet = ({
     add: "Create a new sale record for your inventory.",
     edit: "Modify the details of the existing sale.",
   }[mode];
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="h-[90vh] bg-light-200">

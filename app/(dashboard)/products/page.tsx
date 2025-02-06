@@ -1,7 +1,8 @@
 "use client";
 
 import PageWraper from "@/components/PageWraper";
-import { ProductDialog } from "@/components/products/ProductDialog";
+//import { ProductDialog } from "@/components/products/ProductDialog";
+import ProductSheet from "@/components/products/ProductSheet";
 import { productsColumns } from "@/components/table/columns/productsColumns";
 import { DataTable } from "@/components/table/DataTable";
 import { useProducts } from "@/hooks/useProducts";
@@ -39,7 +40,7 @@ const Products = () => {
           data={products || []}
           isLoading={isLoading}
         />
-        <ProductDialog
+        <ProductSheet
           mode="add"
           open={isAddDialogOpen}
           onOpenChange={setIsAddDialogOpen}

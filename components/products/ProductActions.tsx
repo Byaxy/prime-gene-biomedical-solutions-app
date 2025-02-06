@@ -5,6 +5,7 @@ import { Product } from "@/types/appwrite.types";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { ProductDialog } from "./ProductDialog";
+import ProductSheet from "./ProductSheet";
 
 const ProductActions = ({ product }: { product: Product }) => {
   const [open, setOpen] = useState(false);
@@ -18,7 +19,6 @@ const ProductActions = ({ product }: { product: Product }) => {
   } = useProducts();
 
   const handleAction = async (data: ProductFormValues) => {
-    // Handle different actions based on mode
     try {
       if (mode === "edit") {
         // Edit product
@@ -26,7 +26,6 @@ const ProductActions = ({ product }: { product: Product }) => {
           { id: product.$id, data },
           { onSuccess: () => setOpen(false) }
         );
-        setOpen(false);
       } else if (mode === "delete") {
         // Delete product
         await softDeleteProduct(product.$id, {
@@ -58,13 +57,23 @@ const ProductActions = ({ product }: { product: Product }) => {
       >
         <DeleteIcon className="h-5 w-5" />
       </span>
+
+      <ProductSheet
+        mode="edit"
+        open={open && mode === "edit"}
+        onOpenChange={setOpen}
+        isLoading={isEditingProduct}
+        onSubmit={handleAction}
+        product={product}
+      />
+
       <ProductDialog
-        mode={mode}
-        open={open}
+        mode={"delete"}
+        open={open && mode === "delete"}
         onOpenChange={setOpen}
         product={product}
         onSubmit={handleAction}
-        isLoading={isSoftDeletingProduct || isEditingProduct}
+        isLoading={isSoftDeletingProduct}
       />
     </div>
   );

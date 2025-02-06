@@ -8,6 +8,10 @@ import {
   getProducts,
   softDeleteProduct,
 } from "@/lib/actions/product.actions";
+import { storage } from "@/lib/appwrite-client";
+import { ID } from "appwrite";
+
+const BUCKET_ID = process.env.NEXT_PUBLIC_APPWRITE_BUCKET_ID;
 
 export const useProducts = () => {
   const queryClient = useQueryClient();
@@ -31,7 +35,45 @@ export const useProducts = () => {
 
   // Add product mutation
   const { mutate: addProductMutation, status: addProductStatus } = useMutation({
-    mutationFn: (data: ProductFormValues) => addProduct(data),
+    mutationFn: async (data: ProductFormValues) => {
+      let imageId = "";
+      let imageUrl = "";
+
+      if (data.image && data.image.length > 0) {
+        try {
+          const file = data.image[0]; // Get the first file
+          imageId = ID.unique();
+
+          // Upload the file
+          const upload = await storage.createFile(BUCKET_ID!, imageId, file);
+
+          // Get the file view URL
+          if (upload) {
+            imageUrl = storage.getFileView(BUCKET_ID!, imageId).toString();
+          }
+        } catch (error) {
+          console.error("Error uploading file:", error);
+          throw new Error("Failed to upload product image");
+        }
+      }
+
+      const productData = {
+        name: data.name,
+        costPrice: data.costPrice,
+        sellingPrice: data.sellingPrice,
+        quantity: data.quantity,
+        categoryId: data.categoryId,
+        typeId: data.typeId,
+        materialId: data.materialId,
+        colorId: data.colorId,
+        unitId: data.unitId,
+        description: data.description,
+        imageId,
+        imageUrl,
+      };
+
+      return addProduct(productData);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.success("Product added successfully");
@@ -45,8 +87,62 @@ export const useProducts = () => {
   // Edit product mutation
   const { mutate: editProductMutation, status: editProductStatus } =
     useMutation({
-      mutationFn: ({ id, data }: { id: string; data: ProductFormValues }) =>
-        editProduct(data, id),
+      mutationFn: async ({
+        id,
+        data,
+        prevImageId,
+      }: {
+        id: string;
+        data: ProductFormValues;
+        prevImageId?: string;
+      }) => {
+        console.log("Data", data); // Log the data
+        let imageId = "";
+        let imageUrl = "";
+
+        if (prevImageId && data.image && data.image.length > 0) {
+          try {
+            storage.deleteFile(BUCKET_ID!, prevImageId);
+          } catch (error) {
+            console.warn("Error deleting previous image:", error);
+          }
+        }
+
+        if (data.image && data.image.length > 0) {
+          try {
+            const file = data.image[0]; // Get the first file
+            imageId = ID.unique();
+
+            // Upload the file
+            const upload = await storage.createFile(BUCKET_ID!, imageId, file);
+
+            // Get the file view URL
+            if (upload) {
+              imageUrl = storage.getFileView(BUCKET_ID!, imageId).toString();
+            }
+          } catch (error) {
+            console.error("Error uploading file:", error);
+            throw new Error("Failed to upload product image");
+          }
+        }
+
+        const productData = {
+          name: data.name,
+          costPrice: data.costPrice,
+          sellingPrice: data.sellingPrice,
+          quantity: data.quantity,
+          categoryId: data.categoryId,
+          typeId: data.typeId,
+          materialId: data.materialId,
+          colorId: data.colorId,
+          unitId: data.unitId,
+          description: data.description,
+          imageId,
+          imageUrl,
+        };
+
+        return editProduct(productData, id);
+      },
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["products"] });
         toast.success("Product updated successfully");

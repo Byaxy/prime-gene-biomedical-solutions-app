@@ -88,8 +88,6 @@ export const updateCompanySettings = async (
       };
     }
 
-    console.log("Updating company settings:", dbCompanySettings);
-
     const updatedDbCompanySettings = await databases.updateDocument(
       DATABASE_ID!,
       COMPANY_SETTINGS_COLLECTION_ID!,

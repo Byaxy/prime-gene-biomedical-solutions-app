@@ -83,6 +83,7 @@ export const ProductFormValidation = z.object({
   materialId: z.string().nonempty("Material is required"),
   colorId: z.string().nonempty("Color is required"),
   unitId: z.string().nonempty("Unit is required"),
+  image: z.any().optional(),
 });
 export type ProductFormValues = z.infer<typeof ProductFormValidation>;
 

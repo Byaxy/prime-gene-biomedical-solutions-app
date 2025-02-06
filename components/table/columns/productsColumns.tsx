@@ -6,12 +6,31 @@ import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ProductActions from "@/components/products/ProductActions";
 import FormatNumber from "@/components/FormatNumber";
+import Image from "next/image";
 
 export const productsColumns: ColumnDef<Product>[] = [
   {
     header: "#",
     cell: ({ row }) => {
       return <p className="text-14-medium pl-2">{row.index + 1}</p>;
+    },
+  },
+  {
+    header: "Image",
+    cell: ({ row }) => {
+      const product = row.original;
+      return (
+        <div className="flex items-center">
+          <Image
+            src={product.imageUrl || "/assets/images/user.png"}
+            alt={product.name}
+            width={50}
+            height={50}
+            className="h-12 w-12 rounded-full object-cover"
+            priority={true}
+          />
+        </div>
+      );
     },
   },
   {
