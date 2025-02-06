@@ -37,7 +37,7 @@ const OverviewCard = ({ title, data, total, isLoading }: OverviewCardProps) => {
             <span className="text-nowrap text-lg text-dark-600 font-semibold">
               {title}
             </span>
-            <CardTitle className="text-2xl font-bold">
+            <CardTitle className="text-xl font-bold">
               {formattedTotal}
             </CardTitle>
           </CardHeader>

@@ -124,11 +124,7 @@
 
   /* Data Table */
   .data-table {
-    @apply z-10 w-full overflow-hidden rounded-lg border border-dark-700 shadow-lg bg-white;
-  }
-
-  .table-actions {
-    @apply flex w-full items-center justify-between space-x-2 p-4;
+    @apply z-10 w-full overflow-hidden rounded-lg border shadow-sm bg-white;
   }
 
   /* ===== ALIGNMENTS */

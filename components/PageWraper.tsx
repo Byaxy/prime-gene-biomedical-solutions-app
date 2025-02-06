@@ -31,7 +31,7 @@ const PageWraper = ({
           <div className="flex w-full sm:w-fit flex-row items-start sm:items-center justify-between sm:justify-center gap-5">
             <Button
               onClick={router.back}
-              className="shad-gray-btn flex flex-row items-center justify-center gap-1"
+              className="shad-gray-btn flex flex-row items-center justify-center gap-1 border-0"
             >
               <ArrowBackIcon className="h-6 w-6" />
               <span className=" font-medium capitalize">Back</span>

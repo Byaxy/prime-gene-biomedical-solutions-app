@@ -30,19 +30,34 @@ interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   isLoading?: boolean;
+  hideSearch?: boolean;
+  pageSize?: number;
 }
 import { HeaderGroup, Header } from "@tanstack/react-table";
 import { useState } from "react";
 import { Input } from "../ui/input";
 import Loading from "@/components/loading";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
 
 export function DataTable<TData, TValue>({
   columns,
   data,
   isLoading,
+  hideSearch,
+  pageSize = 10,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [pagination, setPagination] = useState({
+    pageIndex: 0,
+    pageSize: pageSize,
+  });
 
   const table = useReactTable({
     data,
@@ -53,9 +68,11 @@ export function DataTable<TData, TValue>({
     getFilteredRowModel: getFilteredRowModel(),
     onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),
+    onPaginationChange: setPagination,
     state: {
       sorting,
       columnFilters,
+      pagination,
     },
   });
 
@@ -64,16 +81,18 @@ export function DataTable<TData, TValue>({
 
   return (
     <div>
-      <div className="flex items-center py-4">
-        <Input
-          placeholder={`Search by ${searchableColumn?.id}`}
-          value={(searchableColumn?.getFilterValue() as string) ?? ""}
-          onChange={(event) =>
-            searchableColumn?.setFilterValue(event.target.value)
-          }
-          className="max-w-lg placeholder:text-dark-500 border-dark-700 h-11 focus-visible:ring-0 focus-visible:ring-offset-0"
-        />
-      </div>
+      {!hideSearch && (
+        <div className="flex items-center py-4">
+          <Input
+            placeholder={`Search by ${searchableColumn?.id}`}
+            value={(searchableColumn?.getFilterValue() as string) ?? ""}
+            onChange={(event) =>
+              searchableColumn?.setFilterValue(event.target.value)
+            }
+            className="max-w-lg placeholder:text-dark-500 border-dark-700 h-11 focus-visible:ring-0 focus-visible:ring-offset-0"
+          />
+        </div>
+      )}
 
       <div className="data-table">
         <Table className="shad-table [&_tr_td]:py-2 [&_tr_th]:py-2">
@@ -140,25 +159,52 @@ export function DataTable<TData, TValue>({
             )}
           </TableBody>
         </Table>
-        <div className="table-actions">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-            className="shad-primary-btn"
-          >
-            <KeyboardArrowLeftIcon />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-            className="shad-primary-btn"
-          >
-            <KeyboardArrowRightIcon />
-          </Button>
+
+        <div className="flex items-center justify-between my-6 px-5">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-dark-600">Rows per page:</span>
+            <Select
+              value={String(table.getState().pagination.pageSize)}
+              onValueChange={(value) => {
+                table.setPageSize(Number(value));
+              }}
+            >
+              <SelectTrigger className="w-20 text-dark-600">
+                <SelectValue placeholder="10" />
+              </SelectTrigger>
+              <SelectContent className="bg-white">
+                {[5, 10, 15, 20, 25, 30].map((size) => (
+                  <SelectItem
+                    key={size}
+                    value={String(size)}
+                    className="text-dark-600 hover:text-white hover:bg-blue-800 cursor-pointer rounded-md"
+                  >
+                    {size}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+              className="shad-primary-btn border-0"
+            >
+              <KeyboardArrowLeftIcon />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+              className="shad-primary-btn border-0"
+            >
+              <KeyboardArrowRightIcon />
+            </Button>
+          </div>
         </div>
       </div>
     </div>

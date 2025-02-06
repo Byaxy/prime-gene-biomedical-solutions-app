@@ -26,7 +26,7 @@ const ProductsOverview = () => {
             <span className="text-lg text-dark-600 font-semibold">
               Number of Products
             </span>
-            <CardTitle className="text-2xl font-bold">
+            <CardTitle className="text-xl font-bold">
               {products ? products.length : 0}
             </CardTitle>
           </CardHeader>

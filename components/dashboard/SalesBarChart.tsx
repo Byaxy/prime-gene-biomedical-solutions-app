@@ -168,8 +168,8 @@ const SalesBarChart = ({
         <>
           <div className="flex flex-col gap-4 md:flex-row justify-between items-start pb-4">
             <div className="flex flex-col gap-2">
-              <p className="text-xl text-dark-600">Total Revenue</p>
-              <h2 className="text-2xl font-semibold">{formattedTotal}</h2>
+              <p className="text-lg text-dark-600">Total Revenue</p>
+              <h2 className="text-xl font-semibold">{formattedTotal}</h2>
             </div>
             <div className="flex flex-row items-center justify-end gap-4">
               <div className="flex flex-row gap-1 items-center">
