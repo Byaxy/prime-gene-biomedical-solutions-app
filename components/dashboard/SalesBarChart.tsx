@@ -52,6 +52,7 @@ interface ChartDataPoint {
   totalAmount: number;
   amountPaid: number;
   pendingAmount: number;
+  cancelledAmount: number;
 }
 
 // Format large numbers to K/M format
@@ -87,6 +88,7 @@ export function getSalesChartData(
     totalAmount: 0,
     amountPaid: 0,
     pendingAmount: 0,
+    cancelledAmount: 0,
   }));
 
   // Process sales data
@@ -95,10 +97,16 @@ export function getSalesChartData(
     const formattedDate = format(saleDate);
 
     const entry = dayArray.find((day) => day.date === formattedDate);
+
     if (entry) {
-      entry.totalAmount += sale.totalAmount;
-      entry.amountPaid += sale.amountPaid;
-      entry.pendingAmount += sale.totalAmount - sale.amountPaid;
+      if (sale.status === "cancelled") {
+        entry.amountPaid += sale.amountPaid;
+        entry.cancelledAmount += sale.totalAmount;
+      } else {
+        entry.totalAmount += sale.totalAmount;
+        entry.amountPaid += sale.amountPaid;
+        entry.pendingAmount += sale.totalAmount - sale.amountPaid;
+      }
     }
   });
 
@@ -180,6 +188,10 @@ const SalesBarChart = ({
                 <div className="bg-[#72d9d6] h-4 w-4 rounded-full" />
                 <span className="text-sm text-blue-800">Pending</span>
               </div>
+              <div className="flex flex-row gap-1 items-center">
+                <div className="bg-red-600 h-4 w-4 rounded-full" />
+                <span className="text-sm text-blue-800">Cancelled</span>
+              </div>
               <div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -259,6 +271,7 @@ const SalesBarChart = ({
               />
               <Bar dataKey="amountPaid" fill="#002060" name="Paid" />
               <Bar dataKey="pendingAmount" fill="#72d9d6" name="Pending" />
+              <Bar dataKey="cancelledAmount" fill="#dc2626" name="Cancelled" />
             </BarChart>
           </ResponsiveContainer>
         </>

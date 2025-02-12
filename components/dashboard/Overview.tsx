@@ -15,7 +15,18 @@ const Overview = () => {
     : 0;
 
   const salesTotalAmount = sales
-    ? sales.reduce((sum: number, sale: Sale) => (sum += sale.totalAmount), 0)
+    ? sales.reduce(
+        (sum: number, sale: Sale) =>
+          (sum += sale.status === "cancelled" ? 0 : sale.totalAmount),
+        0
+      )
+    : 0;
+  const salesTotalAmountCancelled = sales
+    ? sales.reduce(
+        (sum: number, sale: Sale) =>
+          (sum += sale.status === "cancelled" ? sale.totalAmount : 0),
+        0
+      )
     : 0;
 
   const purchasesTotalPaid = purchases
@@ -27,7 +38,8 @@ const Overview = () => {
 
   const purchasesTotalAmount = purchases
     ? purchases.reduce(
-        (sum: number, purchase: Purchase) => (sum += purchase.totalAmount),
+        (sum: number, purchase: Purchase) =>
+          (sum += purchase.status === "cancelled" ? 0 : purchase.totalAmount),
         0
       )
     : 0;
@@ -47,12 +59,17 @@ const Overview = () => {
           {
             name: "Pending",
             value: salesTotalAmount - salesTotalPaid,
-            color: "#EDF3F6",
+            color: "#72d9d6",
           },
           {
             name: "Paid",
             value: salesTotalPaid,
             color: "#002060",
+          },
+          {
+            name: "Cancelled",
+            value: salesTotalAmountCancelled,
+            color: "#dc2626",
           },
         ]}
         total={salesTotalAmount}

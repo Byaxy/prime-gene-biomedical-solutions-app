@@ -13,6 +13,9 @@ const Colors = () => {
 
   const { productColors, isLoading, addColor, isAddingColor } = useColors();
 
+  // check colors
+  console.log(productColors);
+
   const handleAddColor = async (data: ColorFormValues): Promise<void> => {
     return new Promise((resolve, reject) => {
       addColor(data, {
