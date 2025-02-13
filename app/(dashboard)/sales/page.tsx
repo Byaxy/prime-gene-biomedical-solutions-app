@@ -10,7 +10,17 @@ import SaleSheet from "@/components/sales/SaleSheet";
 
 const Sales = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const { sales, addSale, isLoading, isAddingSale } = useSales();
+  const {
+    sales,
+    addSale,
+    isLoading,
+    isAddingSale,
+    totalItems,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+  } = useSales({ initialPageSize: 10 });
 
   const handleCreateSale = async (data: SaleFormValues): Promise<void> => {
     return new Promise((resolve, reject) => {
@@ -37,6 +47,11 @@ const Sales = () => {
           columns={salesColumns}
           data={sales || []}
           isLoading={isLoading}
+          totalItems={totalItems}
+          page={page}
+          onPageChange={setPage}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
         />
 
         <SaleSheet

@@ -11,7 +11,17 @@ import { TypeFormValues } from "@/lib/validation";
 const Types = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
-  const { types, isLoading, addType, isAddingType } = useTypes();
+  const {
+    types,
+    isLoading,
+    totalItems,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    addType,
+    isAddingType,
+  } = useTypes({ initialPageSize: 10 });
 
   const handleAddType = async (data: TypeFormValues): Promise<void> => {
     return new Promise((resolve, reject) => {
@@ -38,6 +48,11 @@ const Types = () => {
           columns={typesColumns}
           data={types || []}
           isLoading={isLoading}
+          totalItems={totalItems}
+          page={page}
+          onPageChange={setPage}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
         />
         <ProductTypeDialog
           mode="add"

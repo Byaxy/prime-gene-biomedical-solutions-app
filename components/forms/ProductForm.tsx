@@ -35,11 +35,11 @@ const ProductForm = ({
   onCancel,
 }: ProductFormProps) => {
   const [isLoading, setIsLoading] = useState(false);
-  const { categories } = useCategories();
-  const { types } = useTypes();
-  const { units } = useUnits();
-  const { materials } = useMaterials();
-  const { productColors } = useColors();
+  const { categories } = useCategories({ getAllCategories: true });
+  const { types } = useTypes({ getAllTypes: true });
+  const { units } = useUnits({ getAllUnits: true });
+  const { materials } = useMaterials({ getAllMaterials: true });
+  const { productColors } = useColors({ getAllColors: true });
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(ProductFormValidation),

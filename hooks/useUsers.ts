@@ -13,33 +13,62 @@ import {
 } from "@/lib/validation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ID } from "appwrite";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 const BUCKET_ID = process.env.NEXT_PUBLIC_APPWRITE_BUCKET_ID;
 
-export const useUsers = () => {
+interface UseUsersOptions {
+  getAllUsers?: boolean;
+  initialPageSize?: number;
+}
+
+export const useUsers = ({
+  getAllUsers = false,
+  initialPageSize = 10,
+}: UseUsersOptions = {}) => {
   const queryClient = useQueryClient();
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(initialPageSize);
 
-  // Get all users
-  const {
-    data: users,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ["users"],
+  // Query for all Users
+  const allUsersQuery = useQuery({
+    queryKey: ["users", "allUsers"],
     queryFn: async () => {
-      const result = await getUsers();
+      const result = await getUsers(0, 0, true);
+      return result.documents;
+    },
+    enabled: getAllUsers,
+  });
 
-      if (!result) {
-        throw new Error("Failed to fetch users");
-      }
+  // Query for paginated Users
+  const paginatedUsersQuery = useQuery({
+    queryKey: ["users", "paginatedUsers", page, pageSize],
+    queryFn: async () => {
+      const result = await getUsers(page, pageSize, false);
       return result;
     },
+    enabled: !getAllUsers,
   });
+
+  // Prefetch next page for table view
+  useEffect(() => {
+    if (
+      !getAllUsers &&
+      paginatedUsersQuery.data &&
+      page * pageSize < paginatedUsersQuery.data.total - pageSize
+    ) {
+      queryClient.prefetchQuery({
+        queryKey: ["users", "paginatedUsers", page + 1, pageSize],
+        queryFn: () => getUsers(page + 1, pageSize, false),
+      });
+    }
+  }, [page, pageSize, paginatedUsersQuery.data, queryClient, getAllUsers]);
 
   // get user by id
   const getUserById = async (userId: string) => {
     try {
+      const users = allUsersQuery.data;
       const response = await users?.find((user: User) => user.$id === userId);
       return response;
     } catch (error) {
@@ -195,9 +224,18 @@ export const useUsers = () => {
 
   return {
     getUserById,
-    users,
-    isLoading,
-    error,
+    users: getAllUsers
+      ? allUsersQuery.data
+      : paginatedUsersQuery.data?.documents || [],
+    totalItems: paginatedUsersQuery.data?.total || 0,
+    isLoading: getAllUsers
+      ? allUsersQuery.isLoading
+      : paginatedUsersQuery.isLoading,
+    error: getAllUsers ? allUsersQuery.error : paginatedUsersQuery.error,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
     addUser: addUserMutation,
     isCreatingUser: addUserStatus === "pending",
     editUser: editUserMutation,

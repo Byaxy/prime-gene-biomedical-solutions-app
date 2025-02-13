@@ -10,8 +10,17 @@ import { purchasesColumns } from "@/components/table/columns/purchasesColumns";
 
 const Purchases = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const { purchases, addPurchase, isLoading, isCreatingPurchase } =
-    usePurchases();
+  const {
+    purchases,
+    addPurchase,
+    totalItems,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    isLoading,
+    isCreatingPurchase,
+  } = usePurchases({ initialPageSize: 10 });
 
   const handleCreatePurchase = async (
     data: PurchaseFormValues
@@ -40,6 +49,11 @@ const Purchases = () => {
           columns={purchasesColumns}
           data={purchases || []}
           isLoading={isLoading}
+          totalItems={totalItems}
+          page={page}
+          onPageChange={setPage}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
         />
 
         <PurchaseSheet

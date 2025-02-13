@@ -7,27 +7,61 @@ import {
 } from "@/lib/actions/supplier.actions";
 import { SupplierFormValues } from "@/lib/validation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
-export const useSuppliers = () => {
+interface UseSuppliersOptions {
+  getAllSuppliers?: boolean;
+  initialPageSize?: number;
+}
+
+export const useSuppliers = ({
+  getAllSuppliers = false,
+  initialPageSize = 10,
+}: UseSuppliersOptions = {}) => {
   const queryClient = useQueryClient();
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(initialPageSize);
 
-  // Get all suppliers
-  const {
-    data: suppliers,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ["suppliers"],
+  // Query for all Suppliers
+  const allSuppliersQuery = useQuery({
+    queryKey: ["suppliers", "allSuppliers"],
     queryFn: async () => {
-      const result = await getSuppliers();
+      const result = await getSuppliers(0, 0, true);
+      return result.documents;
+    },
+    enabled: getAllSuppliers,
+  });
 
-      if (!result) {
-        throw new Error("Failed to fetch suppliers");
-      }
+  // Query for paginated Suppliers
+  const paginatedSuppliersQuery = useQuery({
+    queryKey: ["suppliers", "paginatedSuppliers", page, pageSize],
+    queryFn: async () => {
+      const result = await getSuppliers(page, pageSize, false);
       return result;
     },
+    enabled: !getAllSuppliers,
   });
+
+  // Prefetch next page for table view
+  useEffect(() => {
+    if (
+      !getAllSuppliers &&
+      paginatedSuppliersQuery.data &&
+      page * pageSize < paginatedSuppliersQuery.data.total - pageSize
+    ) {
+      queryClient.prefetchQuery({
+        queryKey: ["suppliers", "paginatedSuppliers", page + 1, pageSize],
+        queryFn: () => getSuppliers(page + 1, pageSize, false),
+      });
+    }
+  }, [
+    page,
+    pageSize,
+    paginatedSuppliersQuery.data,
+    queryClient,
+    getAllSuppliers,
+  ]);
 
   // Add supplier mutation
   const { mutate: addSupplierMutation, status: addSupplierStatus } =
@@ -89,9 +123,20 @@ export const useSuppliers = () => {
     });
 
   return {
-    suppliers,
-    isLoading,
-    error,
+    suppliers: getAllSuppliers
+      ? allSuppliersQuery.data
+      : paginatedSuppliersQuery.data?.documents || [],
+    totalItems: paginatedSuppliersQuery.data?.total || 0,
+    isLoading: getAllSuppliers
+      ? allSuppliersQuery.isLoading
+      : paginatedSuppliersQuery.isLoading,
+    error: getAllSuppliers
+      ? allSuppliersQuery.error
+      : paginatedSuppliersQuery.error,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
     addSupplier: addSupplierMutation,
     isAddingSupplier: addSupplierStatus === "pending",
     editSupplier: editSupplierMutation,

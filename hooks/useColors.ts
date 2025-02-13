@@ -7,27 +7,55 @@ import {
 } from "@/lib/actions/color.actions";
 import { ColorFormValues } from "@/lib/validation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
-export const useColors = () => {
+interface UseColorsOptions {
+  getAllColors?: boolean;
+  initialPageSize?: number;
+}
+
+export const useColors = ({
+  getAllColors = false,
+  initialPageSize = 10,
+}: UseColorsOptions = {}) => {
   const queryClient = useQueryClient();
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(initialPageSize);
 
-  // Get all colors
-  const {
-    data: productColors,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ["colors"],
+  // Query for all colors
+  const allColorsQuery = useQuery({
+    queryKey: ["colors", "allColors"],
     queryFn: async () => {
-      const result = await getColors();
+      const result = await getColors(0, 0, true);
+      return result.documents;
+    },
+    enabled: getAllColors,
+  });
 
-      if (!result) {
-        throw new Error("Failed to fetch colors");
-      }
+  // Query for paginated colors
+  const paginatedColorsQuery = useQuery({
+    queryKey: ["colors", "paginatedColors", page, pageSize],
+    queryFn: async () => {
+      const result = await getColors(page, pageSize, false);
       return result;
     },
+    enabled: !getAllColors,
   });
+
+  // Prefetch next page for table view
+  useEffect(() => {
+    if (
+      !getAllColors &&
+      paginatedColorsQuery.data &&
+      page * pageSize < paginatedColorsQuery.data.total - pageSize
+    ) {
+      queryClient.prefetchQuery({
+        queryKey: ["colors", "paginatedColors", page + 1, pageSize],
+        queryFn: () => getColors(page + 1, pageSize, false),
+      });
+    }
+  }, [page, pageSize, paginatedColorsQuery.data, queryClient, getAllColors]);
 
   // Add color mutation
   const { mutate: addColorMutation, status: addColorStatus } = useMutation({
@@ -85,9 +113,18 @@ export const useColors = () => {
     });
 
   return {
-    productColors,
-    isLoading,
-    error,
+    productColors: getAllColors
+      ? allColorsQuery.data
+      : paginatedColorsQuery.data?.documents || [],
+    totalItems: paginatedColorsQuery.data?.total || 0,
+    isLoading: getAllColors
+      ? allColorsQuery.isLoading
+      : paginatedColorsQuery.isLoading,
+    error: getAllColors ? allColorsQuery.error : paginatedColorsQuery.error,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
     addColor: addColorMutation,
     isAddingColor: addColorStatus === "pending",
     editColor: editColorMutation,

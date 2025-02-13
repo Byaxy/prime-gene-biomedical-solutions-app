@@ -165,13 +165,27 @@ export const editSale = async (sale: SaleFormValues, saleId: string) => {
 };
 
 // get all sales
-export const getSales = async () => {
+export const getSales = async (
+  page: number = 0,
+  limit: number = 10,
+  getAllSales: boolean = false
+) => {
   try {
+    const queries = [
+      Query.equal("isActive", true),
+      Query.orderDesc("$createdAt"),
+    ];
+
+    if (!getAllSales) {
+      queries.push(Query.limit(limit));
+      queries.push(Query.offset(page * limit));
+    }
+
     // Get all sales
     const salesResponse = await databases.listDocuments(
       DATABASE_ID!,
       NEXT_PUBLIC_SALES_COLLECTION_ID!,
-      [Query.equal("isActive", true), Query.orderDesc("$createdAt")]
+      queries
     );
 
     // Get sale items for each sale
@@ -190,7 +204,10 @@ export const getSales = async () => {
       })
     );
 
-    return parseStringify(salesWithItems);
+    return {
+      documents: parseStringify(salesWithItems),
+      total: salesWithItems.length,
+    };
   } catch (error) {
     console.error("Error getting sales:", error);
     throw error;

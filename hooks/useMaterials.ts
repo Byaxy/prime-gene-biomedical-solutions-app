@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   addMaterial,
   deleteMaterial,
@@ -9,25 +10,58 @@ import { MaterialFormValues } from "@/lib/validation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 
-export const useMaterials = () => {
+interface UseMaterialsOptions {
+  getAllMaterials?: boolean;
+  initialPageSize?: number;
+}
+
+export const useMaterials = ({
+  getAllMaterials = false,
+  initialPageSize = 10,
+}: UseMaterialsOptions = {}) => {
   const queryClient = useQueryClient();
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(initialPageSize);
 
-  // Get all materials
-  const {
-    data: materials,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ["materials"],
+  // Query for all Materials
+  const allMaterialsQuery = useQuery({
+    queryKey: ["materials", "allMaterials"],
     queryFn: async () => {
-      const result = await getMaterials();
+      const result = await getMaterials(0, 0, true);
+      return result.documents;
+    },
+    enabled: getAllMaterials,
+  });
 
-      if (!result) {
-        throw new Error("Failed to fetch materials");
-      }
+  // Query for paginated Materials
+  const paginatedMaterialsQuery = useQuery({
+    queryKey: ["materials", "paginatedMaterials", page, pageSize],
+    queryFn: async () => {
+      const result = await getMaterials(page, pageSize, false);
       return result;
     },
+    enabled: !getAllMaterials,
   });
+
+  // Prefetch next page for table view
+  useEffect(() => {
+    if (
+      !getAllMaterials &&
+      paginatedMaterialsQuery.data &&
+      page * pageSize < paginatedMaterialsQuery.data.total - pageSize
+    ) {
+      queryClient.prefetchQuery({
+        queryKey: ["materials", "paginatedMaterials", page + 1, pageSize],
+        queryFn: () => getMaterials(page + 1, pageSize, false),
+      });
+    }
+  }, [
+    page,
+    pageSize,
+    paginatedMaterialsQuery.data,
+    queryClient,
+    getAllMaterials,
+  ]);
 
   // Add material mutation
   const { mutate: addMaterialMutation, status: addMaterialStatus } =
@@ -89,9 +123,20 @@ export const useMaterials = () => {
     });
 
   return {
-    materials,
-    isLoading,
-    error,
+    materials: getAllMaterials
+      ? allMaterialsQuery.data
+      : paginatedMaterialsQuery.data?.documents || [],
+    totalItems: paginatedMaterialsQuery.data?.total || 0,
+    isLoading: getAllMaterials
+      ? allMaterialsQuery.isLoading
+      : paginatedMaterialsQuery.isLoading,
+    error: getAllMaterials
+      ? allMaterialsQuery.error
+      : paginatedMaterialsQuery.error,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
     addMaterial: addMaterialMutation,
     isAddingMaterial: addMaterialStatus === "pending",
     editMaterial: editMaterialMutation,

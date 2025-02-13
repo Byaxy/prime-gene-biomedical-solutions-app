@@ -29,9 +29,26 @@ export default function Home({
     salesRangeTo: string;
   };
 }) {
-  const { sales, isLoading } = useSales();
-  const { users, isLoading: usersLoading } = useUsers();
-  const { purchases, isLoading: purchasesLoading } = usePurchases();
+  const { sales, isLoading, totalItems, page, setPage, pageSize, setPageSize } =
+    useSales({ initialPageSize: 5 });
+  const {
+    users,
+    isLoading: usersLoading,
+    totalItems: usersTotalItems,
+    page: usersPage,
+    setPage: usersSetPage,
+    pageSize: usersPageSize,
+    setPageSize: usersSetPageSize,
+  } = useUsers({ initialPageSize: 5 });
+  const {
+    purchases,
+    isLoading: purchasesLoading,
+    totalItems: purchasesTotalItems,
+    page: purchasesPage,
+    setPage: purchasesSetPage,
+    pageSize: purchasesPageSize,
+    setPageSize: purchasesSetPageSize,
+  } = usePurchases();
 
   const router = useRouter();
 
@@ -75,7 +92,11 @@ export default function Home({
               data={users || []}
               isLoading={usersLoading}
               hideSearch={true}
-              pageSize={5}
+              totalItems={usersTotalItems}
+              page={usersPage}
+              onPageChange={usersSetPage}
+              pageSize={usersPageSize}
+              onPageSizeChange={usersSetPageSize}
             />
           </div>
         </div>
@@ -96,7 +117,11 @@ export default function Home({
               data={sales || []}
               isLoading={isLoading}
               hideSearch={true}
-              pageSize={5}
+              totalItems={totalItems}
+              page={page}
+              onPageChange={setPage}
+              pageSize={pageSize}
+              onPageSizeChange={setPageSize}
             />
           </div>
           <div className="w-full bg-white rounded-lg shadow-sm p-5 space-y-6">
@@ -115,7 +140,11 @@ export default function Home({
               data={purchases || []}
               isLoading={purchasesLoading}
               hideSearch={true}
-              pageSize={5}
+              totalItems={purchasesTotalItems}
+              page={purchasesPage}
+              onPageChange={purchasesSetPage}
+              pageSize={purchasesPageSize}
+              onPageSizeChange={purchasesSetPageSize}
             />
           </div>
         </div>

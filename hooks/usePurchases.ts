@@ -8,24 +8,60 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PurchaseFormValues } from "@/lib/validation";
 import toast from "react-hot-toast";
+import { useEffect, useState } from "react";
 
-export const usePurchases = () => {
+interface UsePurchasesOptions {
+  getAllPurchases?: boolean;
+  initialPageSize?: number;
+}
+
+export const usePurchases = ({
+  getAllPurchases = false,
+  initialPageSize = 10,
+}: UsePurchasesOptions = {}) => {
   const queryClient = useQueryClient();
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(initialPageSize);
 
-  const {
-    data: purchases,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ["purchases"],
+  // Query for all Purchases
+  const allPurchasesQuery = useQuery({
+    queryKey: ["purchases", "allPurchases"],
     queryFn: async () => {
-      const result = await getPurchases();
-      if (!result) {
-        throw new Error("Failed to fetch purchases");
-      }
+      const result = await getPurchases(0, 0, true);
+      return result.documents;
+    },
+    enabled: getAllPurchases,
+  });
+
+  // Query for paginated Purchases
+  const paginatedPurchasesQuery = useQuery({
+    queryKey: ["purchases", "paginatedPurchases", page, pageSize],
+    queryFn: async () => {
+      const result = await getPurchases(page, pageSize, false);
       return result;
     },
+    enabled: !getAllPurchases,
   });
+
+  // Prefetch next page for table view
+  useEffect(() => {
+    if (
+      !getAllPurchases &&
+      paginatedPurchasesQuery.data &&
+      page * pageSize < paginatedPurchasesQuery.data.total - pageSize
+    ) {
+      queryClient.prefetchQuery({
+        queryKey: ["purchases", "paginatedPurchases", page + 1, pageSize],
+        queryFn: () => getPurchases(page + 1, pageSize, false),
+      });
+    }
+  }, [
+    page,
+    pageSize,
+    paginatedPurchasesQuery.data,
+    queryClient,
+    getAllPurchases,
+  ]);
 
   const { mutate: addPurchaseMutation, status: addPurchaseStatus } =
     useMutation({
@@ -92,9 +128,20 @@ export const usePurchases = () => {
     });
 
   return {
-    purchases,
-    isLoading,
-    error,
+    purchases: getAllPurchases
+      ? allPurchasesQuery.data
+      : paginatedPurchasesQuery.data?.documents || [],
+    totalItems: paginatedPurchasesQuery.data?.total || 0,
+    isLoading: getAllPurchases
+      ? allPurchasesQuery.isLoading
+      : paginatedPurchasesQuery.isLoading,
+    error: getAllPurchases
+      ? allPurchasesQuery.error
+      : paginatedPurchasesQuery.error,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
     addPurchase: addPurchaseMutation,
     isCreatingPurchase: addPurchaseStatus === "pending",
     editPurchase: editPurchaseMutation,

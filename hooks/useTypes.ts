@@ -7,27 +7,55 @@ import {
 } from "@/lib/actions/type.actions";
 import { TypeFormValues } from "@/lib/validation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
-export const useTypes = () => {
+interface UseTypesOptions {
+  getAllTypes?: boolean;
+  initialPageSize?: number;
+}
+
+export const useTypes = ({
+  getAllTypes = false,
+  initialPageSize = 10,
+}: UseTypesOptions = {}) => {
   const queryClient = useQueryClient();
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(initialPageSize);
 
-  // Get all types
-  const {
-    data: types,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ["types"],
+  // Query for all Types
+  const allTypesQuery = useQuery({
+    queryKey: ["types", "allTypes"],
     queryFn: async () => {
-      const result = await getTypes();
+      const result = await getTypes(0, 0, true);
+      return result.documents;
+    },
+    enabled: getAllTypes,
+  });
 
-      if (!result) {
-        throw new Error("Failed to fetch types");
-      }
+  // Query for paginated Types
+  const paginatedTypesQuery = useQuery({
+    queryKey: ["types", "paginatedTypes", page, pageSize],
+    queryFn: async () => {
+      const result = await getTypes(page, pageSize, false);
       return result;
     },
+    enabled: !getAllTypes,
   });
+
+  // Prefetch next page for table view
+  useEffect(() => {
+    if (
+      !getAllTypes &&
+      paginatedTypesQuery.data &&
+      page * pageSize < paginatedTypesQuery.data.total - pageSize
+    ) {
+      queryClient.prefetchQuery({
+        queryKey: ["types", "paginatedTypes", page + 1, pageSize],
+        queryFn: () => getTypes(page + 1, pageSize, false),
+      });
+    }
+  }, [page, pageSize, paginatedTypesQuery.data, queryClient, getAllTypes]);
 
   // Add type mutation
   const { mutate: addTypeMutation, status: addTypeStatus } = useMutation({
@@ -84,9 +112,18 @@ export const useTypes = () => {
   });
 
   return {
-    types,
-    isLoading,
-    error,
+    types: getAllTypes
+      ? allTypesQuery.data
+      : paginatedTypesQuery.data?.documents || [],
+    totalItems: paginatedTypesQuery.data?.total || 0,
+    isLoading: getAllTypes
+      ? allTypesQuery.isLoading
+      : paginatedTypesQuery.isLoading,
+    error: getAllTypes ? allTypesQuery.error : paginatedTypesQuery.error,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
     addType: addTypeMutation,
     isAddingType: addTypeStatus === "pending",
     editType: editTypeMutation,

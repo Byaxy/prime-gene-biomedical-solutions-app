@@ -29,15 +29,32 @@ export const addUnit = async (unitData: UnitFormValues) => {
 };
 
 // Get Units
-export const getUnits = async () => {
+export const getUnits = async (
+  page: number = 0,
+  limit: number = 10,
+  getAllUnits: boolean = false
+) => {
   try {
+    const queries = [
+      Query.equal("isActive", true),
+      Query.orderDesc("$createdAt"),
+    ];
+
+    if (!getAllUnits) {
+      queries.push(Query.limit(limit));
+      queries.push(Query.offset(page * limit));
+    }
+
     const response = await databases.listDocuments(
       DATABASE_ID!,
       NEXT_PUBLIC_UNITS_COLLECTION_ID!,
-      [Query.equal("isActive", true), Query.orderDesc("$createdAt")]
+      queries
     );
 
-    return parseStringify(response.documents);
+    return {
+      documents: parseStringify(response.documents),
+      total: response.total,
+    };
   } catch (error) {
     console.error("Error getting units:", error);
     throw error;

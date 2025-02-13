@@ -12,7 +12,17 @@ import toast from "react-hot-toast";
 
 const Users = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const { users, addUser, isLoading, isCreatingUser } = useUsers();
+  const {
+    users,
+    addUser,
+    totalItems,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    isLoading,
+    isCreatingUser,
+  } = useUsers({ initialPageSize: 10 });
   const { isAdmin } = useAuth();
 
   const handleCreateUser = async (
@@ -53,6 +63,11 @@ const Users = () => {
           columns={usersColumns}
           data={users || []}
           isLoading={isLoading}
+          totalItems={totalItems}
+          page={page}
+          onPageChange={setPage}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
         />
 
         <UserDialog

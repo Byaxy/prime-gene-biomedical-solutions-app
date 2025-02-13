@@ -8,26 +8,60 @@ import {
   getCategories,
   softDeleteCategory,
 } from "@/lib/actions/category.actions";
+import { useEffect, useState } from "react";
 
-export const useCategories = () => {
+interface UseCategoriesOptions {
+  getAllCategories?: boolean;
+  initialPageSize?: number;
+}
+
+export const useCategories = ({
+  getAllCategories = false,
+  initialPageSize = 10,
+}: UseCategoriesOptions = {}) => {
   const queryClient = useQueryClient();
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(initialPageSize);
 
-  // Get all categories
-  const {
-    data: categories,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ["categories"],
+  // Query for all categories
+  const allCategoriesQuery = useQuery({
+    queryKey: ["categories", "allCategories"],
     queryFn: async () => {
-      const result = await getCategories();
+      const result = await getCategories(0, 0, true);
+      return result.documents;
+    },
+    enabled: getAllCategories,
+  });
 
-      if (!result) {
-        throw new Error("Failed to fetch categories");
-      }
+  // Query for paginated categories
+  const paginatedCategoriesQuery = useQuery({
+    queryKey: ["categories", "paginatedCategories", page, pageSize],
+    queryFn: async () => {
+      const result = await getCategories(page, pageSize, false);
       return result;
     },
+    enabled: !getAllCategories,
   });
+
+  // Prefetch next page for table view
+  useEffect(() => {
+    if (
+      !getAllCategories &&
+      paginatedCategoriesQuery.data &&
+      page * pageSize < paginatedCategoriesQuery.data.total - pageSize
+    ) {
+      queryClient.prefetchQuery({
+        queryKey: ["categories", "paginatedCategories", page + 1, pageSize],
+        queryFn: () => getCategories(page + 1, pageSize, false),
+      });
+    }
+  }, [
+    page,
+    pageSize,
+    paginatedCategoriesQuery.data,
+    queryClient,
+    getAllCategories,
+  ]);
 
   // Add category mutation
   const { mutate: addCategoryMutation, status: addCategoryStatus } =
@@ -89,9 +123,20 @@ export const useCategories = () => {
     });
 
   return {
-    categories,
-    isLoading,
-    error,
+    categories: getAllCategories
+      ? allCategoriesQuery.data
+      : paginatedCategoriesQuery.data?.documents || [],
+    totalItems: paginatedCategoriesQuery.data?.total || 0,
+    isLoading: getAllCategories
+      ? allCategoriesQuery.isLoading
+      : paginatedCategoriesQuery.isLoading,
+    error: getAllCategories
+      ? allCategoriesQuery.error
+      : paginatedCategoriesQuery.error,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
     addCategory: addCategoryMutation,
     editCategory: editCategoryMutation,
     softDeleteCategory: softDeleteCategoryMutation,

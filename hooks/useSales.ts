@@ -6,25 +6,55 @@ import {
 } from "@/lib/actions/sale.actions";
 import { SaleFormValues } from "@/lib/validation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
-export const useSales = () => {
-  const queryClient = useQueryClient();
+interface UseSalesOptions {
+  getAllSales?: boolean;
+  initialPageSize?: number;
+}
 
-  const {
-    data: sales,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ["sales"],
+export const useSales = ({
+  getAllSales = false,
+  initialPageSize = 10,
+}: UseSalesOptions = {}) => {
+  const queryClient = useQueryClient();
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(initialPageSize);
+
+  // Query for all Sales
+  const allSalesQuery = useQuery({
+    queryKey: ["sales", "allSales"],
     queryFn: async () => {
-      const result = await getSales();
-      if (!result) {
-        throw new Error("Failed to fetch sales");
-      }
+      const result = await getSales(0, 0, true);
+      return result.documents;
+    },
+    enabled: getAllSales,
+  });
+
+  // Query for paginated Sales
+  const paginatedSalesQuery = useQuery({
+    queryKey: ["sales", "paginatedSales", page, pageSize],
+    queryFn: async () => {
+      const result = await getSales(page, pageSize, false);
       return result;
     },
+    enabled: !getAllSales,
   });
+
+  // Prefetch next page for table view
+  useEffect(() => {
+    if (
+      !getAllSales &&
+      paginatedSalesQuery.data &&
+      page * pageSize < paginatedSalesQuery.data.total - pageSize
+    ) {
+      queryClient.prefetchQuery({
+        queryKey: ["sales", "paginatedSales", page + 1, pageSize],
+        queryFn: () => getSales(page + 1, pageSize, false),
+      });
+    }
+  }, [page, pageSize, paginatedSalesQuery.data, queryClient, getAllSales]);
 
   const { mutate: addSaleMutation, status: addSaleStatus } = useMutation({
     mutationFn: async (data: SaleFormValues) => {
@@ -67,9 +97,18 @@ export const useSales = () => {
   });
 
   return {
-    sales,
-    isLoading,
-    error,
+    sales: getAllSales
+      ? allSalesQuery.data
+      : paginatedSalesQuery.data?.documents || [],
+    totalItems: paginatedSalesQuery.data?.total || 0,
+    isLoading: getAllSales
+      ? allSalesQuery.isLoading
+      : paginatedSalesQuery.isLoading,
+    error: getAllSales ? allSalesQuery.error : paginatedSalesQuery.error,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
     addSale: addSaleMutation,
     isAddingSale: addSaleStatus === "pending",
     editSale: editSaleMutation,

@@ -1,20 +1,27 @@
 "use client";
 
+import { useState } from "react";
 import ColorDialog from "@/components/colors/ColorDialog";
 import PageWraper from "@/components/PageWraper";
 import { colorColumns } from "@/components/table/columns/colorColumns";
 import { DataTable } from "@/components/table/DataTable";
 import { useColors } from "@/hooks/useColors";
 import { ColorFormValues } from "@/lib/validation";
-import { useState } from "react";
 
 const Colors = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
-  const { productColors, isLoading, addColor, isAddingColor } = useColors();
-
-  // check colors
-  console.log(productColors);
+  const {
+    productColors,
+    isLoading,
+    totalItems,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    addColor,
+    isAddingColor,
+  } = useColors({ initialPageSize: 10 });
 
   const handleAddColor = async (data: ColorFormValues): Promise<void> => {
     return new Promise((resolve, reject) => {
@@ -39,8 +46,13 @@ const Colors = () => {
       <>
         <DataTable
           columns={colorColumns}
-          data={productColors || []}
+          data={productColors}
           isLoading={isLoading}
+          totalItems={totalItems}
+          page={page}
+          onPageChange={setPage}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
         />
         <ColorDialog
           mode="add"

@@ -79,8 +79,8 @@ const PurchaseForm = ({
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [selectedProductName, setSelectedProductName] = useState<string>("");
   const [isLoadingEdit, setIsLoadingEdit] = useState(mode === "edit");
-  const { products } = useProducts();
-  const { suppliers } = useSuppliers();
+  const { products } = useProducts({ getAllProducts: true });
+  const { suppliers } = useSuppliers({ getAllSuppliers: true });
 
   const defaultValues = {
     purchaseOrderNumber: "",

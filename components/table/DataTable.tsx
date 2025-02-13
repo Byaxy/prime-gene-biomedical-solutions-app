@@ -9,11 +9,7 @@ import {
   getFilteredRowModel,
   getSortedRowModel,
 } from "@tanstack/react-table";
-import {
-  getCoreRowModel,
-  getPaginationRowModel,
-  ColumnDef,
-} from "@tanstack/table-core";
+import { getCoreRowModel, ColumnDef } from "@tanstack/table-core";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import KeyboardArrowLeftIcon from "@mui/icons-material/KeyboardArrowLeft";
 import { Button } from "@/components/ui/button";
@@ -31,7 +27,11 @@ interface DataTableProps<TData, TValue> {
   data: TData[];
   isLoading?: boolean;
   hideSearch?: boolean;
-  pageSize?: number;
+  pageSize: number;
+  totalItems: number;
+  page: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
 }
 import { HeaderGroup, Header } from "@tanstack/react-table";
 import { useState } from "react";
@@ -50,30 +50,34 @@ export function DataTable<TData, TValue>({
   data,
   isLoading,
   hideSearch,
-  pageSize = 10,
+  totalItems,
+  page,
+  onPageChange,
+  pageSize,
+  onPageSizeChange,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [pagination, setPagination] = useState({
-    pageIndex: 0,
-    pageSize: pageSize,
-  });
 
   const table = useReactTable({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
     onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),
-    onPaginationChange: setPagination,
     state: {
       sorting,
       columnFilters,
-      pagination,
+      pagination: {
+        pageIndex: page,
+        pageSize,
+      },
     },
+    // These ensure the table knows about the total pages
+    pageCount: Math.ceil(totalItems / pageSize),
+    manualPagination: true,
   });
 
   // Get the searchable column
@@ -164,9 +168,12 @@ export function DataTable<TData, TValue>({
           <div className="flex items-center gap-2">
             <span className="text-sm text-dark-600">Rows per page:</span>
             <Select
-              value={String(table.getState().pagination.pageSize)}
+              value={String(pageSize)}
               onValueChange={(value) => {
-                table.setPageSize(Number(value));
+                const newPageSize = Number(value);
+                onPageSizeChange?.(newPageSize);
+                // Reset to first page when changing page size
+                onPageChange?.(0);
               }}
             >
               <SelectTrigger className="w-20 text-dark-600">
@@ -184,13 +191,17 @@ export function DataTable<TData, TValue>({
                 ))}
               </SelectContent>
             </Select>
+            <span className="text-sm text-dark-600 ml-4">
+              {page * pageSize + 1}-
+              {Math.min((page + 1) * pageSize, totalItems)} of {totalItems}
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
+              onClick={() => onPageChange?.(page - 1)}
+              disabled={page === 0}
               className="shad-primary-btn border-0"
             >
               <KeyboardArrowLeftIcon />
@@ -198,8 +209,8 @@ export function DataTable<TData, TValue>({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
+              onClick={() => onPageChange?.(page + 1)}
+              disabled={page >= Math.ceil(totalItems / pageSize) - 1}
               className="shad-primary-btn border-0"
             >
               <KeyboardArrowRightIcon />

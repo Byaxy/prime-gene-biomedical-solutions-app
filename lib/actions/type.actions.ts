@@ -29,15 +29,32 @@ export const addType = async (typeData: TypeFormValues) => {
 };
 
 // Get Types
-export const getTypes = async () => {
+export const getTypes = async (
+  page: number = 0,
+  limit: number = 10,
+  getAllTypes: boolean = false
+) => {
   try {
+    const queries = [
+      Query.equal("isActive", true),
+      Query.orderDesc("$createdAt"),
+    ];
+
+    if (!getAllTypes) {
+      queries.push(Query.limit(limit));
+      queries.push(Query.offset(page * limit));
+    }
+
     const response = await databases.listDocuments(
       DATABASE_ID!,
       NEXT_PUBLIC_TYPES_COLLECTION_ID!,
-      [Query.equal("isActive", true), Query.orderDesc("$createdAt")]
+      queries
     );
 
-    return parseStringify(response.documents);
+    return {
+      documents: parseStringify(response.documents),
+      total: response.total,
+    };
   } catch (error) {
     console.error("Error getting types:", error);
     throw error;

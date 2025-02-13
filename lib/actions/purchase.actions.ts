@@ -170,13 +170,27 @@ export const editPurchase = async (
 };
 
 // get all purchases
-export const getPurchases = async () => {
+export const getPurchases = async (
+  page: number = 0,
+  limit: number = 10,
+  getAllPurchases: boolean = false
+) => {
   try {
+    const queries = [
+      Query.equal("isActive", true),
+      Query.orderDesc("$createdAt"),
+    ];
+
+    if (!getAllPurchases) {
+      queries.push(Query.limit(limit));
+      queries.push(Query.offset(page * limit));
+    }
+
     // Get all purchases
     const purchasesResponse = await databases.listDocuments(
       DATABASE_ID!,
       NEXT_PUBLIC_PURCHASES_COLLECTION_ID!,
-      [Query.equal("isActive", true), Query.orderDesc("$createdAt")]
+      queries
     );
 
     // Get purchase items for each purchase
@@ -195,7 +209,10 @@ export const getPurchases = async () => {
       })
     );
 
-    return parseStringify(purchasesWithItems);
+    return {
+      documents: parseStringify(purchasesWithItems),
+      total: purchasesWithItems.length,
+    };
   } catch (error) {
     console.error("Error getting purchases:", error);
     throw error;

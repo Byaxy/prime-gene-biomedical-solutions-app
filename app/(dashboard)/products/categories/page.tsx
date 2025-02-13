@@ -11,8 +11,17 @@ import { useCategories } from "@/hooks/useCategories";
 const Categories = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
-  const { categories, isLoading, addCategory, isAddingCategory } =
-    useCategories();
+  const {
+    categories,
+    isLoading,
+    totalItems,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    addCategory,
+    isAddingCategory,
+  } = useCategories({ initialPageSize: 10 });
 
   const handleAddCategory = async (data: CategoryFormValues): Promise<void> => {
     return new Promise((resolve, reject) => {
@@ -39,6 +48,11 @@ const Categories = () => {
           columns={categoriesColumns}
           data={categories || []}
           isLoading={isLoading}
+          totalItems={totalItems}
+          page={page}
+          onPageChange={setPage}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
         />
         <CategoryDialog
           mode="add"

@@ -83,8 +83,8 @@ const SaleForm = ({
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [selectedProductName, setSelectedProductName] = useState<string>("");
   const [isLoadingEdit, setIsLoadingEdit] = useState(mode === "edit");
-  const { products } = useProducts();
-  const { customers } = useCustomers();
+  const { products } = useProducts({ getAllProducts: true });
+  const { customers } = useCustomers({ getAllCustomers: true });
 
   const defaultValues = {
     invoiceNumber: "",

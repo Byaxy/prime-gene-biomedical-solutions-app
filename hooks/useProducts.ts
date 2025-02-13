@@ -10,28 +10,62 @@ import {
 } from "@/lib/actions/product.actions";
 import { storage } from "@/lib/appwrite-client";
 import { ID } from "appwrite";
+import { useEffect, useState } from "react";
 
 const BUCKET_ID = process.env.NEXT_PUBLIC_APPWRITE_BUCKET_ID;
 
-export const useProducts = () => {
+interface UseProductsOptions {
+  getAllProducts?: boolean;
+  initialPageSize?: number;
+}
+
+export const useProducts = ({
+  getAllProducts = false,
+  initialPageSize = 10,
+}: UseProductsOptions = {}) => {
   const queryClient = useQueryClient();
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(initialPageSize);
 
-  // Get all products
-  const {
-    data: products,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ["products"],
+  // Query for all Products
+  const allProductsQuery = useQuery({
+    queryKey: ["products", "allProducts"],
     queryFn: async () => {
-      const result = await getProducts();
+      const result = await getProducts(0, 0, true);
+      return result.documents;
+    },
+    enabled: getAllProducts,
+  });
 
-      if (!result) {
-        throw new Error("Failed to fetch products");
-      }
+  // Query for paginated Products
+  const paginatedProductsQuery = useQuery({
+    queryKey: ["products", "paginatedProducts", page, pageSize],
+    queryFn: async () => {
+      const result = await getProducts(page, pageSize, false);
       return result;
     },
+    enabled: !getAllProducts,
   });
+
+  // Prefetch next page for table view
+  useEffect(() => {
+    if (
+      !getAllProducts &&
+      paginatedProductsQuery.data &&
+      page * pageSize < paginatedProductsQuery.data.total - pageSize
+    ) {
+      queryClient.prefetchQuery({
+        queryKey: ["products", "paginatedProducts", page + 1, pageSize],
+        queryFn: () => getProducts(page + 1, pageSize, false),
+      });
+    }
+  }, [
+    page,
+    pageSize,
+    paginatedProductsQuery.data,
+    queryClient,
+    getAllProducts,
+  ]);
 
   // Add product mutation
   const { mutate: addProductMutation, status: addProductStatus } = useMutation({
@@ -182,9 +216,20 @@ export const useProducts = () => {
     });
 
   return {
-    products,
-    isLoading,
-    error,
+    products: getAllProducts
+      ? allProductsQuery.data
+      : paginatedProductsQuery.data?.documents || [],
+    totalItems: paginatedProductsQuery.data?.total || 0,
+    isLoading: getAllProducts
+      ? allProductsQuery.isLoading
+      : paginatedProductsQuery.isLoading,
+    error: getAllProducts
+      ? allProductsQuery.error
+      : paginatedProductsQuery.error,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
     addProduct: addProductMutation,
     editProduct: editProductMutation,
     softDeleteProduct: softDeleteProductMutation,

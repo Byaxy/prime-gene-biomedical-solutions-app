@@ -11,8 +11,19 @@ import { MaterialFormValues } from "@/lib/validation";
 const Materials = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
-  const { materials, isLoading, addMaterial, isAddingMaterial } =
-    useMaterials();
+  const {
+    materials,
+    isLoading,
+    totalItems,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    addMaterial,
+    isAddingMaterial,
+  } = useMaterials({
+    initialPageSize: 10,
+  });
 
   const handleAddMaterial = async (data: MaterialFormValues): Promise<void> => {
     return new Promise((resolve, reject) => {
@@ -39,6 +50,11 @@ const Materials = () => {
           columns={materialsColumns}
           data={materials || []}
           isLoading={isLoading}
+          totalItems={totalItems}
+          page={page}
+          onPageChange={setPage}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
         />
         <MaterialDialog
           mode="add"

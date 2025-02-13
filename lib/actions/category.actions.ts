@@ -30,15 +30,32 @@ export const addCategory = async (categoryData: CategoryFormValues) => {
 };
 
 // Get Categories
-export const getCategories = async () => {
+export const getCategories = async (
+  page: number = 0,
+  limit: number = 10,
+  getAllCategories: boolean = false
+) => {
   try {
+    const queries = [
+      Query.equal("isActive", true),
+      Query.orderDesc("$createdAt"),
+    ];
+
+    if (!getAllCategories) {
+      queries.push(Query.limit(limit));
+      queries.push(Query.offset(page * limit));
+    }
+
     const response = await databases.listDocuments(
       DATABASE_ID!,
       NEXT_PUBLIC_CATEGORIES_COLLECTION_ID!,
-      [Query.equal("isActive", true), Query.orderDesc("$createdAt")]
+      queries
     );
 
-    return parseStringify(response.documents);
+    return {
+      documents: parseStringify(response.documents),
+      total: response.total,
+    };
   } catch (error) {
     console.error("Error getting categories:", error);
     throw error;

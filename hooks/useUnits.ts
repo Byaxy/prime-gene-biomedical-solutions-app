@@ -7,27 +7,55 @@ import {
 } from "@/lib/actions/unit.actions";
 import { UnitFormValues } from "@/lib/validation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
-export const useUnits = () => {
+interface UseUnitsOptions {
+  getAllUnits?: boolean;
+  initialPageSize?: number;
+}
+
+export const useUnits = ({
+  getAllUnits = false,
+  initialPageSize = 10,
+}: UseUnitsOptions = {}) => {
   const queryClient = useQueryClient();
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(initialPageSize);
 
-  // Get all units
-  const {
-    data: units,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ["units"],
+  // Query for all Units
+  const allUnitsQuery = useQuery({
+    queryKey: ["units", "allUnits"],
     queryFn: async () => {
-      const result = await getUnits();
+      const result = await getUnits(0, 0, true);
+      return result.documents;
+    },
+    enabled: getAllUnits,
+  });
 
-      if (!result) {
-        throw new Error("Failed to fetch units");
-      }
+  // Query for paginated Units
+  const paginatedUnitsQuery = useQuery({
+    queryKey: ["units", "paginatedUnits", page, pageSize],
+    queryFn: async () => {
+      const result = await getUnits(page, pageSize, false);
       return result;
     },
+    enabled: !getAllUnits,
   });
+
+  // Prefetch next page for table view
+  useEffect(() => {
+    if (
+      !getAllUnits &&
+      paginatedUnitsQuery.data &&
+      page * pageSize < paginatedUnitsQuery.data.total - pageSize
+    ) {
+      queryClient.prefetchQuery({
+        queryKey: ["units", "paginatedUnits", page + 1, pageSize],
+        queryFn: () => getUnits(page + 1, pageSize, false),
+      });
+    }
+  }, [page, pageSize, paginatedUnitsQuery.data, queryClient, getAllUnits]);
 
   // Add unit mutation
   const { mutate: addUnitMutation, status: addUnitStatus } = useMutation({
@@ -84,9 +112,18 @@ export const useUnits = () => {
   });
 
   return {
-    units,
-    isLoading,
-    error,
+    units: getAllUnits
+      ? allUnitsQuery.data
+      : paginatedUnitsQuery.data?.documents || [],
+    totalItems: paginatedUnitsQuery.data?.total || 0,
+    isLoading: getAllUnits
+      ? allUnitsQuery.isLoading
+      : paginatedUnitsQuery.isLoading,
+    error: getAllUnits ? allUnitsQuery.error : paginatedUnitsQuery.error,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
     addUnit: addUnitMutation,
     isAddingUnit: addUnitStatus === "pending",
     editUnit: editUnitMutation,

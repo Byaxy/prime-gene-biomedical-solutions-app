@@ -10,8 +10,17 @@ import { CustomerFormValues } from "@/lib/validation";
 
 const Customers = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const { customers, isLoading, addCustomer, isAddingCustomer } =
-    useCustomers();
+  const {
+    customers,
+    isLoading,
+    totalItems,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    addCustomer,
+    isAddingCustomer,
+  } = useCustomers({ initialPageSize: 10 });
 
   const handleAddCustomer = async (data: CustomerFormValues): Promise<void> => {
     return new Promise((resolve, reject) => {
@@ -38,6 +47,11 @@ const Customers = () => {
           columns={customersColumns}
           data={customers || []}
           isLoading={isLoading}
+          totalItems={totalItems}
+          page={page}
+          onPageChange={setPage}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
         />
 
         <CustomerDialog

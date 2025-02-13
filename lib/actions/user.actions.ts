@@ -149,14 +149,32 @@ export const editUser = async (user: EditUserWithImage, userId: string) => {
 };
 
 // get users
-export const getUsers = async () => {
+export const getUsers = async (
+  page: number = 0,
+  limit: number = 10,
+  getAllUsers: boolean = false
+) => {
   try {
+    const queries = [
+      Query.equal("isActive", true),
+      Query.orderDesc("$createdAt"),
+    ];
+
+    if (!getAllUsers) {
+      queries.push(Query.limit(limit));
+      queries.push(Query.offset(page * limit));
+    }
+
     const response = await databases.listDocuments(
       DATABASE_ID!,
       NEXT_PUBLIC_USERS_COLLECTION_ID!,
-      [Query.equal("isActive", true), Query.orderDesc("$createdAt")]
+      queries
     );
-    return parseStringify(response.documents);
+
+    return {
+      documents: parseStringify(response.documents),
+      total: response.total,
+    };
   } catch (error) {
     console.error("Error getting users:", error);
     throw error;

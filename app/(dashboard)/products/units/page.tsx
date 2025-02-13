@@ -10,7 +10,17 @@ import { useState } from "react";
 
 const Units = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const { units, isLoading, addUnit, isAddingUnit } = useUnits();
+  const {
+    units,
+    isLoading,
+    totalItems,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    addUnit,
+    isAddingUnit,
+  } = useUnits({ initialPageSize: 10 });
 
   const handleAddUnit = async (data: UnitFormValues): Promise<void> => {
     return new Promise((resolve, reject) => {
@@ -36,6 +46,11 @@ const Units = () => {
           columns={unitsColumns}
           data={units || []}
           isLoading={isLoading}
+          totalItems={totalItems}
+          page={page}
+          onPageChange={setPage}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
         />
         <UnitsDialog
           mode="add"

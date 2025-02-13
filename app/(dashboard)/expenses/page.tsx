@@ -11,7 +11,19 @@ import { expensesColumns } from "@/components/table/columns/expensesColumns";
 const Expenses = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
-  const { expenses, isLoading, addExpense, isAddingExpense } = useExpenses();
+  const {
+    expenses,
+    isLoading,
+    totalItems,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    addExpense,
+    isAddingExpense,
+  } = useExpenses({
+    initialPageSize: 10,
+  });
 
   const handleAddExpense = async (data: ExpenseFormValues): Promise<void> => {
     return new Promise((resolve, reject) => {
@@ -38,6 +50,11 @@ const Expenses = () => {
           columns={expensesColumns}
           data={expenses || []}
           isLoading={isLoading}
+          totalItems={totalItems}
+          page={page}
+          onPageChange={setPage}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
         />
         <ExpenseDialog
           mode="add"

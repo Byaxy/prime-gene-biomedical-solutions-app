@@ -12,7 +12,19 @@ import { useState } from "react";
 const Products = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
-  const { products, isLoading, addProduct, isAddingProduct } = useProducts();
+  const {
+    products,
+    isLoading,
+    totalItems,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    addProduct,
+    isAddingProduct,
+  } = useProducts({
+    initialPageSize: 10,
+  });
 
   const handleAddProduct = async (data: ProductFormValues): Promise<void> => {
     return new Promise((resolve, reject) => {
@@ -39,6 +51,11 @@ const Products = () => {
           columns={productsColumns}
           data={products || []}
           isLoading={isLoading}
+          totalItems={totalItems}
+          page={page}
+          onPageChange={setPage}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
         />
         <ProductSheet
           mode="add"

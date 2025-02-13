@@ -10,8 +10,17 @@ import { SupplierFormValues } from "@/lib/validation";
 
 const Suppliers = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const { suppliers, isLoading, addSupplier, isAddingSupplier } =
-    useSuppliers();
+  const {
+    suppliers,
+    isLoading,
+    totalItems,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    addSupplier,
+    isAddingSupplier,
+  } = useSuppliers({ initialPageSize: 10 });
 
   const handleAddSupplier = async (data: SupplierFormValues): Promise<void> => {
     return new Promise((resolve, reject) => {
@@ -38,6 +47,11 @@ const Suppliers = () => {
           columns={suppliersColumns}
           data={suppliers || []}
           isLoading={isLoading}
+          totalItems={totalItems}
+          page={page}
+          onPageChange={setPage}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
         />
 
         <SupplierDialog
