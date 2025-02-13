@@ -11,7 +11,7 @@ import CustomFormField, { FormFieldType } from "../CustomFormField";
 import { Form } from "../ui/form";
 import { useState } from "react";
 import { useUsers } from "@/hooks/useUsers";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 
 const UpdatePassword = () => {
   const [isLoading, setIsLoading] = useState(false);

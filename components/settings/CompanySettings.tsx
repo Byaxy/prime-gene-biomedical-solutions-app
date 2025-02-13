@@ -3,36 +3,17 @@
 import { useCompanySettings } from "@/hooks/useCompanySettings";
 import CompanySettingsForm from "../forms/CompanySettingsForm";
 import { CompanySettingsFormValues } from "@/lib/validation";
-import { useEffect, useState } from "react";
-import { useUsers } from "@/hooks/useUsers";
-import { useAuth } from "@/context/AuthContext";
-import { Users } from "@/types/appwrite.types";
 import Loading from "@/components/loading";
+import { useAuth } from "@/hooks/useAuth";
+import { useUser } from "@/hooks/useUser";
 
 const CompanySettings = () => {
   const { user } = useAuth();
-  const { getUserById, users } = useUsers();
+  const { singleUser, isLoading } = useUser(user?.$id ?? "");
   const { companySettings, addCompanySettings, updateCompanySettings } =
     useCompanySettings();
 
-  const [userData, setUserData] = useState<Users | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchUserData = async () => {
-      if (!user || !users) return;
-
-      const data = await getUserById(user.$id);
-      setUserData(data);
-      setLoading(false);
-    };
-
-    if (users) {
-      fetchUserData();
-    }
-  }, [user, users, getUserById]);
-
-  if (loading) {
+  if (isLoading) {
     return <Loading />;
   }
 
@@ -79,7 +60,7 @@ const CompanySettings = () => {
             : null
         }
         onSubmit={handleSubmit}
-        isAdmin={userData?.role === "admin"}
+        isAdmin={singleUser?.role === "admin"}
       />
     </div>
   );

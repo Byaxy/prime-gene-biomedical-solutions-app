@@ -5,8 +5,8 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useUsers } from "@/hooks/useUsers";
 import { UserFormValues } from "@/lib/validation";
-import { useAuth } from "@/context/AuthContext";
 import toast from "react-hot-toast";
+import { useAuth } from "@/hooks/useAuth";
 
 const UserActions = ({ user }: { user: Users }) => {
   const [open, setOpen] = useState(false);

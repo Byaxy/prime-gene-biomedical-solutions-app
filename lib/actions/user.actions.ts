@@ -181,6 +181,21 @@ export const getUsers = async (
   }
 };
 
+// get user by ID
+export const getUserById = async (userId: string) => {
+  try {
+    const user = await databases.getDocument(
+      DATABASE_ID!,
+      NEXT_PUBLIC_USERS_COLLECTION_ID!,
+      userId
+    );
+    return user;
+  } catch (error) {
+    console.error("Error fetching user:", error);
+    throw error;
+  }
+};
+
 // delete user
 export const deleteUser = async (userId: string) => {
   try {

@@ -4,7 +4,7 @@ import PageWraper from "@/components/PageWraper";
 import { usersColumns } from "@/components/table/columns/usersColumns";
 import { DataTable } from "@/components/table/DataTable";
 import { UserDialog } from "@/components/users/UserDialog";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 import { useUsers } from "@/hooks/useUsers";
 import { CreateUserFormValues, EditUserFormValues } from "@/lib/validation";
 import { useState } from "react";

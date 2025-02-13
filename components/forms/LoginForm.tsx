@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { LoginFormValidation } from "@/lib/validation";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 
 const LoginForm = () => {
   const { login, isLoading } = useAuth();
@@ -21,7 +21,7 @@ const LoginForm = () => {
   });
 
   const onSubmit = async (values: z.infer<typeof LoginFormValidation>) => {
-    await login(values.email, values.password);
+    await login({ email: values.email, password: values.password });
   };
 
   return (

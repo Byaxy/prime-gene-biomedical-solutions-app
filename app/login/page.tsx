@@ -1,20 +1,18 @@
 "use client";
+
 import LoginForm from "@/components/forms/LoginForm";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
 
 const LoginPage = () => {
   const { user } = useAuth();
   const router = useRouter();
 
-  useEffect(() => {
-    if (user) {
-      router.replace("/");
-    }
-  }, [user, router]);
+  if (user) {
+    router.replace("/");
+  }
 
   if (user) {
     return null;

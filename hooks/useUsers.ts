@@ -65,18 +65,6 @@ export const useUsers = ({
     }
   }, [page, pageSize, paginatedUsersQuery.data, queryClient, getAllUsers]);
 
-  // get user by id
-  const getUserById = async (userId: string) => {
-    try {
-      const users = allUsersQuery.data;
-      const response = await users?.find((user: User) => user.$id === userId);
-      return response;
-    } catch (error) {
-      console.error("Error getting user by id:", error);
-      throw error;
-    }
-  };
-
   // Create user mutation
   const { mutate: addUserMutation, status: addUserStatus } = useMutation({
     mutationFn: async (data: CreateUserFormValues) => {
@@ -223,7 +211,6 @@ export const useUsers = ({
   });
 
   return {
-    getUserById,
     users: getAllUsers
       ? allUsersQuery.data
       : paginatedUsersQuery.data?.documents || [],

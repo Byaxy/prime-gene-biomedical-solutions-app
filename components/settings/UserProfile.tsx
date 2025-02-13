@@ -1,48 +1,33 @@
 "use client";
 
 import Loading from "@/components/loading";
-import { useAuth } from "@/context/AuthContext";
 import { useUsers } from "@/hooks/useUsers";
-import { Users } from "@/types/appwrite.types";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { UserFormValues } from "@/lib/validation";
 import UserProfileForm from "../forms/UserProfileForm";
+import { useAuth } from "@/hooks/useAuth";
+import { useUser } from "@/hooks/useUser";
 
 const UserProfile = () => {
   const { user } = useAuth();
-  const { getUserById, editUser, users } = useUsers();
-  const [userData, setUserData] = useState<Users | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { editUser } = useUsers();
   const [isEditing, setIsEditing] = useState(false);
+  const { singleUser, isLoading } = useUser(user?.$id ?? "");
 
-  useEffect(() => {
-    const fetchUserData = async () => {
-      if (!user || !users) return;
-
-      const data = await getUserById(user.$id);
-      setUserData(data);
-      setLoading(false);
-    };
-
-    if (users) {
-      fetchUserData();
-    }
-  }, [user, users, getUserById]);
-
-  if (loading) {
+  if (isLoading) {
     return <Loading />;
   }
 
   const onSubmit = async (data: UserFormValues) => {
     setIsEditing(true);
     try {
-      if (!userData) return;
+      if (!singleUser) return;
       await editUser({
-        id: userData.$id,
+        id: singleUser.$id,
         data,
         prevImageId:
           data.image && data.image.length > 0
-            ? userData.profileImageId
+            ? singleUser.profileImageId
             : undefined,
       });
     } catch (error) {
@@ -52,24 +37,24 @@ const UserProfile = () => {
     }
   };
 
-  if (!userData) {
+  if (!singleUser) {
     return null;
   }
 
   return (
     <div>
       <UserProfileForm
-        isAdmin={userData.role === "admin"}
+        isAdmin={singleUser.role === "admin"}
         initialData={{
-          $id: userData.$id,
-          name: userData.name,
-          email: userData.email,
-          phone: userData.phone,
-          role: userData.role,
-          profileImageId: userData.profileImageId,
-          profileImageUrl: userData.profileImageUrl,
-          $createdAt: userData.$createdAt,
-          $updatedAt: userData.$updatedAt,
+          $id: singleUser.$id,
+          name: singleUser.name,
+          email: singleUser.email,
+          phone: singleUser.phone,
+          role: singleUser.role,
+          profileImageId: singleUser.profileImageId,
+          profileImageUrl: singleUser.profileImageUrl,
+          $createdAt: new Date(singleUser.$createdAt),
+          $updatedAt: new Date(singleUser.$updatedAt),
         }}
         onSubmit={onSubmit}
         isEditing={isEditing}

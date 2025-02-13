@@ -4,10 +4,10 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { usePurchases } from "@/hooks/usePurchases";
 import { PurchaseFormValues } from "@/lib/validation";
-import { useAuth } from "@/context/AuthContext";
 import toast from "react-hot-toast";
 import PurchaseSheet from "./PurchaseSheet";
 import { PurchaseDialog } from "./PurchaseDialog";
+import { useAuth } from "@/hooks/useAuth";
 
 const PurchaseActions = ({ purchase }: { purchase: Purchase }) => {
   const [open, setOpen] = useState(false);
