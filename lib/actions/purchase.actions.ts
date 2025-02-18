@@ -184,35 +184,83 @@ export const getPurchases = async (
     if (!getAllPurchases) {
       queries.push(Query.limit(limit));
       queries.push(Query.offset(page * limit));
-    }
 
-    // Get all purchases
-    const purchasesResponse = await databases.listDocuments(
-      DATABASE_ID!,
-      NEXT_PUBLIC_PURCHASES_COLLECTION_ID!,
-      queries
-    );
+      const response = await databases.listDocuments(
+        DATABASE_ID!,
+        NEXT_PUBLIC_PURCHASES_COLLECTION_ID!,
+        queries
+      );
 
-    // Get purchase items for each purchase
-    const purchasesWithItems = await Promise.all(
-      purchasesResponse.documents.map(async (purchase) => {
-        const items = await databases.listDocuments(
+      // Get purchase items for each purchase
+      const purchasesWithItems = await Promise.all(
+        response.documents.map(async (purchase) => {
+          const items = await databases.listDocuments(
+            DATABASE_ID!,
+            NEXT_PUBLIC_PURCHASE_ITEMS_COLLECTION_ID!,
+            [Query.equal("purchaseId", purchase.$id)]
+          );
+
+          return {
+            ...purchase,
+            products: items.documents,
+          };
+        })
+      );
+
+      return {
+        documents: parseStringify(purchasesWithItems),
+        total: response.total,
+      };
+    } else {
+      let allDocuments: Models.Document[] = [];
+      let offset = 0;
+      const batchSize = 100; // Maximum limit per request(appwrite's max)
+
+      while (true) {
+        const batchQueries = [
+          Query.equal("isActive", true),
+          Query.orderDesc("$createdAt"),
+          Query.limit(batchSize),
+          Query.offset(offset),
+        ];
+
+        const response = await databases.listDocuments(
           DATABASE_ID!,
-          NEXT_PUBLIC_PURCHASE_ITEMS_COLLECTION_ID!,
-          [Query.equal("purchaseId", purchase.$id)]
+          NEXT_PUBLIC_PURCHASES_COLLECTION_ID!,
+          batchQueries
         );
 
-        return {
-          ...purchase,
-          products: items.documents,
-        };
-      })
-    );
+        // Get purchase items for each purchase
+        const purchasesWithItems = await Promise.all(
+          response.documents.map(async (purchase) => {
+            const items = await databases.listDocuments(
+              DATABASE_ID!,
+              NEXT_PUBLIC_PURCHASE_ITEMS_COLLECTION_ID!,
+              [Query.equal("purchaseId", purchase.$id)]
+            );
 
-    return {
-      documents: parseStringify(purchasesWithItems),
-      total: purchasesWithItems.length,
-    };
+            return {
+              ...purchase,
+              products: items.documents,
+            };
+          })
+        );
+
+        allDocuments = [...allDocuments, ...purchasesWithItems];
+
+        // If we got fewer documents than the batch size, we've reached the end
+        if (purchasesWithItems.length < batchSize) {
+          break;
+        }
+
+        offset += batchSize;
+      }
+
+      return {
+        documents: parseStringify(allDocuments),
+        total: allDocuments.length,
+      };
+    }
   } catch (error) {
     console.error("Error getting purchases:", error);
     throw error;

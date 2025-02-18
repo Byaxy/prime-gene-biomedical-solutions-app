@@ -10,9 +10,9 @@ export const dynamic = "force-dynamic";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Homeland Curtain Rods Sales and Inventory Management Application",
+  title: "Homeland Interiors Sales and Inventory Management Application",
   description:
-    "Homeland Curtain Rods Sales and Inventory Management Application is a web application that allows users to manage their inventory and sales of curtain rods. The application is built with Next.js, TypeScript, Tailwind CSS, and Appwrite",
+    "Homeland Interiors Sales and Inventory Management Application is a web application that allows users to manage their inventory and sales of products. The application is built with Next.js, TypeScript, Tailwind CSS, and Appwrite",
 };
 
 export default function RootLayout({

@@ -39,7 +39,9 @@ const ProductForm = ({
   const { types } = useTypes({ getAllTypes: true });
   const { units } = useUnits({ getAllUnits: true });
   const { materials } = useMaterials({ getAllMaterials: true });
-  const { productColors } = useColors({ getAllColors: true });
+  const { productColors } = useColors({
+    getAllColors: true,
+  });
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(ProductFormValidation),
@@ -206,11 +208,11 @@ const ProductForm = ({
                 className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
               >
                 <div className="flex items-center gap-2">
-                  <span>{color.name}</span>
                   <div
                     className="w-3 h-3 rounded-full"
                     style={{ backgroundColor: color.code }}
                   />
+                  <span>{color.name}</span>
                 </div>
               </SelectItem>
             ))}

@@ -179,35 +179,83 @@ export const getSales = async (
     if (!getAllSales) {
       queries.push(Query.limit(limit));
       queries.push(Query.offset(page * limit));
-    }
 
-    // Get all sales
-    const salesResponse = await databases.listDocuments(
-      DATABASE_ID!,
-      NEXT_PUBLIC_SALES_COLLECTION_ID!,
-      queries
-    );
+      const response = await databases.listDocuments(
+        DATABASE_ID!,
+        NEXT_PUBLIC_SALES_COLLECTION_ID!,
+        queries
+      );
 
-    // Get sale items for each sale
-    const salesWithItems = await Promise.all(
-      salesResponse.documents.map(async (sale) => {
-        const items = await databases.listDocuments(
+      // Get sale items for each sale
+      const salesWithItems = await Promise.all(
+        response.documents.map(async (sale) => {
+          const items = await databases.listDocuments(
+            DATABASE_ID!,
+            NEXT_PUBLIC_SALE_ITEMS_COLLECTION_ID!,
+            [Query.equal("saleId", sale.$id)]
+          );
+
+          return {
+            ...sale,
+            products: items.documents,
+          };
+        })
+      );
+
+      return {
+        documents: parseStringify(salesWithItems),
+        total: response.total,
+      };
+    } else {
+      let allDocuments: Models.Document[] = [];
+      let offset = 0;
+      const batchSize = 100; // Maximum limit per request(appwrite's max)
+
+      while (true) {
+        const batchQueries = [
+          Query.equal("isActive", true),
+          Query.orderDesc("$createdAt"),
+          Query.limit(batchSize),
+          Query.offset(offset),
+        ];
+
+        const response = await databases.listDocuments(
           DATABASE_ID!,
-          NEXT_PUBLIC_SALE_ITEMS_COLLECTION_ID!,
-          [Query.equal("saleId", sale.$id)]
+          NEXT_PUBLIC_SALES_COLLECTION_ID!,
+          batchQueries
         );
 
-        return {
-          ...sale,
-          products: items.documents,
-        };
-      })
-    );
+        // Get sale items for each sale
+        const salesWithItems = await Promise.all(
+          response.documents.map(async (sale) => {
+            const items = await databases.listDocuments(
+              DATABASE_ID!,
+              NEXT_PUBLIC_SALE_ITEMS_COLLECTION_ID!,
+              [Query.equal("saleId", sale.$id)]
+            );
 
-    return {
-      documents: parseStringify(salesWithItems),
-      total: salesWithItems.length,
-    };
+            return {
+              ...sale,
+              products: items.documents,
+            };
+          })
+        );
+
+        allDocuments = [...allDocuments, ...salesWithItems];
+
+        // If we got fewer documents than the batch size, we've reached the end
+        if (salesWithItems.length < batchSize) {
+          break;
+        }
+
+        offset += batchSize;
+      }
+
+      return {
+        documents: parseStringify(allDocuments),
+        total: allDocuments.length,
+      };
+    }
   } catch (error) {
     console.error("Error getting sales:", error);
     throw error;

@@ -37,7 +37,7 @@ const SaleSheet = ({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="h-[90vh] bg-light-200">
+      <SheetContent side="bottom" className="h-[90vh] bg-light-200 py-10">
         <div className="flex flex-col w-full h-full container max-w-5xl mx-auto space-y-6">
           <SheetHeader className="space-y-2">
             <SheetTitle className="text-xl text-blue-800">

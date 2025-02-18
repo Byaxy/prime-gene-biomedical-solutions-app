@@ -1,6 +1,6 @@
 "use server";
 
-import { ID, Query } from "node-appwrite";
+import { ID, Models, Query } from "node-appwrite";
 import { revalidatePath } from "next/cache";
 import { parseStringify } from "../utils";
 
@@ -44,18 +44,52 @@ export const getExpenses = async (
     if (!getAllExpenses) {
       queries.push(Query.limit(limit));
       queries.push(Query.offset(page * limit));
+
+      const response = await databases.listDocuments(
+        DATABASE_ID!,
+        NEXT_PUBLIC_EXPENSES_COLLECTION_ID!,
+        queries
+      );
+
+      return {
+        documents: parseStringify(response.documents),
+        total: response.total,
+      };
+    } else {
+      let allDocuments: Models.Document[] = [];
+      let offset = 0;
+      const batchSize = 100; // Maximum limit per request(appwrite's max)
+
+      while (true) {
+        const batchQueries = [
+          Query.equal("isActive", true),
+          Query.orderDesc("$createdAt"),
+          Query.limit(batchSize),
+          Query.offset(offset),
+        ];
+
+        const response = await databases.listDocuments(
+          DATABASE_ID!,
+          NEXT_PUBLIC_EXPENSES_COLLECTION_ID!,
+          batchQueries
+        );
+
+        const documents = response.documents;
+        allDocuments = [...allDocuments, ...documents];
+
+        // If we got fewer documents than the batch size, we've reached the end
+        if (documents.length < batchSize) {
+          break;
+        }
+
+        offset += batchSize;
+      }
+
+      return {
+        documents: parseStringify(allDocuments),
+        total: allDocuments.length,
+      };
     }
-
-    const response = await databases.listDocuments(
-      DATABASE_ID!,
-      NEXT_PUBLIC_EXPENSES_COLLECTION_ID!,
-      queries
-    );
-
-    return {
-      documents: parseStringify(response.documents),
-      total: response.total,
-    };
   } catch (error) {
     console.error("Error getting expenses:", error);
     throw error;
