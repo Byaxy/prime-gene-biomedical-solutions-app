@@ -64,6 +64,12 @@ export const sidebarData: SidebarDataType[] = [
   },
   {
     id: generateId(),
+    title: "Quotations",
+    path: "/quotations",
+    icon: <Calculator className="h-5 w-5" />,
+  },
+  {
+    id: generateId(),
     title: "Sales",
     path: "/sales",
     icon: <Calculator className="h-5 w-5" />,

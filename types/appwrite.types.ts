@@ -158,3 +158,18 @@ export interface CompanySettings {
   $createdAt: Date;
   $updatedAt: Date;
 }
+
+// Quotations
+export interface Quotation {
+  $id: string;
+  quotationNumber: string;
+  quotationDate: Date;
+  customerId: any;
+  totalAmount: number;
+  amountPaid: number;
+  status: "pending" | "completed" | "cancelled";
+  notes: string;
+  products: any[];
+  $createdAt: Date;
+  $updatedAt: Date;
+}
