@@ -179,18 +179,20 @@ const SalesBarChart = ({
               <p className="text-lg text-dark-600">Total Revenue</p>
               <h2 className="text-xl font-semibold">{formattedTotal}</h2>
             </div>
-            <div className="flex flex-row items-center justify-end gap-4">
-              <div className="flex flex-row gap-1 items-center">
-                <div className="bg-blue-800 h-4 w-4 rounded-full" />
-                <span className="text-sm text-blue-800">Paid</span>
-              </div>
-              <div className="flex flex-row gap-1 items-center">
-                <div className="bg-[#72d9d6] h-4 w-4 rounded-full" />
-                <span className="text-sm text-blue-800">Pending</span>
-              </div>
-              <div className="flex flex-row gap-1 items-center">
-                <div className="bg-red-600 h-4 w-4 rounded-full" />
-                <span className="text-sm text-blue-800">Cancelled</span>
+            <div className="w-full flex flex-col sm:flex-row items-start sm:items-center sm:justify-end gap-4">
+              <div className="flex flex-row gap-3 items-center">
+                <div className="flex flex-row gap-1 items-center">
+                  <div className="bg-blue-800 h-3 w-3 rounded-full" />
+                  <span className="text-sm text-blue-800">Paid</span>
+                </div>
+                <div className="flex flex-row gap-1 items-center">
+                  <div className="bg-[#72d9d6] h-3 w-3 rounded-full" />
+                  <span className="text-sm text-blue-800">Pending</span>
+                </div>
+                <div className="flex flex-row gap-1 items-center">
+                  <div className="bg-red-600 h-3 w-3 rounded-full" />
+                  <span className="text-sm text-blue-800">Cancelled</span>
+                </div>
               </div>
               <div>
                 <DropdownMenu>
@@ -216,7 +218,7 @@ const SalesBarChart = ({
                     ))}
 
                     <DropdownMenuSub>
-                      <DropdownMenuSubTrigger className="cursor-pointer m-1 text-blue-800 font-medium hover:bg-blue-800 hover:text-white rounded-md">
+                      <DropdownMenuSubTrigger className="hidden sm:flex cursor-pointer m-1 text-blue-800 font-medium hover:bg-blue-800 hover:text-white rounded-md">
                         Custom
                       </DropdownMenuSubTrigger>
                       <DropdownMenuSubContent className="bg-white z-30 pb-4 px-2">

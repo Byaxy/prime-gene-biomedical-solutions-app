@@ -68,9 +68,9 @@ export default function Home({
   return (
     <Suspense fallback={<Loading />}>
       <h1 className="text-2xl font-semibold">Dashboard</h1>
-      <div className="w-full flex flex-col gap-6 py-5">
+      <div className="w-full flex flex-col gap-5 py-5">
         <Overview />
-        <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 w-full">
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-5 w-full">
           <SalesBarChart
             chartData={chartData}
             queryKey="salesRange"
@@ -101,7 +101,7 @@ export default function Home({
             />
           </div>
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 w-full">
           <div className="w-full bg-white rounded-lg shadow-sm p-5 space-y-6">
             <div className="flex flex-col gap-5 sm:flex-row justify-between items-start">
               <h2 className="text-xl font-semibold">Recent Sales</h2>

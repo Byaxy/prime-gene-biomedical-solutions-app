@@ -40,7 +40,7 @@ export const quotationsColumns: ColumnDef<Quotation>[] = [
   },
   {
     id: "name",
-    accessorKey: "invoiceNumber",
+    accessorKey: "quotationNumber",
     header: ({ column }) => {
       return (
         <Button
@@ -48,7 +48,7 @@ export const quotationsColumns: ColumnDef<Quotation>[] = [
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           className="font-semibold px-0"
         >
-          Invoice Number
+          Quotation Number
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       );

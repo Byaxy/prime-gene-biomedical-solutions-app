@@ -164,9 +164,11 @@ export function DataTable<TData, TValue>({
           </TableBody>
         </Table>
 
-        <div className="flex items-center justify-between my-6 px-5">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-dark-600">Rows per page:</span>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 my-6 px-3">
+          <div className="w-full flex items-center gap-2">
+            <span className="text-xs sm:text-sm text-dark-600">
+              Rows per page:
+            </span>
             <Select
               value={String(pageSize)}
               onValueChange={(value) => {
@@ -176,7 +178,7 @@ export function DataTable<TData, TValue>({
                 onPageChange?.(0);
               }}
             >
-              <SelectTrigger className="w-20 text-dark-600">
+              <SelectTrigger className="w-16 text-dark-600">
                 <SelectValue placeholder="10" />
               </SelectTrigger>
               <SelectContent className="bg-white">
@@ -191,12 +193,12 @@ export function DataTable<TData, TValue>({
                 ))}
               </SelectContent>
             </Select>
-            <span className="text-sm text-dark-600 ml-4">
+            <span className="text-xs sm:text-sm text-dark-600">
               {page * pageSize + 1}-
               {Math.min((page + 1) * pageSize, totalItems)} of {totalItems}
             </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="w-full flex flex-row items-center justify-between sm:justify-end gap-2">
             <Button
               variant="outline"
               size="sm"
