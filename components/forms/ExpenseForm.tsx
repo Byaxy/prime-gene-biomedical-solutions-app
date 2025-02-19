@@ -6,6 +6,8 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "../ui/button";
+import { SelectItem } from "../ui/select";
+import { paymentMethods } from "@/constants";
 
 interface ExpenseFormProps {
   mode: "create" | "edit";
@@ -27,6 +29,7 @@ const ExpenseForm = ({
       title: "",
       description: "",
       amount: 0,
+      paymentMethod: "cash",
       expenseDate: new Date(),
     },
   });
@@ -71,6 +74,24 @@ const ExpenseForm = ({
             label="Amount"
             placeholder="Enter amount"
           />
+
+          <CustomFormField
+            fieldType={FormFieldType.SELECT}
+            control={form.control}
+            name="paymentMethod"
+            label="Payment Method"
+            placeholder="Select payment method"
+          >
+            {paymentMethods.map((status) => (
+              <SelectItem
+                key={status.value}
+                value={status.value}
+                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
+              >
+                {status.label}
+              </SelectItem>
+            ))}
+          </CustomFormField>
 
           <CustomFormField
             fieldType={FormFieldType.TEXTAREA}

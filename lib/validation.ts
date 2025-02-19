@@ -95,6 +95,7 @@ export const ExpenseFormValidation = z.object({
     .min(2, "Name must be at least 2 characters"),
   description: z.string().nonempty("Description is required"),
   amount: z.number().min(0, "Amount must be 0 or more"),
+  paymentMethod: z.enum(["cash", "check", "mobile-money"]).default("cash"),
   expenseDate: z.date().refine((date) => date <= new Date(), {
     message: "Expense date cannot be in the future",
   }),
@@ -111,6 +112,7 @@ export const PurchaseFormValidation = z.object({
   amountPaid: z.number().min(0, "Amount paid must be 0 or more"),
   supplierId: z.string().nonempty("Supplier is required"),
   status: z.enum(["pending", "completed", "cancelled"]).default("pending"),
+  paymentMethod: z.enum(["cash", "check", "mobile-money"]).default("cash"),
   notes: z.string().optional(),
   products: z
     .array(
@@ -170,6 +172,7 @@ export const SaleFormValidation = z.object({
   totalAmount: z.number().min(0, "Total amount must be 0 or more"),
   amountPaid: z.number().min(0, "Amount paid must be 0 or more"),
   status: z.enum(["pending", "completed", "cancelled"]).default("pending"),
+  paymentMethod: z.enum(["cash", "check", "mobile-money"]).default("cash"),
   notes: z.string().optional(),
   products: z
     .array(
@@ -241,6 +244,7 @@ export const QuotationFormValidation = z.object({
   totalAmount: z.number().min(0, "Total amount must be 0 or more"),
   amountPaid: z.number().min(0, "Amount paid must be 0 or more"),
   status: z.enum(["pending", "completed", "cancelled"]).default("pending"),
+  paymentMethod: z.enum(["cash", "check", "mobile-money"]).default("cash"),
   notes: z.string().optional(),
   products: z
     .array(

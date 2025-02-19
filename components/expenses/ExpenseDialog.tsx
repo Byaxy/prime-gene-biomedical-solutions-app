@@ -34,6 +34,7 @@ export function ExpenseDialog({
         title: expense?.title || "",
         description: expense?.description || "",
         amount: expense?.amount || 0,
+        paymentMethod: expense?.paymentMethod || "cash",
         expenseDate: expense?.expenseDate || new Date(),
       });
       onOpenChange(false);
@@ -98,12 +99,13 @@ export function ExpenseDialog({
           <ExpenseForm
             mode={mode === "add" ? "create" : "edit"}
             initialData={
-              mode === "edit"
+              mode === "edit" && expense
                 ? {
-                    title: expense?.title || "",
-                    description: expense?.description || "",
-                    amount: expense?.amount || 0,
-                    expenseDate: expense?.expenseDate || new Date(),
+                    title: expense?.title,
+                    description: expense?.description,
+                    amount: expense?.amount,
+                    paymentMethod: expense?.paymentMethod,
+                    expenseDate: new Date(expense?.expenseDate),
                   }
                 : undefined
             }

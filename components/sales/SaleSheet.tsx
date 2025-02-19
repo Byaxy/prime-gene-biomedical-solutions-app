@@ -59,6 +59,7 @@ const SaleSheet = ({
                     customerId: sale?.customerId ? sale?.customerId.$id : "",
                     saleDate: new Date(sale?.saleDate),
                     status: sale?.status,
+                    paymentMethod: sale?.paymentMethod,
                     notes: sale?.notes,
                     products: sale.products,
                   }

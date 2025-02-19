@@ -61,6 +61,7 @@ const QuotationSheet = ({
                       : "",
                     quotationDate: new Date(quotation?.quotationDate),
                     status: quotation?.status,
+                    paymentMethod: quotation?.paymentMethod,
                     notes: quotation?.notes,
                     products: quotation.products,
                   }

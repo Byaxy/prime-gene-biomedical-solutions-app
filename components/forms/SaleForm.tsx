@@ -22,7 +22,7 @@ import {
 } from "../ui/table";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { purchaseStatus } from "@/constants";
+import { paymentMethods, saleStatus } from "@/constants";
 import SubmitButton from "../SubmitButton";
 import { useCustomers } from "@/hooks/useCustomers";
 import FormatNumber from "@/components/FormatNumber";
@@ -92,6 +92,7 @@ const SaleForm = ({
     products: [] as FormProduct[],
     customerId: "",
     status: "pending" as "pending" | "completed" | "cancelled",
+    paymentMethod: "cash" as "cash" | "check" | "mobile-money",
     notes: "",
     amountPaid: 0,
     totalAmount: 0,
@@ -488,14 +489,33 @@ const SaleForm = ({
             </p>
           )}
         </div>
+        <div className="w-full flex flex-col sm:flex-row gap-5">
+          <CustomFormField
+            fieldType={FormFieldType.AMOUNT}
+            control={form.control}
+            name="amountPaid"
+            label="Amount Paid"
+            placeholder="Enter amount paid"
+          />
 
-        <CustomFormField
-          fieldType={FormFieldType.AMOUNT}
-          control={form.control}
-          name="amountPaid"
-          label="Amount Paid"
-          placeholder="Enter amount paid"
-        />
+          <CustomFormField
+            fieldType={FormFieldType.SELECT}
+            control={form.control}
+            name="paymentMethod"
+            label="Payment Method"
+            placeholder="Select payment method"
+          >
+            {paymentMethods.map((status) => (
+              <SelectItem
+                key={status.value}
+                value={status.value}
+                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
+              >
+                {status.label}
+              </SelectItem>
+            ))}
+          </CustomFormField>
+        </div>
 
         <div className="w-full flex flex-col sm:flex-row gap-5">
           <CustomFormField
@@ -523,13 +543,13 @@ const SaleForm = ({
             label="Status"
             placeholder="Select status"
           >
-            {purchaseStatus.map((status) => (
+            {saleStatus.map((status) => (
               <SelectItem
-                key={status}
-                value={status}
+                key={status.value}
+                value={status.value}
                 className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
               >
-                {status}
+                {status.label}
               </SelectItem>
             ))}
           </CustomFormField>

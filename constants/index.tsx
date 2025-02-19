@@ -115,4 +115,23 @@ export const sidebarData: SidebarDataType[] = [
 
 export const RoleOptions = ["user", "admin"];
 
-export const purchaseStatus = ["pending", "completed", "cancelled"];
+export const purchaseStatus = [
+  { label: "Pending", value: "pending" },
+  { label: "Completed", value: "completed" },
+  { label: "Cancelled", value: "cancelled" },
+];
+export const saleStatus = [
+  { label: "Pending", value: "pending" },
+  { label: "Completed", value: "completed" },
+  { label: "Cancelled", value: "cancelled" },
+];
+export const quotationStatus = [
+  { label: "Pending", value: "pending" },
+  { label: "Completed", value: "completed" },
+  { label: "Cancelled", value: "cancelled" },
+];
+export const paymentMethods = [
+  { label: "Cash", value: "cash" },
+  { label: "Check", value: "check" },
+  { label: "Mobile Money", value: "mobile-money" },
+];

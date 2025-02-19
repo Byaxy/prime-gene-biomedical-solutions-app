@@ -60,6 +60,7 @@ export interface Expenses {
   title: string;
   description: string;
   amount: number;
+  paymentMethod: "cash" | "check" | "mobile-money";
   expenseDate: Date;
   $createdAt: Date;
   $updatedAt: Date;
@@ -89,6 +90,7 @@ export interface Purchase {
   supplierId: any;
   products: any[];
   status: "pending" | "completed" | "cancelled";
+  paymentMethod: "cash" | "check" | "mobile-money";
   notes?: string;
   $createdAt: Date;
   $updatedAt: Date;
@@ -103,6 +105,7 @@ export interface Sale {
   totalAmount: number;
   amountPaid: number;
   status: "pending" | "completed" | "cancelled";
+  paymentMethod: "cash" | "check" | "mobile-money";
   notes: string;
   products: any[];
   $createdAt: Date;
@@ -168,6 +171,7 @@ export interface Quotation {
   totalAmount: number;
   amountPaid: number;
   status: "pending" | "completed" | "cancelled";
+  paymentMethod: "cash" | "check" | "mobile-money";
   notes: string;
   products: any[];
   $createdAt: Date;

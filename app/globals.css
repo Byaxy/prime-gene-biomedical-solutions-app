@@ -343,35 +343,6 @@
   font-weight: 500 !important;
 }
 
-/* Time picker specific styles */
-.react-datepicker__time-container {
-  border-left: 1px solid #e2e8f0 !important;
-}
-
-.react-datepicker__time-container .react-datepicker__time {
-  background-color: #ffffff !important;
-}
-
-.react-datepicker__time-container .react-datepicker__time-box {
-  width: 100px !important;
-}
-
-.react-datepicker__time-list-item {
-  height: auto !important;
-  padding: 0.5rem !important;
-  color: #475569 !important; /* blue-600 */
-}
-
-.react-datepicker__time-list-item:hover {
-  background-color: #f1f5f9 !important; /* blue-50 */
-}
-
-.react-datepicker__time-list-item--selected {
-  background-color: #002060 !important; /* blue-800 */
-  color: #ffffff !important;
-  font-weight: 600 !important;
-}
-
 /* =====  REACT PHONE NUMBER INPUT OVERRIDES */
 .PhoneInputInput {
   outline: none;
