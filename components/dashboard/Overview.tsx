@@ -6,9 +6,13 @@ import { useExpenses } from "@/hooks/useExpenses";
 import ProductsOverview from "./ProductsOverview";
 
 const Overview = () => {
-  const { sales, isLoading } = useSales();
-  const { purchases, isLoading: purchasesLoading } = usePurchases();
-  const { expenses, isLoading: expensesLoading } = useExpenses();
+  const { sales, isLoading } = useSales({ getAllSales: true });
+  const { purchases, isLoading: purchasesLoading } = usePurchases({
+    getAllPurchases: true,
+  });
+  const { expenses, isLoading: expensesLoading } = useExpenses({
+    getAllExpenses: true,
+  });
 
   const salesTotalPaid = sales
     ? sales.reduce((sum: number, sale: Sale) => (sum += sale.amountPaid), 0)

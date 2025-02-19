@@ -5,7 +5,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { formatNumber } from "@/lib/utils";
 
 const ProductsOverview = () => {
-  const { products, isLoading } = useProducts();
+  const { products, isLoading } = useProducts({ getAllProducts: true });
 
   const data = [
     {

@@ -31,6 +31,7 @@ export default function Home({
 }) {
   const { sales, isLoading, totalItems, page, setPage, pageSize, setPageSize } =
     useSales({ initialPageSize: 5 });
+  const { sales: allSales } = useSales({ getAllSales: true });
   const {
     users,
     isLoading: usersLoading,
@@ -48,7 +49,7 @@ export default function Home({
     setPage: purchasesSetPage,
     pageSize: purchasesPageSize,
     setPageSize: purchasesSetPageSize,
-  } = usePurchases();
+  } = usePurchases({ initialPageSize: 5 });
 
   const router = useRouter();
 
@@ -57,9 +58,9 @@ export default function Home({
     RANGE_OPTIONS.last_7_days;
 
   const chartData =
-    sales &&
+    allSales &&
     getSalesChartData(
-      sales,
+      allSales,
       totalSalesRangeOptions.startDate,
       totalSalesRangeOptions.endDate
     );
