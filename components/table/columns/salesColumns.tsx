@@ -122,7 +122,7 @@ export const salesColumns: ColumnDef<Sale>[] = [
 
   {
     accessorKey: "status",
-    header: "Status",
+    header: "Sale Status",
     cell: ({ row }) => {
       const sale = row.original;
       return (
@@ -153,6 +153,33 @@ export const salesColumns: ColumnDef<Sale>[] = [
       return (
         <p className="text-14-medium ">
           {sale.customerId ? sale.customerId.name : "-"}
+        </p>
+      );
+    },
+  },
+
+  {
+    accessorKey: "deliveryStatus",
+    header: "Delivery Status",
+    cell: ({ row }) => {
+      const purchase = row.original;
+      return (
+        <p>
+          <span
+            className={cn(
+              "text-14-medium capitalize",
+              purchase.deliveryStatus === "pending" &&
+                "text-white bg-orange-500 px-3 py-1 rounded-xl",
+              purchase.deliveryStatus === "in-progress" &&
+                "bg-blue-600 text-white px-3 py-1 rounded-xl",
+              purchase.deliveryStatus === "delivered" &&
+                "bg-green-500 text-white px-3 py-1 rounded-xl",
+              purchase.deliveryStatus === "cancelled" &&
+                "bg-red-600 text-white px-3 py-1 rounded-xl"
+            )}
+          >
+            {purchase.deliveryStatus ?? "-"}
+          </span>
         </p>
       );
     },

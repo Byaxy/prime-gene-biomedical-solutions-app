@@ -22,7 +22,7 @@ import {
 } from "../ui/table";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { paymentMethods, saleStatus } from "@/constants";
+import { deliveryStatus, paymentMethods, saleStatus } from "@/constants";
 import SubmitButton from "../SubmitButton";
 import { useCustomers } from "@/hooks/useCustomers";
 import FormatNumber from "@/components/FormatNumber";
@@ -93,10 +93,14 @@ const SaleForm = ({
     customerId: "",
     status: "pending" as "pending" | "completed" | "cancelled",
     paymentMethod: "cash" as "cash" | "check" | "mobile-money",
+    deliveryStatus: "pending" as
+      | "pending"
+      | "in-progress"
+      | "delivered"
+      | "cancelled",
     notes: "",
     amountPaid: 0,
     totalAmount: 0,
-
     selectedProduct: "",
     tempQuantity: 0,
     tempPrice: 0,
@@ -227,6 +231,12 @@ const SaleForm = ({
         form.getValues("tempQuantity") || selectedProduct.quantity;
       const unitPrice =
         form.getValues("tempPrice") || selectedProduct.sellingPrice;
+
+      // Check if quantity exceeds available stock
+      if (quantity > selectedProduct.quantity) {
+        toast.error("Quantity exceeds available stock");
+        return;
+      }
 
       const newProduct: FormProduct = {
         productId: selectedProduct.$id,
@@ -540,10 +550,30 @@ const SaleForm = ({
             fieldType={FormFieldType.SELECT}
             control={form.control}
             name="status"
-            label="Status"
+            label="Sale Status"
             placeholder="Select status"
           >
             {saleStatus.map((status) => (
+              <SelectItem
+                key={status.value}
+                value={status.value}
+                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
+              >
+                {status.label}
+              </SelectItem>
+            ))}
+          </CustomFormField>
+        </div>
+
+        <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <CustomFormField
+            fieldType={FormFieldType.SELECT}
+            control={form.control}
+            name="deliveryStatus"
+            label="Delivery Status"
+            placeholder="Select delivery status"
+          >
+            {deliveryStatus.map((status) => (
               <SelectItem
                 key={status.value}
                 value={status.value}

@@ -60,6 +60,7 @@ const SaleSheet = ({
                     saleDate: new Date(sale?.saleDate),
                     status: sale?.status,
                     paymentMethod: sale?.paymentMethod,
+                    deliveryStatus: sale?.deliveryStatus,
                     notes: sale?.notes,
                     products: sale.products,
                   }

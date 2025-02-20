@@ -8,6 +8,7 @@ import {
   DATABASE_ID,
   NEXT_PUBLIC_SALES_COLLECTION_ID,
   NEXT_PUBLIC_SALE_ITEMS_COLLECTION_ID,
+  NEXT_PUBLIC_PRODUCTS_COLLECTION_ID,
 } from "../appwrite-server";
 import { SaleFormValues } from "../validation";
 
@@ -31,6 +32,8 @@ export const addSale = async (sale: SaleFormValues) => {
       amountPaid: sale.amountPaid,
       customerId: sale.customerId,
       status: sale.status,
+      paymentMethod: sale.paymentMethod,
+      deliveryStatus: sale.deliveryStatus,
       notes: sale.notes,
     };
     const createSaleResponse = await databases.createDocument(
@@ -60,6 +63,39 @@ export const addSale = async (sale: SaleFormValues) => {
 
     const response = await Promise.all(createSaleItemsPromises);
 
+    // Adjust product stock if delivery status is delivered
+    if (sale.deliveryStatus === "delivered") {
+      await Promise.all(
+        sale.products.map(async (product) => {
+          const productData = await databases.getDocument(
+            DATABASE_ID!,
+            NEXT_PUBLIC_PRODUCTS_COLLECTION_ID!,
+            product.productId
+          );
+
+          const updatedStock = productData.quantity - product.quantity;
+
+          // Add validation to prevent negative stock
+          if (updatedStock < 0) {
+            throw new Error(
+              `Insufficient stock for product ${product.productId}`
+            );
+          }
+
+          // TO DO: Alert if stock is less than min stock level
+
+          return databases.updateDocument(
+            DATABASE_ID!,
+            NEXT_PUBLIC_PRODUCTS_COLLECTION_ID!,
+            product.productId,
+            {
+              quantity: updatedStock,
+            }
+          );
+        })
+      );
+    }
+
     revalidatePath("/sales");
     return parseStringify(response);
   } catch (error) {
@@ -79,6 +115,8 @@ export const editSale = async (sale: SaleFormValues, saleId: string) => {
       amountPaid: sale.amountPaid,
       customerId: sale.customerId,
       status: sale.status,
+      paymentMethod: sale.paymentMethod,
+      deliveryStatus: sale.deliveryStatus,
       notes: sale.notes,
     };
 
@@ -147,6 +185,48 @@ export const editSale = async (sale: SaleFormValues, saleId: string) => {
         }
       })
     );
+
+    // Adjust product stock if delivery status is delivered
+    const existingSale = await databases.getDocument(
+      DATABASE_ID!,
+      NEXT_PUBLIC_SALES_COLLECTION_ID!,
+      saleId
+    );
+
+    if (
+      sale.deliveryStatus === "delivered" &&
+      existingSale.deliveryStatus !== "delivered"
+    ) {
+      await Promise.all(
+        sale.products.map(async (product) => {
+          const productData = await databases.getDocument(
+            DATABASE_ID!,
+            NEXT_PUBLIC_PRODUCTS_COLLECTION_ID!,
+            product.productId
+          );
+
+          const updatedStock = productData.quantity - product.quantity;
+
+          // Add validation to prevent negative stock
+          if (updatedStock < 0) {
+            throw new Error(
+              `Insufficient stock for product ${product.productId}`
+            );
+          }
+
+          // TO DO: Alert if stock is less than min stock level
+
+          return databases.updateDocument(
+            DATABASE_ID!,
+            NEXT_PUBLIC_PRODUCTS_COLLECTION_ID!,
+            product.productId,
+            {
+              quantity: updatedStock,
+            }
+          );
+        })
+      );
+    }
 
     // Update the main sale record after all item operations are complete
     const updateSaleResponse = await databases.updateDocument(

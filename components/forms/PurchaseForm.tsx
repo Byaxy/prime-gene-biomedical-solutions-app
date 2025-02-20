@@ -7,7 +7,7 @@ import { Button } from "../ui/button";
 import { SelectItem } from "../ui/select";
 import { useProducts } from "@/hooks/useProducts";
 import { Product, Supplier } from "@/types/appwrite.types";
-import { paymentMethods, purchaseStatus } from "@/constants";
+import { deliveryStatus, paymentMethods, purchaseStatus } from "@/constants";
 import { useEffect, useState } from "react";
 import {
   Table,
@@ -89,6 +89,11 @@ const PurchaseForm = ({
     supplierId: "",
     status: "pending" as "pending" | "completed" | "cancelled",
     paymentMethod: "cash" as "cash" | "check" | "mobile-money",
+    deliveryStatus: "pending" as
+      | "pending"
+      | "in-progress"
+      | "delivered"
+      | "cancelled",
     notes: "",
     amountPaid: 0,
     totalAmount: 0,
@@ -530,10 +535,30 @@ const PurchaseForm = ({
             fieldType={FormFieldType.SELECT}
             control={form.control}
             name="status"
-            label="Status"
+            label="Purchase Status"
             placeholder="Select status"
           >
             {purchaseStatus.map((status) => (
+              <SelectItem
+                key={status.value}
+                value={status.value}
+                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
+              >
+                {status.label}
+              </SelectItem>
+            ))}
+          </CustomFormField>
+        </div>
+
+        <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <CustomFormField
+            fieldType={FormFieldType.SELECT}
+            control={form.control}
+            name="deliveryStatus"
+            label="Delivery Status"
+            placeholder="Select delivery status"
+          >
+            {deliveryStatus.map((status) => (
               <SelectItem
                 key={status.value}
                 value={status.value}

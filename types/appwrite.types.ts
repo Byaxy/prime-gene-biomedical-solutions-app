@@ -91,6 +91,7 @@ export interface Purchase {
   products: any[];
   status: "pending" | "completed" | "cancelled";
   paymentMethod: "cash" | "check" | "mobile-money";
+  deliveryStatus: "pending" | "in-progress" | "delivered" | "cancelled";
   notes?: string;
   $createdAt: Date;
   $updatedAt: Date;
@@ -106,6 +107,7 @@ export interface Sale {
   amountPaid: number;
   status: "pending" | "completed" | "cancelled";
   paymentMethod: "cash" | "check" | "mobile-money";
+  deliveryStatus: "pending" | "in-progress" | "delivered" | "cancelled";
   notes: string;
   products: any[];
   $createdAt: Date;

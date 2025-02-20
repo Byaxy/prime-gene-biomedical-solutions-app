@@ -8,6 +8,7 @@ import {
   DATABASE_ID,
   NEXT_PUBLIC_PURCHASES_COLLECTION_ID,
   NEXT_PUBLIC_PURCHASE_ITEMS_COLLECTION_ID,
+  NEXT_PUBLIC_PRODUCTS_COLLECTION_ID,
 } from "../appwrite-server";
 import { PurchaseFormValues } from "../validation";
 
@@ -31,6 +32,8 @@ export const addPurchase = async (purchase: PurchaseFormValues) => {
       amountPaid: purchase.amountPaid,
       supplierId: purchase.supplierId,
       status: purchase.status,
+      paymentMethod: purchase.paymentMethod,
+      deliveryStatus: purchase.deliveryStatus,
       notes: purchase.notes,
     };
     const createPurchaseResponse = await databases.createDocument(
@@ -62,6 +65,32 @@ export const addPurchase = async (purchase: PurchaseFormValues) => {
 
     const response = await Promise.all(createPurchaseItemsPromises);
 
+    // Adjust product stock if delivery status is delivered
+    if (purchase.deliveryStatus === "delivered") {
+      await Promise.all(
+        purchase.products.map(async (product) => {
+          const productData = await databases.getDocument(
+            DATABASE_ID!,
+            NEXT_PUBLIC_PRODUCTS_COLLECTION_ID!,
+            product.productId
+          );
+
+          const updatedStock = productData.quantity + product.quantity;
+
+          // TO DO: Alert if stock is more than max stock level
+
+          return databases.updateDocument(
+            DATABASE_ID!,
+            NEXT_PUBLIC_PRODUCTS_COLLECTION_ID!,
+            product.productId,
+            {
+              quantity: updatedStock,
+            }
+          );
+        })
+      );
+    }
+
     revalidatePath("/purchases");
     return parseStringify(response);
   } catch (error) {
@@ -84,6 +113,8 @@ export const editPurchase = async (
       amountPaid: purchase.amountPaid,
       supplierId: purchase.supplierId,
       status: purchase.status,
+      paymentMethod: purchase.paymentMethod,
+      deliveryStatus: purchase.deliveryStatus,
       notes: purchase.notes,
     };
 
@@ -152,6 +183,41 @@ export const editPurchase = async (
         }
       })
     );
+
+    // Adjust product stock if delivery status is delivered
+    const existingPurchase = await databases.getDocument(
+      DATABASE_ID!,
+      NEXT_PUBLIC_PURCHASES_COLLECTION_ID!,
+      purchaseId
+    );
+
+    if (
+      purchase.deliveryStatus === "delivered" &&
+      existingPurchase.deliveryStatus !== "delivered"
+    ) {
+      await Promise.all(
+        purchase.products.map(async (product) => {
+          const productData = await databases.getDocument(
+            DATABASE_ID!,
+            NEXT_PUBLIC_PRODUCTS_COLLECTION_ID!,
+            product.productId
+          );
+
+          const updatedStock = productData.quantity + product.quantity;
+
+          // TO DO: Alert if stock is more than max stock level
+
+          return databases.updateDocument(
+            DATABASE_ID!,
+            NEXT_PUBLIC_PRODUCTS_COLLECTION_ID!,
+            product.productId,
+            {
+              quantity: updatedStock,
+            }
+          );
+        })
+      );
+    }
 
     // Update the main purchase record after all item operations are complete
     const updatePurchaseResponse = await databases.updateDocument(

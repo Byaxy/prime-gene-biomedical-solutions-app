@@ -24,6 +24,7 @@
     "@tanstack/react-query": "^5.62.8",
     "@tanstack/react-table": "^8.20.6",
     "@types/js-cookie": "^3.0.6",
+    "@vercel/analytics": "^1.5.0",
     "appwrite": "^16.1.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

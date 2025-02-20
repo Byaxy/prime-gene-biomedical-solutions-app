@@ -135,3 +135,10 @@ export const paymentMethods = [
   { label: "Check", value: "check" },
   { label: "Mobile Money", value: "mobile-money" },
 ];
+
+export const deliveryStatus = [
+  { label: "Pending", value: "pending" },
+  { label: "In Progress", value: "in-progress" },
+  { label: "Delivered", value: "delivered" },
+  { label: "Cancelled", value: "cancelled" },
+];

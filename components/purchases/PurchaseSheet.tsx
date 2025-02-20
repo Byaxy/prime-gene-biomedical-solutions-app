@@ -64,6 +64,7 @@ export default function PurchaseSheet({
                     purchaseDate: new Date(purchase?.purchaseDate),
                     status: purchase?.status,
                     paymentMethod: purchase?.paymentMethod,
+                    deliveryStatus: purchase?.deliveryStatus,
                     notes: purchase?.notes,
                     products: purchase.products,
                   }

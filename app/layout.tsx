@@ -4,6 +4,7 @@ import "./globals.css";
 import { cn } from "@/lib/utils";
 import { Providers } from "@/components/Providers";
 import "@/app/dynamic-routes";
+import { Analytics } from "@vercel/analytics/react";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,7 @@ export default function RootLayout({
         )}
       >
         <Providers>{children}</Providers>
+        <Analytics />
       </body>
     </html>
   );

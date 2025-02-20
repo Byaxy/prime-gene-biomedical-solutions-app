@@ -113,6 +113,9 @@ export const PurchaseFormValidation = z.object({
   supplierId: z.string().nonempty("Supplier is required"),
   status: z.enum(["pending", "completed", "cancelled"]).default("pending"),
   paymentMethod: z.enum(["cash", "check", "mobile-money"]).default("cash"),
+  deliveryStatus: z
+    .enum(["pending", "in-progress", "delivered", "cancelled"])
+    .default("pending"),
   notes: z.string().optional(),
   products: z
     .array(
@@ -173,6 +176,9 @@ export const SaleFormValidation = z.object({
   amountPaid: z.number().min(0, "Amount paid must be 0 or more"),
   status: z.enum(["pending", "completed", "cancelled"]).default("pending"),
   paymentMethod: z.enum(["cash", "check", "mobile-money"]).default("cash"),
+  deliveryStatus: z
+    .enum(["pending", "in-progress", "delivered", "cancelled"])
+    .default("pending"),
   notes: z.string().optional(),
   products: z
     .array(

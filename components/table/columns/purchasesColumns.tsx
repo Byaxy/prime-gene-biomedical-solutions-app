@@ -123,7 +123,7 @@ export const purchasesColumns: ColumnDef<Purchase>[] = [
   },
   {
     accessorKey: "status",
-    header: "Status",
+    header: "Purchase Status",
     cell: ({ row }) => {
       const purchase = row.original;
       return (
@@ -153,6 +153,33 @@ export const purchasesColumns: ColumnDef<Purchase>[] = [
       return (
         <p className="text-14-medium ">
           {purchase.supplierId ? purchase.supplierId.name : "-"}
+        </p>
+      );
+    },
+  },
+
+  {
+    accessorKey: "deliveryStatus",
+    header: "Delivery Status",
+    cell: ({ row }) => {
+      const purchase = row.original;
+      return (
+        <p>
+          <span
+            className={cn(
+              "text-14-medium capitalize",
+              purchase.deliveryStatus === "pending" &&
+                "text-white bg-orange-500 px-3 py-1 rounded-xl",
+              purchase.deliveryStatus === "in-progress" &&
+                "bg-blue-600 text-white px-3 py-1 rounded-xl",
+              purchase.deliveryStatus === "delivered" &&
+                "bg-green-500 text-white px-3 py-1 rounded-xl",
+              purchase.deliveryStatus === "cancelled" &&
+                "bg-red-600 text-white px-3 py-1 rounded-xl"
+            )}
+          >
+            {purchase.deliveryStatus ?? "-"}
+          </span>
         </p>
       );
     },
