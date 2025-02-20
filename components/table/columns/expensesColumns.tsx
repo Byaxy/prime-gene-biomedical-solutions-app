@@ -83,6 +83,14 @@ export const expensesColumns: ColumnDef<Expenses>[] = [
     },
   },
   {
+    accessorKey: "paymentMethod",
+    header: "Payment Method",
+    cell: ({ row }) => {
+      const expense = row.original;
+      return <p className="text-14-medium ">{expense.paymentMethod || "-"}</p>;
+    },
+  },
+  {
     accessorKey: "description",
     header: "Description",
     cell: ({ row }) => {
