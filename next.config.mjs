@@ -20,6 +20,8 @@ const nextConfig = {
     workerThreads: false,
     cpus: 1,
   },
+  staticPageGenerationTimeout: 120,
+
   async headers() {
     return [
       {
