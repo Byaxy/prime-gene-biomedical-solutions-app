@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, use } from "react";
 import "@/app/dynamic-routes";
 import Loading from "../../components/loading";
 import Overview from "@/components/dashboard/Overview";
@@ -20,15 +20,17 @@ import { usePurchases } from "@/hooks/usePurchases";
 
 export const dynamic = "force-dynamic";
 
-export default function Home({
-  searchParams: { salesRange, salesRangeFrom, salesRangeTo },
-}: {
-  searchParams: {
+export default function Home(props: {
+  searchParams: Promise<{
     salesRange?: string;
     salesRangeFrom: string;
     salesRangeTo: string;
-  };
+  }>;
 }) {
+  const searchParams = use(props.searchParams);
+
+  const { salesRange, salesRangeFrom, salesRangeTo } = searchParams;
+
   const { sales, isLoading, totalItems, page, setPage, pageSize, setPageSize } =
     useSales({ initialPageSize: 5 });
   const { sales: allSales } = useSales({ getAllSales: true });

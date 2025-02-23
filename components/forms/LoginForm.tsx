@@ -27,8 +27,10 @@ const LoginForm = () => {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 space-y-6">
-        <section className="mb-12 mt-8">
-          <p className="text-dark-500">Sign into your account.</p>
+        <section className="mb-10 mt-8">
+          <p className="text-blue-800 text-center text-lg">
+            Sign into your account.
+          </p>
         </section>
 
         <CustomFormField
