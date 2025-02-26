@@ -37,7 +37,7 @@ const UnitActions = ({ unit }: { unit: Unit }) => {
           setMode("edit");
           setOpen(true);
         }}
-        className="text-[#475BE8] p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
+        className="text-[#475BE8] p-1 hover:bg-white hover:rounded-md cursor-pointer"
       >
         <EditIcon className="h-5 w-5" />
       </span>
@@ -46,7 +46,7 @@ const UnitActions = ({ unit }: { unit: Unit }) => {
           setMode("delete");
           setOpen(true);
         }}
-        className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
+        className="text-red-600 p-1 hover:bg-white hover:rounded-md cursor-pointer"
       >
         <DeleteIcon className="h-5 w-5" />
       </span>

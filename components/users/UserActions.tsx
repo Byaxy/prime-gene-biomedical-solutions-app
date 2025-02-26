@@ -47,7 +47,7 @@ const UserActions = ({ user }: { user: User }) => {
           if (!isAdmin) toast.error("Only admins can edit user");
           return;
         }}
-        className="text-[#475BE8] p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
+        className="text-[#475BE8] p-1 hover:bg-white hover:rounded-md cursor-pointer"
       >
         <EditIcon className="h-5 w-5" />
       </span>
@@ -61,7 +61,7 @@ const UserActions = ({ user }: { user: User }) => {
           if (!isAdmin) toast.error("Only admins can delete user");
           return;
         }}
-        className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
+        className="text-red-600 p-1 hover:bg-white hover:rounded-md cursor-pointer"
       >
         <DeleteIcon className="h-5 w-5" />
       </span>

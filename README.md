@@ -58,9 +58,7 @@ A modern, scalable, and user-friendly **Sales and Inventory Management Applicati
   - RESTful API for managing sales and inventory data.
 
 - **Other Libraries**:
-  - [React Datepicker](https://www.npmjs.com/package/react-datepicker) - Date picker component.
   - [React Phone Number Input](https://www.npmjs.com/package/react-phone-number-input) - Phone number input with country codes.
-  - [React Colorful](https://www.npmjs.com/package/react-colorful) - Color picker component.
 
 ---
 
@@ -70,16 +68,16 @@ A modern, scalable, and user-friendly **Sales and Inventory Management Applicati
   ![Dashboard page](/public/assets/images/dashboard.png)
 
 - **Products**
-  ![Dashboard page](/public/assets/images/products.png)
+  ![Products page](/public/assets/images/products.png)
 
 - **Sales**
-  ![Dashboard page](/public/assets/images/sales.png)
+  ![Sales page](/public/assets/images/sales.png)
 
 - **Add Sale**
-  ![Dashboard page](/public/assets/images/add-sale.png)
+  ![Add Sale page](/public/assets/images/add-sale.png)
 
 - **Add User**
-  ![Dashboard page](/public/assets/images/add-user.png)
+  ![Add User page](/public/assets/images/add-user.png)
 
 - **Settings**
-  ![Dashboard page](/public/assets/images/settings.png)
+  ![Settings page](/public/assets/images/settings.png)
