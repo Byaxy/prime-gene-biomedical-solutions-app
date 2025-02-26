@@ -55,18 +55,13 @@ export const TypeFormValidation = z.object({
 });
 export type TypeFormValues = z.infer<typeof TypeFormValidation>;
 
-// Materials
-export const MaterialFormValidation = z.object({
+// Brands
+export const BrandFormValidation = z.object({
   name: z.string().nonempty("Name is required"),
+  description: z.string().optional(),
+  image: z.any().optional(),
 });
-export type MaterialFormValues = z.infer<typeof MaterialFormValidation>;
-
-// Colors
-export const ColorFormValidation = z.object({
-  name: z.string().nonempty("Name is required"),
-  code: z.string().nonempty("Color Code is required"),
-});
-export type ColorFormValues = z.infer<typeof ColorFormValidation>;
+export type BrandFormValues = z.infer<typeof BrandFormValidation>;
 
 // Products
 export const ProductFormValidation = z.object({
@@ -74,15 +69,15 @@ export const ProductFormValidation = z.object({
     .string()
     .nonempty("Name is required")
     .min(2, "Name must be at least 2 characters"),
+  lotNumber: z.string().nonempty("Lot number is required"),
   description: z.string().optional(),
   costPrice: z.number().min(0, "Price must be 0 or more"),
   sellingPrice: z.number().min(0, "Price must be 0 or more"),
   quantity: z.number().int().min(0, "Quantity must be 0 or more"),
-  categoryId: z.string().nonempty("Category is required"),
-  typeId: z.string().nonempty("Type is required"),
-  materialId: z.string().nonempty("Material is required"),
-  colorId: z.string().nonempty("Color is required"),
-  unitId: z.string().nonempty("Unit is required"),
+  category: z.string().nonempty("Category is required"),
+  brand: z.string().nonempty("Brand is required"),
+  type: z.string().nonempty("Type is required"),
+  unit: z.string().nonempty("Unit is required"),
   image: z.any().optional(),
 });
 export type ProductFormValues = z.infer<typeof ProductFormValidation>;
@@ -110,7 +105,7 @@ export const PurchaseFormValidation = z.object({
   }),
   totalAmount: z.number().min(0, "Total amount must be 0 or more"),
   amountPaid: z.number().min(0, "Amount paid must be 0 or more"),
-  supplierId: z.string().nonempty("Supplier is required"),
+  supplier: z.string().nonempty("Supplier is required"),
   status: z.enum(["pending", "completed", "cancelled"]).default("pending"),
   paymentMethod: z.enum(["cash", "check", "mobile-money"]).default("cash"),
   deliveryStatus: z
@@ -125,9 +120,9 @@ export const PurchaseFormValidation = z.object({
         unitPrice: z.number().min(0, "Unit price must be 0 or more"),
         totalPrice: z.number().min(0, "Total price must be 0 or more"),
         productName: z.string().optional(),
-        productMaterial: z.string().optional(),
-        productColor: z.string().optional(),
-        productColorCode: z.string().optional(),
+        productLotNumber: z.string().optional(),
+        productBrand: z.string().optional(),
+        productUnit: z.string().optional(),
       })
     )
     .min(1, "At least one product is required"),
@@ -171,7 +166,7 @@ export const SaleFormValidation = z.object({
   saleDate: z.date().refine((date) => date <= new Date(), {
     message: "Sale date cannot be in the future",
   }),
-  customerId: z.string().nonempty("Customer is required"),
+  customer: z.string().nonempty("Customer is required"),
   totalAmount: z.number().min(0, "Total amount must be 0 or more"),
   amountPaid: z.number().min(0, "Amount paid must be 0 or more"),
   status: z.enum(["pending", "completed", "cancelled"]).default("pending"),
@@ -188,9 +183,8 @@ export const SaleFormValidation = z.object({
         unitPrice: z.number().min(0, "Unit price must be 0 or more"),
         totalPrice: z.number().min(0, "Total price must be 0 or more"),
         productName: z.string().optional(),
-        productMaterial: z.string().optional(),
-        productColor: z.string().optional(),
-        productColorCode: z.string().optional(),
+        productLotNumber: z.string().optional(),
+        productBrand: z.string().optional(),
         productUnit: z.string().optional(),
       })
     )
@@ -246,7 +240,7 @@ export const QuotationFormValidation = z.object({
   quotationDate: z.date().refine((date) => date <= new Date(), {
     message: "Quotation date cannot be in the future",
   }),
-  customerId: z.string().nonempty("Customer is required"),
+  customer: z.string().nonempty("Customer is required"),
   totalAmount: z.number().min(0, "Total amount must be 0 or more"),
   amountPaid: z.number().min(0, "Amount paid must be 0 or more"),
   status: z.enum(["pending", "completed", "cancelled"]).default("pending"),
@@ -260,9 +254,8 @@ export const QuotationFormValidation = z.object({
         unitPrice: z.number().min(0, "Unit price must be 0 or more"),
         totalPrice: z.number().min(0, "Total price must be 0 or more"),
         productName: z.string().optional(),
-        productMaterial: z.string().optional(),
-        productColor: z.string().optional(),
-        productColorCode: z.string().optional(),
+        productLotNumber: z.string().optional(),
+        productBrand: z.string().optional(),
         productUnit: z.string().optional(),
       })
     )

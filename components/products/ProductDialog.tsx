@@ -32,15 +32,15 @@ export function ProductDialog({
     try {
       await onSubmit({
         name: product?.name || "",
+        lotNumber: product?.lotNumber || "",
         description: product?.description || "",
         costPrice: product?.costPrice || 0,
         sellingPrice: product?.sellingPrice || 0,
         quantity: product?.quantity || 0,
-        categoryId: product?.categoryId || "",
-        typeId: product?.typeId || "",
-        materialId: product?.materialId || "",
-        colorId: product?.colorId || "",
-        unitId: product?.unitId || "",
+        category: product?.category || "",
+        brand: product?.brand || "",
+        type: product?.type || "",
+        unit: product?.unit || "",
       });
       onOpenChange(false);
     } catch (error) {

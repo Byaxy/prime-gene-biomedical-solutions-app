@@ -20,6 +20,7 @@ import Link from "next/link";
 import SidebarMenu from "@/components/sidebar/SidebarMenu";
 import { sidebarData } from "@/constants";
 import { theme } from "@/lib/theme";
+import Image from "next/image";
 
 const drawerWidth = 270;
 
@@ -156,11 +157,14 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             {/** logo */}
             <Link
               href={"/"}
-              className="no-underline flex items-center justify-center bg-primaryColor/95 p-1"
+              className="no-underline flex items-center justify-center gap-2 bg-primaryColor/95 p-1"
             >
-              <h1 className="text-xl bg-gradient-to-r from-blue-800 bg-clip-text text-transparent font-bold to-[#587390]">
-                Homeland Interiors
-              </h1>
+              <Image
+                src={"/assets/logos/logo.png"}
+                alt="Logo"
+                width={280}
+                height={80}
+              />
             </Link>
             <IconButton
               onClick={handleDrawerClose}

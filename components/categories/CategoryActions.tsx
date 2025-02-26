@@ -1,12 +1,12 @@
 import { CategoryFormValues } from "@/lib/validation";
-import { Categories } from "@/types/appwrite.types";
+import { Category } from "@/types/appwrite.types";
 import { useState } from "react";
 import { CategoryDialog } from "./CategoryDialog";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useCategories } from "@/hooks/useCategories";
 
-const CategoryActions = ({ category }: { category: Categories }) => {
+const CategoryActions = ({ category }: { category: Category }) => {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"add" | "edit" | "delete">("add");
 

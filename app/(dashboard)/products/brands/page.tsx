@@ -1,33 +1,30 @@
 "use client";
 
-import { useState } from "react";
+import BrandDialog from "@/components/brands/BrandDialog";
 import PageWraper from "@/components/PageWraper";
+import { brandColumns } from "@/components/table/columns/brandColumns";
 import { DataTable } from "@/components/table/DataTable";
-import { useMaterials } from "@/hooks/useMaterials";
-import { materialsColumns } from "@/components/table/columns/materialsColumns";
-import MaterialDialog from "@/components/materials/MaterialDialog";
-import { MaterialFormValues } from "@/lib/validation";
+import { useBrands } from "@/hooks/useBrands";
+import { BrandFormValues } from "@/lib/validation";
+import { useState } from "react";
 
-const Materials = () => {
+const Brands = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-
   const {
-    materials,
+    brands,
     isLoading,
     totalItems,
     page,
     setPage,
     pageSize,
     setPageSize,
-    addMaterial,
-    isAddingMaterial,
-  } = useMaterials({
-    initialPageSize: 10,
-  });
+    addBrand,
+    isAddingBrand,
+  } = useBrands({ initialPageSize: 10 });
 
-  const handleAddMaterial = async (data: MaterialFormValues): Promise<void> => {
+  const handleAddBrand = async (data: BrandFormValues): Promise<void> => {
     return new Promise((resolve, reject) => {
-      addMaterial(data, {
+      addBrand(data, {
         onSuccess: () => {
           setIsAddDialogOpen(false);
           resolve();
@@ -38,17 +35,16 @@ const Materials = () => {
       });
     });
   };
-
   return (
     <PageWraper
-      title="Materials"
-      buttonText="Add Material"
+      title="Product Brands"
+      buttonText="Add Brand"
       buttonAction={() => setIsAddDialogOpen(true)}
     >
       <>
         <DataTable
-          columns={materialsColumns}
-          data={materials || []}
+          columns={brandColumns}
+          data={brands || []}
           isLoading={isLoading}
           totalItems={totalItems}
           page={page}
@@ -56,16 +52,16 @@ const Materials = () => {
           pageSize={pageSize}
           onPageSizeChange={setPageSize}
         />
-        <MaterialDialog
+        <BrandDialog
           mode="add"
           open={isAddDialogOpen}
           onOpenChange={setIsAddDialogOpen}
-          isLoading={isAddingMaterial}
-          onSubmit={handleAddMaterial}
+          isLoading={isAddingBrand}
+          onSubmit={handleAddBrand}
         />
       </>
     </PageWraper>
   );
 };
 
-export default Materials;
+export default Brands;

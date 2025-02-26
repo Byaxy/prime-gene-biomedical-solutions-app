@@ -49,7 +49,7 @@ const UserProfile = () => {
           $id: singleUser.$id,
           name: singleUser.name,
           email: singleUser.email,
-          phone: singleUser.phone,
+          phone: singleUser.phone || "",
           role: singleUser.role,
           profileImageId: singleUser.profileImageId,
           profileImageUrl: singleUser.profileImageUrl,

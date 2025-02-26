@@ -15,11 +15,11 @@ import { SelectItem } from "../ui/select";
 import { RoleOptions } from "@/constants";
 import { Button } from "../ui/button";
 import { FileUploader } from "../FileUploader";
-import { Users } from "@/types/appwrite.types";
+import { User } from "@/types/appwrite.types";
 
 interface UserFormProps {
   mode: "create" | "edit";
-  initialData?: Users;
+  initialData?: User;
   onSubmit: (data: UserFormValues, prevImageId?: string) => Promise<void>;
   onCancel?: () => void;
 }

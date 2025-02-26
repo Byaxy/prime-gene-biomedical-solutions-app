@@ -1,16 +1,27 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 // Categories
-export interface Categories {
+export interface Category {
   $id: string;
   name: string;
   description: string;
+  $createdAt: Date;
+  $updatedAt: Date;
+}
+
+// Brands
+export interface Brand {
+  $id: string;
+  name: string;
+  description: string;
+  imageId: string;
+  imageUrl: string;
   $createdAt: Date;
   $updatedAt: Date;
 }
 
 // Product Types
-export interface ProductTypes {
+export interface ProductType {
   $id: string;
   name: string;
   description: string;
@@ -18,19 +29,12 @@ export interface ProductTypes {
   $updatedAt: Date;
 }
 
-// Materials
-export interface Materials {
-  $id: string;
-  name: string;
-  $createdAt: Date;
-  $updatedAt: Date;
-}
-
-// Colors
-export interface Colors {
+// Units
+export interface Unit {
   $id: string;
   name: string;
   code: string;
+  description: string;
   $createdAt: Date;
   $updatedAt: Date;
 }
@@ -39,15 +43,15 @@ export interface Colors {
 export interface Product {
   $id: string;
   name: string;
+  lotNumber: string;
   description: string;
   costPrice: number;
   sellingPrice: number;
   quantity: number;
-  categoryId: any;
-  typeId: any;
-  materialId: any;
-  colorId: any;
-  unitId: any;
+  category: any;
+  brand: any;
+  type: any;
+  unit: any;
   imageId: string;
   imageUrl: string;
   $createdAt: Date;
@@ -55,7 +59,7 @@ export interface Product {
 }
 
 // Expenses
-export interface Expenses {
+export interface Expense {
   $id: string;
   title: string;
   description: string;
@@ -67,7 +71,7 @@ export interface Expenses {
 }
 
 // Users
-export interface Users {
+export interface User {
   $id: string;
   name: string;
   email: string;
@@ -87,7 +91,7 @@ export interface Purchase {
   totalAmount: number;
   amountPaid: number;
   purchaseDate: Date;
-  supplierId: any;
+  supplier: any;
   products: any[];
   status: "pending" | "completed" | "cancelled";
   paymentMethod: "cash" | "check" | "mobile-money";
@@ -102,7 +106,7 @@ export interface Sale {
   $id: string;
   invoiceNumber: string;
   saleDate: Date;
-  customerId: any;
+  customer: any;
   totalAmount: number;
   amountPaid: number;
   status: "pending" | "completed" | "cancelled";
@@ -136,16 +140,6 @@ export interface Customer {
   $updatedAt: Date;
 }
 
-// Units
-export interface Unit {
-  $id: string;
-  name: string;
-  code: string;
-  description: string;
-  $createdAt: Date;
-  $updatedAt: Date;
-}
-
 // Company Settings
 export interface CompanySettings {
   $id: string;
@@ -169,7 +163,7 @@ export interface Quotation {
   $id: string;
   quotationNumber: string;
   quotationDate: Date;
-  customerId: any;
+  customer: any;
   totalAmount: number;
   amountPaid: number;
   status: "pending" | "completed" | "cancelled";

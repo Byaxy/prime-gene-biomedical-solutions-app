@@ -55,19 +55,15 @@ const ProductSheet = ({
                 ? {
                     $id: product.$id,
                     name: product.name,
+                    lotNumber: product.lotNumber,
                     description: product.description,
                     costPrice: product.costPrice,
                     sellingPrice: product.sellingPrice,
                     quantity: product.quantity,
-                    categoryId: product.categoryId
-                      ? product.categoryId.$id
-                      : "",
-                    typeId: product.typeId ? product.typeId.$id : "",
-                    materialId: product.materialId
-                      ? product.materialId.$id
-                      : "",
-                    colorId: product.colorId ? product.colorId.$id : "",
-                    unitId: product.unitId ? product.unitId.$id : "",
+                    category: product.category ? product.category.$id : "",
+                    type: product.type ? product.type.$id : "",
+                    brand: product.brand ? product.brand.$id : "",
+                    unit: product.unit ? product.unit.$id : "",
                     imageId: product.imageId,
                     imageUrl: product.imageUrl,
                     $createdAt: product.$createdAt,

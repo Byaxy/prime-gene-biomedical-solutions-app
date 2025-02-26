@@ -29,7 +29,7 @@ export const addQuotation = async (quotation: QuotationFormValues) => {
       quotationDate: quotation.quotationDate,
       totalAmount: quotation.totalAmount,
       amountPaid: quotation.amountPaid,
-      customerId: quotation.customerId,
+      customer: quotation.customer,
       status: quotation.status,
       notes: quotation.notes,
     };
@@ -44,8 +44,8 @@ export const addQuotation = async (quotation: QuotationFormValues) => {
     const createQuotationItemsPromises = quotation.products.map(
       async (product) => {
         const quotationItemData = {
-          quotationId: createQuotationResponse.$id,
-          productId: product.productId,
+          quotation: createQuotationResponse.$id,
+          product: product.productId,
           quantity: product.quantity,
           unitPrice: product.unitPrice,
           totalPrice: product.totalPrice,
@@ -82,7 +82,7 @@ export const editQuotation = async (
       quotationDate: quotation.quotationDate,
       totalAmount: quotation.totalAmount,
       amountPaid: quotation.amountPaid,
-      customerId: quotation.customerId,
+      customer: quotation.customer,
       status: quotation.status,
       notes: quotation.notes,
     };
@@ -126,8 +126,8 @@ export const editQuotation = async (
       quotation.products.map(async (product) => {
         const existingItem = existingItemsMap.get(product.productId);
         const quotationItemData = {
-          quotationId,
-          productId: product.productId,
+          quotation: quotationId,
+          product: product.productId,
           quantity: product.quantity,
           unitPrice: product.unitPrice,
           totalPrice: product.totalPrice,

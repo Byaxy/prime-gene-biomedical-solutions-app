@@ -1,12 +1,11 @@
-"use client";
-
-import { ColumnDef } from "@tanstack/table-core";
-import { User } from "@/types/appwrite.types";
-import { ArrowUpDown } from "lucide-react";
+import BrandActions from "@/components/brands/BrandActions";
 import { Button } from "@/components/ui/button";
+import { Brand } from "@/types/appwrite.types";
+import { ColumnDef } from "@tanstack/react-table";
+import { ArrowUpDown } from "lucide-react";
 import Image from "next/image";
 
-export const dashboardUsersColumns: ColumnDef<User>[] = [
+export const brandColumns: ColumnDef<Brand>[] = [
   {
     header: "#",
     cell: ({ row }) => {
@@ -16,12 +15,12 @@ export const dashboardUsersColumns: ColumnDef<User>[] = [
   {
     header: "Image",
     cell: ({ row }) => {
-      const user = row.original;
+      const brand = row.original;
       return (
         <div className="flex items-center">
           <Image
-            src={user.profileImageUrl || "/assets/images/user.png"}
-            alt={user.name}
+            src={brand.imageUrl || "/assets/images/placeholder.jpg"}
+            alt={brand.name}
             width={50}
             height={50}
             className="h-12 w-12 rounded-full object-cover"
@@ -48,32 +47,24 @@ export const dashboardUsersColumns: ColumnDef<User>[] = [
     },
 
     cell: ({ row }) => {
-      const user = row.original;
-      return <p className="text-14-medium ">{user.name}</p>;
+      const brand = row.original;
+      return <p className="text-14-medium ">{brand.name}</p>;
     },
   },
   {
-    accessorKey: "email",
-    header: "Email",
+    accessorKey: "description",
+    header: "Description",
     cell: ({ row }) => {
-      const user = row.original;
-      return <p className="text-14-medium ">{user.email || "-"}</p>;
+      const brand = row.original;
+      return <p className="text-14-medium">{brand.description || "-"}</p>;
     },
   },
+
   {
-    accessorKey: "phone",
-    header: "Phone",
+    id: "actions",
+    header: "Actions",
     cell: ({ row }) => {
-      const user = row.original;
-      return <p className="text-14-medium ">{user.phone || "-"}</p>;
-    },
-  },
-  {
-    accessorKey: "role",
-    header: "Role",
-    cell: ({ row }) => {
-      const user = row.original;
-      return <p className="text-14-medium ">{user.role || "-"}</p>;
+      return <BrandActions brand={row.original} />;
     },
   },
 ];

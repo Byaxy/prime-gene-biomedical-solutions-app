@@ -8,7 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 
 import { ExpenseFormValues } from "@/lib/validation";
-import { Expenses } from "@/types/appwrite.types";
+import { Expense } from "@/types/appwrite.types";
 import ExpenseForm from "../forms/ExpenseForm";
 
 interface ExpenseDialogProps {
@@ -16,7 +16,7 @@ interface ExpenseDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   isLoading?: boolean;
-  expense?: Expenses;
+  expense?: Expense;
   onSubmit: (data: ExpenseFormValues) => Promise<void>;
 }
 

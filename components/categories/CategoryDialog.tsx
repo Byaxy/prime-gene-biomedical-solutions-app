@@ -8,7 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 
 import { CategoryFormValues } from "@/lib/validation";
-import { Categories } from "@/types/appwrite.types";
+import { Category } from "@/types/appwrite.types";
 import CategoryForm from "../forms/CategoriesForm";
 
 interface CategoryDialogProps {
@@ -16,7 +16,7 @@ interface CategoryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   isLoading?: boolean;
-  category?: Categories;
+  category?: Category;
   onSubmit: (data: CategoryFormValues) => Promise<void>;
 }
 

@@ -4,7 +4,6 @@ const nextConfig = {
   output: "standalone",
   poweredByHeader: false,
   images: {
-    domains: ["cloud.appwrite.io"],
     remotePatterns: [
       {
         protocol: "https",

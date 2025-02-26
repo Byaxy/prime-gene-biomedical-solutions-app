@@ -56,7 +56,7 @@ const SaleSheet = ({
                     invoiceNumber: sale?.invoiceNumber,
                     totalAmount: sale?.totalAmount,
                     amountPaid: sale?.amountPaid,
-                    customerId: sale?.customerId ? sale?.customerId.$id : "",
+                    customer: sale?.customer ? sale?.customer.$id : "",
                     saleDate: new Date(sale?.saleDate),
                     status: sale?.status,
                     paymentMethod: sale?.paymentMethod,

@@ -1,38 +1,44 @@
 "use server";
 
 import { ID, Models, Query } from "node-appwrite";
-import {
-  DATABASE_ID,
-  databases,
-  NEXT_PUBLIC_MATERIAL_COLLECTION_ID,
-} from "../appwrite-server";
 import { revalidatePath } from "next/cache";
 import { parseStringify } from "../utils";
-import { MaterialFormValues } from "../validation";
 
-// Add Material
-export const addMaterial = async (typeData: MaterialFormValues) => {
+import {
+  databases,
+  DATABASE_ID,
+  NEXT_PUBLIC_BRANDS_COLLECTION_ID,
+} from "../appwrite-server";
+import { BrandFormValues } from "../validation";
+
+interface BrandDataWithImage extends Omit<BrandFormValues, "image"> {
+  imageId: string;
+  imageUrl: string;
+}
+
+// Add Brand
+export const addBrand = async (brandData: BrandDataWithImage) => {
   try {
     const response = await databases.createDocument(
       DATABASE_ID!,
-      NEXT_PUBLIC_MATERIAL_COLLECTION_ID!,
+      NEXT_PUBLIC_BRANDS_COLLECTION_ID!,
       ID.unique(),
-      typeData
+      brandData
     );
 
-    revalidatePath("/products/materials");
+    revalidatePath("/products/brands");
     return parseStringify(response);
   } catch (error) {
-    console.error("Error adding material:", error);
+    console.error("Error adding brand:", error);
     throw error;
   }
 };
 
-// Get Materials
-export const getMaterials = async (
+// Get Brands
+export const getBrands = async (
   page: number = 0,
-  limit: number = 0,
-  getAllMaterials: boolean = false
+  limit: number = 10,
+  getAllBrands: boolean = false
 ) => {
   try {
     const queries = [
@@ -40,13 +46,13 @@ export const getMaterials = async (
       Query.orderDesc("$createdAt"),
     ];
 
-    if (!getAllMaterials) {
+    if (!getAllBrands) {
       queries.push(Query.limit(limit));
       queries.push(Query.offset(page * limit));
 
       const response = await databases.listDocuments(
         DATABASE_ID!,
-        NEXT_PUBLIC_MATERIAL_COLLECTION_ID!,
+        NEXT_PUBLIC_BRANDS_COLLECTION_ID!,
         queries
       );
 
@@ -69,7 +75,7 @@ export const getMaterials = async (
 
         const response = await databases.listDocuments(
           DATABASE_ID!,
-          NEXT_PUBLIC_MATERIAL_COLLECTION_ID!,
+          NEXT_PUBLIC_BRANDS_COLLECTION_ID!,
           batchQueries
         );
 
@@ -90,63 +96,72 @@ export const getMaterials = async (
       };
     }
   } catch (error) {
-    console.error("Error getting materials:", error);
+    console.error("Error getting brands:", error);
     throw error;
   }
 };
 
-// Edit Material
-export const editMaterial = async (
-  materialData: MaterialFormValues,
-  materialId: string
-) => {
+// edit Brand
+export const editBrand = async (brand: BrandDataWithImage, brandId: string) => {
+  let updatedBrandData;
+
+  if (brand.imageId && brand.imageUrl) {
+    updatedBrandData = {
+      name: brand.name,
+      description: brand.description,
+      imageId: brand.imageId,
+      imageUrl: brand.imageUrl,
+    };
+  } else {
+    updatedBrandData = { name: brand.name, description: brand.description };
+  }
   try {
     const response = await databases.updateDocument(
       DATABASE_ID!,
-      NEXT_PUBLIC_MATERIAL_COLLECTION_ID!,
-      materialId,
-      materialData
+      NEXT_PUBLIC_BRANDS_COLLECTION_ID!,
+      brandId,
+      updatedBrandData
     );
 
-    revalidatePath("/products/materials");
+    revalidatePath("/products/brands");
     return parseStringify(response);
   } catch (error) {
-    console.error("Error editing material:", error);
+    console.error("Error editing brand:", error);
     throw error;
   }
 };
 
-// Permanently Delete Material
-export const deleteMaterial = async (materialId: string) => {
+// Permanently Delete Brand
+export const deleteBrand = async (brandId: string) => {
   try {
     const response = await databases.deleteDocument(
       DATABASE_ID!,
-      NEXT_PUBLIC_MATERIAL_COLLECTION_ID!,
-      materialId
+      NEXT_PUBLIC_BRANDS_COLLECTION_ID!,
+      brandId
     );
 
-    revalidatePath("/products/materials");
+    revalidatePath("/products/brands");
     return parseStringify(response);
   } catch (error) {
-    console.error("Error deleting material:", error);
+    console.error("Error deleting brand:", error);
     throw error;
   }
 };
 
-// Soft Delete Material
-export const softDeleteMaterial = async (materialId: string) => {
+// Soft Delete Brand
+export const softDeleteBrand = async (brandId: string) => {
   try {
     const response = await databases.updateDocument(
       DATABASE_ID!,
-      NEXT_PUBLIC_MATERIAL_COLLECTION_ID!,
-      materialId,
+      NEXT_PUBLIC_BRANDS_COLLECTION_ID!,
+      brandId,
       { isActive: false }
     );
 
-    revalidatePath("/products/materials");
+    revalidatePath("/products/brands");
     return parseStringify(response);
   } catch (error) {
-    console.error("Error soft deleting material:", error);
+    console.error("Error soft deleting brand:", error);
     throw error;
   }
 };

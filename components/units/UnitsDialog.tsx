@@ -68,7 +68,7 @@ const UnitsDialog = ({
         {mode === "delete" ? (
           <div className="flex flex-col gap-4">
             <p className="text-sm text-red-500">
-              Category: <span className="font-semibold">{unit?.name}</span>
+              Unit: <span className="font-semibold">{unit?.name}</span>
             </p>
             <div className="flex justify-end gap-4">
               <Button

@@ -34,6 +34,27 @@ export const productsColumns: ColumnDef<Product>[] = [
     },
   },
   {
+    id: "lotNumber",
+    accessorKey: "lotNumber",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="font-semibold px-0"
+        >
+          Lot Number
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      );
+    },
+
+    cell: ({ row }) => {
+      const product = row.original;
+      return <p className="text-14-medium ">{product.name}</p>;
+    },
+  },
+  {
     id: "name",
     accessorKey: "name",
     header: ({ column }) => {
@@ -55,27 +76,14 @@ export const productsColumns: ColumnDef<Product>[] = [
     },
   },
   {
-    accessorKey: "material",
-    header: "Material",
+    accessorKey: "brand",
+    header: "Brand",
     cell: ({ row }) => {
       const product = row.original;
       return (
         <p className="text-14-medium">
-          {(product?.materialId && product?.materialId.name) || "-"}
+          {(product?.type && product?.brand.name) || "-"}
         </p>
-      );
-    },
-  },
-  {
-    accessorKey: "color",
-    header: "Color",
-    cell: ({ row }) => {
-      const product = row.original;
-      return (
-        <div
-          style={{ backgroundColor: product?.colorId && product?.colorId.code }}
-          className="h-5 w-5 rounded-full"
-        />
       );
     },
   },
@@ -86,7 +94,7 @@ export const productsColumns: ColumnDef<Product>[] = [
       const product = row.original;
       return (
         <p className="text-14-medium">
-          {(product?.typeId && product?.typeId.name) || "-"}
+          {(product?.type && product?.type.name) || "-"}
         </p>
       );
     },
@@ -98,7 +106,7 @@ export const productsColumns: ColumnDef<Product>[] = [
       const product = row.original;
       return (
         <p className="text-14-medium">
-          {(product?.categoryId && product?.categoryId.name) || "-"}
+          {(product?.category && product?.category.name) || "-"}
         </p>
       );
     },
@@ -111,7 +119,7 @@ export const productsColumns: ColumnDef<Product>[] = [
       return (
         <p className="text-14-medium">
           {product.quantity || 0}
-          {(product?.unitId && product?.unitId.code) || ""}
+          {(product?.unit && product?.unit.code) || ""}
         </p>
       );
     },

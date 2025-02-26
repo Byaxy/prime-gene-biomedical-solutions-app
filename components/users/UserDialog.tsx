@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { CreateUserFormValues, EditUserFormValues } from "@/lib/validation";
-import { Users } from "@/types/appwrite.types";
+import { User } from "@/types/appwrite.types";
 import UserForm from "../forms/UserForm";
 
 interface UserDialogProps {
@@ -15,7 +15,7 @@ interface UserDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   isLoading?: boolean;
-  user?: Users;
+  user?: User;
   onSubmit: (
     data: CreateUserFormValues | EditUserFormValues,
     prevImageId?: string

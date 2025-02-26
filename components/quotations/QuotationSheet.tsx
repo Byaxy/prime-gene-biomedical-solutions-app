@@ -56,8 +56,8 @@ const QuotationSheet = ({
                     quotationNumber: quotation?.quotationNumber,
                     totalAmount: quotation?.totalAmount,
                     amountPaid: quotation?.amountPaid,
-                    customerId: quotation?.customerId
-                      ? quotation?.customerId.$id
+                    customer: quotation?.customer
+                      ? quotation?.customer.$id
                       : "",
                     quotationDate: new Date(quotation?.quotationDate),
                     status: quotation?.status,

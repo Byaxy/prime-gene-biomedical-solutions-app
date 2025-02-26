@@ -81,7 +81,14 @@ export function DataTable<TData, TValue>({
   });
 
   // Get the searchable column
-  const searchableColumn = table.getColumn("name") || table.getColumn("title");
+  const searchableColumn =
+    table?.getColumn("name") ||
+    table?.getColumn("lotNumber") ||
+    table?.getColumn("title") ||
+    table?.getColumn("quotationNumber") ||
+    table?.getColumn("invoiceNumber") ||
+    table.getColumn("purchaseOrderNumber") ||
+    null;
 
   return (
     <div>

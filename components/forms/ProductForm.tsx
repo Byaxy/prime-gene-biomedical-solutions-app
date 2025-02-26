@@ -8,19 +8,18 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "../ui/button";
 import { useCategories } from "@/hooks/useCategories";
 import {
-  Categories,
-  Colors,
-  Materials,
+  Brand,
+  Category,
   Product,
-  ProductTypes,
+  ProductType,
   Unit,
 } from "@/types/appwrite.types";
 import { SelectItem } from "../ui/select";
 import { useTypes } from "@/hooks/useTypes";
-import { useMaterials } from "@/hooks/useMaterials";
-import { useColors } from "@/hooks/useColors";
+
 import { useUnits } from "@/hooks/useUnits";
 import { FileUploader } from "../FileUploader";
+import { useBrands } from "@/hooks/useBrands";
 
 interface ProductFormProps {
   mode: "create" | "edit";
@@ -38,24 +37,21 @@ const ProductForm = ({
   const { categories } = useCategories({ getAllCategories: true });
   const { types } = useTypes({ getAllTypes: true });
   const { units } = useUnits({ getAllUnits: true });
-  const { materials } = useMaterials({ getAllMaterials: true });
-  const { productColors } = useColors({
-    getAllColors: true,
-  });
+  const { brands } = useBrands({ getAllBrands: true });
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(ProductFormValidation),
     defaultValues: initialData || {
       name: "",
+      lotNumber: "",
       description: "",
       costPrice: 0,
       sellingPrice: 0,
       quantity: 0,
-      categoryId: "",
-      typeId: "",
-      materialId: "",
-      colorId: "",
-      unitId: "",
+      category: "",
+      brand: "",
+      type: "",
+      unit: "",
       image: [],
     },
   });
@@ -163,7 +159,7 @@ const ProductForm = ({
             label="Category"
             placeholder="Select category"
           >
-            {categories?.map((category: Categories) => (
+            {categories?.map((category: Category) => (
               <SelectItem
                 key={category.$id}
                 value={category.$id}
@@ -181,7 +177,7 @@ const ProductForm = ({
             label="Type"
             placeholder="Select type"
           >
-            {types?.map((productType: ProductTypes) => (
+            {types?.map((productType: ProductType) => (
               <SelectItem
                 key={productType.$id}
                 value={productType.$id}
@@ -197,41 +193,17 @@ const ProductForm = ({
           <CustomFormField
             fieldType={FormFieldType.SELECT}
             control={form.control}
-            name="colorId"
-            label="Color"
-            placeholder="Select color"
+            name="brand"
+            label="Brand"
+            placeholder="Select brand"
           >
-            {productColors?.map((color: Colors) => (
+            {brands?.map((brand: Brand) => (
               <SelectItem
-                key={color.$id}
-                value={color.$id}
+                key={brand.$id}
+                value={brand.$id}
                 className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
               >
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: color.code }}
-                  />
-                  <span>{color.name}</span>
-                </div>
-              </SelectItem>
-            ))}
-          </CustomFormField>
-
-          <CustomFormField
-            fieldType={FormFieldType.SELECT}
-            control={form.control}
-            name="materialId"
-            label="Material"
-            placeholder="Select material"
-          >
-            {materials?.map((material: Materials) => (
-              <SelectItem
-                key={material.$id}
-                value={material.$id}
-                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
-              >
-                {material.name}
+                {brand.name}
               </SelectItem>
             ))}
           </CustomFormField>

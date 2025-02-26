@@ -2,13 +2,13 @@
 
 import { ColumnDef } from "@tanstack/table-core";
 import { formatDateTime } from "@/lib/utils";
-import { Users } from "@/types/appwrite.types";
+import { User } from "@/types/appwrite.types";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import UserActions from "@/components/users/UserActions";
 import Image from "next/image";
 
-export const usersColumns: ColumnDef<Users>[] = [
+export const usersColumns: ColumnDef<User>[] = [
   {
     header: "#",
     cell: ({ row }) => {

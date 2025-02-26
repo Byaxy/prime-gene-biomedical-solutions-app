@@ -30,7 +30,7 @@ export const addSale = async (sale: SaleFormValues) => {
       saleDate: sale.saleDate,
       totalAmount: sale.totalAmount,
       amountPaid: sale.amountPaid,
-      customerId: sale.customerId,
+      customer: sale.customer,
       status: sale.status,
       paymentMethod: sale.paymentMethod,
       deliveryStatus: sale.deliveryStatus,
@@ -46,8 +46,8 @@ export const addSale = async (sale: SaleFormValues) => {
     // Create sale items
     const createSaleItemsPromises = sale.products.map(async (product) => {
       const saleItemData = {
-        saleId: createSaleResponse.$id,
-        productId: product.productId,
+        sale: createSaleResponse.$id,
+        product: product.productId,
         quantity: product.quantity,
         unitPrice: product.unitPrice,
         totalPrice: product.totalPrice,
@@ -113,7 +113,7 @@ export const editSale = async (sale: SaleFormValues, saleId: string) => {
       saleDate: sale.saleDate,
       totalAmount: sale.totalAmount,
       amountPaid: sale.amountPaid,
-      customerId: sale.customerId,
+      customer: sale.customer,
       status: sale.status,
       paymentMethod: sale.paymentMethod,
       deliveryStatus: sale.deliveryStatus,
@@ -159,8 +159,8 @@ export const editSale = async (sale: SaleFormValues, saleId: string) => {
       sale.products.map(async (product) => {
         const existingItem = existingItemsMap.get(product.productId);
         const saleItemData = {
-          saleId,
-          productId: product.productId,
+          sale: saleId,
+          product: product.productId,
           quantity: product.quantity,
           unitPrice: product.unitPrice,
           totalPrice: product.totalPrice,

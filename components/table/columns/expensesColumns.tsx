@@ -2,13 +2,13 @@
 
 import { ColumnDef } from "@tanstack/table-core";
 import { formatDateTime } from "@/lib/utils";
-import { Expenses } from "@/types/appwrite.types";
+import { Expense } from "@/types/appwrite.types";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ExpenseActions from "@/components/expenses/ExpenseActions";
 import FormatNumber from "@/components/FormatNumber";
 
-export const expensesColumns: ColumnDef<Expenses>[] = [
+export const expensesColumns: ColumnDef<Expense>[] = [
   {
     header: "#",
     cell: ({ row }) => {

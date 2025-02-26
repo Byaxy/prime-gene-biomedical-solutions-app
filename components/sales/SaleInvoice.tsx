@@ -156,10 +156,10 @@ const SaleInvoice = forwardRef<HTMLDivElement, SaleInvoiceProps>(
               Bill To:
             </h2>
             <p className="font-medium text-dark-600 text-sm">
-              {sale.customerId?.name}
+              {sale.customer?.name}
             </p>
-            <p className="text-dark-600 text-sm">{sale.customerId?.email}</p>
-            <p className="text-dark-600 text-sm">{sale.customerId?.phone}</p>
+            <p className="text-dark-600 text-sm">{sale.customer?.email}</p>
+            <p className="text-dark-600 text-sm">{sale.customer?.phone}</p>
           </div>
         </div>
 

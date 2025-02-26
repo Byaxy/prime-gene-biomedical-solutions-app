@@ -58,9 +58,7 @@ export default function PurchaseSheet({
                     purchaseOrderNumber: purchase?.purchaseOrderNumber,
                     totalAmount: purchase?.totalAmount,
                     amountPaid: purchase?.amountPaid,
-                    supplierId: purchase?.supplierId
-                      ? purchase?.supplierId.$id
-                      : "",
+                    supplier: purchase?.supplier ? purchase?.supplier.$id : "",
                     purchaseDate: new Date(purchase?.purchaseDate),
                     status: purchase?.status,
                     paymentMethod: purchase?.paymentMethod,

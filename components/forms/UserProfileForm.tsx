@@ -9,11 +9,11 @@ import { EditUserValidation, UserFormValues } from "@/lib/validation";
 import { SelectItem } from "../ui/select";
 import { RoleOptions } from "@/constants";
 import { FileUploader } from "../FileUploader";
-import { Users } from "@/types/appwrite.types";
+import { User } from "@/types/appwrite.types";
 import { useState } from "react";
 
 interface UserProfileFormProps {
-  initialData: Users;
+  initialData: User;
   onSubmit: (data: UserFormValues) => Promise<void>;
   isAdmin?: boolean;
   isEditing: boolean;

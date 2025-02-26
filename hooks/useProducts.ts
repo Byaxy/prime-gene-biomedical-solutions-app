@@ -93,14 +93,14 @@ export const useProducts = ({
 
       const productData = {
         name: data.name,
+        lotNumber: data.lotNumber,
         costPrice: data.costPrice,
         sellingPrice: data.sellingPrice,
         quantity: data.quantity,
-        categoryId: data.categoryId,
-        typeId: data.typeId,
-        materialId: data.materialId,
-        colorId: data.colorId,
-        unitId: data.unitId,
+        category: data.category,
+        brand: data.brand,
+        type: data.type,
+        unit: data.unit,
         description: data.description,
         imageId,
         imageUrl,
@@ -130,7 +130,6 @@ export const useProducts = ({
         data: ProductFormValues;
         prevImageId?: string;
       }) => {
-        console.log("Data", data); // Log the data
         let imageId = "";
         let imageUrl = "";
 
@@ -162,14 +161,14 @@ export const useProducts = ({
 
         const productData = {
           name: data.name,
+          lotNumber: data.lotNumber,
           costPrice: data.costPrice,
           sellingPrice: data.sellingPrice,
           quantity: data.quantity,
-          categoryId: data.categoryId,
-          typeId: data.typeId,
-          materialId: data.materialId,
-          colorId: data.colorId,
-          unitId: data.unitId,
+          category: data.category,
+          brand: data.brand,
+          type: data.type,
+          unit: data.unit,
           description: data.description,
           imageId,
           imageUrl,

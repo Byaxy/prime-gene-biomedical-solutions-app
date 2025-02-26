@@ -42,13 +42,8 @@ export const sidebarData: SidebarDataType[] = [
       },
       {
         id: generateId(),
-        title: "Materials",
-        path: "/products/materials",
-      },
-      {
-        id: generateId(),
-        title: "Colors",
-        path: "/products/colors",
+        title: "Brands",
+        path: "/products/brands",
       },
       {
         id: generateId(),

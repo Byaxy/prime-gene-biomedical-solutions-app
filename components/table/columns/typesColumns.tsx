@@ -2,13 +2,13 @@
 
 import { ColumnDef } from "@tanstack/table-core";
 import { formatDateTime } from "@/lib/utils";
-import { ProductTypes } from "@/types/appwrite.types";
+import { ProductType } from "@/types/appwrite.types";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 import TypeActions from "@/components/productTypes/TypeActions";
 
-export const typesColumns: ColumnDef<ProductTypes>[] = [
+export const typesColumns: ColumnDef<ProductType>[] = [
   {
     header: "#",
     cell: ({ row }) => {

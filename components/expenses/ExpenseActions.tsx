@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { ExpenseFormValues } from "@/lib/validation";
-import { Expenses } from "@/types/appwrite.types";
+import { Expense } from "@/types/appwrite.types";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useExpenses } from "@/hooks/useExpenses";
 import { ExpenseDialog } from "./ExpenseDialog";
 
-const ExpenseActions = ({ expense }: { expense: Expenses }) => {
+const ExpenseActions = ({ expense }: { expense: Expense }) => {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"add" | "edit" | "delete">("add");
 

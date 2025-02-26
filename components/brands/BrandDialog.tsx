@@ -1,5 +1,5 @@
-import { MaterialFormValues } from "@/lib/validation";
-import { Materials } from "@/types/appwrite.types";
+import { BrandFormValues } from "@/lib/validation";
+import { Brand } from "@/types/appwrite.types";
 import {
   Dialog,
   DialogContent,
@@ -8,49 +8,49 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 import { Button } from "../ui/button";
-import MaterialForm from "../forms/MaterialForm";
+import BrandForm from "../forms/BrandForm";
 
-interface MaterialDialogProps {
+interface BrandDialogProps {
   mode: "add" | "edit" | "delete";
   open: boolean;
   onOpenChange: (open: boolean) => void;
   isLoading?: boolean;
-  material?: Materials;
-  onSubmit: (data: MaterialFormValues) => Promise<void>;
+  brand?: Brand;
+  onSubmit: (data: BrandFormValues) => Promise<void>;
 }
-const MaterialDialog = ({
+
+const BrandDialog = ({
   mode,
   open,
   onOpenChange,
   isLoading,
-  material,
+  brand,
   onSubmit,
-}: MaterialDialogProps) => {
+}: BrandDialogProps) => {
   const handleDelete = async () => {
     try {
       await onSubmit({
-        name: material?.name || "",
+        name: brand?.name || "",
+        description: brand?.description || "",
       });
       onOpenChange(false);
     } catch (error) {
-      console.error("Error deleting material:", error);
+      console.error("Error deleting brand:", error);
     } finally {
     }
   };
-
   const dialogTitle = {
-    add: "Add Material",
-    edit: "Edit Material",
-    delete: "Delete Material",
+    add: "Add Brand",
+    edit: "Edit Brand",
+    delete: "Delete Brand",
   }[mode];
 
   const dialogDescription = {
-    add: "Add a new material to your collection.",
-    edit: "Edit the selected material.",
+    add: "Add a new brand to your collection.",
+    edit: "Edit the selected brand.",
     delete:
-      "Are you sure you want to delete this material? This action cannot be undone.",
+      "Are you sure you want to delete this brand? This action cannot be undone.",
   }[mode];
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg bg-light-200">
@@ -66,7 +66,7 @@ const MaterialDialog = ({
         {mode === "delete" ? (
           <div className="flex flex-col gap-4">
             <p className="text-sm text-red-500">
-              Category: <span className="font-semibold">{material?.name}</span>
+              Brand: <span className="font-semibold">{brand?.name}</span>
             </p>
             <div className="flex justify-end gap-4">
               <Button
@@ -90,12 +90,18 @@ const MaterialDialog = ({
             </div>
           </div>
         ) : (
-          <MaterialForm
+          <BrandForm
             mode={mode === "add" ? "create" : "edit"}
             initialData={
-              mode === "edit"
+              mode === "edit" && brand
                 ? {
-                    name: material?.name || "",
+                    $id: brand.$id,
+                    name: brand.name,
+                    description: brand.description,
+                    imageId: brand.imageId,
+                    imageUrl: brand.imageUrl,
+                    $updatedAt: brand.$updatedAt,
+                    $createdAt: brand.$createdAt,
                   }
                 : undefined
             }
@@ -108,4 +114,4 @@ const MaterialDialog = ({
   );
 };
 
-export default MaterialDialog;
+export default BrandDialog;

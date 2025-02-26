@@ -1,6 +1,6 @@
 import { useSales } from "@/hooks/useSales";
 import OverviewCard from "./OverviewCard";
-import { Expenses, Purchase, Sale } from "@/types/appwrite.types";
+import { Expense, Purchase, Sale } from "@/types/appwrite.types";
 import { usePurchases } from "@/hooks/usePurchases";
 import { useExpenses } from "@/hooks/useExpenses";
 import ProductsOverview from "./ProductsOverview";
@@ -50,7 +50,7 @@ const Overview = () => {
 
   const totalExpenses = expenses
     ? expenses.reduce(
-        (sum: number, expense: Expenses) => (sum += expense.amount),
+        (sum: number, expense: Expense) => (sum += expense.amount),
         0
       )
     : 0;

@@ -1,4 +1,4 @@
-import { Users } from "@/types/appwrite.types";
+import { User } from "@/types/appwrite.types";
 import { useState } from "react";
 import { UserDialog } from "./UserDialog";
 import EditIcon from "@mui/icons-material/Edit";
@@ -8,7 +8,7 @@ import { UserFormValues } from "@/lib/validation";
 import toast from "react-hot-toast";
 import { useAuth } from "@/hooks/useAuth";
 
-const UserActions = ({ user }: { user: Users }) => {
+const UserActions = ({ user }: { user: User }) => {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"add" | "edit" | "delete">("add");
 

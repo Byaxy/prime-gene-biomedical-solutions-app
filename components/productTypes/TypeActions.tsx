@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useTypes } from "@/hooks/useTypes";
 import { TypeFormValues } from "@/lib/validation";
-import { ProductTypes } from "@/types/appwrite.types";
+import { ProductType } from "@/types/appwrite.types";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ProductTypeDialog from "./ProductTypeDialog";
 
-const TypeActions = ({ productType }: { productType: ProductTypes }) => {
+const TypeActions = ({ productType }: { productType: ProductType }) => {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"add" | "edit" | "delete">("add");
 

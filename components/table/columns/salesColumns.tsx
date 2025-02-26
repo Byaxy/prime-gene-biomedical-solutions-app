@@ -39,7 +39,7 @@ export const salesColumns: ColumnDef<Sale>[] = [
     },
   },
   {
-    id: "name",
+    id: "invoiceNumber",
     accessorKey: "invoiceNumber",
     header: ({ column }) => {
       return (
@@ -146,13 +146,13 @@ export const salesColumns: ColumnDef<Sale>[] = [
   },
 
   {
-    accessorKey: "customerId",
+    accessorKey: "customer",
     header: "Customer",
     cell: ({ row }) => {
       const sale = row.original;
       return (
         <p className="text-14-medium ">
-          {sale.customerId ? sale.customerId.name : "-"}
+          {sale.customer ? sale.customer.name : "-"}
         </p>
       );
     },

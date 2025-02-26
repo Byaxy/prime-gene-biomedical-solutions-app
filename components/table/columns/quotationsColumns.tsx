@@ -39,7 +39,7 @@ export const quotationsColumns: ColumnDef<Quotation>[] = [
     },
   },
   {
-    id: "name",
+    id: "quotationNumber",
     accessorKey: "quotationNumber",
     header: ({ column }) => {
       return (
@@ -148,13 +148,13 @@ export const quotationsColumns: ColumnDef<Quotation>[] = [
   },
 
   {
-    accessorKey: "customerId",
+    accessorKey: "customer",
     header: "Customer",
     cell: ({ row }) => {
       const quotation = row.original;
       return (
         <p className="text-14-medium ">
-          {quotation.customerId ? quotation.customerId.name : "-"}
+          {quotation.customer ? quotation.customer.name : "-"}
         </p>
       );
     },

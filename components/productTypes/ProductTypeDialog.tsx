@@ -1,5 +1,5 @@
 import { TypeFormValues } from "@/lib/validation";
-import { ProductTypes } from "@/types/appwrite.types";
+import { ProductType } from "@/types/appwrite.types";
 import {
   Dialog,
   DialogContent,
@@ -15,7 +15,7 @@ interface ProductTypeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   isLoading?: boolean;
-  productType?: ProductTypes;
+  productType?: ProductType;
   onSubmit: (data: TypeFormValues) => Promise<void>;
 }
 const ProductTypeDialog = ({

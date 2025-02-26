@@ -30,7 +30,7 @@ export const addPurchase = async (purchase: PurchaseFormValues) => {
       purchaseDate: purchase.purchaseDate,
       totalAmount: purchase.totalAmount,
       amountPaid: purchase.amountPaid,
-      supplierId: purchase.supplierId,
+      supplier: purchase.supplier,
       status: purchase.status,
       paymentMethod: purchase.paymentMethod,
       deliveryStatus: purchase.deliveryStatus,
@@ -47,8 +47,8 @@ export const addPurchase = async (purchase: PurchaseFormValues) => {
     const createPurchaseItemsPromises = purchase.products.map(
       async (product) => {
         const purchaseItemData = {
-          purchaseId: createPurchaseResponse.$id,
-          productId: product.productId,
+          purchase: createPurchaseResponse.$id,
+          product: product.productId,
           quantity: product.quantity,
           unitPrice: product.unitPrice,
           totalPrice: product.totalPrice,
@@ -111,7 +111,7 @@ export const editPurchase = async (
       purchaseDate: purchase.purchaseDate,
       totalAmount: purchase.totalAmount,
       amountPaid: purchase.amountPaid,
-      supplierId: purchase.supplierId,
+      supplier: purchase.supplier,
       status: purchase.status,
       paymentMethod: purchase.paymentMethod,
       deliveryStatus: purchase.deliveryStatus,
@@ -157,8 +157,8 @@ export const editPurchase = async (
       purchase.products.map(async (product) => {
         const existingItem = existingItemsMap.get(product.productId);
         const purchaseItemData = {
-          purchaseId,
-          productId: product.productId,
+          purchase: purchaseId,
+          product: product.productId,
           quantity: product.quantity,
           unitPrice: product.unitPrice,
           totalPrice: product.totalPrice,
