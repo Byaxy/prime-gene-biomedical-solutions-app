@@ -239,7 +239,7 @@
   }
 
   .shad-table-row {
-    @apply border-b border-dark-700 text-blue-800 cursor-pointer !important;
+    @apply border-b border-dark-700 text-blue-800 hover:bg-light-200 !important;
   }
 
   .shad-sheet-content button {
