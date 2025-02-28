@@ -27,8 +27,8 @@ const LoginForm = () => {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 space-y-6">
-        <section className="mb-10 mt-8">
-          <p className="text-blue-800 text-center text-lg">
+        <section className="my-6">
+          <p className="text-blue-800 text-center text-xl">
             Sign into your account.
           </p>
         </section>
