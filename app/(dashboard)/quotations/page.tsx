@@ -54,6 +54,7 @@ const Quotations = () => {
           onPageChange={setPage}
           pageSize={pageSize}
           onPageSizeChange={setPageSize}
+          searchBy="quotationNumber"
         />
 
         <QuotationSheet

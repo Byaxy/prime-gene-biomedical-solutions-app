@@ -14,8 +14,8 @@ import { PurchaseFormValues } from "../validation";
 
 // Purchase item document interface
 interface PurchaseItemDocument extends Models.Document {
-  purchaseId: string;
-  productId: string;
+  purchase: string;
+  product: string;
   quantity: number;
   unitPrice: number;
   totalPrice: number;
@@ -48,7 +48,7 @@ export const addPurchase = async (purchase: PurchaseFormValues) => {
       async (product) => {
         const purchaseItemData = {
           purchase: createPurchaseResponse.$id,
-          product: product.productId,
+          product: product.product,
           quantity: product.quantity,
           unitPrice: product.unitPrice,
           totalPrice: product.totalPrice,
@@ -72,7 +72,7 @@ export const addPurchase = async (purchase: PurchaseFormValues) => {
           const productData = await databases.getDocument(
             DATABASE_ID!,
             NEXT_PUBLIC_PRODUCTS_COLLECTION_ID!,
-            product.productId
+            product.product
           );
 
           const updatedStock = productData.quantity + product.quantity;
@@ -82,7 +82,7 @@ export const addPurchase = async (purchase: PurchaseFormValues) => {
           return databases.updateDocument(
             DATABASE_ID!,
             NEXT_PUBLIC_PRODUCTS_COLLECTION_ID!,
-            product.productId,
+            product.product,
             {
               quantity: updatedStock,
             }
@@ -122,11 +122,11 @@ export const editPurchase = async (
     const existingItems = await databases.listDocuments<PurchaseItemDocument>(
       DATABASE_ID!,
       NEXT_PUBLIC_PURCHASE_ITEMS_COLLECTION_ID!,
-      [Query.equal("purchaseId", purchaseId)]
+      [Query.equal("purchase", purchaseId)]
     );
 
     const newProductIds = new Set(
-      purchase.products.map((product) => product.productId)
+      purchase.products.map((product) => product.product)
     );
 
     // Find items to delete (exist in database but not in new products)
@@ -149,16 +149,16 @@ export const editPurchase = async (
 
     // Create a map of existing items for updates
     const existingItemsMap = new Map(
-      existingItems.documents.map((item) => [item.productId, item])
+      existingItems.documents.map((item) => [item.product, item])
     );
 
     // Handle updates and additions after deletions are complete
     await Promise.all(
       purchase.products.map(async (product) => {
-        const existingItem = existingItemsMap.get(product.productId);
+        const existingItem = existingItemsMap.get(product.product);
         const purchaseItemData = {
           purchase: purchaseId,
-          product: product.productId,
+          product: product.product,
           quantity: product.quantity,
           unitPrice: product.unitPrice,
           totalPrice: product.totalPrice,
@@ -200,7 +200,7 @@ export const editPurchase = async (
           const productData = await databases.getDocument(
             DATABASE_ID!,
             NEXT_PUBLIC_PRODUCTS_COLLECTION_ID!,
-            product.productId
+            product.product
           );
 
           const updatedStock = productData.quantity + product.quantity;
@@ -210,7 +210,7 @@ export const editPurchase = async (
           return databases.updateDocument(
             DATABASE_ID!,
             NEXT_PUBLIC_PRODUCTS_COLLECTION_ID!,
-            product.productId,
+            product.product,
             {
               quantity: updatedStock,
             }
@@ -263,7 +263,7 @@ export const getPurchases = async (
           const items = await databases.listDocuments(
             DATABASE_ID!,
             NEXT_PUBLIC_PURCHASE_ITEMS_COLLECTION_ID!,
-            [Query.equal("purchaseId", purchase.$id)]
+            [Query.equal("purchase", purchase.$id)]
           );
 
           return {
@@ -302,7 +302,7 @@ export const getPurchases = async (
             const items = await databases.listDocuments(
               DATABASE_ID!,
               NEXT_PUBLIC_PURCHASE_ITEMS_COLLECTION_ID!,
-              [Query.equal("purchaseId", purchase.$id)]
+              [Query.equal("purchase", purchase.$id)]
             );
 
             return {
@@ -340,7 +340,7 @@ export const deletePurchase = async (purchaseId: string) => {
     const existingItems = await databases.listDocuments<PurchaseItemDocument>(
       DATABASE_ID!,
       NEXT_PUBLIC_PURCHASE_ITEMS_COLLECTION_ID!,
-      [Query.equal("purchaseId", purchaseId)]
+      [Query.equal("purchase", purchaseId)]
     );
 
     // Delete purchase items first

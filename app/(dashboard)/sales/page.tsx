@@ -52,6 +52,7 @@ const Sales = () => {
           onPageChange={setPage}
           pageSize={pageSize}
           onPageSizeChange={setPageSize}
+          searchBy="invoiceNumber"
         />
 
         <SaleSheet

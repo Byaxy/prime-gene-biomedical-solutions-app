@@ -127,6 +127,7 @@ export const editProduct = async (
   if (productData.imageId && productData.imageUrl) {
     updatedProductData = {
       name: productData.name,
+      lotNumber: productData.lotNumber,
       costPrice: productData.costPrice,
       sellingPrice: productData.sellingPrice,
       quantity: productData.quantity,
@@ -141,6 +142,7 @@ export const editProduct = async (
   } else {
     updatedProductData = {
       name: productData.name,
+      lotNumber: productData.lotNumber,
       costPrice: productData.costPrice,
       sellingPrice: productData.sellingPrice,
       quantity: productData.quantity,

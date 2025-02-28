@@ -17,13 +17,13 @@ export const brandColumns: ColumnDef<Brand>[] = [
     cell: ({ row }) => {
       const brand = row.original;
       return (
-        <div className="flex items-center">
+        <div className="flex items-center px-2 bg-white rounded-md max-w-48">
           <Image
             src={brand.imageUrl || "/assets/images/placeholder.jpg"}
             alt={brand.name}
-            width={50}
+            width={300}
             height={50}
-            className="h-12 w-12 rounded-full object-cover"
+            className="h-14 w-40 rounded-md object-contain"
             priority={true}
           />
         </div>

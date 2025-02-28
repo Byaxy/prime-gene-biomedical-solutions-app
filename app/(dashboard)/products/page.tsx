@@ -56,6 +56,7 @@ const Products = () => {
           onPageChange={setPage}
           pageSize={pageSize}
           onPageSizeChange={setPageSize}
+          searchBy="lotNumber"
         />
         <ProductSheet
           mode="add"

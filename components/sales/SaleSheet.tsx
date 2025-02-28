@@ -53,6 +53,7 @@ const SaleSheet = ({
             initialData={
               mode === "edit" && sale
                 ? {
+                    $id: sale.$id,
                     invoiceNumber: sale?.invoiceNumber,
                     totalAmount: sale?.totalAmount,
                     amountPaid: sale?.amountPaid,
@@ -63,6 +64,8 @@ const SaleSheet = ({
                     deliveryStatus: sale?.deliveryStatus,
                     notes: sale?.notes,
                     products: sale.products,
+                    $createdAt: new Date(sale.$createdAt),
+                    $updatedAt: new Date(sale.$updatedAt),
                   }
                 : undefined
             }

@@ -101,11 +101,14 @@ export function ExpenseDialog({
             initialData={
               mode === "edit" && expense
                 ? {
+                    $id: expense.$id,
                     title: expense?.title,
                     description: expense?.description,
                     amount: expense?.amount,
                     paymentMethod: expense?.paymentMethod,
                     expenseDate: new Date(expense?.expenseDate),
+                    $createdAt: new Date(expense.$createdAt),
+                    $updatedAt: new Date(expense.$updatedAt),
                   }
                 : undefined
             }

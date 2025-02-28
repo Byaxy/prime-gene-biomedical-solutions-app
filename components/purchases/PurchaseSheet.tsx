@@ -55,6 +55,7 @@ export default function PurchaseSheet({
             initialData={
               mode === "edit" && purchase
                 ? {
+                    $id: purchase.$id,
                     purchaseOrderNumber: purchase?.purchaseOrderNumber,
                     totalAmount: purchase?.totalAmount,
                     amountPaid: purchase?.amountPaid,
@@ -65,6 +66,8 @@ export default function PurchaseSheet({
                     deliveryStatus: purchase?.deliveryStatus,
                     notes: purchase?.notes,
                     products: purchase.products,
+                    $createdAt: new Date(purchase.$createdAt),
+                    $updatedAt: new Date(purchase.$updatedAt),
                   }
                 : undefined
             }

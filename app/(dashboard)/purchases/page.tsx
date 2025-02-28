@@ -54,6 +54,7 @@ const Purchases = () => {
           onPageChange={setPage}
           pageSize={pageSize}
           onPageSizeChange={setPageSize}
+          searchBy="purchaseOrderNumber"
         />
 
         <PurchaseSheet

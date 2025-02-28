@@ -32,6 +32,7 @@ interface DataTableProps<TData, TValue> {
   page: number;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
+  searchBy?: string;
 }
 import { HeaderGroup, Header } from "@tanstack/react-table";
 import { useState } from "react";
@@ -44,6 +45,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
+import { formatCamelCase } from "@/lib/utils";
 
 export function DataTable<TData, TValue>({
   columns,
@@ -55,6 +57,7 @@ export function DataTable<TData, TValue>({
   onPageChange,
   pageSize,
   onPageSizeChange,
+  searchBy,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -81,21 +84,16 @@ export function DataTable<TData, TValue>({
   });
 
   // Get the searchable column
-  const searchableColumn =
-    table?.getColumn("name") ||
-    table?.getColumn("lotNumber") ||
-    table?.getColumn("title") ||
-    table?.getColumn("quotationNumber") ||
-    table?.getColumn("invoiceNumber") ||
-    table.getColumn("purchaseOrderNumber") ||
-    null;
+  const searchableColumn = table?.getColumn(searchBy ? searchBy : "name");
 
   return (
     <div>
       {!hideSearch && (
         <div className="flex items-center py-4">
           <Input
-            placeholder={`Search by ${searchableColumn?.id}`}
+            placeholder={`Search by ${formatCamelCase(
+              searchableColumn?.id ?? ""
+            )}`}
             value={(searchableColumn?.getFilterValue() as string) ?? ""}
             onChange={(event) =>
               searchableColumn?.setFilterValue(event.target.value)

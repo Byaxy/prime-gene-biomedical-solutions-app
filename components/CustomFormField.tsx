@@ -16,10 +16,10 @@ import { Input } from "./ui/input";
 import { Select, SelectContent, SelectTrigger, SelectValue } from "./ui/select";
 import { Textarea } from "./ui/textarea";
 import { CalendarIcon } from "lucide-react";
-import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
 import { NumericFormat } from "react-number-format";
+import DatePicker from "react-datepicker";
 
 export enum FormFieldType {
   INPUT = "input",

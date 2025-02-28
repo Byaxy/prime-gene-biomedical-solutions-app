@@ -13,8 +13,8 @@ import { QuotationFormValues } from "../validation";
 
 // Quotation item document interface
 interface QuotationItemDocument extends Models.Document {
-  quotationId: string;
-  productId: string;
+  quotation: string;
+  product: string;
   quantity: number;
   unitPrice: number;
   totalPrice: number;
@@ -45,7 +45,7 @@ export const addQuotation = async (quotation: QuotationFormValues) => {
       async (product) => {
         const quotationItemData = {
           quotation: createQuotationResponse.$id,
-          product: product.productId,
+          product: product.product,
           quantity: product.quantity,
           unitPrice: product.unitPrice,
           totalPrice: product.totalPrice,
@@ -91,11 +91,11 @@ export const editQuotation = async (
     const existingItems = await databases.listDocuments<QuotationItemDocument>(
       DATABASE_ID!,
       NEXT_PUBLIC_QUOTATION_ITEMS_COLLECTION_ID!,
-      [Query.equal("quotationId", quotationId)]
+      [Query.equal("quotation", quotationId)]
     );
 
     const newProductIds = new Set(
-      quotation.products.map((product) => product.productId)
+      quotation.products.map((product) => product.product)
     );
 
     // Find items to delete (exist in database but not in new products)
@@ -118,16 +118,16 @@ export const editQuotation = async (
 
     // Create a map of existing items for updates
     const existingItemsMap = new Map(
-      existingItems.documents.map((item) => [item.productId, item])
+      existingItems.documents.map((item) => [item.product, item])
     );
 
     // Handle updates and additions after deletions are complete
     await Promise.all(
       quotation.products.map(async (product) => {
-        const existingItem = existingItemsMap.get(product.productId);
+        const existingItem = existingItemsMap.get(product.product);
         const quotationItemData = {
           quotation: quotationId,
-          product: product.productId,
+          product: product.product,
           quantity: product.quantity,
           unitPrice: product.unitPrice,
           totalPrice: product.totalPrice,
@@ -197,7 +197,7 @@ export const getQuotations = async (
           const items = await databases.listDocuments(
             DATABASE_ID!,
             NEXT_PUBLIC_QUOTATION_ITEMS_COLLECTION_ID!,
-            [Query.equal("quotationId", quotation.$id)]
+            [Query.equal("quotation", quotation.$id)]
           );
 
           return {
@@ -236,7 +236,7 @@ export const getQuotations = async (
             const items = await databases.listDocuments(
               DATABASE_ID!,
               NEXT_PUBLIC_QUOTATION_ITEMS_COLLECTION_ID!,
-              [Query.equal("quotationId", quotation.$id)]
+              [Query.equal("quotation", quotation.$id)]
             );
 
             return {
@@ -274,7 +274,7 @@ export const deleteQuotation = async (quotationId: string) => {
     const existingItems = await databases.listDocuments<QuotationItemDocument>(
       DATABASE_ID!,
       NEXT_PUBLIC_QUOTATION_ITEMS_COLLECTION_ID!,
-      [Query.equal("quotationId", quotationId)]
+      [Query.equal("quotation", quotationId)]
     );
 
     // Delete quotation items first

@@ -18,8 +18,10 @@ interface SaleInvoiceProps {
 
 interface SaleItems {
   index: number;
-  productId: {
+  product: {
     name: string;
+    lotNumber: string;
+    unit: { code: string };
   };
   quantity: number;
   unitPrice: number;
@@ -37,14 +39,27 @@ const columns: ColumnDef<SaleItems>[] = [
     header: "Product",
     cell: ({ row }) => {
       return (
-        <p className="text-14-medium pl-2">{row.original.productId?.name}</p>
+        <p className="text-14-medium pl-2">{row.original.product?.name}</p>
+      );
+    },
+  },
+  {
+    header: "Lot Number",
+    cell: ({ row }) => {
+      return (
+        <p className="text-14-medium pl-2">{row.original.product?.lotNumber}</p>
       );
     },
   },
   {
     header: "Qty",
     cell: ({ row }) => {
-      return <p className="text-14-medium pl-2">{row.original.quantity}</p>;
+      return (
+        <p className="text-14-medium pl-2">
+          {row.original.quantity}
+          {row.original.product?.unit?.code}
+        </p>
+      );
     },
   },
   {

@@ -20,6 +20,8 @@ import { useTypes } from "@/hooks/useTypes";
 import { useUnits } from "@/hooks/useUnits";
 import { FileUploader } from "../FileUploader";
 import { useBrands } from "@/hooks/useBrands";
+import { useProducts } from "@/hooks/useProducts";
+import toast from "react-hot-toast";
 
 interface ProductFormProps {
   mode: "create" | "edit";
@@ -38,6 +40,7 @@ const ProductForm = ({
   const { types } = useTypes({ getAllTypes: true });
   const { units } = useUnits({ getAllUnits: true });
   const { brands } = useBrands({ getAllBrands: true });
+  const { products } = useProducts({ getAllProducts: true });
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(ProductFormValidation),
@@ -59,6 +62,24 @@ const ProductForm = ({
   const handleSubmit = async (values: ProductFormValues) => {
     setIsLoading(true);
     try {
+      const existingProduct = products?.find(
+        (product: Product) => product.lotNumber === values.lotNumber
+      );
+      if (existingProduct && mode === "create") {
+        toast.error("A product with the same lot number already exists.");
+        return;
+      }
+
+      if (mode === "edit" && initialData?.lotNumber !== values.lotNumber) {
+        const existingProduct = products?.find(
+          (product: Product) => product.lotNumber === values.lotNumber
+        );
+        if (existingProduct) {
+          toast.error("A product with the same lot number already exists.");
+          return;
+        }
+      }
+
       if (
         mode === "edit" &&
         values?.image &&
@@ -109,6 +130,72 @@ const ProductForm = ({
 
         <div className="flex flex-col sm:flex-row gap-5">
           <CustomFormField
+            fieldType={FormFieldType.INPUT}
+            control={form.control}
+            name="lotNumber"
+            label="Lot Number"
+            placeholder="Enter product lot number"
+          />
+
+          <CustomFormField
+            fieldType={FormFieldType.SELECT}
+            control={form.control}
+            name="brand"
+            label="Brand"
+            placeholder="Select brand"
+          >
+            {brands?.map((brand: Brand) => (
+              <SelectItem
+                key={brand.$id}
+                value={brand.$id}
+                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+              >
+                {brand.name}
+              </SelectItem>
+            ))}
+          </CustomFormField>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-5">
+          <CustomFormField
+            fieldType={FormFieldType.SELECT}
+            control={form.control}
+            name="category"
+            label="Category"
+            placeholder="Select category"
+          >
+            {categories?.map((category: Category) => (
+              <SelectItem
+                key={category.$id}
+                value={category.$id}
+                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+              >
+                {category.name}
+              </SelectItem>
+            ))}
+          </CustomFormField>
+
+          <CustomFormField
+            fieldType={FormFieldType.SELECT}
+            control={form.control}
+            name="type"
+            label="Type"
+            placeholder="Select type"
+          >
+            {types?.map((productType: ProductType) => (
+              <SelectItem
+                key={productType.$id}
+                value={productType.$id}
+                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+              >
+                {productType.name}
+              </SelectItem>
+            ))}
+          </CustomFormField>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-5">
+          <CustomFormField
             fieldType={FormFieldType.AMOUNT}
             control={form.control}
             name="costPrice"
@@ -136,7 +223,7 @@ const ProductForm = ({
           <CustomFormField
             fieldType={FormFieldType.SELECT}
             control={form.control}
-            name="unitId"
+            name="unit"
             label="Unit of Measure"
             placeholder="Select unit of measure"
           >
@@ -147,63 +234,6 @@ const ProductForm = ({
                 className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
               >
                 {unit.name} ({unit.code})
-              </SelectItem>
-            ))}
-          </CustomFormField>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-5">
-          <CustomFormField
-            fieldType={FormFieldType.SELECT}
-            control={form.control}
-            name="categoryId"
-            label="Category"
-            placeholder="Select category"
-          >
-            {categories?.map((category: Category) => (
-              <SelectItem
-                key={category.$id}
-                value={category.$id}
-                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
-              >
-                {category.name}
-              </SelectItem>
-            ))}
-          </CustomFormField>
-
-          <CustomFormField
-            fieldType={FormFieldType.SELECT}
-            control={form.control}
-            name="typeId"
-            label="Type"
-            placeholder="Select type"
-          >
-            {types?.map((productType: ProductType) => (
-              <SelectItem
-                key={productType.$id}
-                value={productType.$id}
-                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
-              >
-                {productType.name}
-              </SelectItem>
-            ))}
-          </CustomFormField>
-        </div>
-
-        <div className="flex flex-col sm:flex-row gap-5">
-          <CustomFormField
-            fieldType={FormFieldType.SELECT}
-            control={form.control}
-            name="brand"
-            label="Brand"
-            placeholder="Select brand"
-          >
-            {brands?.map((brand: Brand) => (
-              <SelectItem
-                key={brand.$id}
-                value={brand.$id}
-                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
-              >
-                {brand.name}
               </SelectItem>
             ))}
           </CustomFormField>

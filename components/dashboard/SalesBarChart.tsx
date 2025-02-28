@@ -176,7 +176,7 @@ const SalesBarChart = ({
         <>
           <div className="flex flex-col gap-4 md:flex-row justify-between items-start pb-4">
             <div className="flex flex-col gap-2">
-              <p className="text-lg text-dark-600">Total Revenue</p>
+              <p className="text-lg text-dark-600 text-nowrap">Total Revenue</p>
               <h2 className="text-xl font-semibold">{formattedTotal}</h2>
             </div>
             <div className="w-full flex flex-col sm:flex-row items-start sm:items-center sm:justify-end gap-4">
@@ -244,7 +244,6 @@ const SalesBarChart = ({
                             onClick={() => {
                               if (dateRange == null) return;
                               setRange(dateRange);
-                              console.log(dateRange);
                             }}
                             disabled={dateRange == null}
                             className="w-full shad-primary-btn"

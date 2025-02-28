@@ -95,3 +95,9 @@ export const formatNumber = (value: string) => {
     type: "text",
   });
 };
+
+export const formatCamelCase = (str: string) => {
+  const spaced = str.replace(/([a-z])([A-Z])/g, "$1 $2");
+
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+};

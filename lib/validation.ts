@@ -1,3 +1,10 @@
+import {
+  DeliveryStatus,
+  PaymentMethod,
+  PurchaseStatus,
+  QuotationStatus,
+  SaleStatus,
+} from "@/types/appwrite.types";
 import { z } from "zod";
 
 export const LoginFormValidation = z.object({
@@ -90,7 +97,9 @@ export const ExpenseFormValidation = z.object({
     .min(2, "Name must be at least 2 characters"),
   description: z.string().nonempty("Description is required"),
   amount: z.number().min(0, "Amount must be 0 or more"),
-  paymentMethod: z.enum(["cash", "check", "mobile-money"]).default("cash"),
+  paymentMethod: z
+    .enum(Object.values(PaymentMethod) as [string, ...string[]])
+    .default(PaymentMethod.Cash),
   expenseDate: z.date().refine((date) => date <= new Date(), {
     message: "Expense date cannot be in the future",
   }),
@@ -106,16 +115,20 @@ export const PurchaseFormValidation = z.object({
   totalAmount: z.number().min(0, "Total amount must be 0 or more"),
   amountPaid: z.number().min(0, "Amount paid must be 0 or more"),
   supplier: z.string().nonempty("Supplier is required"),
-  status: z.enum(["pending", "completed", "cancelled"]).default("pending"),
-  paymentMethod: z.enum(["cash", "check", "mobile-money"]).default("cash"),
+  status: z
+    .enum(Object.values(PurchaseStatus) as [string, ...string[]])
+    .default(PurchaseStatus.Pending),
+  paymentMethod: z
+    .enum(Object.values(PaymentMethod) as [string, ...string[]])
+    .default(PaymentMethod.Cash),
   deliveryStatus: z
-    .enum(["pending", "in-progress", "delivered", "cancelled"])
-    .default("pending"),
+    .enum(Object.values(DeliveryStatus) as [string, ...string[]])
+    .default(DeliveryStatus.Pending),
   notes: z.string().optional(),
   products: z
     .array(
       z.object({
-        productId: z.string().nonempty("Product is required"),
+        product: z.string().nonempty("Product is required"),
         quantity: z.number().int().min(0, "Quantity must be 0 or more"),
         unitPrice: z.number().min(0, "Unit price must be 0 or more"),
         totalPrice: z.number().min(0, "Total price must be 0 or more"),
@@ -169,16 +182,20 @@ export const SaleFormValidation = z.object({
   customer: z.string().nonempty("Customer is required"),
   totalAmount: z.number().min(0, "Total amount must be 0 or more"),
   amountPaid: z.number().min(0, "Amount paid must be 0 or more"),
-  status: z.enum(["pending", "completed", "cancelled"]).default("pending"),
-  paymentMethod: z.enum(["cash", "check", "mobile-money"]).default("cash"),
+  status: z
+    .enum(Object.values(SaleStatus) as [string, ...string[]])
+    .default(SaleStatus.Pending),
+  paymentMethod: z
+    .enum(Object.values(PaymentMethod) as [string, ...string[]])
+    .default(PaymentMethod.Cash),
   deliveryStatus: z
-    .enum(["pending", "in-progress", "delivered", "cancelled"])
-    .default("pending"),
+    .enum(Object.values(DeliveryStatus) as [string, ...string[]])
+    .default(DeliveryStatus.Pending),
   notes: z.string().optional(),
   products: z
     .array(
       z.object({
-        productId: z.string().nonempty("Product is required"),
+        product: z.string().nonempty("Product is required"),
         quantity: z.number().int().min(0, "Quantity must be 0 or more"),
         unitPrice: z.number().min(0, "Unit price must be 0 or more"),
         totalPrice: z.number().min(0, "Total price must be 0 or more"),
@@ -243,13 +260,17 @@ export const QuotationFormValidation = z.object({
   customer: z.string().nonempty("Customer is required"),
   totalAmount: z.number().min(0, "Total amount must be 0 or more"),
   amountPaid: z.number().min(0, "Amount paid must be 0 or more"),
-  status: z.enum(["pending", "completed", "cancelled"]).default("pending"),
-  paymentMethod: z.enum(["cash", "check", "mobile-money"]).default("cash"),
+  status: z
+    .enum(Object.values(QuotationStatus) as [string, ...string[]])
+    .default(QuotationStatus.Pending),
+  paymentMethod: z
+    .enum(Object.values(PaymentMethod) as [string, ...string[]])
+    .default(PaymentMethod.Cash),
   notes: z.string().optional(),
   products: z
     .array(
       z.object({
-        productId: z.string().nonempty("Product is required"),
+        product: z.string().nonempty("Product is required"),
         quantity: z.number().int().min(0, "Quantity must be 0 or more"),
         unitPrice: z.number().min(0, "Unit price must be 0 or more"),
         totalPrice: z.number().min(0, "Total price must be 0 or more"),

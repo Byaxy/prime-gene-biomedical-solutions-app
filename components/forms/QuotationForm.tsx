@@ -2,7 +2,13 @@ import Loading from "@/components/loading";
 import { useProducts } from "@/hooks/useProducts";
 import { getProductById } from "@/lib/actions/product.actions";
 import { QuotationFormValidation, QuotationFormValues } from "@/lib/validation";
-import { Customer, Product } from "@/types/appwrite.types";
+import {
+  Customer,
+  PaymentMethod,
+  Product,
+  Quotation,
+  QuotationStatus,
+} from "@/types/appwrite.types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
@@ -22,22 +28,19 @@ import {
 } from "../ui/table";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { paymentMethods, quotationStatus } from "@/constants";
 import SubmitButton from "../SubmitButton";
 import { useCustomers } from "@/hooks/useCustomers";
 import FormatNumber from "@/components/FormatNumber";
+import { useQuotations } from "@/hooks/useQuotations";
 
 interface ProductType extends Product {
   $id: string;
   name: string;
-  materialId: {
+  lotNumber: string;
+  brand: {
     name: string;
   };
-  colorId: {
-    name: string;
-    code: string;
-  };
-  unitId: {
+  unit: {
     name: string;
     code: string;
   };
@@ -46,27 +49,26 @@ interface ProductType extends Product {
 }
 
 interface QuotationProduct {
-  productId: string | ProductType;
+  product: string | ProductType;
   quantity: number;
   unitPrice: number;
   totalPrice: number;
   productName?: string;
-  productMaterial?: string;
-  productColor?: string;
-  productColorCode?: string;
+  productLotNumber?: string;
+  productBrand?: string;
   productUnit?: string;
 }
 
 interface QuotationFormProps {
   mode: "create" | "edit";
-  initialData?: QuotationFormValues;
+  initialData?: Quotation;
   onSubmit: (data: QuotationFormValues) => Promise<void>;
   onCancel: () => void;
   isLoading: boolean;
 }
 
-type FormProduct = Omit<QuotationProduct, "productId"> & {
-  productId: string;
+type FormProduct = Omit<QuotationProduct, "product"> & {
+  product: string;
 };
 
 type ExtendedQuotationFormValues = Omit<QuotationFormValues, "products"> & {
@@ -85,14 +87,15 @@ const QuotationForm = ({
   const [isLoadingEdit, setIsLoadingEdit] = useState(mode === "edit");
   const { products } = useProducts({ getAllProducts: true });
   const { customers } = useCustomers({ getAllCustomers: true });
+  const { quotations } = useQuotations({ getAllQuotations: true });
 
   const defaultValues = {
     quotationNumber: "",
     quotationDate: new Date(),
     products: [] as FormProduct[],
-    customerId: "",
-    status: "pending" as "pending" | "completed" | "cancelled",
-    paymentMethod: "cash" as "cash" | "check" | "mobile-money",
+    customer: "",
+    status: QuotationStatus.Pending as QuotationStatus,
+    paymentMethod: PaymentMethod.Cash as PaymentMethod,
     notes: "",
     amountPaid: 0,
     totalAmount: 0,
@@ -137,20 +140,20 @@ const QuotationForm = ({
           const updatedProducts = await Promise.all(
             initialData.products.map(async (product: QuotationProduct) => {
               const productId =
-                typeof product.productId === "object"
-                  ? product.productId.$id
-                  : product.productId;
+                typeof product.product === "object"
+                  ? product.product.$id
+                  : product.product;
 
               try {
                 const productDetails = await getProductById(productId);
+
                 return {
                   ...product,
-                  productId,
+                  product: productId,
                   productName: productDetails.name,
-                  productMaterial: productDetails.materialId.name,
-                  productColor: productDetails.colorId.name,
-                  productColorCode: productDetails.colorId.code,
-                  productUnit: productDetails.unitId.code,
+                  productLotNumber: productDetails.lotNumber,
+                  productBrand: productDetails.brand.name,
+                  productUnit: productDetails.unit.code,
                 };
               } catch (error) {
                 console.error(`Error fetching product ${productId}:`, error);
@@ -208,7 +211,7 @@ const QuotationForm = ({
 
     // Check if the product is already in the list and is not being edited
     const existingProduct = fields.find(
-      (product) => product.productId === currentProductId
+      (product) => product.product === currentProductId
     );
     if (existingProduct && editingIndex === null) {
       toast.error("Product already added");
@@ -229,15 +232,14 @@ const QuotationForm = ({
         form.getValues("tempPrice") || selectedProduct.sellingPrice;
 
       const newProduct: FormProduct = {
-        productId: selectedProduct.$id,
+        product: selectedProduct.$id,
         quantity,
         unitPrice,
         totalPrice: unitPrice * quantity,
         productName: selectedProduct.name,
-        productMaterial: selectedProduct.materialId.name,
-        productColor: selectedProduct.colorId.name,
-        productColorCode: selectedProduct.colorId.code,
-        productUnit: selectedProduct.unitId.code,
+        productLotNumber: selectedProduct.lotNumber,
+        productBrand: selectedProduct.brand.name,
+        productUnit: selectedProduct.unit.code,
       };
 
       if (editingIndex !== null) {
@@ -256,7 +258,7 @@ const QuotationForm = ({
 
   const handleEditEntry = (index: number) => {
     const entry = fields[index];
-    form.setValue("selectedProduct", entry.productId as string);
+    form.setValue("selectedProduct", entry.product as string);
     form.setValue("tempQuantity", entry.quantity);
     form.setValue("tempPrice", entry.unitPrice);
     setSelectedProductName(entry.productName || "");
@@ -294,6 +296,31 @@ const QuotationForm = ({
     if (values.amountPaid > totalAmount) {
       toast.error("Amount paid exceeds total amount");
       return;
+    }
+
+    const existingQuotation = quotations?.find(
+      (quotation: Quotation) =>
+        quotation.quotationNumber === values.quotationNumber
+    );
+    if (existingQuotation && mode === "create") {
+      toast.error("A Quotaion with the same quotation number already exists.");
+      return;
+    }
+
+    if (
+      mode === "edit" &&
+      initialData?.quotationNumber !== values.quotationNumber
+    ) {
+      const existingQuotation = quotations?.find(
+        (quotation: Quotation) =>
+          quotation.quotationNumber === values.quotationNumber
+      );
+      if (existingQuotation) {
+        toast.error(
+          "A Quotaion with the same quotation number already exists."
+        );
+        return;
+      }
     }
 
     try {
@@ -361,7 +388,7 @@ const QuotationForm = ({
                   value={product.$id}
                   className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
                 >
-                  {product.name}
+                  {product.lotNumber} - {product.name}
                 </SelectItem>
               ))}
             </CustomFormField>
@@ -415,8 +442,8 @@ const QuotationForm = ({
               <TableRow className="w-full bg-blue-800 text-white px-2 font-semibold">
                 <TableHead>#</TableHead>
                 <TableHead>Product</TableHead>
-                <TableHead>Material</TableHead>
-                <TableHead>Color</TableHead>
+                <TableHead>Lot Number</TableHead>
+                <TableHead>Brand</TableHead>
                 <TableHead>Quantity</TableHead>
                 <TableHead>Amount</TableHead>
                 <TableHead>Actions</TableHead>
@@ -431,17 +458,11 @@ const QuotationForm = ({
                 </TableRow>
               )}
               {fields.map((entry, index) => (
-                <TableRow key={`${entry.productId}-${index}`}>
+                <TableRow key={`${entry.product}-${index}`}>
                   <TableCell>{index + 1}</TableCell>
                   <TableCell>{entry.productName}</TableCell>
-                  <TableCell>{entry.productMaterial}</TableCell>
-                  <TableCell className="flex flex-row items-center gap-2">
-                    {entry.productColor}
-                    <div
-                      style={{ backgroundColor: entry.productColorCode }}
-                      className="w-3 h-3 rounded-full inline-block"
-                    />
-                  </TableCell>
+                  <TableCell>{entry.productLotNumber}</TableCell>
+                  <TableCell>{entry.productBrand}</TableCell>
                   <TableCell>
                     {entry.quantity}
                     {entry.productUnit}
@@ -505,13 +526,13 @@ const QuotationForm = ({
             label="Payment Method"
             placeholder="Select payment method"
           >
-            {paymentMethods.map((status) => (
+            {Object.values(PaymentMethod).map((method) => (
               <SelectItem
-                key={status.value}
-                value={status.value}
+                key={method}
+                value={method}
                 className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
               >
-                {status.label}
+                {method}
               </SelectItem>
             ))}
           </CustomFormField>
@@ -521,7 +542,7 @@ const QuotationForm = ({
           <CustomFormField
             fieldType={FormFieldType.SELECT}
             control={form.control}
-            name="customerId"
+            name="customer"
             label="Customer"
             placeholder="Select customer"
           >
@@ -543,13 +564,13 @@ const QuotationForm = ({
             label="Status"
             placeholder="Select status"
           >
-            {quotationStatus.map((status) => (
+            {Object.values(QuotationStatus).map((status) => (
               <SelectItem
-                key={status.value}
-                value={status.value}
+                key={status}
+                value={status}
                 className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
               >
-                {status.label}
+                {status}
               </SelectItem>
             ))}
           </CustomFormField>

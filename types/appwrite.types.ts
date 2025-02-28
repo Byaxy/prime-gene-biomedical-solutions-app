@@ -87,14 +87,13 @@ export interface User {
 export interface Purchase {
   $id: string;
   purchaseOrderNumber: string;
-  quantity: number;
   totalAmount: number;
   amountPaid: number;
   purchaseDate: Date;
   supplier: any;
   products: any[];
   status: "pending" | "completed" | "cancelled";
-  paymentMethod: "cash" | "check" | "mobile-money";
+  paymentMethod: "cash" | "check" | "mobile-money" | "bank";
   deliveryStatus: "pending" | "in-progress" | "delivered" | "cancelled";
   notes?: string;
   $createdAt: Date;
@@ -110,7 +109,7 @@ export interface Sale {
   totalAmount: number;
   amountPaid: number;
   status: "pending" | "completed" | "cancelled";
-  paymentMethod: "cash" | "check" | "mobile-money";
+  paymentMethod: "cash" | "check" | "mobile-money" | "bank";
   deliveryStatus: "pending" | "in-progress" | "delivered" | "cancelled";
   notes: string;
   products: any[];
@@ -167,9 +166,46 @@ export interface Quotation {
   totalAmount: number;
   amountPaid: number;
   status: "pending" | "completed" | "cancelled";
-  paymentMethod: "cash" | "check" | "mobile-money";
+  paymentMethod: PaymentMethod;
   notes: string;
   products: any[];
   $createdAt: Date;
   $updatedAt: Date;
+}
+
+// payment methods
+export enum PaymentMethod {
+  Cash = "cash",
+  Check = "check",
+  "Mobile Money" = "mobile-money",
+  Bank = "bank",
+}
+
+// delivery status
+export enum DeliveryStatus {
+  Pending = "pending",
+  "In Progress" = "in-progress",
+  Delivered = "delivered",
+  Cancelled = "cancelled",
+}
+
+// quotation status
+export enum QuotationStatus {
+  Pending = "pending",
+  Completed = "completed",
+  Cancelled = "cancelled",
+}
+
+// sale status
+export enum SaleStatus {
+  Pending = "pending",
+  Completed = "completed",
+  Cancelled = "cancelled",
+}
+
+// purchase status
+export enum PurchaseStatus {
+  Pending = "pending",
+  Completed = "completed",
+  Cancelled = "cancelled",
 }

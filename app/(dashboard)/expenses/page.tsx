@@ -55,6 +55,7 @@ const Expenses = () => {
           onPageChange={setPage}
           pageSize={pageSize}
           onPageSizeChange={setPageSize}
+          searchBy="title"
         />
         <ExpenseDialog
           mode="add"

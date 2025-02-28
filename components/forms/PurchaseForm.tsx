@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import SubmitButton from "../SubmitButton";
 import CustomFormField, { FormFieldType } from "../CustomFormField";
 import { Form } from "../ui/form";
@@ -6,8 +5,14 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { Button } from "../ui/button";
 import { SelectItem } from "../ui/select";
 import { useProducts } from "@/hooks/useProducts";
-import { Product, Supplier } from "@/types/appwrite.types";
-import { deliveryStatus, paymentMethods, purchaseStatus } from "@/constants";
+import {
+  DeliveryStatus,
+  PaymentMethod,
+  Product,
+  Purchase,
+  PurchaseStatus,
+  Supplier,
+} from "@/types/appwrite.types";
 import { useEffect, useState } from "react";
 import {
   Table,
@@ -27,42 +32,39 @@ import { useSuppliers } from "@/hooks/useSuppliers";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Loading from "@/components/loading";
 import FormatNumber from "@/components/FormatNumber";
+import { usePurchases } from "@/hooks/usePurchases";
 
 interface ProductType extends Product {
   $id: string;
   name: string;
-  materialId: {
-    name: string;
-  };
-  colorId: {
-    name: string;
-    code: string;
-  };
+  lotNumber: string;
+  brand: { name: string };
+  unit: { name: string; code: string };
   quantity: number;
   costPrice: number;
 }
 
 interface PurchaseProduct {
-  productId: string | ProductType;
+  product: string | ProductType;
   quantity: number;
   unitPrice: number;
   totalPrice: number;
   productName?: string;
-  productMaterial?: string;
-  productColor?: string;
-  productColorCode?: string;
+  productLotNumber?: string;
+  productBrand?: string;
+  productUnit?: string;
 }
 
 interface PurchaseFormProps {
   mode: "create" | "edit";
-  initialData?: PurchaseFormValues;
+  initialData?: Purchase;
   onSubmit: (data: PurchaseFormValues) => Promise<void>;
   onCancel: () => void;
   isLoading: boolean;
 }
 
-type FormProduct = Omit<PurchaseProduct, "productId"> & {
-  productId: string;
+type FormProduct = Omit<PurchaseProduct, "product"> & {
+  product: string;
 };
 
 type ExtendedPurchaseFormValues = Omit<PurchaseFormValues, "products"> & {
@@ -81,19 +83,16 @@ const PurchaseForm = ({
   const [isLoadingEdit, setIsLoadingEdit] = useState(mode === "edit");
   const { products } = useProducts({ getAllProducts: true });
   const { suppliers } = useSuppliers({ getAllSuppliers: true });
+  const { purchases } = usePurchases({ getAllPurchases: true });
 
   const defaultValues = {
     purchaseOrderNumber: "",
     purchaseDate: new Date(),
     products: [] as FormProduct[],
     supplierId: "",
-    status: "pending" as "pending" | "completed" | "cancelled",
-    paymentMethod: "cash" as "cash" | "check" | "mobile-money",
-    deliveryStatus: "pending" as
-      | "pending"
-      | "in-progress"
-      | "delivered"
-      | "cancelled",
+    status: PurchaseStatus.Pending as PurchaseStatus,
+    paymentMethod: PaymentMethod.Cash as PaymentMethod,
+    deliveryStatus: DeliveryStatus.Pending as DeliveryStatus,
     notes: "",
     amountPaid: 0,
     totalAmount: 0,
@@ -137,19 +136,19 @@ const PurchaseForm = ({
           const updatedProducts = await Promise.all(
             initialData.products.map(async (product: PurchaseProduct) => {
               const productId =
-                typeof product.productId === "object"
-                  ? product.productId.$id
-                  : product.productId;
+                typeof product.product === "object"
+                  ? product.product.$id
+                  : product.product;
 
               try {
                 const productDetails = await getProductById(productId);
                 return {
                   ...product,
-                  productId,
+                  product: productId,
                   productName: productDetails.name,
-                  productMaterial: productDetails.materialId.name,
-                  productColor: productDetails.colorId.name,
-                  productColorCode: productDetails.colorId.code,
+                  productLotNumber: productDetails.lotNumber,
+                  productBrand: productDetails.brand.name,
+                  productUnit: productDetails.unit.code,
                 };
               } catch (error) {
                 console.error(`Error fetching product ${productId}:`, error);
@@ -207,7 +206,7 @@ const PurchaseForm = ({
 
     // Check if the product is already in the list and is not being edited
     const existingProduct = fields.find(
-      (product) => product.productId === currentProductId
+      (product) => product.product === currentProductId
     );
     if (existingProduct && editingIndex === null) {
       toast.error("Product already added");
@@ -228,14 +227,14 @@ const PurchaseForm = ({
         form.getValues("tempPrice") || selectedProduct.costPrice;
 
       const newProduct: FormProduct = {
-        productId: selectedProduct.$id,
+        product: selectedProduct.$id,
         quantity,
         unitPrice,
         totalPrice: unitPrice * quantity,
         productName: selectedProduct.name,
-        productMaterial: selectedProduct.materialId.name,
-        productColor: selectedProduct.colorId.name,
-        productColorCode: selectedProduct.colorId.code,
+        productLotNumber: selectedProduct.lotNumber,
+        productBrand: selectedProduct.brand.name,
+        productUnit: selectedProduct.unit.code,
       };
 
       if (editingIndex !== null) {
@@ -254,7 +253,7 @@ const PurchaseForm = ({
 
   const handleEditEntry = (index: number) => {
     const entry = fields[index];
-    form.setValue("selectedProduct", entry.productId as string);
+    form.setValue("selectedProduct", entry.product as string);
     form.setValue("tempQuantity", entry.quantity);
     form.setValue("tempPrice", entry.unitPrice);
     setSelectedProductName(entry.productName || "");
@@ -292,6 +291,30 @@ const PurchaseForm = ({
     if (values.amountPaid > totalAmount) {
       toast.error("Amount paid exceeds total amount");
       return;
+    }
+
+    const existingPurchase = purchases?.find(
+      (purchase: Purchase) =>
+        purchase.purchaseOrderNumber === values.purchaseOrderNumber
+    );
+
+    if (existingPurchase && mode === "create") {
+      toast.error("Purchase order number already exists");
+      return;
+    }
+
+    if (
+      mode === "edit" &&
+      initialData?.purchaseOrderNumber !== values.purchaseOrderNumber
+    ) {
+      const existingPurchase = purchases?.find(
+        (purchase: Purchase) =>
+          purchase.purchaseOrderNumber === values.purchaseOrderNumber
+      );
+      if (existingPurchase) {
+        toast.error("Purchase order number already exists");
+        return;
+      }
     }
 
     try {
@@ -359,7 +382,7 @@ const PurchaseForm = ({
                   value={product.$id}
                   className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
                 >
-                  {product.name}
+                  {product.lotNumber} - {product.name}
                 </SelectItem>
               ))}
             </CustomFormField>
@@ -413,8 +436,8 @@ const PurchaseForm = ({
               <TableRow className="w-full bg-blue-800 text-white px-2 font-semibold">
                 <TableHead>#</TableHead>
                 <TableHead>Product</TableHead>
-                <TableHead>Material</TableHead>
-                <TableHead>Color</TableHead>
+                <TableHead>Lot Number</TableHead>
+                <TableHead>Brand</TableHead>
                 <TableHead>Quantity</TableHead>
                 <TableHead>Amount</TableHead>
                 <TableHead>Actions</TableHead>
@@ -429,17 +452,11 @@ const PurchaseForm = ({
                 </TableRow>
               )}
               {fields.map((entry, index) => (
-                <TableRow key={`${entry.productId}-${index}`}>
+                <TableRow key={`${entry.product}-${index}`}>
                   <TableCell>{index + 1}</TableCell>
                   <TableCell>{entry.productName}</TableCell>
-                  <TableCell>{entry.productMaterial}</TableCell>
-                  <TableCell className="flex flex-row items-center gap-2">
-                    {entry.productColor}
-                    <div
-                      style={{ backgroundColor: entry.productColorCode }}
-                      className="w-3 h-3 rounded-full inline-block"
-                    />
-                  </TableCell>
+                  <TableCell>{entry.productLotNumber}</TableCell>
+                  <TableCell>{entry.productBrand}</TableCell>
                   <TableCell>{entry.quantity}</TableCell>
                   <TableCell>
                     <FormatNumber value={entry.totalPrice} />
@@ -500,13 +517,13 @@ const PurchaseForm = ({
             label="Payment Method"
             placeholder="Select payment method"
           >
-            {paymentMethods.map((status) => (
+            {Object.values(PaymentMethod).map((method) => (
               <SelectItem
-                key={status.value}
-                value={status.value}
+                key={method}
+                value={method}
                 className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
               >
-                {status.label}
+                {method}
               </SelectItem>
             ))}
           </CustomFormField>
@@ -516,7 +533,7 @@ const PurchaseForm = ({
           <CustomFormField
             fieldType={FormFieldType.SELECT}
             control={form.control}
-            name="supplierId"
+            name="supplier"
             label="Supplier"
             placeholder="Select supplier"
           >
@@ -538,13 +555,13 @@ const PurchaseForm = ({
             label="Purchase Status"
             placeholder="Select status"
           >
-            {purchaseStatus.map((status) => (
+            {Object.values(PurchaseStatus).map((status) => (
               <SelectItem
-                key={status.value}
-                value={status.value}
+                key={status}
+                value={status}
                 className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
               >
-                {status.label}
+                {status}
               </SelectItem>
             ))}
           </CustomFormField>
@@ -558,13 +575,13 @@ const PurchaseForm = ({
             label="Delivery Status"
             placeholder="Select delivery status"
           >
-            {deliveryStatus.map((status) => (
+            {Object.values(DeliveryStatus).map((status) => (
               <SelectItem
-                key={status.value}
-                value={status.value}
+                key={status}
+                value={status}
                 className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
               >
-                {status.label}
+                {status}
               </SelectItem>
             ))}
           </CustomFormField>

@@ -53,6 +53,7 @@ const QuotationSheet = ({
             initialData={
               mode === "edit" && quotation
                 ? {
+                    $id: quotation.$id,
                     quotationNumber: quotation?.quotationNumber,
                     totalAmount: quotation?.totalAmount,
                     amountPaid: quotation?.amountPaid,
@@ -64,6 +65,8 @@ const QuotationSheet = ({
                     paymentMethod: quotation?.paymentMethod,
                     notes: quotation?.notes,
                     products: quotation.products,
+                    $createdAt: new Date(quotation.$createdAt),
+                    $updatedAt: new Date(quotation.$updatedAt),
                   }
                 : undefined
             }

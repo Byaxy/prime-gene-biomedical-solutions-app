@@ -14,8 +14,8 @@ import { SaleFormValues } from "../validation";
 
 // Sale item document interface
 interface SaleItemDocument extends Models.Document {
-  saleId: string;
-  productId: string;
+  sale: string;
+  product: string;
   quantity: number;
   unitPrice: number;
   totalPrice: number;
@@ -47,7 +47,7 @@ export const addSale = async (sale: SaleFormValues) => {
     const createSaleItemsPromises = sale.products.map(async (product) => {
       const saleItemData = {
         sale: createSaleResponse.$id,
-        product: product.productId,
+        product: product.product,
         quantity: product.quantity,
         unitPrice: product.unitPrice,
         totalPrice: product.totalPrice,
@@ -70,7 +70,7 @@ export const addSale = async (sale: SaleFormValues) => {
           const productData = await databases.getDocument(
             DATABASE_ID!,
             NEXT_PUBLIC_PRODUCTS_COLLECTION_ID!,
-            product.productId
+            product.product
           );
 
           const updatedStock = productData.quantity - product.quantity;
@@ -78,7 +78,7 @@ export const addSale = async (sale: SaleFormValues) => {
           // Add validation to prevent negative stock
           if (updatedStock < 0) {
             throw new Error(
-              `Insufficient stock for product ${product.productId}`
+              `Insufficient stock for product ${product.product}`
             );
           }
 
@@ -87,7 +87,7 @@ export const addSale = async (sale: SaleFormValues) => {
           return databases.updateDocument(
             DATABASE_ID!,
             NEXT_PUBLIC_PRODUCTS_COLLECTION_ID!,
-            product.productId,
+            product.product,
             {
               quantity: updatedStock,
             }
@@ -124,16 +124,16 @@ export const editSale = async (sale: SaleFormValues, saleId: string) => {
     const existingItems = await databases.listDocuments<SaleItemDocument>(
       DATABASE_ID!,
       NEXT_PUBLIC_SALE_ITEMS_COLLECTION_ID!,
-      [Query.equal("saleId", saleId)]
+      [Query.equal("sale", saleId)]
     );
 
     const newProductIds = new Set(
-      sale.products.map((product) => product.productId)
+      sale.products.map((product) => product.product)
     );
 
     // Find items to delete (exist in database but not in new products)
     const itemsToDelete = existingItems.documents.filter(
-      (item) => !newProductIds.has(item.productId)
+      (item) => !newProductIds.has(item.product)
     );
 
     // Delete removed items first
@@ -151,16 +151,16 @@ export const editSale = async (sale: SaleFormValues, saleId: string) => {
 
     // Create a map of existing items for updates
     const existingItemsMap = new Map(
-      existingItems.documents.map((item) => [item.productId, item])
+      existingItems.documents.map((item) => [item.product, item])
     );
 
     // Handle updates and additions after deletions are complete
     await Promise.all(
       sale.products.map(async (product) => {
-        const existingItem = existingItemsMap.get(product.productId);
+        const existingItem = existingItemsMap.get(product.product);
         const saleItemData = {
           sale: saleId,
-          product: product.productId,
+          product: product.product,
           quantity: product.quantity,
           unitPrice: product.unitPrice,
           totalPrice: product.totalPrice,
@@ -202,7 +202,7 @@ export const editSale = async (sale: SaleFormValues, saleId: string) => {
           const productData = await databases.getDocument(
             DATABASE_ID!,
             NEXT_PUBLIC_PRODUCTS_COLLECTION_ID!,
-            product.productId
+            product.product
           );
 
           const updatedStock = productData.quantity - product.quantity;
@@ -210,7 +210,7 @@ export const editSale = async (sale: SaleFormValues, saleId: string) => {
           // Add validation to prevent negative stock
           if (updatedStock < 0) {
             throw new Error(
-              `Insufficient stock for product ${product.productId}`
+              `Insufficient stock for product ${product.product}`
             );
           }
 
@@ -219,7 +219,7 @@ export const editSale = async (sale: SaleFormValues, saleId: string) => {
           return databases.updateDocument(
             DATABASE_ID!,
             NEXT_PUBLIC_PRODUCTS_COLLECTION_ID!,
-            product.productId,
+            product.product,
             {
               quantity: updatedStock,
             }
@@ -272,7 +272,7 @@ export const getSales = async (
           const items = await databases.listDocuments(
             DATABASE_ID!,
             NEXT_PUBLIC_SALE_ITEMS_COLLECTION_ID!,
-            [Query.equal("saleId", sale.$id)]
+            [Query.equal("sale", sale.$id)]
           );
 
           return {
@@ -311,7 +311,7 @@ export const getSales = async (
             const items = await databases.listDocuments(
               DATABASE_ID!,
               NEXT_PUBLIC_SALE_ITEMS_COLLECTION_ID!,
-              [Query.equal("saleId", sale.$id)]
+              [Query.equal("sale", sale.$id)]
             );
 
             return {
@@ -349,7 +349,7 @@ export const deleteSale = async (saleId: string) => {
     const existingItems = await databases.listDocuments<SaleItemDocument>(
       DATABASE_ID!,
       NEXT_PUBLIC_SALE_ITEMS_COLLECTION_ID!,
-      [Query.equal("saleId", saleId)]
+      [Query.equal("sale", saleId)]
     );
 
     // Delete sale items first

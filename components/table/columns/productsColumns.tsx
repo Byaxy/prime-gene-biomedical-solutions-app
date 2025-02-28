@@ -20,13 +20,13 @@ export const productsColumns: ColumnDef<Product>[] = [
     cell: ({ row }) => {
       const product = row.original;
       return (
-        <div className="flex items-center">
+        <div className="flex">
           <Image
-            src={product.imageUrl || "/assets/images/user.png"}
+            src={product.imageUrl || "/assets/images/placeholder.jpg"}
             alt={product.name}
-            width={50}
+            width={200}
             height={50}
-            className="h-12 w-12 rounded-full object-cover"
+            className="h-12 w-24 rounded-md object-cover"
             priority={true}
           />
         </div>
@@ -51,7 +51,7 @@ export const productsColumns: ColumnDef<Product>[] = [
 
     cell: ({ row }) => {
       const product = row.original;
-      return <p className="text-14-medium ">{product.name}</p>;
+      return <p className="text-14-medium ">{product.lotNumber || "-"}</p>;
     },
   },
   {
@@ -143,7 +143,11 @@ export const productsColumns: ColumnDef<Product>[] = [
     header: "Description",
     cell: ({ row }) => {
       const product = row.original;
-      return <p className="text-14-medium">{product.description || "-"}</p>;
+      return (
+        <p className="text-14-medium">
+          {product.description.substring(0, 20).concat("...") || "-"}
+        </p>
+      );
     },
   },
 
