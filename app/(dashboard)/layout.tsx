@@ -22,7 +22,7 @@ import { sidebarData } from "@/constants";
 import { theme } from "@/lib/theme";
 import Image from "next/image";
 
-const drawerWidth = 270;
+const drawerWidth = 320;
 
 const openedMixin = (theme: Theme): CSSObject => ({
   width: drawerWidth,
@@ -186,7 +186,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             </IconButton>
           </DrawerHeader>
 
-          <Divider className="mb-4" />
+          <Divider className="!mb-3" />
 
           {/** Side bar */}
           <SidebarMenu data={sidebarData} open={open} />

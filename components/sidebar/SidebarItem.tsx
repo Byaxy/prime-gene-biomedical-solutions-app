@@ -47,11 +47,11 @@ export default function SidebarItem({
           >
             <span>{data.title}</span>
             {isOpen ? (
-              <span className="text-lg">
+              <span>
                 <KeyboardArrowDownIcon />
               </span>
             ) : (
-              <span className="text-lg">
+              <span>
                 <KeyboardArrowRightIcon />
               </span>
             )}
@@ -68,7 +68,9 @@ export default function SidebarItem({
         )}
       </Link>
       {isOpen && data.subCategories && (
-        <SidebarMenu data={data.subCategories} open={open} />
+        <div className="w-full ml-6">
+          <SidebarMenu data={data.subCategories} open={open} />
+        </div>
       )}
     </li>
   );
