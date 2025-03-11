@@ -1,7 +1,6 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import Loading from "../../../components/loading";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import UserProfile from "@/components/settings/UserProfile";
@@ -13,6 +12,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Menu, X } from "lucide-react";
+import Loading from "@/components/loading";
 
 export const dynamic = "force-dynamic";
 

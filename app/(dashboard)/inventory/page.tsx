@@ -1,30 +1,33 @@
 "use client";
 
-import { useState } from "react";
 import PageWraper from "@/components/PageWraper";
-import SupplierDialog from "@/components/suppliers/SupplierDialog";
-import { suppliersColumns } from "@/components/table/columns/suppliersColumns";
+import ProductSheet from "@/components/products/ProductSheet";
+import { productsColumns } from "@/components/table/columns/productsColumns";
 import { DataTable } from "@/components/table/DataTable";
-import { useSuppliers } from "@/hooks/useSuppliers";
-import { SupplierFormValues } from "@/lib/validation";
+import { useProducts } from "@/hooks/useProducts";
+import { ProductFormValues } from "@/lib/validation";
+import { useState } from "react";
 
-const Suppliers = () => {
+const Inventory = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+
   const {
-    suppliers,
+    products,
     isLoading,
     totalItems,
     page,
     setPage,
     pageSize,
     setPageSize,
-    addSupplier,
-    isAddingSupplier,
-  } = useSuppliers({ initialPageSize: 10 });
+    addProduct,
+    isAddingProduct,
+  } = useProducts({
+    initialPageSize: 10,
+  });
 
-  const handleAddSupplier = async (data: SupplierFormValues): Promise<void> => {
+  const handleAddProduct = async (data: ProductFormValues): Promise<void> => {
     return new Promise((resolve, reject) => {
-      addSupplier(data, {
+      addProduct(data, {
         onSuccess: () => {
           setIsAddDialogOpen(false);
           resolve();
@@ -38,32 +41,32 @@ const Suppliers = () => {
 
   return (
     <PageWraper
-      title="Suppliers"
-      buttonText="Add Supplier"
+      title="Inventory List"
+      buttonText="Add New"
       buttonAction={() => setIsAddDialogOpen(true)}
     >
       <>
         <DataTable
-          columns={suppliersColumns}
-          data={suppliers || []}
+          columns={productsColumns}
+          data={products || []}
           isLoading={isLoading}
           totalItems={totalItems}
           page={page}
           onPageChange={setPage}
           pageSize={pageSize}
           onPageSizeChange={setPageSize}
+          searchBy="lotNumber"
         />
-
-        <SupplierDialog
+        <ProductSheet
           mode="add"
           open={isAddDialogOpen}
           onOpenChange={setIsAddDialogOpen}
-          isLoading={isAddingSupplier}
-          onSubmit={handleAddSupplier}
+          isLoading={isAddingProduct}
+          onSubmit={handleAddProduct}
         />
       </>
     </PageWraper>
   );
 };
 
-export default Suppliers;
+export default Inventory;

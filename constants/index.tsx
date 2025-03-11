@@ -32,40 +32,40 @@ export const sidebarData: SidebarDataType[] = [
   },
   {
     id: generateId(),
-    title: "Inventory Management",
+    title: "Products Management",
     path: "",
     icon: <Store className="h-5 w-5" />,
     subCategories: [
       {
         id: generateId(),
-        title: "Products",
+        title: "Inventory",
         path: "",
         icon: <ShoppingBasket className="h-5 w-5" />,
         subCategories: [
           {
             id: generateId(),
             title: "Inventory List",
-            path: "",
+            path: "/inventory",
           },
           {
             id: generateId(),
             title: "Add Inventory",
-            path: "",
+            path: "/inventory/add-inventory",
           },
           {
             id: generateId(),
             title: "Adjust Inventory",
-            path: "",
+            path: "/inventory/adjust-inventory",
           },
           {
             id: generateId(),
             title: "Inventory Adjustment List",
-            path: "",
+            path: "/inventory/inventory-adjustment-list",
           },
           {
             id: generateId(),
             title: "Inventory Stocks",
-            path: "",
+            path: "/inventory/inventory-stocks",
           },
         ],
       },
@@ -83,7 +83,7 @@ export const sidebarData: SidebarDataType[] = [
           {
             id: generateId(),
             title: "Add Services",
-            path: "/add-services",
+            path: "/services/add-services",
           },
         ],
       },
@@ -103,24 +103,24 @@ export const sidebarData: SidebarDataType[] = [
           {
             id: generateId(),
             title: "Create Quotation",
-            path: "",
+            path: "/quotations/create-quotation",
           },
           {
             id: generateId(),
             title: "Quotation List",
-            path: "",
+            path: "/quotations",
           },
         ],
       },
       {
         id: generateId(),
         title: "Create Invoice",
-        path: "",
+        path: "/sales/create-invoice",
       },
       {
         id: generateId(),
         title: "Sales List",
-        path: "",
+        path: "/sales",
       },
       {
         id: generateId(),
@@ -130,12 +130,12 @@ export const sidebarData: SidebarDataType[] = [
           {
             id: generateId(),
             title: "Create Delivery Note",
-            path: "",
+            path: "/deliveries/create-delivery",
           },
           {
             id: generateId(),
             title: "Delivery List",
-            path: "",
+            path: "/deliveries",
           },
         ],
       },
@@ -147,12 +147,12 @@ export const sidebarData: SidebarDataType[] = [
           {
             id: generateId(),
             title: "Create Promissory Note",
-            path: "",
+            path: "/promissory-notes/create-promissory-note",
           },
           {
             id: generateId(),
             title: "Promissory Note List",
-            path: "",
+            path: "/promissory-notes",
           },
         ],
       },
@@ -164,12 +164,12 @@ export const sidebarData: SidebarDataType[] = [
           {
             id: generateId(),
             title: "Create Way-Bill",
-            path: "",
+            path: "/waybills/create-waybill",
           },
           {
             id: generateId(),
             title: "Waybill List",
-            path: "",
+            path: "/waybills",
           },
         ],
       },
@@ -179,28 +179,28 @@ export const sidebarData: SidebarDataType[] = [
   {
     id: generateId(),
     title: "Purchases Management",
-    path: "/purchases",
+    path: "",
     icon: <Receipt className="h-5 w-5" />,
     subCategories: [
       {
         id: generateId(),
         title: "Create Purchase",
-        path: "",
+        path: "/purchases/create-purchase",
       },
       {
         id: generateId(),
         title: "Purchase Order List",
-        path: "",
+        path: "/purchases",
       },
       {
         id: generateId(),
         title: "Receive Inventory",
-        path: "",
+        path: "/purchases/receive-inventory",
       },
       {
         id: generateId(),
         title: "Bills Payment",
-        path: "",
+        path: "/purchases/bills-payment",
       },
     ],
   },
@@ -219,17 +219,17 @@ export const sidebarData: SidebarDataType[] = [
       {
         id: generateId(),
         title: "Customers",
-        path: "/customers",
+        path: "",
         subCategories: [
           {
             id: generateId(),
             title: "Customer List",
-            path: "",
+            path: "/customers",
           },
           {
             id: generateId(),
             title: "Add Customer",
-            path: "",
+            path: "/customers/add-customer",
           },
         ],
       },
@@ -241,22 +241,22 @@ export const sidebarData: SidebarDataType[] = [
           {
             id: generateId(),
             title: "Vendors List",
-            path: "",
+            path: "/vendors",
           },
           {
             id: generateId(),
             title: "Add Vendor",
-            path: "",
+            path: "/vendors/add-vendor",
           },
           {
             id: generateId(),
             title: "Transactions",
-            path: "",
+            path: "/vendors/transactions",
           },
           {
             id: generateId(),
             title: "Pay Bills",
-            path: "",
+            path: "/vendors/pay-bills",
           },
         ],
       },
@@ -269,12 +269,12 @@ export const sidebarData: SidebarDataType[] = [
           {
             id: generateId(),
             title: "Users List",
-            path: "",
+            path: "/users",
           },
           {
             id: generateId(),
             title: "Add User",
-            path: "",
+            path: "/users/add-user",
           },
         ],
       },
@@ -283,33 +283,33 @@ export const sidebarData: SidebarDataType[] = [
   {
     id: generateId(),
     title: "Accounting and Finance",
-    path: "/users",
+    path: "",
     icon: <CircleDollarSign className="h-5 w-5" />,
     subCategories: [
       {
         id: generateId(),
         title: "Chart of Account",
-        path: "",
+        path: "/accounting-and-finance/chart-of-account",
       },
       {
         id: generateId(),
         title: "Banking",
-        path: "",
+        path: "/accounting-and-finance/banking",
       },
       {
         id: generateId(),
         title: "Income Tracker",
-        path: "",
+        path: "/accounting-and-finance/income-tracker",
       },
       {
         id: generateId(),
         title: "Bill Tracker",
-        path: "",
+        path: "/accounting-and-finance/bill-tracker",
       },
       {
         id: generateId(),
         title: "Expenses Tracker",
-        path: "",
+        path: "/accounting-and-finance/expenses-tracker",
       },
     ],
   },
@@ -322,56 +322,56 @@ export const sidebarData: SidebarDataType[] = [
       {
         id: generateId(),
         title: "Employee List",
-        path: "",
+        path: "/human-resource-management/employees",
       },
       {
         id: generateId(),
         title: "Add Employee",
-        path: "",
+        path: "/human-resource-management/employees/add-employee",
       },
       {
         id: generateId(),
         title: "Payroll Management",
-        path: "",
+        path: "/human-resource-management/payroll",
       },
       {
         id: generateId(),
         title: "Time Tracking",
-        path: "",
+        path: "/human-resource-management/time-tracking",
       },
     ],
   },
   {
     id: generateId(),
     title: "Notifications",
-    path: "/quotations",
+    path: "/notifications",
     icon: <Bell className="h-5 w-5" />,
   },
   {
     id: generateId(),
     title: "Reporting and Analysis",
-    path: "/quotations",
+    path: "",
     icon: <ChartColumn className="h-5 w-5" />,
     subCategories: [
       {
         id: generateId(),
         title: "Standard Reports",
-        path: "",
+        path: "/reporting-and-analysis/standard-reports",
       },
       {
         id: generateId(),
         title: "Custom Reports",
-        path: "",
+        path: "/reporting-and-analysis/custom-reports",
       },
       {
         id: generateId(),
         title: "Sales Reports",
-        path: "",
+        path: "/reporting-and-analysis/sales-reports",
       },
       {
         id: generateId(),
-        title: "Expense Reports",
-        path: "",
+        title: "Expenses Reports",
+        path: "/reporting-and-analysis/expenses-reports",
       },
     ],
   },
@@ -389,22 +389,22 @@ export const sidebarData: SidebarDataType[] = [
       {
         id: generateId(),
         title: "Categories",
-        path: "/products/categories",
+        path: "/settings/categories",
       },
       {
         id: generateId(),
         title: "Brands",
-        path: "/products/brands",
+        path: "/settings/brands",
       },
       {
         id: generateId(),
         title: "Types",
-        path: "/products/types",
+        path: "/settings/types",
       },
       {
         id: generateId(),
         title: "Units",
-        path: "/products/units",
+        path: "/settings/units",
       },
     ],
   },
