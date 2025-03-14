@@ -30,7 +30,7 @@ export const addPurchase = async (purchase: PurchaseFormValues) => {
       purchaseDate: purchase.purchaseDate,
       totalAmount: purchase.totalAmount,
       amountPaid: purchase.amountPaid,
-      supplier: purchase.supplier,
+      vendor: purchase.vendor,
       status: purchase.status,
       paymentMethod: purchase.paymentMethod,
       deliveryStatus: purchase.deliveryStatus,
@@ -111,7 +111,7 @@ export const editPurchase = async (
       purchaseDate: purchase.purchaseDate,
       totalAmount: purchase.totalAmount,
       amountPaid: purchase.amountPaid,
-      supplier: purchase.supplier,
+      vendor: purchase.vendor,
       status: purchase.status,
       paymentMethod: purchase.paymentMethod,
       deliveryStatus: purchase.deliveryStatus,
@@ -228,9 +228,35 @@ export const editPurchase = async (
     );
 
     revalidatePath("/purchases");
+    revalidatePath(`/purchases/edit-purchase/${purchaseId}`);
     return parseStringify(updatePurchaseResponse);
   } catch (error) {
     console.error("Error updating purchase:", error);
+    throw error;
+  }
+};
+
+// get purchase by id
+export const getPurchaseById = async (purchaseId: string) => {
+  try {
+    const response = await databases.getDocument(
+      DATABASE_ID!,
+      NEXT_PUBLIC_PURCHASES_COLLECTION_ID!,
+      purchaseId
+    );
+
+    // Get purchase items for the purchase
+    const items = await databases.listDocuments(
+      DATABASE_ID!,
+      NEXT_PUBLIC_PURCHASE_ITEMS_COLLECTION_ID!,
+      [Query.equal("purchase", purchaseId)]
+    );
+
+    response.products = items.documents;
+
+    return parseStringify(response);
+  } catch (error) {
+    console.error("Error getting purchase:", error);
     throw error;
   }
 };

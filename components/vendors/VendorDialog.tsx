@@ -1,5 +1,5 @@
-import { SupplierFormValues } from "@/lib/validation";
-import { Supplier } from "@/types/appwrite.types";
+import { VendorFormValues } from "@/lib/validation";
+import { Vendor } from "@/types/appwrite.types";
 import {
   Dialog,
   DialogContent,
@@ -8,51 +8,51 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 import { Button } from "../ui/button";
-import SupplierForm from "../forms/SupplierForm";
+import VendorForm from "../forms/VendorForm";
 
-interface SupplierDialogProps {
+interface VendorDialogProps {
   mode: "add" | "edit" | "delete";
   open: boolean;
   onOpenChange: (open: boolean) => void;
   isLoading?: boolean;
-  supplier?: Supplier;
-  onSubmit: (data: SupplierFormValues) => Promise<void>;
+  vendor?: Vendor;
+  onSubmit: (data: VendorFormValues) => Promise<void>;
 }
 
-const SupplierDialog = ({
+const VendorDialog = ({
   mode,
   open,
   onOpenChange,
   isLoading,
-  supplier,
+  vendor,
   onSubmit,
-}: SupplierDialogProps) => {
+}: VendorDialogProps) => {
   const handleDelete = async () => {
     try {
       await onSubmit({
-        name: supplier?.name || "",
-        email: supplier?.email || "",
-        phone: supplier?.phone || "",
-        address: supplier?.address || "",
+        name: vendor?.name || "",
+        email: vendor?.email || "",
+        phone: vendor?.phone || "",
+        address: vendor?.address || "",
       });
       onOpenChange(false);
     } catch (error) {
-      console.error("Error deleting supplier:", error);
+      console.error("Error deleting vendor:", error);
     } finally {
     }
   };
 
   const dialogTitle = {
-    add: "Add Supplier",
-    edit: "Edit Supplier",
-    delete: "Delete Supplier",
+    add: "Add Vendor",
+    edit: "Edit Vendor",
+    delete: "Delete Vendor",
   }[mode];
 
   const dialogDescription = {
-    add: "Add a new product supplier to your collection.",
-    edit: "Edit the selected supplier.",
+    add: "Add a new product vendor to your collection.",
+    edit: "Edit the selected vendor.",
     delete:
-      "Are you sure you want to delete this supplier? This action cannot be undone.",
+      "Are you sure you want to delete this vendor? This action cannot be undone.",
   }[mode];
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -69,7 +69,7 @@ const SupplierDialog = ({
         {mode === "delete" ? (
           <div className="flex flex-col gap-4">
             <p className="text-sm text-red-500">
-              Category: <span className="font-semibold">{supplier?.name}</span>
+              Category: <span className="font-semibold">{vendor?.name}</span>
             </p>
             <div className="flex justify-end gap-4">
               <Button
@@ -93,15 +93,18 @@ const SupplierDialog = ({
             </div>
           </div>
         ) : (
-          <SupplierForm
+          <VendorForm
             mode={mode === "add" ? "create" : "edit"}
             initialData={
-              mode === "edit" && supplier
+              mode === "edit" && vendor
                 ? {
-                    name: supplier?.name,
-                    email: supplier?.email || "",
-                    phone: supplier?.phone || "",
-                    address: supplier?.address || "",
+                    $id: vendor.$id,
+                    name: vendor?.name || "",
+                    email: vendor?.email || "",
+                    phone: vendor?.phone || "",
+                    address: vendor?.address || "",
+                    $createdAt: vendor.$createdAt,
+                    $updatedAt: vendor.$updatedAt,
                   }
                 : undefined
             }
@@ -114,4 +117,4 @@ const SupplierDialog = ({
   );
 };
 
-export default SupplierDialog;
+export default VendorDialog;

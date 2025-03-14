@@ -76,15 +76,11 @@ export const productsColumns: ColumnDef<Product>[] = [
     },
   },
   {
-    accessorKey: "brand",
-    header: "Brand",
+    accessorKey: "vendor",
+    header: "Vendor",
     cell: ({ row }) => {
       const product = row.original;
-      return (
-        <p className="text-14-medium">
-          {(product?.type && product?.brand.name) || "-"}
-        </p>
-      );
+      return <p className="text-14-medium">{product?.vendor.name || "-"}</p>;
     },
   },
   {

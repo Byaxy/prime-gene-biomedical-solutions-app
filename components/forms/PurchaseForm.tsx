@@ -1,3 +1,5 @@
+"use client";
+
 import SubmitButton from "../SubmitButton";
 import CustomFormField, { FormFieldType } from "../CustomFormField";
 import { Form } from "../ui/form";
@@ -11,7 +13,7 @@ import {
   Product,
   Purchase,
   PurchaseStatus,
-  Supplier,
+  Vendor,
 } from "@/types/appwrite.types";
 import { useEffect, useState } from "react";
 import {
@@ -28,17 +30,17 @@ import { getProductById } from "@/lib/actions/product.actions";
 import toast from "react-hot-toast";
 import { X } from "lucide-react";
 import { PurchaseFormValidation, PurchaseFormValues } from "@/lib/validation";
-import { useSuppliers } from "@/hooks/useSuppliers";
+
 import { zodResolver } from "@hookform/resolvers/zod";
 import Loading from "@/components/loading";
 import FormatNumber from "@/components/FormatNumber";
 import { usePurchases } from "@/hooks/usePurchases";
+import { useVendors } from "@/hooks/useVendors";
 
 interface ProductType extends Product {
   $id: string;
   name: string;
   lotNumber: string;
-  brand: { name: string };
   unit: { name: string; code: string };
   quantity: number;
   costPrice: number;
@@ -51,7 +53,6 @@ interface PurchaseProduct {
   totalPrice: number;
   productName?: string;
   productLotNumber?: string;
-  productBrand?: string;
   productUnit?: string;
 }
 
@@ -59,8 +60,6 @@ interface PurchaseFormProps {
   mode: "create" | "edit";
   initialData?: Purchase;
   onSubmit: (data: PurchaseFormValues) => Promise<void>;
-  onCancel: () => void;
-  isLoading: boolean;
 }
 
 type FormProduct = Omit<PurchaseProduct, "product"> & {
@@ -71,25 +70,20 @@ type ExtendedPurchaseFormValues = Omit<PurchaseFormValues, "products"> & {
   products: FormProduct[];
 };
 
-const PurchaseForm = ({
-  mode,
-  initialData,
-  onSubmit,
-  onCancel,
-  isLoading,
-}: PurchaseFormProps) => {
+const PurchaseForm = ({ mode, initialData, onSubmit }: PurchaseFormProps) => {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [selectedProductName, setSelectedProductName] = useState<string>("");
   const [isLoadingEdit, setIsLoadingEdit] = useState(mode === "edit");
+  const [isLoading, setIsLoading] = useState(false);
   const { products } = useProducts({ getAllProducts: true });
-  const { suppliers } = useSuppliers({ getAllSuppliers: true });
+  const { vendors } = useVendors({ getAllVendors: true });
   const { purchases } = usePurchases({ getAllPurchases: true });
 
   const defaultValues = {
     purchaseOrderNumber: "",
     purchaseDate: new Date(),
     products: [] as FormProduct[],
-    supplierId: "",
+    vendor: "",
     status: PurchaseStatus.Pending as PurchaseStatus,
     paymentMethod: PaymentMethod.Cash as PaymentMethod,
     deliveryStatus: DeliveryStatus.Pending as DeliveryStatus,
@@ -147,7 +141,6 @@ const PurchaseForm = ({
                   product: productId,
                   productName: productDetails.name,
                   productLotNumber: productDetails.lotNumber,
-                  productBrand: productDetails.brand.name,
                   productUnit: productDetails.unit.code,
                 };
               } catch (error) {
@@ -233,7 +226,6 @@ const PurchaseForm = ({
         totalPrice: unitPrice * quantity,
         productName: selectedProduct.name,
         productLotNumber: selectedProduct.lotNumber,
-        productBrand: selectedProduct.brand.name,
         productUnit: selectedProduct.unit.code,
       };
 
@@ -280,44 +272,45 @@ const PurchaseForm = ({
   };
 
   const handleSubmit = async () => {
-    const values = form.getValues();
-    const totalAmount = calculateTotalAmount();
+    try {
+      setIsLoading(true);
+      const values = form.getValues();
+      const totalAmount = calculateTotalAmount();
 
-    if (fields.length === 0) {
-      toast.error("At least one product is required");
-      return;
-    }
+      if (fields.length === 0) {
+        toast.error("At least one product is required");
+        return;
+      }
 
-    if (values.amountPaid > totalAmount) {
-      toast.error("Amount paid exceeds total amount");
-      return;
-    }
+      if (values.amountPaid > totalAmount) {
+        toast.error("Amount paid exceeds total amount");
+        return;
+      }
 
-    const existingPurchase = purchases?.find(
-      (purchase: Purchase) =>
-        purchase.purchaseOrderNumber === values.purchaseOrderNumber
-    );
-
-    if (existingPurchase && mode === "create") {
-      toast.error("Purchase order number already exists");
-      return;
-    }
-
-    if (
-      mode === "edit" &&
-      initialData?.purchaseOrderNumber !== values.purchaseOrderNumber
-    ) {
       const existingPurchase = purchases?.find(
         (purchase: Purchase) =>
           purchase.purchaseOrderNumber === values.purchaseOrderNumber
       );
-      if (existingPurchase) {
+
+      if (existingPurchase && mode === "create") {
         toast.error("Purchase order number already exists");
         return;
       }
-    }
 
-    try {
+      if (
+        mode === "edit" &&
+        initialData?.purchaseOrderNumber !== values.purchaseOrderNumber
+      ) {
+        const existingPurchase = purchases?.find(
+          (purchase: Purchase) =>
+            purchase.purchaseOrderNumber === values.purchaseOrderNumber
+        );
+        if (existingPurchase) {
+          toast.error("Purchase order number already exists");
+          return;
+        }
+      }
+
       await onSubmit({
         ...values,
         products: fields,
@@ -326,15 +319,13 @@ const PurchaseForm = ({
     } catch (error) {
       console.error("Error submitting form:", error);
       toast.error("Error submitting form");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   if (isLoadingEdit) {
-    return (
-      <div className="w-fit">
-        <Loading />
-      </div>
-    );
+    return <Loading />;
   }
 
   return (
@@ -388,10 +379,10 @@ const PurchaseForm = ({
             </CustomFormField>
           </div>
           <div className="flex flex-col justify-between sm:flex-row gap-4">
-            <div className="flex flex-col sm:flex-row gap-5">
-              <div className="flex flex-col gap-2">
-                <p>Product Name</p>
-                <p className="text-14-medium bg-white text-dark-500 border border-dark-700 h-11 rounded-md flex items-center px-3 w-full shadow-sm min-w-[200px]">
+            <div className="flex w-full flex-col sm:flex-row gap-5">
+              <div className="flex flex-1 flex-col gap-3">
+                <p className="text-14-medium text-blue-800">Product Name</p>
+                <p className="text-14-medium bg-white text-blue-800 border border-dark-700 h-[42px] rounded-md flex items-center px-3 w-full shadow-sm min-w-[200px]">
                   {selectedProductName || "Select a product"}
                 </p>
               </div>
@@ -437,7 +428,6 @@ const PurchaseForm = ({
                 <TableHead>#</TableHead>
                 <TableHead>Product</TableHead>
                 <TableHead>Lot Number</TableHead>
-                <TableHead>Brand</TableHead>
                 <TableHead>Quantity</TableHead>
                 <TableHead>Amount</TableHead>
                 <TableHead>Actions</TableHead>
@@ -456,7 +446,6 @@ const PurchaseForm = ({
                   <TableCell>{index + 1}</TableCell>
                   <TableCell>{entry.productName}</TableCell>
                   <TableCell>{entry.productLotNumber}</TableCell>
-                  <TableCell>{entry.productBrand}</TableCell>
                   <TableCell>{entry.quantity}</TableCell>
                   <TableCell>
                     <FormatNumber value={entry.totalPrice} />
@@ -483,7 +472,7 @@ const PurchaseForm = ({
               {fields.length > 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={6}
+                    colSpan={5}
                     className="text-right font-semibold text-blue-800 text-[17px] py-4"
                   >
                     Total Amount:
@@ -533,17 +522,17 @@ const PurchaseForm = ({
           <CustomFormField
             fieldType={FormFieldType.SELECT}
             control={form.control}
-            name="supplier"
-            label="Supplier"
-            placeholder="Select supplier"
+            name="vendor"
+            label="Vendor"
+            placeholder="Select vendor"
           >
-            {suppliers?.map((supplier: Supplier) => (
+            {vendors?.map((vendor: Vendor) => (
               <SelectItem
-                key={supplier.$id}
-                value={supplier.$id}
+                key={vendor.$id}
+                value={vendor.$id}
                 className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
               >
-                {supplier.name}
+                {vendor.name}
               </SelectItem>
             ))}
           </CustomFormField>
@@ -596,15 +585,13 @@ const PurchaseForm = ({
         />
 
         <div className="flex justify-end gap-4">
-          {onCancel && (
-            <Button
-              type="button"
-              onClick={onCancel}
-              className="shad-danger-btn"
-            >
-              Cancel
-            </Button>
-          )}
+          <Button
+            type="button"
+            onClick={() => form.reset()}
+            className="shad-danger-btn"
+          >
+            Cancel
+          </Button>
           <SubmitButton isLoading={isLoading} className="shad-primary-btn">
             {mode === "create" ? "Create Purchase" : "Update Purchase"}
           </SubmitButton>

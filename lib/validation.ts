@@ -1,6 +1,7 @@
 import {
   DeliveryStatus,
   PaymentMethod,
+  PaymentStatus,
   PurchaseStatus,
   QuotationStatus,
   SaleStatus,
@@ -82,7 +83,7 @@ export const ProductFormValidation = z.object({
   sellingPrice: z.number().min(0, "Price must be 0 or more"),
   quantity: z.number().int().min(0, "Quantity must be 0 or more"),
   category: z.string().nonempty("Category is required"),
-  brand: z.string().nonempty("Brand is required"),
+  vendor: z.string().nonempty("Vendor is required"),
   type: z.string().nonempty("Type is required"),
   unit: z.string().nonempty("Unit is required"),
   image: z.any().optional(),
@@ -114,7 +115,7 @@ export const PurchaseFormValidation = z.object({
   }),
   totalAmount: z.number().min(0, "Total amount must be 0 or more"),
   amountPaid: z.number().min(0, "Amount paid must be 0 or more"),
-  supplier: z.string().nonempty("Supplier is required"),
+  vendor: z.string().nonempty("Vendor is required"),
   status: z
     .enum(Object.values(PurchaseStatus) as [string, ...string[]])
     .default(PurchaseStatus.Pending),
@@ -134,7 +135,6 @@ export const PurchaseFormValidation = z.object({
         totalPrice: z.number().min(0, "Total price must be 0 or more"),
         productName: z.string().optional(),
         productLotNumber: z.string().optional(),
-        productBrand: z.string().optional(),
         productUnit: z.string().optional(),
       })
     )
@@ -147,14 +147,14 @@ export const PurchaseFormValidation = z.object({
 });
 export type PurchaseFormValues = z.infer<typeof PurchaseFormValidation>;
 
-// Suppliers
-export const SupplierFormValidation = z.object({
+// Vendors
+export const VendorFormValidation = z.object({
   name: z.string().nonempty("Name is required"),
   email: z.string().optional(),
   phone: z.string().optional(),
   address: z.string().optional(),
 });
-export type SupplierFormValues = z.infer<typeof SupplierFormValidation>;
+export type VendorFormValues = z.infer<typeof VendorFormValidation>;
 
 // Customers
 export const CustomerFormValidation = z.object({
@@ -188,6 +188,9 @@ export const SaleFormValidation = z.object({
   paymentMethod: z
     .enum(Object.values(PaymentMethod) as [string, ...string[]])
     .default(PaymentMethod.Cash),
+  paymentStatus: z
+    .enum(Object.values(PaymentStatus) as [string, ...string[]])
+    .default(PaymentStatus.Pending),
   deliveryStatus: z
     .enum(Object.values(DeliveryStatus) as [string, ...string[]])
     .default(DeliveryStatus.Pending),
@@ -201,7 +204,6 @@ export const SaleFormValidation = z.object({
         totalPrice: z.number().min(0, "Total price must be 0 or more"),
         productName: z.string().optional(),
         productLotNumber: z.string().optional(),
-        productBrand: z.string().optional(),
         productUnit: z.string().optional(),
       })
     )
@@ -276,7 +278,6 @@ export const QuotationFormValidation = z.object({
         totalPrice: z.number().min(0, "Total price must be 0 or more"),
         productName: z.string().optional(),
         productLotNumber: z.string().optional(),
-        productBrand: z.string().optional(),
         productUnit: z.string().optional(),
       })
     )

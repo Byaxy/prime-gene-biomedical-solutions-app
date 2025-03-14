@@ -49,7 +49,7 @@ export interface Product {
   sellingPrice: number;
   quantity: number;
   category: any;
-  brand: any;
+  vendor: any;
   type: any;
   unit: any;
   imageId: string;
@@ -64,7 +64,7 @@ export interface Expense {
   title: string;
   description: string;
   amount: number;
-  paymentMethod: "cash" | "check" | "mobile-money";
+  paymentMethod: PaymentMethod;
   expenseDate: Date;
   $createdAt: Date;
   $updatedAt: Date;
@@ -90,11 +90,11 @@ export interface Purchase {
   totalAmount: number;
   amountPaid: number;
   purchaseDate: Date;
-  supplier: any;
+  vendor: any;
   products: any[];
-  status: "pending" | "completed" | "cancelled";
-  paymentMethod: "cash" | "check" | "mobile-money" | "bank";
-  deliveryStatus: "pending" | "in-progress" | "delivered" | "cancelled";
+  status: PurchaseStatus;
+  paymentMethod: PaymentMethod;
+  deliveryStatus: DeliveryStatus;
   notes?: string;
   $createdAt: Date;
   $updatedAt: Date;
@@ -108,17 +108,18 @@ export interface Sale {
   customer: any;
   totalAmount: number;
   amountPaid: number;
-  status: "pending" | "completed" | "cancelled";
-  paymentMethod: "cash" | "check" | "mobile-money" | "bank";
-  deliveryStatus: "pending" | "in-progress" | "delivered" | "cancelled";
+  status: SaleStatus;
+  paymentMethod: PaymentMethod;
+  paymentStatus: PaymentStatus;
+  deliveryStatus: DeliveryStatus;
   notes: string;
   products: any[];
   $createdAt: Date;
   $updatedAt: Date;
 }
 
-// Suppliers
-export interface Supplier {
+// Vendors
+export interface Vendor {
   $id: string;
   name: string;
   email: string;
@@ -165,7 +166,7 @@ export interface Quotation {
   customer: any;
   totalAmount: number;
   amountPaid: number;
-  status: "pending" | "completed" | "cancelled";
+  status: QuotationStatus;
   paymentMethod: PaymentMethod;
   notes: string;
   products: any[];
@@ -208,4 +209,12 @@ export enum PurchaseStatus {
   Pending = "pending",
   Completed = "completed",
   Cancelled = "cancelled",
+}
+
+// Payment Status
+export enum PaymentStatus {
+  Pending = "pending",
+  Partial = "partial",
+  Paid = "paid",
+  Due = "due",
 }

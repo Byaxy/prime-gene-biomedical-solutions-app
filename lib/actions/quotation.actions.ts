@@ -162,9 +162,35 @@ export const editQuotation = async (
     );
 
     revalidatePath("/quotations");
+    revalidatePath(`/quotations/edit-quotation/${quotationId}`);
     return parseStringify(updateQuotationResponse);
   } catch (error) {
     console.error("Error updating quotation:", error);
+    throw error;
+  }
+};
+
+// get quotation by id
+export const getQuotationById = async (quotationId: string) => {
+  try {
+    const response = await databases.getDocument(
+      DATABASE_ID!,
+      NEXT_PUBLIC_QUOTATIONS_COLLECTION_ID!,
+      quotationId
+    );
+
+    // Get quotation items for the quotation
+    const items = await databases.listDocuments(
+      DATABASE_ID!,
+      NEXT_PUBLIC_QUOTATION_ITEMS_COLLECTION_ID!,
+      [Query.equal("quotation", quotationId)]
+    );
+
+    response.products = items.documents;
+
+    return parseStringify(response);
+  } catch (error) {
+    console.error("Error getting quotation:", error);
     throw error;
   }
 };

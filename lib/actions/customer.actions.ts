@@ -77,6 +77,23 @@ export const getCustomers = async (
   }
 };
 
+// Get Single Customer
+export const getCustomerById = async (customerId: string) => {
+  try {
+    const response = await databases.getDocument(
+      DATABASE_ID!,
+      NEXT_PUBLIC_CUSTOMERS_COLLECTION_ID!,
+      customerId
+    );
+
+    console.log(response);
+    return parseStringify(response);
+  } catch (error) {
+    console.error("Error getting customer:", error);
+    throw error;
+  }
+};
+
 // Add Customer
 export const addCustomer = async (customerData: CustomerFormValues) => {
   try {
@@ -109,6 +126,7 @@ export const editCustomer = async (
     );
 
     revalidatePath("/customers");
+    revalidatePath(`/customers/edit-customer/${customerId}`);
     return parseStringify(response);
   } catch (error) {
     console.error("Error editing customer:", error);

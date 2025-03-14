@@ -194,7 +194,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 
         {/** Main Content */}
         <Box
-          className="min-h-screen w-full bg-light-200 px-5 py-5"
+          className="min-h-screen w-full bg-light-200 px-5 md:px-10 py-5 md:py-10"
           component="main"
         >
           <DrawerHeader />

@@ -1,3 +1,4 @@
+"use client";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { E164Number } from "libphonenumber-js/core";
@@ -20,6 +21,17 @@ import "react-datepicker/dist/react-datepicker.css";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
 import { NumericFormat } from "react-number-format";
 import DatePicker from "react-datepicker";
+import { Button } from "./ui/button";
+import AddIcon from "@mui/icons-material/Add";
+import {
+  Children,
+  isValidElement,
+  ReactElement,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { Search } from "lucide-react";
 
 export enum FormFieldType {
   INPUT = "input",
@@ -47,11 +59,69 @@ interface CustomProps {
   renderSkeleton?: (field: any) => React.ReactNode;
   fieldType: FormFieldType;
   onValueChange?: (value: any) => void;
+  onAddNew?: () => void;
 }
 
 const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
   const { companySettings } = useCompanySettings();
   const currencySymbol = companySettings?.[0]?.currencySymbol || "$";
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filteredChildren, setFilteredChildren] = useState(props.children);
+  const [childrenCount, setChildrenCount] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Filter children based on search term for Select
+  useEffect(() => {
+    if (props.fieldType === FormFieldType.SELECT && props.children) {
+      const childrenArray = Children.toArray(props.children);
+      setChildrenCount(childrenArray.length);
+
+      const filtered = childrenArray.filter((child) => {
+        if (isValidElement(child) && searchTerm) {
+          // Get the text content of the child (SelectItem)
+          const childText =
+            (child as ReactElement<any>).props.children
+              ?.toString()
+              .toLowerCase() || "";
+          return childText.includes(searchTerm.toLowerCase());
+        }
+        return true;
+      });
+
+      setFilteredChildren(filtered);
+    } else {
+      setFilteredChildren(props.children);
+    }
+  }, [searchTerm, props.children, props.fieldType]);
+
+  // Handle search input change while maintaining focus
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value);
+    // Ensure focus is maintained after state update
+    setTimeout(() => {
+      if (searchInputRef.current) {
+        searchInputRef.current.focus();
+      }
+    }, 0);
+  };
+
+  // Prevent default behavior for dropdown key events to avoid losing focus
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Prevent propagation of arrow keys, Enter, and Escape to stop dropdown behavior
+    if (["ArrowDown", "ArrowUp", "Enter", "Escape"].includes(e.key)) {
+      e.stopPropagation();
+    }
+  };
+
+  // Focus the search input when it appears
+  useEffect(() => {
+    if (childrenCount > 5 && searchInputRef.current) {
+      const timeoutId = setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [childrenCount]);
 
   switch (props.fieldType) {
     case FormFieldType.INPUT:
@@ -209,8 +279,48 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
                   <SelectValue placeholder={props.placeholder} />
                 </SelectTrigger>
               </FormControl>
-              <SelectContent className="shad-select-content">
-                {props.children}
+              <SelectContent
+                className="shad-select-content"
+                onCloseAutoFocus={(e) => {
+                  e.preventDefault();
+                }}
+              >
+                {childrenCount > 5 && (
+                  <div
+                    className="sticky top-0 bg-white px-2 py-2 z-10"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center rounded-md border border-dark-700 bg-white">
+                      <Search className="ml-2 h-4 w-4 opacity-50" />
+                      <Input
+                        ref={searchInputRef}
+                        placeholder="Search..."
+                        value={searchTerm}
+                        onChange={handleSearchChange}
+                        onKeyDown={handleSearchKeyDown}
+                        className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                  </div>
+                )}
+                <div className="max-h-[300px] overflow-y-auto">
+                  {filteredChildren}
+                </div>
+                {props?.onAddNew && (
+                  <div className="py-1.5 sticky bottom-0 bg-white z-10">
+                    <Button
+                      type="button"
+                      className="shad-primary-btn flex flex-row items-center justify-center gap-1 w-full"
+                      onClick={props.onAddNew}
+                    >
+                      <AddIcon className="h-6 w-6" />
+                      <span className="text-white font-medium capitalize">
+                        Add New
+                      </span>
+                    </Button>
+                  </div>
+                )}
               </SelectContent>
             </Select>
           </FormControl>

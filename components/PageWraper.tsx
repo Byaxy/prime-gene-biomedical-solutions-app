@@ -7,6 +7,7 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useRouter } from "next/navigation";
 import { Suspense } from "react";
 import "@/app/dynamic-routes";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -14,11 +15,13 @@ const PageWraper = ({
   title,
   buttonText,
   buttonAction,
+  buttonPath,
   children,
 }: {
   title: string;
-  buttonText: string;
-  buttonAction: () => void;
+  buttonText?: string;
+  buttonAction?: () => void;
+  buttonPath?: string;
   children: React.JSX.Element;
 }) => {
   const router = useRouter();
@@ -36,15 +39,27 @@ const PageWraper = ({
               <ArrowBackIcon className="h-6 w-6" />
               <span className=" font-medium capitalize">Back</span>
             </Button>
-            <Button
-              onClick={buttonAction}
-              className="shad-primary-btn flex flex-row items-center justify-center gap-1"
-            >
-              <AddIcon className="h-6 w-6" />
-              <span className="text-white font-medium capitalize">
-                {buttonText}
-              </span>
-            </Button>
+            {buttonAction && (
+              <Button
+                onClick={buttonAction}
+                className="shad-primary-btn flex flex-row items-center justify-center gap-1"
+              >
+                <AddIcon className="h-6 w-6" />
+                <span className="text-white font-medium capitalize">
+                  {buttonText}
+                </span>
+              </Button>
+            )}
+            {buttonPath && (
+              <Link href={buttonPath}>
+                <Button className="shad-primary-btn flex flex-row items-center justify-center gap-1">
+                  <AddIcon className="h-6 w-6" />
+                  <span className="text-white font-medium capitalize">
+                    {buttonText}
+                  </span>
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
         <div className="w-full">{{ ...children }}</div>

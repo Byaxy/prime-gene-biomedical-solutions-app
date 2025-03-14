@@ -1,4 +1,4 @@
-import { SupplierFormValidation, SupplierFormValues } from "@/lib/validation";
+import { VendorFormValidation, VendorFormValues } from "@/lib/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -6,24 +6,25 @@ import { Button } from "../ui/button";
 import SubmitButton from "../SubmitButton";
 import CustomFormField, { FormFieldType } from "../CustomFormField";
 import { Form } from "../ui/form";
+import { Vendor } from "@/types/appwrite.types";
 
-interface SupplierFormProps {
+interface VendorFormProps {
   mode: "create" | "edit";
-  initialData?: SupplierFormValues;
-  onSubmit: (data: SupplierFormValues) => Promise<void>;
+  initialData?: Vendor;
+  onSubmit: (data: VendorFormValues) => Promise<void>;
   onCancel?: () => void;
 }
 
-const SupplierForm = ({
+const VendorForm = ({
   mode,
   initialData,
   onSubmit,
   onCancel,
-}: SupplierFormProps) => {
+}: VendorFormProps) => {
   const [isLoading, setIsLoading] = useState(false);
 
-  const form = useForm<SupplierFormValues>({
-    resolver: zodResolver(SupplierFormValidation),
+  const form = useForm<VendorFormValues>({
+    resolver: zodResolver(VendorFormValidation),
     defaultValues: initialData || {
       name: "",
       email: "",
@@ -31,7 +32,7 @@ const SupplierForm = ({
     },
   });
 
-  const handleSubmit = async (values: SupplierFormValues) => {
+  const handleSubmit = async (values: VendorFormValues) => {
     setIsLoading(true);
     try {
       await onSubmit(values);
@@ -54,7 +55,7 @@ const SupplierForm = ({
             control={form.control}
             name="name"
             label="Name"
-            placeholder="Enter supplier name"
+            placeholder="Enter vendor name"
           />
 
           <CustomFormField
@@ -78,7 +79,7 @@ const SupplierForm = ({
             control={form.control}
             name="address"
             label="Address"
-            placeholder="Enter supplier address"
+            placeholder="Enter vendor address"
           />
         </div>
 
@@ -93,7 +94,7 @@ const SupplierForm = ({
             </Button>
           )}
           <SubmitButton isLoading={isLoading} className="shad-primary-btn">
-            {mode === "create" ? "Create Supplier" : "Update Supplier"}
+            {mode === "create" ? "Create Vendor" : "Update Vendor"}
           </SubmitButton>
         </div>
       </form>
@@ -101,4 +102,4 @@ const SupplierForm = ({
   );
 };
 
-export default SupplierForm;
+export default VendorForm;

@@ -1,3 +1,5 @@
+"use client";
+
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ProductFormValues } from "@/lib/validation";
 import toast from "react-hot-toast";
@@ -98,7 +100,7 @@ export const useProducts = ({
         sellingPrice: data.sellingPrice,
         quantity: data.quantity,
         category: data.category,
-        brand: data.brand,
+        vendor: data.vendor,
         type: data.type,
         unit: data.unit,
         description: data.description,
@@ -166,7 +168,7 @@ export const useProducts = ({
           sellingPrice: data.sellingPrice,
           quantity: data.quantity,
           category: data.category,
-          brand: data.brand,
+          vendor: data.vendor,
           type: data.type,
           unit: data.unit,
           description: data.description,

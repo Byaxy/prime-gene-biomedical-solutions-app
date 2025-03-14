@@ -2,12 +2,12 @@
 
 import { ColumnDef } from "@tanstack/table-core";
 import { formatDateTime } from "@/lib/utils";
-import { Supplier } from "@/types/appwrite.types";
+import { Vendor } from "@/types/appwrite.types";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import SupplierActions from "@/components/suppliers/SupplierActions";
+import VendorActions from "@/components/vendors/VendorActions";
 
-export const suppliersColumns: ColumnDef<Supplier>[] = [
+export const vendorsColumns: ColumnDef<Vendor>[] = [
   {
     header: "#",
     cell: ({ row }) => {
@@ -31,32 +31,32 @@ export const suppliersColumns: ColumnDef<Supplier>[] = [
     },
 
     cell: ({ row }) => {
-      const supplier = row.original;
-      return <p className="text-14-medium ">{supplier.name}</p>;
+      const vendor = row.original;
+      return <p className="text-14-medium ">{vendor.name}</p>;
     },
   },
   {
     accessorKey: "email",
     header: "Email",
     cell: ({ row }) => {
-      const supplier = row.original;
-      return <p className="text-14-medium ">{supplier.email || "-"}</p>;
+      const vendor = row.original;
+      return <p className="text-14-medium ">{vendor.email || "-"}</p>;
     },
   },
   {
     accessorKey: "phone",
     header: "Phone",
     cell: ({ row }) => {
-      const supplier = row.original;
-      return <p className="text-14-medium ">{supplier.phone || "-"}</p>;
+      const vendor = row.original;
+      return <p className="text-14-medium ">{vendor.phone || "-"}</p>;
     },
   },
   {
     accessorKey: "address",
     header: "Address",
     cell: ({ row }) => {
-      const supplier = row.original;
-      return <p className="text-14-medium ">{supplier.address || "-"}</p>;
+      const vendor = row.original;
+      return <p className="text-14-medium ">{vendor.address || "-"}</p>;
     },
   },
   {
@@ -74,10 +74,10 @@ export const suppliersColumns: ColumnDef<Supplier>[] = [
       );
     },
     cell: ({ row }) => {
-      const supplier = row.original;
+      const vendor = row.original;
       return (
         <p className="text-14-medium ">
-          {formatDateTime(supplier.$createdAt).dateTime}
+          {formatDateTime(vendor.$createdAt).dateTime}
         </p>
       );
     },
@@ -97,10 +97,10 @@ export const suppliersColumns: ColumnDef<Supplier>[] = [
       );
     },
     cell: ({ row }) => {
-      const supplier = row.original;
+      const vendor = row.original;
       return (
         <p className="text-14-medium">
-          {formatDateTime(supplier.$updatedAt).dateTime}
+          {formatDateTime(vendor.$updatedAt).dateTime}
         </p>
       );
     },
@@ -109,7 +109,7 @@ export const suppliersColumns: ColumnDef<Supplier>[] = [
     id: "actions",
     header: "Actions",
     cell: ({ row }) => {
-      return <SupplierActions supplier={row.original} />;
+      return <VendorActions vendor={row.original} />;
     },
   },
 ];

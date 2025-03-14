@@ -3,31 +3,20 @@ import { useState } from "react";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useQuotations } from "@/hooks/useQuotations";
-import { QuotationFormValues } from "@/lib/validation";
 import QuotationDialog from "./QuotationsDialog";
-import QuotationSheet from "./QuotationSheet";
+import { useRouter } from "next/navigation";
 
 const QuotationActions = ({ quotation }: { quotation: Quotation }) => {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"add" | "edit" | "delete">("add");
 
-  const {
-    editQuotation,
-    deleteQuotation,
-    isDeletingQuotation,
-    isEditingQuotation,
-  } = useQuotations();
+  const router = useRouter();
 
-  const handleAction = async (data: QuotationFormValues) => {
+  const { deleteQuotation, isDeletingQuotation } = useQuotations();
+
+  const handleAction = async () => {
     try {
-      if (mode === "edit") {
-        await editQuotation(
-          { id: quotation.$id, data },
-          {
-            onSuccess: () => setOpen(false),
-          }
-        );
-      } else if (mode === "delete") {
+      if (mode === "delete") {
         await deleteQuotation(quotation.$id, {
           onSuccess: () => setOpen(false),
         });
@@ -42,7 +31,7 @@ const QuotationActions = ({ quotation }: { quotation: Quotation }) => {
       <span
         onClick={() => {
           setMode("edit");
-          setOpen(true);
+          router.push(`/quotations/edit-quotation/${quotation.$id}`);
         }}
         className="text-[#475BE8] p-1 hover:bg-white hover:rounded-md cursor-pointer"
       >
@@ -57,14 +46,7 @@ const QuotationActions = ({ quotation }: { quotation: Quotation }) => {
       >
         <DeleteIcon className="h-5 w-5" />
       </span>
-      <QuotationSheet
-        mode={"edit"}
-        open={open && mode === "edit"}
-        onOpenChange={setOpen}
-        quotation={quotation}
-        onSubmit={handleAction}
-        isLoading={isEditingQuotation}
-      />
+
       <QuotationDialog
         mode="delete"
         open={open && mode === "delete"}

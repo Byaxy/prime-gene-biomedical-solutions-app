@@ -146,13 +146,13 @@ export const purchasesColumns: ColumnDef<Purchase>[] = [
     },
   },
   {
-    accessorKey: "supplier",
-    header: "Supplier",
+    accessorKey: "vendor",
+    header: "Vendor",
     cell: ({ row }) => {
       const purchase = row.original;
       return (
         <p className="text-14-medium ">
-          {purchase.supplier ? purchase.supplier.name : "-"}
+          {purchase.vendor ? purchase.vendor.name : "-"}
         </p>
       );
     },

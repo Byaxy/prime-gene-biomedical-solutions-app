@@ -38,7 +38,7 @@ export function ProductDialog({
         sellingPrice: product?.sellingPrice || 0,
         quantity: product?.quantity || 0,
         category: product?.category || "",
-        brand: product?.brand || "",
+        vendor: product?.vendor || "",
         type: product?.type || "",
         unit: product?.unit || "",
       });
@@ -48,19 +48,6 @@ export function ProductDialog({
     } finally {
     }
   };
-
-  const dialogTitle = {
-    add: "Add Product",
-    edit: "Edit Product",
-    delete: "Delete Product",
-  }[mode];
-
-  const dialogDescription = {
-    add: "Add a new product to your collection.",
-    edit: "Edit the selected product.",
-    delete:
-      "Are you sure you want to delete this product? This action cannot be undone.",
-  }[mode];
 
   return (
     <div>
@@ -74,10 +61,11 @@ export function ProductDialog({
           >
             <DialogHeader className="space-y-2">
               <DialogTitle className="text-xl text-blue-800">
-                {dialogTitle}
+                Delete Inventory
               </DialogTitle>
               <DialogDescription className="text-dark-500">
-                {dialogDescription}
+                Are you sure you want to delete this inventory? This action
+                cannot be undone.
               </DialogDescription>
             </DialogHeader>
 

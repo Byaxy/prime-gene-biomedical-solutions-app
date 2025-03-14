@@ -1,3 +1,5 @@
+"use client";
+
 import Loading from "@/components/loading";
 import { useProducts } from "@/hooks/useProducts";
 import { getProductById } from "@/lib/actions/product.actions";
@@ -32,14 +34,12 @@ import SubmitButton from "../SubmitButton";
 import { useCustomers } from "@/hooks/useCustomers";
 import FormatNumber from "@/components/FormatNumber";
 import { useQuotations } from "@/hooks/useQuotations";
+import { useRouter } from "next/navigation";
 
 interface ProductType extends Product {
   $id: string;
   name: string;
   lotNumber: string;
-  brand: {
-    name: string;
-  };
   unit: {
     name: string;
     code: string;
@@ -55,7 +55,6 @@ interface QuotationProduct {
   totalPrice: number;
   productName?: string;
   productLotNumber?: string;
-  productBrand?: string;
   productUnit?: string;
 }
 
@@ -63,8 +62,6 @@ interface QuotationFormProps {
   mode: "create" | "edit";
   initialData?: Quotation;
   onSubmit: (data: QuotationFormValues) => Promise<void>;
-  onCancel: () => void;
-  isLoading: boolean;
 }
 
 type FormProduct = Omit<QuotationProduct, "product"> & {
@@ -75,19 +72,16 @@ type ExtendedQuotationFormValues = Omit<QuotationFormValues, "products"> & {
   products: FormProduct[];
 };
 
-const QuotationForm = ({
-  mode,
-  initialData,
-  onSubmit,
-  onCancel,
-  isLoading,
-}: QuotationFormProps) => {
+const QuotationForm = ({ mode, initialData, onSubmit }: QuotationFormProps) => {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [selectedProductName, setSelectedProductName] = useState<string>("");
   const [isLoadingEdit, setIsLoadingEdit] = useState(mode === "edit");
   const { products } = useProducts({ getAllProducts: true });
   const { customers } = useCustomers({ getAllCustomers: true });
   const { quotations } = useQuotations({ getAllQuotations: true });
+
+  const router = useRouter();
 
   const defaultValues = {
     quotationNumber: "",
@@ -152,7 +146,6 @@ const QuotationForm = ({
                   product: productId,
                   productName: productDetails.name,
                   productLotNumber: productDetails.lotNumber,
-                  productBrand: productDetails.brand.name,
                   productUnit: productDetails.unit.code,
                 };
               } catch (error) {
@@ -238,7 +231,6 @@ const QuotationForm = ({
         totalPrice: unitPrice * quantity,
         productName: selectedProduct.name,
         productLotNumber: selectedProduct.lotNumber,
-        productBrand: selectedProduct.brand.name,
         productUnit: selectedProduct.unit.code,
       };
 
@@ -285,62 +277,67 @@ const QuotationForm = ({
   };
 
   const handleSubmit = async () => {
-    const values = form.getValues();
-    const totalAmount = calculateTotalAmount();
+    try {
+      setIsLoading(true);
+      const values = form.getValues();
+      const totalAmount = calculateTotalAmount();
 
-    if (fields.length === 0) {
-      toast.error("At least one product is required");
-      return;
-    }
+      if (fields.length === 0) {
+        toast.error("At least one product is required");
+        return;
+      }
 
-    if (values.amountPaid > totalAmount) {
-      toast.error("Amount paid exceeds total amount");
-      return;
-    }
+      if (values.amountPaid > totalAmount) {
+        toast.error("Amount paid exceeds total amount");
+        return;
+      }
 
-    const existingQuotation = quotations?.find(
-      (quotation: Quotation) =>
-        quotation.quotationNumber === values.quotationNumber
-    );
-    if (existingQuotation && mode === "create") {
-      toast.error("A Quotaion with the same quotation number already exists.");
-      return;
-    }
-
-    if (
-      mode === "edit" &&
-      initialData?.quotationNumber !== values.quotationNumber
-    ) {
       const existingQuotation = quotations?.find(
         (quotation: Quotation) =>
           quotation.quotationNumber === values.quotationNumber
       );
-      if (existingQuotation) {
+      if (existingQuotation && mode === "create") {
         toast.error(
           "A Quotaion with the same quotation number already exists."
         );
         return;
       }
-    }
 
-    try {
+      if (
+        mode === "edit" &&
+        initialData?.quotationNumber !== values.quotationNumber
+      ) {
+        const existingQuotation = quotations?.find(
+          (quotation: Quotation) =>
+            quotation.quotationNumber === values.quotationNumber
+        );
+        if (existingQuotation) {
+          toast.error(
+            "A Quotaion with the same quotation number already exists."
+          );
+          return;
+        }
+      }
+
       await onSubmit({
         ...values,
         products: fields,
         totalAmount,
       });
+
+      if (mode === "create") {
+        form.reset();
+      }
     } catch (error) {
       console.error("Error submitting form:", error);
       toast.error("Error submitting form");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   if (isLoadingEdit) {
-    return (
-      <div className="w-fit">
-        <Loading />
-      </div>
-    );
+    return <Loading />;
   }
 
   return (
@@ -381,6 +378,7 @@ const QuotationForm = ({
               name="selectedProduct"
               label="Select Product"
               placeholder="Select product"
+              onAddNew={() => router.push("/inventory/add-inventory")}
             >
               {products?.map((product: Product) => (
                 <SelectItem
@@ -394,10 +392,10 @@ const QuotationForm = ({
             </CustomFormField>
           </div>
           <div className="w-full flex flex-col justify-between sm:flex-row gap-4">
-            <div className="flex flex-col sm:flex-row gap-5">
-              <div className="flex flex-col gap-2">
-                <p>Product Name</p>
-                <p className="text-14-medium bg-white text-dark-500 border border-dark-700 h-11 rounded-md flex items-center px-3 w-full shadow-sm min-w-[200px]">
+            <div className="flex w-full flex-col sm:flex-row gap-5">
+              <div className="flex flex-1 flex-col gap-3">
+                <p className="text-14-medium text-blue-800">Product Name</p>
+                <p className="text-14-medium bg-white text-blue-800 border border-dark-700 h-[42px] rounded-md flex items-center px-3 w-full shadow-sm min-w-[200px]">
                   {selectedProductName || "Select a product"}
                 </p>
               </div>
@@ -443,7 +441,6 @@ const QuotationForm = ({
                 <TableHead>#</TableHead>
                 <TableHead>Product</TableHead>
                 <TableHead>Lot Number</TableHead>
-                <TableHead>Brand</TableHead>
                 <TableHead>Quantity</TableHead>
                 <TableHead>Amount</TableHead>
                 <TableHead>Actions</TableHead>
@@ -462,7 +459,6 @@ const QuotationForm = ({
                   <TableCell>{index + 1}</TableCell>
                   <TableCell>{entry.productName}</TableCell>
                   <TableCell>{entry.productLotNumber}</TableCell>
-                  <TableCell>{entry.productBrand}</TableCell>
                   <TableCell>
                     {entry.quantity}
                     {entry.productUnit}
@@ -492,7 +488,7 @@ const QuotationForm = ({
               {fields.length > 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={6}
+                    colSpan={5}
                     className="text-right font-semibold text-blue-800 text-[17px] py-4"
                   >
                     Total Amount:
@@ -585,15 +581,13 @@ const QuotationForm = ({
         />
 
         <div className="flex justify-end gap-4">
-          {onCancel && (
-            <Button
-              type="button"
-              onClick={onCancel}
-              className="shad-danger-btn"
-            >
-              Cancel
-            </Button>
-          )}
+          <Button
+            type="button"
+            onClick={() => form.reset()}
+            className="shad-danger-btn"
+          >
+            Cancel
+          </Button>
           <SubmitButton isLoading={isLoading} className="shad-primary-btn">
             {mode === "create" ? "Create Quotation" : "Update Quotation"}
           </SubmitButton>

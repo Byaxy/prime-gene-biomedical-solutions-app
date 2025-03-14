@@ -43,21 +43,21 @@ export const FileUploader = ({
         <div className="flex flex-col items-center justify-center space-y-3">
           <Image
             src={convertFileToUrl(files[0])}
-            width={80}
-            height={80}
+            width={200}
+            height={200}
             alt="uploaded image"
-            className="max-h-[80px] overflow-hidden object-cover rounded-md"
+            className="max-h-[400px] lg:w-[400px] overflow-hidden object-cover rounded-md"
           />
-          <p className="text-12-regular text-blue-800">Click to change image</p>
+          <p className="text-14-regular text-blue-800">Click to change image</p>
         </div>
       ) : showCurrentImage ? (
         <div className="flex flex-col items-center justify-center space-y-3">
           <Image
             src={currentImageUrl}
-            width={100}
-            height={100}
+            width={200}
+            height={200}
             alt="current image"
-            className="max-h-[100px] overflow-hidden object-cover"
+            className="max-h-[400px] lg:w-[400px] overflow-hidden object-cover"
             priority={true}
           />
           <p className="text-12-regular mt-2 text-blue-800">

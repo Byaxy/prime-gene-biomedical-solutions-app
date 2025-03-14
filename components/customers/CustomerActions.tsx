@@ -1,31 +1,23 @@
 import { useState } from "react";
-import { CustomerFormValues } from "@/lib/validation";
 import { Customer } from "@/types/appwrite.types";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useCustomers } from "@/hooks/useCustomers";
 import CustomerDialog from "./CustomerDialog";
+import { useRouter } from "next/navigation";
 
 const CustomerActions = ({ customer }: { customer: Customer }) => {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"add" | "edit" | "delete">("add");
 
-  const {
-    softDeleteCustomer,
-    editCustomer,
-    isSoftDeletingCustomer,
-    isEditingCustomer,
-  } = useCustomers();
+  const router = useRouter();
 
-  const handleAction = async (data: CustomerFormValues) => {
+  const { softDeleteCustomer, isSoftDeletingCustomer, isEditingCustomer } =
+    useCustomers();
+
+  const handleAction = async () => {
     try {
-      if (mode === "edit") {
-        await editCustomer(
-          { id: customer.$id, data },
-          { onSuccess: () => setOpen(false) }
-        );
-        setOpen(false);
-      } else if (mode === "delete") {
+      if (mode === "delete") {
         await softDeleteCustomer(customer.$id, {
           onSuccess: () => setOpen(false),
         });
@@ -34,12 +26,13 @@ const CustomerActions = ({ customer }: { customer: Customer }) => {
       console.error("Error:", error);
     }
   };
+
   return (
     <div className="flex items-center">
       <span
         onClick={() => {
           setMode("edit");
-          setOpen(true);
+          router.push(`/customers/edit-customer/${customer.$id}`);
         }}
         className="text-[#475BE8] p-1 hover:bg-white hover:rounded-md cursor-pointer"
       >

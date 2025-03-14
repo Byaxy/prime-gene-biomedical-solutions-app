@@ -1,3 +1,5 @@
+"use client";
+
 import { CustomerFormValidation, CustomerFormValues } from "@/lib/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
@@ -6,20 +8,15 @@ import { Button } from "../ui/button";
 import SubmitButton from "../SubmitButton";
 import CustomFormField, { FormFieldType } from "../CustomFormField";
 import { Form } from "../ui/form";
+import { Customer } from "@/types/appwrite.types";
 
 interface CustomerFormProps {
   mode: "create" | "edit";
-  initialData?: CustomerFormValues;
+  initialData?: Customer;
   onSubmit: (data: CustomerFormValues) => Promise<void>;
-  onCancel?: () => void;
 }
 
-const CustomerForm = ({
-  mode,
-  initialData,
-  onSubmit,
-  onCancel,
-}: CustomerFormProps) => {
+const CustomerForm = ({ mode, initialData, onSubmit }: CustomerFormProps) => {
   const [isLoading, setIsLoading] = useState(false);
 
   const form = useForm<CustomerFormValues>({
@@ -46,7 +43,7 @@ const CustomerForm = ({
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit(handleSubmit)}
-        className="text-dark-500"
+        className="text-dark-500 lg:max-w-4xl"
       >
         <div className="flex flex-col space-y-5 overflow-y-auto max-h-[60vh] pb-5 remove-scrollbar">
           <CustomFormField
@@ -82,15 +79,13 @@ const CustomerForm = ({
         </div>
 
         <div className="flex justify-end gap-4 mt-4">
-          {onCancel && (
-            <Button
-              type="button"
-              onClick={onCancel}
-              className="shad-danger-btn"
-            >
-              Cancel
-            </Button>
-          )}
+          <Button
+            type="button"
+            onClick={() => form.reset()}
+            className="shad-danger-btn"
+          >
+            Cancel
+          </Button>
           <SubmitButton isLoading={isLoading} className="shad-primary-btn">
             {mode === "create" ? "Create Customer" : "Update Customer"}
           </SubmitButton>

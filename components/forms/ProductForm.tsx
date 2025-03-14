@@ -1,3 +1,5 @@
+"use client";
+
 import { ProductFormValidation, ProductFormValues } from "@/lib/validation";
 import SubmitButton from "../SubmitButton";
 import CustomFormField, { FormFieldType } from "../CustomFormField";
@@ -8,7 +10,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "../ui/button";
 import { useCategories } from "@/hooks/useCategories";
 import {
-  Brand,
+  Vendor,
   Category,
   Product,
   ProductType,
@@ -16,31 +18,27 @@ import {
 } from "@/types/appwrite.types";
 import { SelectItem } from "../ui/select";
 import { useTypes } from "@/hooks/useTypes";
-
 import { useUnits } from "@/hooks/useUnits";
 import { FileUploader } from "../FileUploader";
-import { useBrands } from "@/hooks/useBrands";
+import { useVendors } from "@/hooks/useVendors";
 import { useProducts } from "@/hooks/useProducts";
 import toast from "react-hot-toast";
+import { useRouter } from "next/navigation";
 
 interface ProductFormProps {
   mode: "create" | "edit";
   initialData?: Product;
   onSubmit: (data: ProductFormValues, prevImageId?: string) => Promise<void>;
-  onCancel?: () => void;
 }
-const ProductForm = ({
-  mode,
-  initialData,
-  onSubmit,
-  onCancel,
-}: ProductFormProps) => {
+const ProductForm = ({ mode, initialData, onSubmit }: ProductFormProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const { categories } = useCategories({ getAllCategories: true });
   const { types } = useTypes({ getAllTypes: true });
   const { units } = useUnits({ getAllUnits: true });
-  const { brands } = useBrands({ getAllBrands: true });
+  const { vendors } = useVendors({ getAllVendors: true });
   const { products } = useProducts({ getAllProducts: true });
+
+  const router = useRouter();
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(ProductFormValidation),
@@ -52,7 +50,7 @@ const ProductForm = ({
       sellingPrice: 0,
       quantity: 0,
       category: "",
-      brand: "",
+      vendor: "",
       type: "",
       unit: "",
       image: [],
@@ -101,13 +99,13 @@ const ProductForm = ({
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit(handleSubmit)}
-        className="space-y-5 text-dark-500"
+        className="space-y-5 text-dark-500 lg:max-w-5xl"
       >
         <CustomFormField
           fieldType={FormFieldType.SKELETON}
           control={form.control}
           name="image"
-          label="Profile Image"
+          label="Image"
           renderSkeleton={(field) => (
             <FormControl>
               <FileUploader
@@ -140,17 +138,18 @@ const ProductForm = ({
           <CustomFormField
             fieldType={FormFieldType.SELECT}
             control={form.control}
-            name="brand"
-            label="Brand"
-            placeholder="Select brand"
+            name="vendor"
+            label="Vendor"
+            placeholder="Select vendor"
+            onAddNew={() => router.push("/vendors/add-vendor")}
           >
-            {brands?.map((brand: Brand) => (
+            {vendors?.map((vendor: Vendor) => (
               <SelectItem
-                key={brand.$id}
-                value={brand.$id}
-                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+                key={vendor.$id}
+                value={vendor.$id}
+                className="text-14-medium text-blue-800 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
               >
-                {brand.name}
+                {vendor.name}
               </SelectItem>
             ))}
           </CustomFormField>
@@ -163,12 +162,13 @@ const ProductForm = ({
             name="category"
             label="Category"
             placeholder="Select category"
+            onAddNew={() => router.push("/settings/categories")}
           >
             {categories?.map((category: Category) => (
               <SelectItem
                 key={category.$id}
                 value={category.$id}
-                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+                className="text-14-medium text-blue-800 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
               >
                 {category.name}
               </SelectItem>
@@ -181,12 +181,13 @@ const ProductForm = ({
             name="type"
             label="Type"
             placeholder="Select type"
+            onAddNew={() => router.push("/settings/types")}
           >
             {types?.map((productType: ProductType) => (
               <SelectItem
                 key={productType.$id}
                 value={productType.$id}
-                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+                className="text-14-medium text-blue-800 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
               >
                 {productType.name}
               </SelectItem>
@@ -226,12 +227,13 @@ const ProductForm = ({
             name="unit"
             label="Unit of Measure"
             placeholder="Select unit of measure"
+            onAddNew={() => router.push("/settings/units")}
           >
             {units?.map((unit: Unit) => (
               <SelectItem
                 key={unit.$id}
                 value={unit.$id}
-                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+                className="text-14-medium text-blue-800 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
               >
                 {unit.name} ({unit.code})
               </SelectItem>
@@ -248,15 +250,14 @@ const ProductForm = ({
         />
 
         <div className="flex justify-end gap-4 py-5">
-          {onCancel && (
-            <Button
-              type="button"
-              onClick={onCancel}
-              className="shad-danger-btn"
-            >
-              Cancel
-            </Button>
-          )}
+          <Button
+            type="button"
+            onClick={() => form.reset()}
+            className="shad-danger-btn"
+          >
+            Cancel
+          </Button>
+
           <SubmitButton isLoading={isLoading} className="shad-primary-btn">
             {mode === "create" ? "Create Product" : "Update Product"}
           </SubmitButton>

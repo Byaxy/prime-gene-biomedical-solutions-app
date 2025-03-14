@@ -33,6 +33,7 @@ export const addSale = async (sale: SaleFormValues) => {
       customer: sale.customer,
       status: sale.status,
       paymentMethod: sale.paymentMethod,
+      paymentStatus: sale.paymentStatus,
       deliveryStatus: sale.deliveryStatus,
       notes: sale.notes,
     };
@@ -116,6 +117,7 @@ export const editSale = async (sale: SaleFormValues, saleId: string) => {
       customer: sale.customer,
       status: sale.status,
       paymentMethod: sale.paymentMethod,
+      paymentStatus: sale.paymentStatus,
       deliveryStatus: sale.deliveryStatus,
       notes: sale.notes,
     };
@@ -237,9 +239,35 @@ export const editSale = async (sale: SaleFormValues, saleId: string) => {
     );
 
     revalidatePath("/sales");
+    revalidatePath(`/sales/edit-invoice/${saleId}`);
     return parseStringify(updateSaleResponse);
   } catch (error) {
     console.error("Error updating sale:", error);
+    throw error;
+  }
+};
+
+// get sale by id
+export const getSaleById = async (saleId: string) => {
+  try {
+    const response = await databases.getDocument(
+      DATABASE_ID!,
+      NEXT_PUBLIC_SALES_COLLECTION_ID!,
+      saleId
+    );
+
+    // Get sale items for the sale
+    const items = await databases.listDocuments(
+      DATABASE_ID!,
+      NEXT_PUBLIC_SALE_ITEMS_COLLECTION_ID!,
+      [Query.equal("sale", saleId)]
+    );
+
+    response.products = items.documents;
+
+    return parseStringify(response);
+  } catch (error) {
+    console.error("Error getting sale:", error);
     throw error;
   }
 };

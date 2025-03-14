@@ -4,10 +4,9 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { FileText } from "lucide-react";
 import { useSales } from "@/hooks/useSales";
-import { SaleFormValues } from "@/lib/validation";
 import SaleDialog from "./SaleDialog";
-import SaleSheet from "./SaleSheet";
 import SaleInvoicePreview from "./SaleInvoicePreview";
+import { useRouter } from "next/navigation";
 
 const SaleActions = ({ sale }: { sale: Sale }) => {
   const [open, setOpen] = useState(false);
@@ -15,18 +14,12 @@ const SaleActions = ({ sale }: { sale: Sale }) => {
     "add"
   );
 
-  const { editSale, deleteSale, isDeletingSale, isEditingSale } = useSales();
+  const { deleteSale, isDeletingSale } = useSales();
+  const router = useRouter();
 
-  const handleAction = async (data: SaleFormValues) => {
+  const handleAction = async () => {
     try {
-      if (mode === "edit") {
-        await editSale(
-          { id: sale.$id, data },
-          {
-            onSuccess: () => setOpen(false),
-          }
-        );
-      } else if (mode === "delete") {
+      if (mode === "delete") {
         await deleteSale(sale.$id, {
           onSuccess: () => setOpen(false),
         });
@@ -50,7 +43,7 @@ const SaleActions = ({ sale }: { sale: Sale }) => {
       <span
         onClick={() => {
           setMode("edit");
-          setOpen(true);
+          router.push(`/sales/edit-invoice/${sale.$id}`);
         }}
         className="text-[#475BE8] p-1 hover:bg-white hover:rounded-md cursor-pointer"
       >
@@ -65,14 +58,7 @@ const SaleActions = ({ sale }: { sale: Sale }) => {
       >
         <DeleteIcon className="h-5 w-5" />
       </span>
-      <SaleSheet
-        mode={"edit"}
-        open={open && mode === "edit"}
-        onOpenChange={setOpen}
-        sale={sale}
-        onSubmit={handleAction}
-        isLoading={isEditingSale}
-      />
+
       <SaleDialog
         mode="delete"
         open={open && mode === "delete"}

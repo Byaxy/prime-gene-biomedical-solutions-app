@@ -1,33 +1,22 @@
 import { useState } from "react";
 import { useProducts } from "@/hooks/useProducts";
-import { ProductFormValues } from "@/lib/validation";
 import { Product } from "@/types/appwrite.types";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { ProductDialog } from "./ProductDialog";
-import ProductSheet from "./ProductSheet";
+import { useRouter } from "next/navigation";
 
 const ProductActions = ({ product }: { product: Product }) => {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"add" | "edit" | "delete">("add");
 
-  const {
-    softDeleteProduct,
-    editProduct,
-    isSoftDeletingProduct,
-    isEditingProduct,
-  } = useProducts();
+  const router = useRouter();
 
-  const handleAction = async (data: ProductFormValues) => {
+  const { softDeleteProduct, isSoftDeletingProduct } = useProducts();
+
+  const handleAction = async () => {
     try {
-      if (mode === "edit") {
-        // Edit product
-        await editProduct(
-          { id: product.$id, data },
-          { onSuccess: () => setOpen(false) }
-        );
-      } else if (mode === "delete") {
-        // Delete product
+      if (mode === "delete") {
         await softDeleteProduct(product.$id, {
           onSuccess: () => setOpen(false),
         });
@@ -42,7 +31,7 @@ const ProductActions = ({ product }: { product: Product }) => {
       <span
         onClick={() => {
           setMode("edit");
-          setOpen(true);
+          router.push(`/inventory/edit-inventory/${product.$id}`);
         }}
         className="text-[#475BE8] p-1 hover:bg-white hover:rounded-md cursor-pointer"
       >
@@ -57,15 +46,6 @@ const ProductActions = ({ product }: { product: Product }) => {
       >
         <DeleteIcon className="h-5 w-5" />
       </span>
-
-      <ProductSheet
-        mode="edit"
-        open={open && mode === "edit"}
-        onOpenChange={setOpen}
-        isLoading={isEditingProduct}
-        onSubmit={handleAction}
-        product={product}
-      />
 
       <ProductDialog
         mode={"delete"}

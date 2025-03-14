@@ -26,7 +26,7 @@ export const addProduct = async (productData: ProductDataWithImage) => {
       productData
     );
 
-    revalidatePath("/products");
+    revalidatePath("/inventory");
     return parseStringify(response);
   } catch (error) {
     console.error("Error adding product:", error);
@@ -132,7 +132,7 @@ export const editProduct = async (
       sellingPrice: productData.sellingPrice,
       quantity: productData.quantity,
       category: productData.category,
-      brand: productData.brand,
+      vendor: productData.vendor,
       type: productData.type,
       unit: productData.unit,
       description: productData.description,
@@ -147,7 +147,7 @@ export const editProduct = async (
       sellingPrice: productData.sellingPrice,
       quantity: productData.quantity,
       category: productData.category,
-      brand: productData.brand,
+      vendor: productData.vendor,
       type: productData.type,
       unit: productData.unit,
       description: productData.description,
@@ -161,7 +161,8 @@ export const editProduct = async (
       updatedProductData
     );
 
-    revalidatePath("/products");
+    revalidatePath("/inventory");
+    revalidatePath(`/inventory/edit-inventory/${productId}`);
     return parseStringify(response);
   } catch (error) {
     console.error("Error editing product:", error);
@@ -178,7 +179,7 @@ export const deleteProduct = async (productId: string) => {
       productId
     );
 
-    revalidatePath("/products");
+    revalidatePath("/inventory");
     return parseStringify(response);
   } catch (error) {
     console.error("Error deleting product:", error);
@@ -196,7 +197,7 @@ export const softDeleteProduct = async (productId: string) => {
       { isActive: false }
     );
 
-    revalidatePath("/products");
+    revalidatePath("/inventory");
     return parseStringify(response);
   } catch (error) {
     console.error("Error soft deleting product:", error);

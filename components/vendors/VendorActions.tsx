@@ -1,32 +1,32 @@
 import { useState } from "react";
-import { SupplierFormValues } from "@/lib/validation";
-import { Supplier } from "@/types/appwrite.types";
+import { VendorFormValues } from "@/lib/validation";
+import { Vendor } from "@/types/appwrite.types";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { useSuppliers } from "@/hooks/useSuppliers";
-import SupplierDialog from "./SupplierDialog";
+import { useVendors } from "@/hooks/useVendors";
+import VendorDialog from "./VendorDialog";
 
-const SupplierActions = ({ supplier }: { supplier: Supplier }) => {
+const VendorActions = ({ vendor }: { vendor: Vendor }) => {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"add" | "edit" | "delete">("add");
 
   const {
-    softDeleteSupplier,
-    editSupplier,
-    isSoftDeletingSupplier,
-    isEditingSupplier,
-  } = useSuppliers();
+    softDeleteVendor,
+    editVendor,
+    isSoftDeletingVendor,
+    isEditingVendor,
+  } = useVendors();
 
-  const handleAction = async (data: SupplierFormValues) => {
+  const handleAction = async (data: VendorFormValues) => {
     try {
       if (mode === "edit") {
-        await editSupplier(
-          { id: supplier.$id, data },
+        await editVendor(
+          { id: vendor.$id, data },
           { onSuccess: () => setOpen(false) }
         );
         setOpen(false);
       } else if (mode === "delete") {
-        await softDeleteSupplier(supplier.$id, {
+        await softDeleteVendor(vendor.$id, {
           onSuccess: () => setOpen(false),
         });
       }
@@ -54,16 +54,16 @@ const SupplierActions = ({ supplier }: { supplier: Supplier }) => {
       >
         <DeleteIcon className="h-5 w-5" />
       </span>
-      <SupplierDialog
+      <VendorDialog
         mode={mode}
         open={open}
         onOpenChange={setOpen}
-        supplier={supplier}
+        vendor={vendor}
         onSubmit={handleAction}
-        isLoading={isSoftDeletingSupplier || isEditingSupplier}
+        isLoading={isSoftDeletingVendor || isEditingVendor}
       />
     </div>
   );
 };
 
-export default SupplierActions;
+export default VendorActions;

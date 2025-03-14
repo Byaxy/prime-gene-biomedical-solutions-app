@@ -3,34 +3,23 @@ import { useState } from "react";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { usePurchases } from "@/hooks/usePurchases";
-import { PurchaseFormValues } from "@/lib/validation";
 import toast from "react-hot-toast";
-import PurchaseSheet from "./PurchaseSheet";
 import { PurchaseDialog } from "./PurchaseDialog";
 import { useAuth } from "@/hooks/useAuth";
+import { useRouter } from "next/navigation";
 
 const PurchaseActions = ({ purchase }: { purchase: Purchase }) => {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"add" | "edit" | "delete">("add");
 
-  const {
-    editPurchase,
-    deletePurchase,
-    isDeletingPurchase,
-    isEditingPurchase,
-  } = usePurchases();
+  const router = useRouter();
+
+  const { deletePurchase, isDeletingPurchase } = usePurchases();
   const { isAdmin } = useAuth();
 
-  const handleAction = async (data: PurchaseFormValues) => {
+  const handleAction = async () => {
     try {
-      if (mode === "edit") {
-        await editPurchase(
-          { id: purchase.$id, data },
-          {
-            onSuccess: () => setOpen(false),
-          }
-        );
-      } else if (mode === "delete") {
+      if (mode === "delete") {
         await deletePurchase(purchase.$id, {
           onSuccess: () => setOpen(false),
         });
@@ -47,7 +36,7 @@ const PurchaseActions = ({ purchase }: { purchase: Purchase }) => {
         onClick={() => {
           if (isAdmin) {
             setMode("edit");
-            setOpen(true);
+            router.push(`/purchases/edit-purchase/${purchase.$id}`);
           }
           if (!isAdmin) toast.error("Only admins can edit purchases");
           return;
@@ -70,14 +59,7 @@ const PurchaseActions = ({ purchase }: { purchase: Purchase }) => {
       >
         <DeleteIcon className="h-5 w-5" />
       </span>
-      <PurchaseSheet
-        mode={"edit"}
-        open={open && mode === "edit"}
-        onOpenChange={setOpen}
-        purchase={purchase}
-        onSubmit={handleAction}
-        isLoading={isEditingPurchase}
-      />
+
       <PurchaseDialog
         mode="delete"
         open={open && mode === "delete"}

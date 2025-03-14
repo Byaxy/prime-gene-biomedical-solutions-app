@@ -2,29 +2,29 @@
 
 import { useState } from "react";
 import PageWraper from "@/components/PageWraper";
-import SupplierDialog from "@/components/suppliers/SupplierDialog";
-import { suppliersColumns } from "@/components/table/columns/suppliersColumns";
+import VendorDialog from "@/components/vendors/VendorDialog";
+import { vendorsColumns } from "@/components/table/columns/vendorsColumns";
 import { DataTable } from "@/components/table/DataTable";
-import { useSuppliers } from "@/hooks/useSuppliers";
-import { SupplierFormValues } from "@/lib/validation";
+import { useVendors } from "@/hooks/useVendors";
+import { VendorFormValues } from "@/lib/validation";
 
 const Vendors = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const {
-    suppliers,
+    vendors,
     isLoading,
     totalItems,
     page,
     setPage,
     pageSize,
     setPageSize,
-    addSupplier,
-    isAddingSupplier,
-  } = useSuppliers({ initialPageSize: 10 });
+    addVendor,
+    isAddingVendor,
+  } = useVendors({ initialPageSize: 10 });
 
-  const handleAddSupplier = async (data: SupplierFormValues): Promise<void> => {
+  const handleAddVendor = async (data: VendorFormValues): Promise<void> => {
     return new Promise((resolve, reject) => {
-      addSupplier(data, {
+      addVendor(data, {
         onSuccess: () => {
           setIsAddDialogOpen(false);
           resolve();
@@ -44,8 +44,8 @@ const Vendors = () => {
     >
       <>
         <DataTable
-          columns={suppliersColumns}
-          data={suppliers || []}
+          columns={vendorsColumns}
+          data={vendors || []}
           isLoading={isLoading}
           totalItems={totalItems}
           page={page}
@@ -54,12 +54,12 @@ const Vendors = () => {
           onPageSizeChange={setPageSize}
         />
 
-        <SupplierDialog
+        <VendorDialog
           mode="add"
           open={isAddDialogOpen}
           onOpenChange={setIsAddDialogOpen}
-          isLoading={isAddingSupplier}
-          onSubmit={handleAddSupplier}
+          isLoading={isAddingVendor}
+          onSubmit={handleAddVendor}
         />
       </>
     </PageWraper>
