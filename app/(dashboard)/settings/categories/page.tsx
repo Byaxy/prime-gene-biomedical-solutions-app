@@ -23,6 +23,8 @@ const Categories = () => {
     isAddingCategory,
   } = useCategories({ initialPageSize: 10 });
 
+  console.log(categories);
+
   const handleAddCategory = async (data: CategoryFormValues): Promise<void> => {
     return new Promise((resolve, reject) => {
       addCategory(data, {

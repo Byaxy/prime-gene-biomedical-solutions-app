@@ -1,15 +1,11 @@
 "use server";
 
-import { ID, Models, Query } from "node-appwrite";
 import { revalidatePath } from "next/cache";
 import { parseStringify } from "../utils";
-
-import {
-  databases,
-  DATABASE_ID,
-  NEXT_PUBLIC_BRANDS_COLLECTION_ID,
-} from "../appwrite-server";
 import { BrandFormValues } from "../validation";
+import { db } from "@/drizzle/db";
+import { brandsTable } from "@/drizzle/schema";
+import { eq, desc } from "drizzle-orm";
 
 interface BrandDataWithImage extends Omit<BrandFormValues, "image"> {
   imageId: string;
@@ -19,17 +15,31 @@ interface BrandDataWithImage extends Omit<BrandFormValues, "image"> {
 // Add Brand
 export const addBrand = async (brandData: BrandDataWithImage) => {
   try {
-    const response = await databases.createDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_BRANDS_COLLECTION_ID!,
-      ID.unique(),
-      brandData
-    );
+    const insertedBrand = await db
+      .insert(brandsTable)
+      .values(brandData)
+      .returning();
 
-    revalidatePath("/products/brands");
-    return parseStringify(response);
+    revalidatePath("/settings/brands");
+    return parseStringify(insertedBrand);
   } catch (error) {
     console.error("Error adding brand:", error);
+    throw error;
+  }
+};
+
+// Get Brand By Id
+export const getBrandById = async (brandId: string) => {
+  try {
+    const response = await db
+      .select()
+      .from(brandsTable)
+      .where(eq(brandsTable.id, brandId))
+      .then((res) => res[0]);
+
+    return parseStringify(response);
+  } catch (error) {
+    console.error("Error getting brand by ID:", error);
     throw error;
   }
 };
@@ -41,49 +51,38 @@ export const getBrands = async (
   getAllBrands: boolean = false
 ) => {
   try {
-    const queries = [
-      Query.equal("isActive", true),
-      Query.orderDesc("$createdAt"),
-    ];
+    let query = db
+      .select()
+      .from(brandsTable)
+      .where(eq(brandsTable.isActive, true))
+      .orderBy(desc(brandsTable.createdAt));
 
     if (!getAllBrands) {
-      queries.push(Query.limit(limit));
-      queries.push(Query.offset(page * limit));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      query = (query as any).limit(limit).offset(page * limit);
+    }
 
-      const response = await databases.listDocuments(
-        DATABASE_ID!,
-        NEXT_PUBLIC_BRANDS_COLLECTION_ID!,
-        queries
-      );
+    const brands = await query;
 
-      return {
-        documents: parseStringify(response.documents),
-        total: response.total,
-      };
-    } else {
-      let allDocuments: Models.Document[] = [];
+    // For getAllBrands, fetch all brands in batches (if needed)
+    if (getAllBrands) {
+      let allBrands: typeof brands = [];
       let offset = 0;
-      const batchSize = 100; // Maximum limit per request(appwrite's max)
+      const batchSize = 100; // Adjust batch size as needed
 
       while (true) {
-        const batchQueries = [
-          Query.equal("isActive", true),
-          Query.orderDesc("$createdAt"),
-          Query.limit(batchSize),
-          Query.offset(offset),
-        ];
+        const batch = await db
+          .select()
+          .from(brandsTable)
+          .where(eq(brandsTable.isActive, true))
+          .orderBy(desc(brandsTable.createdAt))
+          .limit(batchSize)
+          .offset(offset);
 
-        const response = await databases.listDocuments(
-          DATABASE_ID!,
-          NEXT_PUBLIC_BRANDS_COLLECTION_ID!,
-          batchQueries
-        );
+        allBrands = [...allBrands, ...batch];
 
-        const documents = response.documents;
-        allDocuments = [...allDocuments, ...documents];
-
-        // If we got fewer documents than the batch size, we've reached the end
-        if (documents.length < batchSize) {
+        // If we got fewer brands than the batch size, we've reached the end
+        if (batch.length < batchSize) {
           break;
         }
 
@@ -91,40 +90,56 @@ export const getBrands = async (
       }
 
       return {
-        documents: parseStringify(allDocuments),
-        total: allDocuments.length,
+        documents: parseStringify(allBrands),
+        total: allBrands.length,
       };
     }
+
+    // For paginated results
+    const total = await db
+      .select()
+      .from(brandsTable)
+      .where(eq(brandsTable.isActive, true))
+      .then((res) => res.length);
+
+    return {
+      documents: parseStringify(brands),
+      total,
+    };
   } catch (error) {
     console.error("Error getting brands:", error);
     throw error;
   }
 };
 
-// edit Brand
+// Edit Brand
 export const editBrand = async (brand: BrandDataWithImage, brandId: string) => {
-  let updatedBrandData;
-
-  if (brand.imageId && brand.imageUrl) {
-    updatedBrandData = {
-      name: brand.name,
-      description: brand.description,
-      imageId: brand.imageId,
-      imageUrl: brand.imageUrl,
-    };
-  } else {
-    updatedBrandData = { name: brand.name, description: brand.description };
-  }
   try {
-    const response = await databases.updateDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_BRANDS_COLLECTION_ID!,
-      brandId,
-      updatedBrandData
-    );
+    let updatedBrandData;
 
-    revalidatePath("/products/brands");
-    return parseStringify(response);
+    // Only update imageId and imageUrl if provided
+    if (brand.imageId && brand.imageUrl) {
+      updatedBrandData = {
+        name: brand.name,
+        description: brand.description,
+        imageId: brand.imageId,
+        imageUrl: brand.imageUrl,
+      };
+    } else {
+      updatedBrandData = {
+        name: brand.name,
+        description: brand.description,
+      };
+    }
+
+    const updatedBrand = await db
+      .update(brandsTable)
+      .set(updatedBrandData)
+      .where(eq(brandsTable.id, brandId))
+      .returning();
+
+    revalidatePath("/settings/brands");
+    return parseStringify(updatedBrand);
   } catch (error) {
     console.error("Error editing brand:", error);
     throw error;
@@ -134,14 +149,13 @@ export const editBrand = async (brand: BrandDataWithImage, brandId: string) => {
 // Permanently Delete Brand
 export const deleteBrand = async (brandId: string) => {
   try {
-    const response = await databases.deleteDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_BRANDS_COLLECTION_ID!,
-      brandId
-    );
+    const deletedBrand = await db
+      .delete(brandsTable)
+      .where(eq(brandsTable.id, brandId))
+      .returning();
 
-    revalidatePath("/products/brands");
-    return parseStringify(response);
+    revalidatePath("/settings/brands");
+    return parseStringify(deletedBrand);
   } catch (error) {
     console.error("Error deleting brand:", error);
     throw error;
@@ -151,15 +165,14 @@ export const deleteBrand = async (brandId: string) => {
 // Soft Delete Brand
 export const softDeleteBrand = async (brandId: string) => {
   try {
-    const response = await databases.updateDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_BRANDS_COLLECTION_ID!,
-      brandId,
-      { isActive: false }
-    );
+    const updatedBrand = await db
+      .update(brandsTable)
+      .set({ isActive: false })
+      .where(eq(brandsTable.id, brandId))
+      .returning();
 
-    revalidatePath("/products/brands");
-    return parseStringify(response);
+    revalidatePath("/settings/brands");
+    return parseStringify(updatedBrand);
   } catch (error) {
     console.error("Error soft deleting brand:", error);
     throw error;

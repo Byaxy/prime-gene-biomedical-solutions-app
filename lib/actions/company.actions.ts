@@ -1,15 +1,11 @@
 "use server";
 
-import { ID, Query } from "node-appwrite";
 import { revalidatePath } from "next/cache";
 import { parseStringify } from "../utils";
-
-import {
-  databases,
-  DATABASE_ID,
-  COMPANY_SETTINGS_COLLECTION_ID,
-} from "../appwrite-server";
 import { CompanySettingsFormValues } from "../validation";
+import { db } from "@/drizzle/db";
+import { companySettingsTable } from "@/drizzle/schema";
+import { eq } from "drizzle-orm";
 
 interface CompanySettingsWithLogo
   extends Omit<CompanySettingsFormValues, "image"> {
@@ -20,13 +16,12 @@ interface CompanySettingsWithLogo
 // get company settings
 export const getCompanySettings = async () => {
   try {
-    const companySettings = await databases.listDocuments(
-      DATABASE_ID!,
-      COMPANY_SETTINGS_COLLECTION_ID!,
-      [Query.limit(1)]
-    );
+    const response = await db
+      .select()
+      .from(companySettingsTable)
+      .then((res) => res[0]);
 
-    return parseStringify(companySettings.documents);
+    return response;
   } catch (error) {
     console.error("Error getting company settings:", error);
     throw error;
@@ -38,15 +33,13 @@ export const addCompanySettings = async (
   companySettings: CompanySettingsWithLogo
 ) => {
   try {
-    const newCompanySettings = await databases.createDocument(
-      DATABASE_ID!,
-      COMPANY_SETTINGS_COLLECTION_ID!,
-      ID.unique(),
-      companySettings
-    );
+    const insertedSettings = await db
+      .insert(companySettingsTable)
+      .values(companySettings)
+      .returning();
 
     revalidatePath("/settings");
-    return parseStringify(newCompanySettings);
+    return parseStringify(insertedSettings);
   } catch (error) {
     console.error("Error creating company settings:", error);
     throw error;
@@ -88,12 +81,11 @@ export const updateCompanySettings = async (
       };
     }
 
-    const updatedDbCompanySettings = await databases.updateDocument(
-      DATABASE_ID!,
-      COMPANY_SETTINGS_COLLECTION_ID!,
-      id,
-      dbCompanySettings
-    );
+    const updatedDbCompanySettings = await db
+      .update(companySettingsTable)
+      .set(dbCompanySettings)
+      .where(eq(companySettingsTable.id, id))
+      .returning();
 
     revalidatePath("/settings");
     return parseStringify(updatedDbCompanySettings);

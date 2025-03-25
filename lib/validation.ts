@@ -53,6 +53,7 @@ export type UserFormValues = CreateUserFormValues | EditUserFormValues;
 export const CategoryFormValidation = z.object({
   name: z.string().nonempty("Name is required"),
   description: z.string().optional(),
+  parentId: z.string().optional(),
 });
 export type CategoryFormValues = z.infer<typeof CategoryFormValidation>;
 
@@ -77,15 +78,13 @@ export const ProductFormValidation = z.object({
     .string()
     .nonempty("Name is required")
     .min(2, "Name must be at least 2 characters"),
-  lotNumber: z.string().nonempty("Lot number is required"),
   description: z.string().optional(),
-  costPrice: z.number().min(0, "Price must be 0 or more"),
-  sellingPrice: z.number().min(0, "Price must be 0 or more"),
   quantity: z.number().int().min(0, "Quantity must be 0 or more"),
-  category: z.string().nonempty("Category is required"),
-  vendor: z.string().nonempty("Vendor is required"),
-  type: z.string().nonempty("Type is required"),
-  unit: z.string().nonempty("Unit is required"),
+  alertQuantity: z.number().int().min(1, "Alert quantity must be 1 or more"),
+  categoryId: z.string().nonempty("Category is required"),
+  typeId: z.string().nonempty("Type is required"),
+  brandId: z.string().nonempty("Brand is required"),
+  unitId: z.string().nonempty("Unit is required"),
   image: z.any().optional(),
 });
 export type ProductFormValues = z.infer<typeof ProductFormValidation>;
@@ -97,7 +96,7 @@ export const ExpenseFormValidation = z.object({
     .nonempty("Title is required")
     .min(2, "Name must be at least 2 characters"),
   description: z.string().nonempty("Description is required"),
-  amount: z.number().min(0, "Amount must be 0 or more"),
+  amount: z.number().int().min(0, "Amount must be 0 or more"),
   paymentMethod: z
     .enum(Object.values(PaymentMethod) as [string, ...string[]])
     .default(PaymentMethod.Cash),
@@ -151,7 +150,7 @@ export type PurchaseFormValues = z.infer<typeof PurchaseFormValidation>;
 export const VendorFormValidation = z.object({
   name: z.string().nonempty("Name is required"),
   email: z.string().optional(),
-  phone: z.string().optional(),
+  phone: z.string().nonempty("Phone number is required"),
   address: z.string().optional(),
 });
 export type VendorFormValues = z.infer<typeof VendorFormValidation>;
@@ -160,7 +159,7 @@ export type VendorFormValues = z.infer<typeof VendorFormValidation>;
 export const CustomerFormValidation = z.object({
   name: z.string().nonempty("Name is required"),
   email: z.string().optional(),
-  phone: z.string().optional(),
+  phone: z.string().nonempty("Phone number is required"),
   address: z.string().optional(),
 });
 export type CustomerFormValues = z.infer<typeof CustomerFormValidation>;
@@ -239,7 +238,10 @@ export type UpdatePasswordFormValues = z.infer<
 // Company Settings
 export const CompanySettingsFormValidation = z.object({
   name: z.string().nonempty("Company name is required"),
-  email: z.string().email("Invalid email address").optional(),
+  email: z
+    .string()
+    .email("Invalid email address")
+    .nonempty("Email is required"),
   phone: z.string().nonempty("Phone number is required"),
   address: z.string().nonempty("Address is required"),
   city: z.string().nonempty("City is required"),

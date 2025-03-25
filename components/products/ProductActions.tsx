@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useProducts } from "@/hooks/useProducts";
-import { Product } from "@/types/appwrite.types";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { ProductDialog } from "./ProductDialog";
 import { useRouter } from "next/navigation";
+import { Product } from "@/types";
 
 const ProductActions = ({ product }: { product: Product }) => {
   const [open, setOpen] = useState(false);
@@ -17,7 +17,7 @@ const ProductActions = ({ product }: { product: Product }) => {
   const handleAction = async () => {
     try {
       if (mode === "delete") {
-        await softDeleteProduct(product.$id, {
+        await softDeleteProduct(product.id, {
           onSuccess: () => setOpen(false),
         });
       }
@@ -31,7 +31,7 @@ const ProductActions = ({ product }: { product: Product }) => {
       <span
         onClick={() => {
           setMode("edit");
-          router.push(`/inventory/edit-inventory/${product.$id}`);
+          router.push(`/inventory/edit-inventory/${product.id}`);
         }}
         className="text-[#475BE8] p-1 hover:bg-white hover:rounded-md cursor-pointer"
       >

@@ -22,10 +22,6 @@ const EditInventory = () => {
     enabled: !!id,
   });
 
-  if (isLoading) {
-    return <Loading />;
-  }
-
   const handleEditProduct = async (data: ProductFormValues): Promise<void> => {
     return new Promise((resolve, reject) => {
       editProduct(
@@ -41,6 +37,10 @@ const EditInventory = () => {
       );
     });
   };
+
+  if (isLoading) {
+    return <Loading />;
+  }
 
   return (
     <PageWraper title="Edit Inventory">

@@ -1,29 +1,40 @@
 "use server";
 
-import { ID, Models, Query } from "node-appwrite";
-import {
-  databases,
-  DATABASE_ID,
-  NEXT_PUBLIC_UNITS_COLLECTION_ID,
-} from "../appwrite-server";
 import { revalidatePath } from "next/cache";
 import { parseStringify } from "../utils";
 import { UnitFormValues } from "../validation";
+import { db } from "@/drizzle/db";
+import { unitsTable } from "@/drizzle/schema";
+import { eq, desc } from "drizzle-orm";
 
 // Add Unit
 export const addUnit = async (unitData: UnitFormValues) => {
   try {
-    const response = await databases.createDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_UNITS_COLLECTION_ID!,
-      ID.unique(),
-      unitData
-    );
+    const insertedUnit = await db
+      .insert(unitsTable)
+      .values(unitData)
+      .returning();
 
-    revalidatePath("/products/units");
-    return parseStringify(response);
+    revalidatePath("/settings/units");
+    return parseStringify(insertedUnit);
   } catch (error) {
     console.error("Error adding unit:", error);
+    throw error;
+  }
+};
+
+// Get Unit By ID
+export const getUnitById = async (unitId: string) => {
+  try {
+    const response = await db
+      .select()
+      .from(unitsTable)
+      .where(eq(unitsTable.id, unitId))
+      .then((res) => res[0]);
+
+    return parseStringify(response);
+  } catch (error) {
+    console.error("Error getting unit by ID:", error);
     throw error;
   }
 };
@@ -35,49 +46,38 @@ export const getUnits = async (
   getAllUnits: boolean = false
 ) => {
   try {
-    const queries = [
-      Query.equal("isActive", true),
-      Query.orderDesc("$createdAt"),
-    ];
+    let query = db
+      .select()
+      .from(unitsTable)
+      .where(eq(unitsTable.isActive, true))
+      .orderBy(desc(unitsTable.createdAt));
 
     if (!getAllUnits) {
-      queries.push(Query.limit(limit));
-      queries.push(Query.offset(page * limit));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      query = (query as any).limit(limit).offset(page * limit);
+    }
 
-      const response = await databases.listDocuments(
-        DATABASE_ID!,
-        NEXT_PUBLIC_UNITS_COLLECTION_ID!,
-        queries
-      );
+    const units = await query;
 
-      return {
-        documents: parseStringify(response.documents),
-        total: response.total,
-      };
-    } else {
-      let allDocuments: Models.Document[] = [];
+    // For getAllUnits, fetch all units in batches (if needed)
+    if (getAllUnits) {
+      let allUnits: typeof units = [];
       let offset = 0;
-      const batchSize = 100; // Maximum limit per request(appwrite's max)
+      const batchSize = 100;
 
       while (true) {
-        const batchQueries = [
-          Query.equal("isActive", true),
-          Query.orderDesc("$createdAt"),
-          Query.limit(batchSize),
-          Query.offset(offset),
-        ];
+        const batch = await db
+          .select()
+          .from(unitsTable)
+          .where(eq(unitsTable.isActive, true))
+          .orderBy(desc(unitsTable.createdAt))
+          .limit(batchSize)
+          .offset(offset);
 
-        const response = await databases.listDocuments(
-          DATABASE_ID!,
-          NEXT_PUBLIC_UNITS_COLLECTION_ID!,
-          batchQueries
-        );
+        allUnits = [...allUnits, ...batch];
 
-        const documents = response.documents;
-        allDocuments = [...allDocuments, ...documents];
-
-        // If we got fewer documents than the batch size, we've reached the end
-        if (documents.length < batchSize) {
+        // If we got fewer units than the batch size, we've reached the end
+        if (batch.length < batchSize) {
           break;
         }
 
@@ -85,10 +85,22 @@ export const getUnits = async (
       }
 
       return {
-        documents: parseStringify(allDocuments),
-        total: allDocuments.length,
+        documents: parseStringify(allUnits),
+        total: allUnits.length,
       };
     }
+
+    // For paginated results
+    const total = await db
+      .select()
+      .from(unitsTable)
+      .where(eq(unitsTable.isActive, true))
+      .then((res) => res.length);
+
+    return {
+      documents: parseStringify(units),
+      total,
+    };
   } catch (error) {
     console.error("Error getting units:", error);
     throw error;
@@ -98,15 +110,14 @@ export const getUnits = async (
 // Edit Unit
 export const editUnit = async (unitData: UnitFormValues, unitId: string) => {
   try {
-    const response = await databases.updateDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_UNITS_COLLECTION_ID!,
-      unitId,
-      unitData
-    );
+    const updatedUnit = await db
+      .update(unitsTable)
+      .set(unitData)
+      .where(eq(unitsTable.id, unitId))
+      .returning();
 
     revalidatePath("/products/units");
-    return parseStringify(response);
+    return parseStringify(updatedUnit);
   } catch (error) {
     console.error("Error editing unit:", error);
     throw error;
@@ -116,14 +127,13 @@ export const editUnit = async (unitData: UnitFormValues, unitId: string) => {
 // Permanently Delete Unit
 export const deleteUnit = async (unitId: string) => {
   try {
-    const response = await databases.deleteDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_UNITS_COLLECTION_ID!,
-      unitId
-    );
+    const deletedUnit = await db
+      .delete(unitsTable)
+      .where(eq(unitsTable.id, unitId))
+      .returning();
 
     revalidatePath("/products/units");
-    return parseStringify(response);
+    return parseStringify(deletedUnit);
   } catch (error) {
     console.error("Error deleting unit:", error);
     throw error;
@@ -133,15 +143,14 @@ export const deleteUnit = async (unitId: string) => {
 // Soft Delete Unit
 export const softDeleteUnit = async (unitId: string) => {
   try {
-    const response = await databases.updateDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_UNITS_COLLECTION_ID!,
-      unitId,
-      { isActive: false }
-    );
+    const updatedUnit = await db
+      .update(unitsTable)
+      .set({ isActive: false })
+      .where(eq(unitsTable.id, unitId))
+      .returning();
 
     revalidatePath("/products/units");
-    return parseStringify(response);
+    return parseStringify(updatedUnit);
   } catch (error) {
     console.error("Error soft deleting unit:", error);
     throw error;

@@ -6,10 +6,11 @@ import { Button } from "../ui/button";
 import SubmitButton from "../SubmitButton";
 import CustomFormField, { FormFieldType } from "../CustomFormField";
 import { Form } from "../ui/form";
+import { Unit } from "@/types";
 
 interface UnitFormProps {
   mode: "create" | "edit";
-  initialData?: UnitFormValues;
+  initialData?: Unit;
   onSubmit: (data: UnitFormValues) => Promise<void>;
   onCancel?: () => void;
 }

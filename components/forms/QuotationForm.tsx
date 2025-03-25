@@ -5,9 +5,7 @@ import { useProducts } from "@/hooks/useProducts";
 import { getProductById } from "@/lib/actions/product.actions";
 import { QuotationFormValidation, QuotationFormValues } from "@/lib/validation";
 import {
-  Customer,
   PaymentMethod,
-  Product,
   Quotation,
   QuotationStatus,
 } from "@/types/appwrite.types";
@@ -35,9 +33,10 @@ import { useCustomers } from "@/hooks/useCustomers";
 import FormatNumber from "@/components/FormatNumber";
 import { useQuotations } from "@/hooks/useQuotations";
 import { useRouter } from "next/navigation";
+import { Customer, Product } from "@/types";
 
 interface ProductType extends Product {
-  $id: string;
+  id: string;
   name: string;
   lotNumber: string;
   unit: {
@@ -135,7 +134,7 @@ const QuotationForm = ({ mode, initialData, onSubmit }: QuotationFormProps) => {
             initialData.products.map(async (product: QuotationProduct) => {
               const productId =
                 typeof product.product === "object"
-                  ? product.product.$id
+                  ? product.product.id
                   : product.product;
 
               try {
@@ -225,7 +224,7 @@ const QuotationForm = ({ mode, initialData, onSubmit }: QuotationFormProps) => {
         form.getValues("tempPrice") || selectedProduct.sellingPrice;
 
       const newProduct: FormProduct = {
-        product: selectedProduct.$id,
+        product: selectedProduct.id,
         quantity,
         unitPrice,
         totalPrice: unitPrice * quantity,
@@ -382,11 +381,11 @@ const QuotationForm = ({ mode, initialData, onSubmit }: QuotationFormProps) => {
             >
               {products?.map((product: Product) => (
                 <SelectItem
-                  key={product.$id}
-                  value={product.$id}
+                  key={product.id}
+                  value={product.id}
                   className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
                 >
-                  {product.lotNumber} - {product.name}
+                  {product.name}
                 </SelectItem>
               ))}
             </CustomFormField>
@@ -544,8 +543,8 @@ const QuotationForm = ({ mode, initialData, onSubmit }: QuotationFormProps) => {
           >
             {customers?.map((customer: Customer) => (
               <SelectItem
-                key={customer.$id}
-                value={customer.$id}
+                key={customer.id}
+                value={customer.id}
                 className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
               >
                 {customer.name}

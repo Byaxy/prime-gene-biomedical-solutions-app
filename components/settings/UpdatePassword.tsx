@@ -30,7 +30,7 @@ const UpdatePassword = () => {
     setIsLoading(true);
     try {
       if (!user) return;
-      await updatePassword({ userId: user.$id, data: values });
+      await updatePassword({ userId: user.id, data: values });
 
       form.reset();
     } catch (error) {

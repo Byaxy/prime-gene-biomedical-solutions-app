@@ -20,7 +20,7 @@ const OverviewCard = ({ title, data, total, isLoading }: OverviewCardProps) => {
   const { companySettings } = useCompanySettings();
 
   const currencySymbol = companySettings
-    ? companySettings[0]?.currencySymbol
+    ? companySettings?.currencySymbol
     : "$";
 
   const formattedTotal = formatCurrency(String(total), currencySymbol);

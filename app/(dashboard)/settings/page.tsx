@@ -3,8 +3,6 @@
 import { Suspense, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import UserProfile from "@/components/settings/UserProfile";
-import UpdatePassword from "@/components/settings/UpdatePassword";
 import CompanySettings from "@/components/settings/CompanySettings";
 import {
   Popover,
@@ -21,8 +19,8 @@ const Settings = () => {
 
   return (
     <Suspense fallback={<Loading />}>
-      <div className="w-full max-w-[800px] mx-auto">
-        <Tabs defaultValue="profile" className="w-full space-y-6">
+      <div className="w-full">
+        <Tabs defaultValue="company" className="w-full space-y-6">
           <div className="sm:hidden w-full">
             <Popover open={open} onOpenChange={setOpen}>
               <div className="w-full flex justify-end">
@@ -39,27 +37,11 @@ const Settings = () => {
               <PopoverContent className="w-48 min-h-52 flex flex-col ring-0 bg-white rounded-lg z-50 mr-8">
                 <TabsList className="grid w-full grid-cols-1 gap-4">
                   <TabsTrigger
-                    value="profile"
-                    className="w-full bg-light-200 py-2 data-[state=active]:bg-blue-800 data-[state=active]:text-white"
-                    onClick={() => setOpen(false)}
-                  >
-                    User Profile
-                  </TabsTrigger>
-
-                  <TabsTrigger
                     value="company"
                     className="w-full bg-light-200 py-2 data-[state=active]:bg-blue-800 data-[state=active]:text-white"
                     onClick={() => setOpen(false)}
                   >
                     Company Settings
-                  </TabsTrigger>
-
-                  <TabsTrigger
-                    value="password"
-                    className="w-full bg-light-200 py-2 data-[state=active]:bg-blue-800 data-[state=active]:text-white"
-                    onClick={() => setOpen(false)}
-                  >
-                    Update Password
                   </TabsTrigger>
                 </TabsList>
               </PopoverContent>
@@ -68,47 +50,17 @@ const Settings = () => {
 
           <TabsList className="sm:grid w-full sm:grid-cols-3 gap-2 hidden">
             <TabsTrigger
-              value="profile"
-              className="w-full bg-white py-3 data-[state=active]:bg-blue-800 data-[state=active]:text-white"
-            >
-              User Profile
-            </TabsTrigger>
-
-            <TabsTrigger
               value="company"
               className="w-full bg-white py-3 data-[state=active]:bg-blue-800 data-[state=active]:text-white"
             >
               Company Settings
             </TabsTrigger>
-
-            <TabsTrigger
-              value="password"
-              className="w-full bg-white py-3 data-[state=active]:bg-blue-800 data-[state=active]:text-white"
-            >
-              Update Password
-            </TabsTrigger>
           </TabsList>
-
-          <TabsContent value="profile">
-            <Card className="w-full bg-white py-5">
-              <CardContent className="space-y-2">
-                <UserProfile />
-              </CardContent>
-            </Card>
-          </TabsContent>
 
           <TabsContent value="company">
             <Card className="w-full bg-white py-5">
               <CardContent className="space-y-2">
                 <CompanySettings />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="password">
-            <Card className="w-full bg-white py-5">
-              <CardContent className="space-y-2">
-                <UpdatePassword />
               </CardContent>
             </Card>
           </TabsContent>

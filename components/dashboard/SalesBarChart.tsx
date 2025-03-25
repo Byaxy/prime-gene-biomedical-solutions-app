@@ -136,7 +136,7 @@ const SalesBarChart = ({
   const pathname = usePathname();
 
   const currencySymbol = companySettings
-    ? companySettings[0]?.currencySymbol
+    ? companySettings?.currencySymbol
     : "$";
 
   const salesTotalAmount = chartData

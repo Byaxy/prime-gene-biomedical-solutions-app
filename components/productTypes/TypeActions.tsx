@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useTypes } from "@/hooks/useTypes";
 import { TypeFormValues } from "@/lib/validation";
-import { ProductType } from "@/types/appwrite.types";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ProductTypeDialog from "./ProductTypeDialog";
+import { ProductType } from "@/types";
 
 const TypeActions = ({ productType }: { productType: ProductType }) => {
   const [open, setOpen] = useState(false);
@@ -19,13 +19,13 @@ const TypeActions = ({ productType }: { productType: ProductType }) => {
       if (mode === "edit") {
         // Edit type
         await editType(
-          { id: productType.$id, data },
+          { id: productType.id, data },
           { onSuccess: () => setOpen(false) }
         );
         setOpen(false);
       } else if (mode === "delete") {
         // Delete type
-        await softDeleteType(productType.$id, {
+        await softDeleteType(productType.id, {
           onSuccess: () => setOpen(false),
         });
       }

@@ -5,14 +5,11 @@ import {
   getBrands,
   softDeleteBrand,
 } from "@/lib/actions/brand.actions";
-import { storage } from "@/lib/appwrite-client";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { BrandFormValues } from "@/lib/validation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ID } from "appwrite";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
-
-const BUCKET_ID = process.env.NEXT_PUBLIC_APPWRITE_BUCKET_ID;
 
 export interface UseBrandsOptions {
   getAllBrands?: boolean;
@@ -64,24 +61,31 @@ export const useBrands = ({
   // Add Brand mutation
   const { mutate: addBrandMutation, status: addBrandStatus } = useMutation({
     mutationFn: async (data: BrandFormValues) => {
+      const supabase = createSupabaseBrowserClient();
       let imageId = "";
       let imageUrl = "";
 
       if (data.image && data.image.length > 0) {
         try {
           const file = data.image[0]; // Get the first file
-          imageId = ID.unique();
+          imageId = `${Date.now()}-${file.name}`; // Generate a unique file name
 
-          // Upload the file
-          const upload = await storage.createFile(BUCKET_ID!, imageId, file);
+          // Upload the file to Supabase Storage
+          const { error: uploadError } = await supabase.storage
+            .from("images")
+            .upload(imageId, file);
 
-          // Get the file view URL
-          if (upload) {
-            imageUrl = storage.getFileView(BUCKET_ID!, imageId).toString();
-          }
+          if (uploadError) throw uploadError;
+
+          // Get the file URL
+          const { data: urlData } = supabase.storage
+            .from("images")
+            .getPublicUrl(imageId);
+
+          imageUrl = urlData.publicUrl;
         } catch (error) {
           console.error("Error uploading file:", error);
-          throw new Error("Failed to upload brand image");
+          throw new Error("Failed to upload image");
         }
       }
 
@@ -115,33 +119,38 @@ export const useBrands = ({
       data: BrandFormValues;
       prevImageId?: string;
     }) => {
+      const supabase = createSupabaseBrowserClient();
       let imageId = "";
       let imageUrl = "";
 
-      if (prevImageId && data.image && data.image.length > 0) {
-        try {
-          storage.deleteFile(BUCKET_ID!, prevImageId);
-        } catch (error) {
-          console.warn("Error deleting previous image:", error);
-        }
+      // Delete the previous image if it exists and new image is provided
+      if (prevImageId && data?.image && data?.image.length > 0) {
+        const { error: deleteError } = await supabase.storage
+          .from("images")
+          .remove([prevImageId]);
+
+        if (deleteError)
+          console.warn("Failed to delete previous image:", deleteError);
       }
 
+      // Upload the new image if provided
       if (data.image && data.image.length > 0) {
-        try {
-          const file = data.image[0]; // Get the first file
-          imageId = ID.unique();
+        const file = data.image[0];
+        imageId = `${Date.now()}-${file.name}`; // Generate a unique file name
 
-          // Upload the file
-          const upload = await storage.createFile(BUCKET_ID!, imageId, file);
+        // Upload the file to Supabase Storage
+        const { error: uploadError } = await supabase.storage
+          .from("images")
+          .upload(imageId, file);
 
-          // Get the file view URL
-          if (upload) {
-            imageUrl = storage.getFileView(BUCKET_ID!, imageId).toString();
-          }
-        } catch (error) {
-          console.error("Error uploading file:", error);
-          throw new Error("Failed to upload brand image");
-        }
+        if (uploadError) throw uploadError;
+
+        // Get the file URL
+        const { data: urlData } = supabase.storage
+          .from("images")
+          .getPublicUrl(imageId);
+
+        imageUrl = urlData.publicUrl;
       }
 
       const brandData = {

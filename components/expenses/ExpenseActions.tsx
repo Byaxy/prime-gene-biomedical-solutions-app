@@ -1,35 +1,25 @@
 import { useState } from "react";
-import { ExpenseFormValues } from "@/lib/validation";
-import { Expense } from "@/types/appwrite.types";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useExpenses } from "@/hooks/useExpenses";
 import { ExpenseDialog } from "./ExpenseDialog";
+import { useRouter } from "next/navigation";
+import { Expense } from "@/types";
 
 const ExpenseActions = ({ expense }: { expense: Expense }) => {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"add" | "edit" | "delete">("add");
 
-  const {
-    softDeleteExpense,
-    editExpense,
-    isSoftDeletingExpense,
-    isEditingExpense,
-  } = useExpenses();
+  const router = useRouter();
 
-  const handleAction = async (data: ExpenseFormValues) => {
-    // Handle different actions based on mode
+  const { softDeleteExpense, isSoftDeletingExpense, isEditingExpense } =
+    useExpenses();
+
+  const handleAction = async () => {
     try {
-      if (mode === "edit") {
-        // Edit expense
-        await editExpense(
-          { id: expense.$id, data },
-          { onSuccess: () => setOpen(false) }
-        );
-        setOpen(false);
-      } else if (mode === "delete") {
+      if (mode === "delete") {
         // Delete expense
-        await softDeleteExpense(expense.$id, {
+        await softDeleteExpense(expense.id, {
           onSuccess: () => setOpen(false),
         });
       }
@@ -43,7 +33,7 @@ const ExpenseActions = ({ expense }: { expense: Expense }) => {
       <span
         onClick={() => {
           setMode("edit");
-          setOpen(true);
+          router.push(`/expenses/edit-expense/${expense.id}`);
         }}
         className="text-[#475BE8] p-1 hover:bg-white hover:rounded-md cursor-pointer"
       >

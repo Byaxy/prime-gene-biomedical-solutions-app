@@ -207,8 +207,20 @@ export const sidebarData: SidebarDataType[] = [
   {
     id: generateId(),
     title: "Expenses",
-    path: "/expenses",
+    path: "",
     icon: <DollarSign className="h-5 w-5" />,
+    subCategories: [
+      {
+        id: generateId(),
+        title: "Expenses List",
+        path: "/expenses",
+      },
+      {
+        id: generateId(),
+        title: "Add Expense",
+        path: "/expenses/add-expense",
+      },
+    ],
   },
   {
     id: generateId(),
@@ -385,6 +397,11 @@ export const sidebarData: SidebarDataType[] = [
         id: generateId(),
         title: "System Settings",
         path: "/settings",
+      },
+      {
+        id: generateId(),
+        title: "My Profile",
+        path: "/settings/profile",
       },
       {
         id: generateId(),

@@ -43,8 +43,8 @@ export const FileUploader = ({
         <div className="flex flex-col items-center justify-center space-y-3">
           <Image
             src={convertFileToUrl(files[0])}
-            width={200}
-            height={200}
+            width={150}
+            height={150}
             alt="uploaded image"
             className="max-h-[400px] lg:w-[400px] overflow-hidden object-cover rounded-md"
           />
@@ -54,8 +54,8 @@ export const FileUploader = ({
         <div className="flex flex-col items-center justify-center space-y-3">
           <Image
             src={currentImageUrl}
-            width={200}
-            height={200}
+            width={150}
+            height={150}
             alt="current image"
             className="max-h-[400px] lg:w-[400px] overflow-hidden object-cover"
             priority={true}

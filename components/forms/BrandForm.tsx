@@ -1,5 +1,4 @@
 import { BrandFormValidation, BrandFormValues } from "@/lib/validation";
-import { Brand } from "@/types/appwrite.types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -8,6 +7,7 @@ import CustomFormField, { FormFieldType } from "../CustomFormField";
 import { FileUploader } from "../FileUploader";
 import { Button } from "../ui/button";
 import SubmitButton from "../SubmitButton";
+import { Brand } from "@/types";
 
 interface BrandFormProps {
   mode: "create" | "edit";

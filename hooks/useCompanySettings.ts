@@ -3,13 +3,10 @@ import {
   getCompanySettings,
   updateCompanySettings,
 } from "@/lib/actions/company.actions";
-import { storage } from "@/lib/appwrite-client";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { CompanySettingsFormValues } from "@/lib/validation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ID } from "appwrite";
 import toast from "react-hot-toast";
-
-const BUCKET_ID = process.env.NEXT_PUBLIC_APPWRITE_BUCKET_ID;
 
 export const useCompanySettings = () => {
   const queryClient = useQueryClient();
@@ -23,11 +20,7 @@ export const useCompanySettings = () => {
     queryKey: ["companySettings"],
     queryFn: async () => {
       const result = await getCompanySettings();
-
-      if (!result) {
-        throw new Error("Failed to fetch company settings");
-      }
-      return result;
+      return result || null;
     },
   });
 
@@ -37,21 +30,28 @@ export const useCompanySettings = () => {
     status: isAddingCompanySettings,
   } = useMutation({
     mutationFn: async (data: CompanySettingsFormValues) => {
+      const supabase = createSupabaseBrowserClient();
       let logoId = "";
       let logoUrl = "";
 
       if (data.image && data.image.length > 0) {
         try {
           const file = data.image[0]; // Get the first file
-          logoId = ID.unique();
+          logoId = `${Date.now()}-${file.name}`; // Generate a unique file name
 
-          // Upload the file
-          const upload = await storage.createFile(BUCKET_ID!, logoId, file);
+          // Upload the file to Supabase Storage
+          const { error: uploadError } = await supabase.storage
+            .from("images")
+            .upload(logoId, file);
 
-          // Get the file view URL
-          if (upload) {
-            logoUrl = storage.getFileView(BUCKET_ID!, logoId).toString();
-          }
+          if (uploadError) throw uploadError;
+
+          // Get the file URL
+          const { data: urlData } = supabase.storage
+            .from("images")
+            .getPublicUrl(logoId);
+
+          logoUrl = urlData.publicUrl;
         } catch (error) {
           console.error("Error uploading file:", error);
           throw new Error("Failed to upload profile image");
@@ -99,28 +99,38 @@ export const useCompanySettings = () => {
       data: CompanySettingsFormValues;
       prevLogoId: string;
     }) => {
+      const supabase = createSupabaseBrowserClient();
       let logoId = "";
       let logoUrl = "";
 
-      if (prevLogoId && data.image && data.image.length > 0) {
-        try {
-          await storage.deleteFile(BUCKET_ID!, prevLogoId);
-        } catch (error) {
-          console.warn("Error deleting previous logo:", error);
-        }
+      // Delete the previous image if it exists and new image is provided
+      if (prevLogoId && data?.image && data?.image.length > 0) {
+        const { error: deleteError } = await supabase.storage
+          .from("images")
+          .remove([prevLogoId]);
+
+        if (deleteError)
+          console.warn("Failed to delete previous image:", deleteError);
       }
 
+      // Upload the new image if provided
       if (data.image && data.image.length > 0) {
         const file = data.image[0];
-        logoId = ID.unique();
+        logoId = `${Date.now()}-${file.name}`; // Generate a unique file name
 
-        // Upload the file
-        const upload = await storage.createFile(BUCKET_ID!, logoId, file);
+        // Upload the file to Supabase Storage
+        const { error: uploadError } = await supabase.storage
+          .from("images")
+          .upload(logoId, file);
 
-        // Get the file view URL
-        if (upload) {
-          logoUrl = storage.getFileView(BUCKET_ID!, logoId).toString();
-        }
+        if (uploadError) throw uploadError;
+
+        // Get the file URL
+        const { data: urlData } = supabase.storage
+          .from("images")
+          .getPublicUrl(logoId);
+
+        logoUrl = urlData.publicUrl;
       }
 
       const companySettings = {

@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { UnitFormValues } from "@/lib/validation";
-import { Unit } from "@/types/appwrite.types";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import UnitsDialog from "./UnitsDialog";
 import { useUnits } from "@/hooks/useUnits";
+import { Unit } from "@/types";
 
 const UnitActions = ({ unit }: { unit: Unit }) => {
   const [open, setOpen] = useState(false);
@@ -17,12 +17,12 @@ const UnitActions = ({ unit }: { unit: Unit }) => {
     try {
       if (mode === "edit") {
         await editUnit(
-          { id: unit.$id, data },
+          { id: unit.id, data },
           { onSuccess: () => setOpen(false) }
         );
         setOpen(false);
       } else if (mode === "delete") {
-        await softDeleteUnit(unit.$id, {
+        await softDeleteUnit(unit.id, {
           onSuccess: () => setOpen(false),
         });
       }

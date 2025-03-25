@@ -1,5 +1,4 @@
 import { VendorFormValues } from "@/lib/validation";
-import { Vendor } from "@/types/appwrite.types";
 import {
   Dialog,
   DialogContent,
@@ -9,6 +8,7 @@ import {
 } from "../ui/dialog";
 import { Button } from "../ui/button";
 import VendorForm from "../forms/VendorForm";
+import { Vendor } from "@/types";
 
 interface VendorDialogProps {
   mode: "add" | "edit" | "delete";
@@ -69,7 +69,7 @@ const VendorDialog = ({
         {mode === "delete" ? (
           <div className="flex flex-col gap-4">
             <p className="text-sm text-red-500">
-              Category: <span className="font-semibold">{vendor?.name}</span>
+              Vendor: <span className="font-semibold">{vendor?.name}</span>
             </p>
             <div className="flex justify-end gap-4">
               <Button
@@ -98,18 +98,11 @@ const VendorDialog = ({
             initialData={
               mode === "edit" && vendor
                 ? {
-                    $id: vendor.$id,
-                    name: vendor?.name || "",
-                    email: vendor?.email || "",
-                    phone: vendor?.phone || "",
-                    address: vendor?.address || "",
-                    $createdAt: vendor.$createdAt,
-                    $updatedAt: vendor.$updatedAt,
+                    ...vendor,
                   }
                 : undefined
             }
             onSubmit={onSubmit}
-            onCancel={() => onOpenChange(false)}
           />
         )}
       </DialogContent>

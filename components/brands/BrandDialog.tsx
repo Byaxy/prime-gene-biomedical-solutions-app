@@ -1,5 +1,4 @@
 import { BrandFormValues } from "@/lib/validation";
-import { Brand } from "@/types/appwrite.types";
 import {
   Dialog,
   DialogContent,
@@ -9,6 +8,7 @@ import {
 } from "../ui/dialog";
 import { Button } from "../ui/button";
 import BrandForm from "../forms/BrandForm";
+import { Brand } from "@/types";
 
 interface BrandDialogProps {
   mode: "add" | "edit" | "delete";
@@ -95,13 +95,7 @@ const BrandDialog = ({
             initialData={
               mode === "edit" && brand
                 ? {
-                    $id: brand.$id,
-                    name: brand.name,
-                    description: brand.description,
-                    imageId: brand.imageId,
-                    imageUrl: brand.imageUrl,
-                    $updatedAt: brand.$updatedAt,
-                    $createdAt: brand.$createdAt,
+                    ...brand,
                   }
                 : undefined
             }

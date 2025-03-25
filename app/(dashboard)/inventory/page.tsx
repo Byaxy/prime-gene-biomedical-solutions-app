@@ -33,7 +33,6 @@ const Inventory = () => {
         onPageChange={setPage}
         pageSize={pageSize}
         onPageSizeChange={setPageSize}
-        searchBy="lotNumber"
       />
     </PageWraper>
   );

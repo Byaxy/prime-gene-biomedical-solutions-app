@@ -1,15 +1,11 @@
 "use server";
 
-import { ID, Models, Query } from "node-appwrite";
 import { revalidatePath } from "next/cache";
 import { parseStringify } from "../utils";
-
-import {
-  databases,
-  DATABASE_ID,
-  NEXT_PUBLIC_PRODUCTS_COLLECTION_ID,
-} from "../appwrite-server";
 import { ProductFormValues } from "../validation";
+import { db } from "@/drizzle/db";
+import { productsTable } from "@/drizzle/schema";
+import { desc, eq } from "drizzle-orm";
 
 interface ProductDataWithImage extends Omit<ProductFormValues, "image"> {
   imageId: string;
@@ -19,15 +15,13 @@ interface ProductDataWithImage extends Omit<ProductFormValues, "image"> {
 // Add Product
 export const addProduct = async (productData: ProductDataWithImage) => {
   try {
-    const response = await databases.createDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_PRODUCTS_COLLECTION_ID!,
-      ID.unique(),
-      productData
-    );
+    const insertedProduct = await db
+      .insert(productsTable)
+      .values(productData)
+      .returning();
 
     revalidatePath("/inventory");
-    return parseStringify(response);
+    return parseStringify(insertedProduct);
   } catch (error) {
     console.error("Error adding product:", error);
     throw error;
@@ -37,15 +31,15 @@ export const addProduct = async (productData: ProductDataWithImage) => {
 // Get Product by ID
 export const getProductById = async (productId: string) => {
   try {
-    const response = await databases.getDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_PRODUCTS_COLLECTION_ID!,
-      productId
-    );
+    const response = await db
+      .select()
+      .from(productsTable)
+      .where(eq(productsTable.id, productId))
+      .then((res) => res[0]);
 
     return parseStringify(response);
   } catch (error) {
-    console.error("Error getting product:", error);
+    console.error("Error getting product by ID:", error);
     throw error;
   }
 };
@@ -57,49 +51,38 @@ export const getProducts = async (
   getAllProducts: boolean = false
 ) => {
   try {
-    const queries = [
-      Query.equal("isActive", true),
-      Query.orderDesc("$createdAt"),
-    ];
+    let query = db
+      .select()
+      .from(productsTable)
+      .where(eq(productsTable.isActive, true))
+      .orderBy(desc(productsTable.createdAt));
 
     if (!getAllProducts) {
-      queries.push(Query.limit(limit));
-      queries.push(Query.offset(page * limit));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      query = (query as any).limit(limit).offset(page * limit);
+    }
 
-      const response = await databases.listDocuments(
-        DATABASE_ID!,
-        NEXT_PUBLIC_PRODUCTS_COLLECTION_ID!,
-        queries
-      );
+    const products = await query;
 
-      return {
-        documents: parseStringify(response.documents),
-        total: response.total,
-      };
-    } else {
-      let allDocuments: Models.Document[] = [];
+    // For getAllProducts, fetch all products in batches (if needed)
+    if (getAllProducts) {
+      let allProducts: typeof products = [];
       let offset = 0;
-      const batchSize = 100; // Maximum limit per request(appwrite's max)
+      const batchSize = 100; // Adjust batch size as needed
 
       while (true) {
-        const batchQueries = [
-          Query.equal("isActive", true),
-          Query.orderDesc("$createdAt"),
-          Query.limit(batchSize),
-          Query.offset(offset),
-        ];
+        const batch = await db
+          .select()
+          .from(productsTable)
+          .where(eq(productsTable.isActive, true))
+          .orderBy(desc(productsTable.createdAt))
+          .limit(batchSize)
+          .offset(offset);
 
-        const response = await databases.listDocuments(
-          DATABASE_ID!,
-          NEXT_PUBLIC_PRODUCTS_COLLECTION_ID!,
-          batchQueries
-        );
+        allProducts = [...allProducts, ...batch];
 
-        const documents = response.documents;
-        allDocuments = [...allDocuments, ...documents];
-
-        // If we got fewer documents than the batch size, we've reached the end
-        if (documents.length < batchSize) {
+        // If we got fewer products than the batch size, we've reached the end
+        if (batch.length < batchSize) {
           break;
         }
 
@@ -107,10 +90,22 @@ export const getProducts = async (
       }
 
       return {
-        documents: parseStringify(allDocuments),
-        total: allDocuments.length,
+        documents: parseStringify(allProducts),
+        total: allProducts.length,
       };
     }
+
+    // For paginated results
+    const total = await db
+      .select()
+      .from(productsTable)
+      .where(eq(productsTable.isActive, true))
+      .then((res) => res.length);
+
+    return {
+      documents: parseStringify(products),
+      total,
+    };
   } catch (error) {
     console.error("Error getting products:", error);
     throw error;
@@ -122,48 +117,44 @@ export const editProduct = async (
   productData: ProductDataWithImage,
   productId: string
 ) => {
-  let updatedProductData;
-
-  if (productData.imageId && productData.imageUrl) {
-    updatedProductData = {
-      name: productData.name,
-      lotNumber: productData.lotNumber,
-      costPrice: productData.costPrice,
-      sellingPrice: productData.sellingPrice,
-      quantity: productData.quantity,
-      category: productData.category,
-      vendor: productData.vendor,
-      type: productData.type,
-      unit: productData.unit,
-      description: productData.description,
-      imageId: productData.imageId,
-      imageUrl: productData.imageUrl,
-    };
-  } else {
-    updatedProductData = {
-      name: productData.name,
-      lotNumber: productData.lotNumber,
-      costPrice: productData.costPrice,
-      sellingPrice: productData.sellingPrice,
-      quantity: productData.quantity,
-      category: productData.category,
-      vendor: productData.vendor,
-      type: productData.type,
-      unit: productData.unit,
-      description: productData.description,
-    };
-  }
   try {
-    const response = await databases.updateDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_PRODUCTS_COLLECTION_ID!,
-      productId,
-      updatedProductData
-    );
+    let updatedProductData;
+
+    if (productData.imageId && productData.imageUrl) {
+      updatedProductData = {
+        name: productData.name,
+        alertQuantity: productData.alertQuantity,
+        quantity: productData.quantity,
+        categoryId: productData.categoryId,
+        brandId: productData.brandId,
+        typeId: productData.typeId,
+        unitId: productData.unitId,
+        description: productData.description,
+        imageId: productData.imageId,
+        imageUrl: productData.imageUrl,
+      };
+    } else {
+      updatedProductData = {
+        name: productData.name,
+        alertQuantity: productData.alertQuantity,
+        quantity: productData.quantity,
+        categoryId: productData.categoryId,
+        brandId: productData.brandId,
+        typeId: productData.typeId,
+        unitId: productData.unitId,
+        description: productData.description,
+      };
+    }
+
+    const updatedProduct = await db
+      .update(productsTable)
+      .set(updatedProductData)
+      .where(eq(productsTable.id, productId))
+      .returning();
 
     revalidatePath("/inventory");
     revalidatePath(`/inventory/edit-inventory/${productId}`);
-    return parseStringify(response);
+    return parseStringify(updatedProduct);
   } catch (error) {
     console.error("Error editing product:", error);
     throw error;
@@ -173,14 +164,13 @@ export const editProduct = async (
 // Permanently Delete Product
 export const deleteProduct = async (productId: string) => {
   try {
-    const response = await databases.deleteDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_PRODUCTS_COLLECTION_ID!,
-      productId
-    );
+    const deletedProduct = await db
+      .delete(productsTable)
+      .where(eq(productsTable.id, productId))
+      .returning();
 
     revalidatePath("/inventory");
-    return parseStringify(response);
+    return parseStringify(deletedProduct);
   } catch (error) {
     console.error("Error deleting product:", error);
     throw error;
@@ -190,15 +180,14 @@ export const deleteProduct = async (productId: string) => {
 // Soft Delete Product
 export const softDeleteProduct = async (productId: string) => {
   try {
-    const response = await databases.updateDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_PRODUCTS_COLLECTION_ID!,
-      productId,
-      { isActive: false }
-    );
+    const updatedProduct = await db
+      .update(productsTable)
+      .set({ isActive: false })
+      .where(eq(productsTable.id, productId))
+      .returning();
 
     revalidatePath("/inventory");
-    return parseStringify(response);
+    return parseStringify(updatedProduct);
   } catch (error) {
     console.error("Error soft deleting product:", error);
     throw error;

@@ -9,8 +9,8 @@ import { EditUserValidation, UserFormValues } from "@/lib/validation";
 import { SelectItem } from "../ui/select";
 import { RoleOptions } from "@/constants";
 import { FileUploader } from "../FileUploader";
-import { User } from "@/types/appwrite.types";
 import { useState } from "react";
+import { User } from "@/types";
 
 interface UserProfileFormProps {
   initialData: User;

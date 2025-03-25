@@ -8,7 +8,7 @@ import { Button } from "../ui/button";
 import SubmitButton from "../SubmitButton";
 import CustomFormField, { FormFieldType } from "../CustomFormField";
 import { Form } from "../ui/form";
-import { Customer } from "@/types/appwrite.types";
+import { Customer } from "@/types";
 
 interface CustomerFormProps {
   mode: "create" | "edit";
@@ -25,6 +25,7 @@ const CustomerForm = ({ mode, initialData, onSubmit }: CustomerFormProps) => {
       name: "",
       email: "",
       phone: "",
+      address: "",
     },
   });
 

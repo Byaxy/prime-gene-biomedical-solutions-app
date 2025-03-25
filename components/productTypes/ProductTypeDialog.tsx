@@ -1,5 +1,4 @@
 import { TypeFormValues } from "@/lib/validation";
-import { ProductType } from "@/types/appwrite.types";
 import {
   Dialog,
   DialogContent,
@@ -9,6 +8,7 @@ import {
 } from "../ui/dialog";
 import { Button } from "../ui/button";
 import ProductTypeForm from "../forms/ProductTypeForm";
+import { ProductType } from "@/types";
 
 interface ProductTypeDialogProps {
   mode: "add" | "edit" | "delete";
@@ -95,10 +95,9 @@ const ProductTypeDialog = ({
           <ProductTypeForm
             mode={mode === "add" ? "create" : "edit"}
             initialData={
-              mode === "edit"
+              mode === "edit" && productType
                 ? {
-                    name: productType?.name || "",
-                    description: productType?.description,
+                    ...productType,
                   }
                 : undefined
             }

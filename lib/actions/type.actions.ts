@@ -1,29 +1,40 @@
 "use server";
 
-import { ID, Models, Query } from "node-appwrite";
-import {
-  databases,
-  DATABASE_ID,
-  NEXT_PUBLIC_TYPES_COLLECTION_ID,
-} from "../appwrite-server";
 import { revalidatePath } from "next/cache";
 import { parseStringify } from "../utils";
 import { TypeFormValues } from "../validation";
+import { db } from "@/drizzle/db";
+import { productTypesTable } from "@/drizzle/schema";
+import { eq, desc } from "drizzle-orm";
 
 // Add Type
 export const addType = async (typeData: TypeFormValues) => {
   try {
-    const response = await databases.createDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_TYPES_COLLECTION_ID!,
-      ID.unique(),
-      typeData
-    );
+    const insertedType = await db
+      .insert(productTypesTable)
+      .values(typeData)
+      .returning();
 
-    revalidatePath("/products/types");
-    return parseStringify(response);
+    revalidatePath("/settings/types");
+    return parseStringify(insertedType);
   } catch (error) {
     console.error("Error adding type:", error);
+    throw error;
+  }
+};
+
+// Get Type By Id
+export const getTypeById = async (typeId: string) => {
+  try {
+    const response = await db
+      .select()
+      .from(productTypesTable)
+      .where(eq(productTypesTable.id, typeId))
+      .then((res) => res[0]);
+
+    return parseStringify(response);
+  } catch (error) {
+    console.error("Error getting product type by ID:", error);
     throw error;
   }
 };
@@ -35,49 +46,38 @@ export const getTypes = async (
   getAllTypes: boolean = false
 ) => {
   try {
-    const queries = [
-      Query.equal("isActive", true),
-      Query.orderDesc("$createdAt"),
-    ];
+    let query = db
+      .select()
+      .from(productTypesTable)
+      .where(eq(productTypesTable.isActive, true))
+      .orderBy(desc(productTypesTable.createdAt));
 
     if (!getAllTypes) {
-      queries.push(Query.limit(limit));
-      queries.push(Query.offset(page * limit));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      query = (query as any).limit(limit).offset(page * limit);
+    }
 
-      const response = await databases.listDocuments(
-        DATABASE_ID!,
-        NEXT_PUBLIC_TYPES_COLLECTION_ID!,
-        queries
-      );
+    const types = await query;
 
-      return {
-        documents: parseStringify(response.documents),
-        total: response.total,
-      };
-    } else {
-      let allDocuments: Models.Document[] = [];
+    // For getAllTypes, fetch all types in batches (if needed)
+    if (getAllTypes) {
+      let allTypes: typeof types = [];
       let offset = 0;
-      const batchSize = 100; // Maximum limit per request(appwrite's max)
+      const batchSize = 100; // Adjust batch size as needed
 
       while (true) {
-        const batchQueries = [
-          Query.equal("isActive", true),
-          Query.orderDesc("$createdAt"),
-          Query.limit(batchSize),
-          Query.offset(offset),
-        ];
+        const batch = await db
+          .select()
+          .from(productTypesTable)
+          .where(eq(productTypesTable.isActive, true))
+          .orderBy(desc(productTypesTable.createdAt))
+          .limit(batchSize)
+          .offset(offset);
 
-        const response = await databases.listDocuments(
-          DATABASE_ID!,
-          NEXT_PUBLIC_TYPES_COLLECTION_ID!,
-          batchQueries
-        );
+        allTypes = [...allTypes, ...batch];
 
-        const documents = response.documents;
-        allDocuments = [...allDocuments, ...documents];
-
-        // If we got fewer documents than the batch size, we've reached the end
-        if (documents.length < batchSize) {
+        // If we got fewer types than the batch size, we've reached the end
+        if (batch.length < batchSize) {
           break;
         }
 
@@ -85,10 +85,22 @@ export const getTypes = async (
       }
 
       return {
-        documents: parseStringify(allDocuments),
-        total: allDocuments.length,
+        documents: parseStringify(allTypes),
+        total: allTypes.length,
       };
     }
+
+    // For paginated results
+    const total = await db
+      .select()
+      .from(productTypesTable)
+      .where(eq(productTypesTable.isActive, true))
+      .then((res) => res.length);
+
+    return {
+      documents: parseStringify(types),
+      total,
+    };
   } catch (error) {
     console.error("Error getting types:", error);
     throw error;
@@ -98,15 +110,14 @@ export const getTypes = async (
 // Edit Type
 export const editType = async (typeData: TypeFormValues, typeId: string) => {
   try {
-    const response = await databases.updateDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_TYPES_COLLECTION_ID!,
-      typeId,
-      typeData
-    );
+    const updatedType = await db
+      .update(productTypesTable)
+      .set(typeData)
+      .where(eq(productTypesTable.id, typeId))
+      .returning();
 
-    revalidatePath("/products/types");
-    return parseStringify(response);
+    revalidatePath("/settings/types");
+    return parseStringify(updatedType);
   } catch (error) {
     console.error("Error editing type:", error);
     throw error;
@@ -116,14 +127,13 @@ export const editType = async (typeData: TypeFormValues, typeId: string) => {
 // Permanently Delete Type
 export const deleteType = async (typeId: string) => {
   try {
-    const response = await databases.deleteDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_TYPES_COLLECTION_ID!,
-      typeId
-    );
+    const deletedType = await db
+      .delete(productTypesTable)
+      .where(eq(productTypesTable.id, typeId))
+      .returning();
 
-    revalidatePath("/products/types");
-    return parseStringify(response);
+    revalidatePath("/settings/types");
+    return parseStringify(deletedType);
   } catch (error) {
     console.error("Error deleting type:", error);
     throw error;
@@ -133,15 +143,14 @@ export const deleteType = async (typeId: string) => {
 // Soft Delete Type
 export const softDeleteType = async (typeId: string) => {
   try {
-    const response = await databases.updateDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_TYPES_COLLECTION_ID!,
-      typeId,
-      { isActive: false }
-    );
+    const updatedType = await db
+      .update(productTypesTable)
+      .set({ isActive: false })
+      .where(eq(productTypesTable.id, typeId))
+      .returning();
 
-    revalidatePath("/products/types");
-    return parseStringify(response);
+    revalidatePath("/settings/types");
+    return parseStringify(updatedType);
   } catch (error) {
     console.error("Error soft deleting type:", error);
     throw error;

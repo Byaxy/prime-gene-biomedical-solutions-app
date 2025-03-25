@@ -1,9 +1,10 @@
 import { useSales } from "@/hooks/useSales";
 import OverviewCard from "./OverviewCard";
-import { Expense, Purchase, Sale } from "@/types/appwrite.types";
+import { Purchase, Sale } from "@/types/appwrite.types";
 import { usePurchases } from "@/hooks/usePurchases";
 import { useExpenses } from "@/hooks/useExpenses";
 import ProductsOverview from "./ProductsOverview";
+import { Expense } from "@/types";
 
 const Overview = () => {
   const { sales, isLoading } = useSales({ getAllSales: true });

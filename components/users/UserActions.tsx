@@ -1,4 +1,3 @@
-import { User } from "@/types/appwrite.types";
 import { useState } from "react";
 import { UserDialog } from "./UserDialog";
 import EditIcon from "@mui/icons-material/Edit";
@@ -7,10 +6,14 @@ import { useUsers } from "@/hooks/useUsers";
 import { UserFormValues } from "@/lib/validation";
 import toast from "react-hot-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { useRouter } from "next/navigation";
+import { User } from "@/types";
 
 const UserActions = ({ user }: { user: User }) => {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"add" | "edit" | "delete">("add");
+
+  const router = useRouter();
 
   const { editUser, deleteUser, isDeletingUser, isEditingUser } = useUsers();
   const { isAdmin } = useAuth();
@@ -19,14 +22,14 @@ const UserActions = ({ user }: { user: User }) => {
     try {
       if (mode === "edit") {
         await editUser(
-          { id: user.$id, data, prevImageId },
+          { id: user.id, data, prevImageId },
           {
             onSuccess: () => setOpen(false),
           }
         );
         setOpen(false);
       } else if (mode === "delete") {
-        await deleteUser(user.$id, {
+        await deleteUser(user.id, {
           onSuccess: () => setOpen(false),
         });
       }
@@ -38,13 +41,9 @@ const UserActions = ({ user }: { user: User }) => {
   return (
     <div className="flex items-center">
       <span
-        aria-disabled={!isAdmin}
         onClick={() => {
-          if (isAdmin) {
-            setMode("edit");
-            setOpen(true);
-          }
-          if (!isAdmin) toast.error("Only admins can edit user");
+          setMode("edit");
+          router.push(`/users/edit-user/${user.id}`);
           return;
         }}
         className="text-[#475BE8] p-1 hover:bg-white hover:rounded-md cursor-pointer"
@@ -52,7 +51,6 @@ const UserActions = ({ user }: { user: User }) => {
         <EditIcon className="h-5 w-5" />
       </span>
       <span
-        aria-disabled={!isAdmin}
         onClick={() => {
           if (isAdmin) {
             setMode("delete");

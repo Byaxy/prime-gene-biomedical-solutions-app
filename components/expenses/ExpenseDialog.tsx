@@ -6,10 +6,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-
 import { ExpenseFormValues } from "@/lib/validation";
-import { Expense } from "@/types/appwrite.types";
-import ExpenseForm from "../forms/ExpenseForm";
+import { Expense } from "@/types";
 
 interface ExpenseDialogProps {
   mode: "add" | "edit" | "delete";
@@ -69,7 +67,7 @@ export function ExpenseDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {mode === "delete" ? (
+        {mode === "delete" && (
           <div className="flex flex-col gap-4">
             <p className="text-sm text-red-500">
               expense: <span className="font-semibold">{expense?.title}</span>
@@ -95,26 +93,6 @@ export function ExpenseDialog({
               </Button>
             </div>
           </div>
-        ) : (
-          <ExpenseForm
-            mode={mode === "add" ? "create" : "edit"}
-            initialData={
-              mode === "edit" && expense
-                ? {
-                    $id: expense.$id,
-                    title: expense?.title,
-                    description: expense?.description,
-                    amount: expense?.amount,
-                    paymentMethod: expense?.paymentMethod,
-                    expenseDate: new Date(expense?.expenseDate),
-                    $createdAt: new Date(expense.$createdAt),
-                    $updatedAt: new Date(expense.$updatedAt),
-                  }
-                : undefined
-            }
-            onSubmit={onSubmit}
-            onCancel={() => onOpenChange(false)}
-          />
         )}
       </DialogContent>
     </Dialog>

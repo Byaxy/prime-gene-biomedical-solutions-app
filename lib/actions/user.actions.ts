@@ -1,58 +1,60 @@
 "use server";
 
-import { ID, Models, Query } from "node-appwrite";
 import { revalidatePath } from "next/cache";
 import { parseStringify } from "../utils";
-import {
-  users,
-  databases,
-  DATABASE_ID,
-  NEXT_PUBLIC_USERS_COLLECTION_ID,
-} from "../appwrite-server";
-import { account } from "../appwrite-client";
+
 import {
   CreateUserFormValues,
   EditUserFormValues,
   UpdatePasswordFormValues,
 } from "../validation";
+import { createSupabaseServerClient } from "../supabase/server";
+import { usersTable } from "@/drizzle/schema";
+import { db } from "@/drizzle/db";
+import { desc, eq } from "drizzle-orm";
+import supabaseAdmin from "../supabase/admin";
 
 interface UserDataWithImage extends Omit<CreateUserFormValues, "image"> {
   profileImageId: string;
   profileImageUrl: string;
 }
 
-// create user
+// Create user
 export const addUser = async (user: UserDataWithImage) => {
   try {
-    // Create user in Appwrite Authentication
-    const newUser = await account.create(
-      ID.unique(),
-      user.email,
-      user.password,
-      user.name
-    );
+    // Create user using the Admin API
+    const { data: authUser, error: authError } =
+      await supabaseAdmin.auth.admin.createUser({
+        email: user.email,
+        password: user.password,
+        email_confirm: true,
+        user_metadata: {
+          name: user.name,
+        },
+      });
 
-    // store user image in Appwrite Storage
-    if (newUser) {
-      const dbUser = {
+    if (authError) throw authError;
+
+    // Store user data in the database using Drizzle ORM
+    if (authUser.user) {
+      const newUser = {
+        id: authUser.user.id,
         name: user.name,
         email: user.email,
         phone: user.phone,
         role: user.role,
-        profileImageId: user.profileImageId || "", // Store as separate fields
+        profileImageId: user.profileImageId || "",
         profileImageUrl: user.profileImageUrl || "",
+        isActive: true,
       };
 
-      // Create user document in database
-      const newDbUser = await databases.createDocument(
-        DATABASE_ID!,
-        NEXT_PUBLIC_USERS_COLLECTION_ID!,
-        newUser.$id,
-        dbUser
-      );
+      const insertedUser = await db
+        .insert(usersTable)
+        .values(newUser)
+        .returning();
 
       revalidatePath("/users");
-      return parseStringify(newDbUser);
+      return parseStringify(insertedUser);
     }
   } catch (error) {
     console.error("Error creating user:", error);
@@ -60,169 +62,109 @@ export const addUser = async (user: UserDataWithImage) => {
   }
 };
 
-// Edite user
+// Edit user
 interface EditUserWithImage extends Omit<EditUserFormValues, "image"> {
   profileImageId: string;
   profileImageUrl: string;
 }
 export const editUser = async (user: EditUserWithImage, userId: string) => {
   try {
-    let response;
+    if (!userId) throw new Error("User ID is required");
 
-    // First get the current user data to compare
-    const currentUser = await databases.getDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_USERS_COLLECTION_ID!,
-      userId
-    );
+    // First, get the current user data to compare
+    const currentUser = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, userId))
+      .then((res) => res[0]);
 
-    // Update name only if changed
+    if (!currentUser) throw new Error("User not found");
+
+    // Update name in Supabase Authentication if changed
     if (currentUser.name !== user.name) {
-      try {
-        await users.updateName(userId, user.name);
-      } catch (error) {
-        console.error("Error updating user name:", error);
-        throw new Error("Failed to update user name");
-      }
+      const { error: updateNameError } =
+        await supabaseAdmin.auth.admin.updateUserById(userId, {
+          user_metadata: {
+            name: user.name,
+          },
+        });
+
+      if (updateNameError) throw updateNameError;
     }
 
-    // Update phone only if changed
-    if (currentUser.phone !== user.phone) {
-      try {
-        await users.updatePhone(userId, user.phone);
-      } catch (error) {
-        console.error("Error updating user phone:", error);
-        throw new Error("Failed to update user phone");
-      }
-    }
-
-    // Update database document only if there are changes
-    const hasChanges =
-      currentUser.name !== user.name ||
-      currentUser.phone !== user.phone ||
-      currentUser.role !== user.role ||
-      (user.profileImageId && user.profileImageUrl); // Always update if new image
-
-    if (hasChanges) {
-      try {
-        if (user.profileImageId && user.profileImageUrl) {
-          response = await databases.updateDocument(
-            DATABASE_ID!,
-            NEXT_PUBLIC_USERS_COLLECTION_ID!,
-            userId,
-            {
-              name: user.name,
-              phone: user.phone,
-              role: user.role,
-              profileImageId: user.profileImageId,
-              profileImageUrl: user.profileImageUrl,
-            }
-          );
-        } else {
-          response = await databases.updateDocument(
-            DATABASE_ID!,
-            NEXT_PUBLIC_USERS_COLLECTION_ID!,
-            userId,
-            {
-              name: user.name,
-              phone: user.phone,
-              role: user.role,
-            }
-          );
-        }
-      } catch (error) {
-        console.error("Error updating user document:", error);
-        throw new Error("Failed to update user information in database");
-      }
+    let updatedUser;
+    if (user.profileImageId && user.profileImageUrl) {
+      updatedUser = await db
+        .update(usersTable)
+        .set({
+          name: user.name,
+          phone: user.phone,
+          role: user.role,
+          profileImageId: user.profileImageId,
+          profileImageUrl: user.profileImageUrl,
+        })
+        .where(eq(usersTable.id, userId))
+        .returning();
     } else {
-      // If no changes, return the current user data
-      response = currentUser;
+      updatedUser = await db
+        .update(usersTable)
+        .set({
+          name: user.name,
+          phone: user.phone,
+          role: user.role,
+        })
+        .where(eq(usersTable.id, userId))
+        .returning();
     }
 
     revalidatePath("/users");
-    revalidatePath("/settings");
-    return parseStringify(response);
+    revalidatePath(`/users/edit-user/${userId}`);
+    return parseStringify(updatedUser);
   } catch (error) {
     console.error("Error updating user:", error);
     throw error;
   }
 };
 
-// get users
+// Get users
 export const getUsers = async (
   page: number = 0,
   limit: number = 10,
   getAllUsers: boolean = false
 ) => {
   try {
-    const queries = [
-      Query.equal("isActive", true),
-      Query.orderDesc("$createdAt"),
-    ];
+    let query = db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.isActive, true))
+      .orderBy(desc(usersTable.createdAt));
 
     if (!getAllUsers) {
-      queries.push(Query.limit(limit));
-      queries.push(Query.offset(page * limit));
-
-      const response = await databases.listDocuments(
-        DATABASE_ID!,
-        NEXT_PUBLIC_USERS_COLLECTION_ID!,
-        queries
-      );
-
-      return {
-        documents: parseStringify(response.documents),
-        total: response.total,
-      };
-    } else {
-      let allDocuments: Models.Document[] = [];
-      let offset = 0;
-      const batchSize = 100; // Maximum limit per request(appwrite's max)
-
-      while (true) {
-        const batchQueries = [
-          Query.equal("isActive", true),
-          Query.orderDesc("$createdAt"),
-          Query.limit(batchSize),
-          Query.offset(offset),
-        ];
-
-        const response = await databases.listDocuments(
-          DATABASE_ID!,
-          NEXT_PUBLIC_USERS_COLLECTION_ID!,
-          batchQueries
-        );
-
-        const documents = response.documents;
-        allDocuments = [...allDocuments, ...documents];
-
-        // If we got fewer documents than the batch size, we've reached the end
-        if (documents.length < batchSize) {
-          break;
-        }
-
-        offset += batchSize;
-      }
-
-      return {
-        documents: parseStringify(allDocuments),
-        total: allDocuments.length,
-      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      query = (query as any).limit(limit).offset(page * limit);
     }
+
+    const users = await query;
+
+    return {
+      documents: parseStringify(users),
+      total: users.length,
+    };
   } catch (error) {
     console.error("Error getting users:", error);
     throw error;
   }
 };
 
-// get user by ID
+// Get user by ID
 export const getUserById = async (userId: string) => {
   try {
-    const user = await databases.getDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_USERS_COLLECTION_ID!,
-      userId
-    );
+    const user = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, userId))
+      .then((res) => res[0]);
+
     return user;
   } catch (error) {
     console.error("Error fetching user:", error);
@@ -230,35 +172,35 @@ export const getUserById = async (userId: string) => {
   }
 };
 
-// delete user
+// Delete user
 export const deleteUser = async (userId: string) => {
   try {
-    const response = await databases.deleteDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_USERS_COLLECTION_ID!,
+    // Delete user from the database using Drizzle ORM
+    const deletedUser = await db
+      .delete(usersTable)
+      .where(eq(usersTable.id, userId))
+      .returning();
+
+    // Delete user from Supabase Authentication
+    const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(
       userId
     );
-
-    // delete user from Appwrite Authentication
-    try {
-      await users.delete(userId);
-    } catch (error) {
+    if (deleteError) {
       console.warn(
-        "Warning: Could not delete user from authentication:",
-        error
+        "Warning: Could not delete user from Supabase:",
+        deleteError
       );
     }
 
     revalidatePath("/users");
-    return parseStringify(response);
+    return parseStringify(deletedUser);
   } catch (error) {
-    console.error("Error soft deleting user:", error);
+    console.error("Error deleting user:", error);
     throw error;
   }
 };
 
-// updated user password
-
+// Update user password
 export const updatePassword = async (
   userId: string,
   data: UpdatePasswordFormValues
@@ -271,7 +213,13 @@ export const updatePassword = async (
       throw new Error("Passwords do not match");
     }
 
-    await users.updatePassword(userId, data.newPassword);
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.auth.updateUser({
+      password: data.newPassword,
+    });
+
+    if (error) throw error;
+
     return true;
   } catch (error) {
     console.error("Error updating user password:", error);

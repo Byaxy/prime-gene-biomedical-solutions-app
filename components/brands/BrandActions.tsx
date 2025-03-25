@@ -1,10 +1,10 @@
 import { useBrands } from "@/hooks/useBrands";
 import { BrandFormValues } from "@/lib/validation";
-import { Brand } from "@/types/appwrite.types";
 import { useState } from "react";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import BrandDialog from "./BrandDialog";
+import { Brand } from "@/types";
 
 const BrandActions = ({ brand }: { brand: Brand }) => {
   const { softDeleteBrand, editBrand, isSoftDeletingBrand, isEditingBrand } =
@@ -17,12 +17,12 @@ const BrandActions = ({ brand }: { brand: Brand }) => {
       if (mode === "edit") {
         // Edit brand
         await editBrand(
-          { id: brand.$id, data },
+          { id: brand.id, data },
           { onSuccess: () => setOpen(false) }
         );
       } else if (mode === "delete") {
         // Delete brand
-        await softDeleteBrand(brand.$id, {
+        await softDeleteBrand(brand.id, {
           onSuccess: () => setOpen(false),
         });
       }

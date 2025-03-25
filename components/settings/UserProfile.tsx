@@ -2,62 +2,56 @@
 
 import Loading from "@/components/loading";
 import { useUsers } from "@/hooks/useUsers";
-import { useState } from "react";
 import { UserFormValues } from "@/lib/validation";
 import UserProfileForm from "../forms/UserProfileForm";
 import { useAuth } from "@/hooks/useAuth";
-import { useUser } from "@/hooks/useUser";
 
 const UserProfile = () => {
-  const { user } = useAuth();
-  const { editUser } = useUsers();
-  const [isEditing, setIsEditing] = useState(false);
-  const { singleUser, isLoading } = useUser(user?.$id ?? "");
+  const { user, isLoading, isAdmin } = useAuth();
+  const { editUser, isEditingUser } = useUsers();
 
   if (isLoading) {
     return <Loading />;
   }
 
   const onSubmit = async (data: UserFormValues) => {
-    setIsEditing(true);
     try {
-      if (!singleUser) return;
+      if (!user) return;
       await editUser({
-        id: singleUser.$id,
+        id: user.id,
         data,
         prevImageId:
           data.image && data.image.length > 0
-            ? singleUser.profileImageId
+            ? user.profileImageId ?? undefined
             : undefined,
       });
     } catch (error) {
       console.error("Error updating user:", error);
-    } finally {
-      setIsEditing(false);
     }
   };
 
-  if (!singleUser) {
+  if (!user) {
     return null;
   }
 
   return (
     <div>
       <UserProfileForm
-        isAdmin={singleUser.role === "admin"}
+        isAdmin={isAdmin}
         initialData={{
-          $id: singleUser.$id,
-          name: singleUser.name,
-          email: singleUser.email,
-          phone: singleUser.phone || "",
-          role: singleUser.role,
-          profileImageId: singleUser.profileImageId,
-          profileImageUrl: singleUser.profileImageUrl,
-          $createdAt: new Date(singleUser.$createdAt),
-          $updatedAt: new Date(singleUser.$updatedAt),
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone || "",
+          role: user.role,
+          profileImageId: user.profileImageId ?? "",
+          profileImageUrl: user.profileImageUrl ?? "",
+          isActive: user.isActive,
+          createdAt: new Date(user.createdAt),
+          updatedAt: new Date(user.updatedAt),
         }}
         onSubmit={onSubmit}
-        isEditing={isEditing}
+        isEditing={isEditingUser}
       />
     </div>
   );

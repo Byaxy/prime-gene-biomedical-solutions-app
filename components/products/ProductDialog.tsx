@@ -6,10 +6,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-
 import { ProductFormValues } from "@/lib/validation";
-import { Product } from "@/types/appwrite.types";
 import { cn } from "@/lib/utils";
+import { Product } from "@/types";
 
 interface ProductDialogProps {
   mode: "add" | "edit" | "delete";
@@ -32,15 +31,13 @@ export function ProductDialog({
     try {
       await onSubmit({
         name: product?.name || "",
-        lotNumber: product?.lotNumber || "",
         description: product?.description || "",
-        costPrice: product?.costPrice || 0,
-        sellingPrice: product?.sellingPrice || 0,
+        alertQuantity: product?.alertQuantity || 0,
         quantity: product?.quantity || 0,
-        category: product?.category || "",
-        vendor: product?.vendor || "",
-        type: product?.type || "",
-        unit: product?.unit || "",
+        categoryId: product?.categoryId || "",
+        typeId: product?.typeId || "",
+        unitId: product?.unitId || "",
+        brandId: product?.brandId || "",
       });
       onOpenChange(false);
     } catch (error) {

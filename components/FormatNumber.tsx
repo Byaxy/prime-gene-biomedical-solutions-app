@@ -11,7 +11,7 @@ const FormatNumber = ({ value }: { value: number | string }) => {
       displayType="text"
       thousandsGroupStyle="thousand"
       type="text"
-      prefix={(companySettings && companySettings[0]?.currencySymbol) || "$"}
+      prefix={(companySettings && companySettings?.currencySymbol) || "$"}
     />
   );
 };

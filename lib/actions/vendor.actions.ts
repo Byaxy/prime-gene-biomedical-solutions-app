@@ -1,14 +1,11 @@
 "use server";
 
-import { ID, Models, Query } from "node-appwrite";
-import {
-  DATABASE_ID,
-  databases,
-  NEXT_PUBLIC_VENDORS_COLLECTION_ID,
-} from "../appwrite-server";
 import { parseStringify } from "../utils";
 import { revalidatePath } from "next/cache";
 import { VendorFormValues } from "../validation";
+import { db } from "@/drizzle/db";
+import { vendorsTable } from "@/drizzle/schema";
+import { desc, eq } from "drizzle-orm";
 
 // Get Vendors
 export const getVendors = async (
@@ -17,49 +14,38 @@ export const getVendors = async (
   getAllVendors: boolean = false
 ) => {
   try {
-    const queries = [
-      Query.equal("isActive", true),
-      Query.orderDesc("$createdAt"),
-    ];
+    let query = db
+      .select()
+      .from(vendorsTable)
+      .where(eq(vendorsTable.isActive, true))
+      .orderBy(desc(vendorsTable.createdAt));
 
     if (!getAllVendors) {
-      queries.push(Query.limit(limit));
-      queries.push(Query.offset(page * limit));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      query = (query as any).limit(limit).offset(page * limit);
+    }
 
-      const response = await databases.listDocuments(
-        DATABASE_ID!,
-        NEXT_PUBLIC_VENDORS_COLLECTION_ID!,
-        queries
-      );
+    const vendors = await query;
 
-      return {
-        documents: parseStringify(response.documents),
-        total: response.total,
-      };
-    } else {
-      let allDocuments: Models.Document[] = [];
+    // For getAllVendors, fetch all vendors in batches (if needed)
+    if (getAllVendors) {
+      let allVendors: typeof vendors = [];
       let offset = 0;
-      const batchSize = 100; // Maximum limit per request(appwrite's max)
+      const batchSize = 100;
 
       while (true) {
-        const batchQueries = [
-          Query.equal("isActive", true),
-          Query.orderDesc("$createdAt"),
-          Query.limit(batchSize),
-          Query.offset(offset),
-        ];
+        const batch = await db
+          .select()
+          .from(vendorsTable)
+          .where(eq(vendorsTable.isActive, true))
+          .orderBy(desc(vendorsTable.createdAt))
+          .limit(batchSize)
+          .offset(offset);
 
-        const response = await databases.listDocuments(
-          DATABASE_ID!,
-          NEXT_PUBLIC_VENDORS_COLLECTION_ID!,
-          batchQueries
-        );
+        allVendors = [...allVendors, ...batch];
 
-        const documents = response.documents;
-        allDocuments = [...allDocuments, ...documents];
-
-        // If we got fewer documents than the batch size, we've reached the end
-        if (documents.length < batchSize) {
+        // If we got fewer vendors than the batch size, we've reached the end
+        if (batch.length < batchSize) {
           break;
         }
 
@@ -67,12 +53,40 @@ export const getVendors = async (
       }
 
       return {
-        documents: parseStringify(allDocuments),
-        total: allDocuments.length,
+        documents: parseStringify(allVendors),
+        total: allVendors.length,
       };
     }
+
+    // For paginated results
+    const total = await db
+      .select()
+      .from(vendorsTable)
+      .where(eq(vendorsTable.isActive, true))
+      .then((res) => res.length);
+
+    return {
+      documents: parseStringify(vendors),
+      total,
+    };
   } catch (error) {
     console.error("Error getting vendors:", error);
+    throw error;
+  }
+};
+
+// Get Vendor by ID
+export const getVendorById = async (vendorId: string) => {
+  try {
+    const response = await db
+      .select()
+      .from(vendorsTable)
+      .where(eq(vendorsTable.id, vendorId))
+      .then((res) => res[0]);
+
+    return parseStringify(response);
+  } catch (error) {
+    console.error("Error getting vendor by ID:", error);
     throw error;
   }
 };
@@ -80,72 +94,66 @@ export const getVendors = async (
 // Add Vendor
 export const addVendor = async (vendorData: VendorFormValues) => {
   try {
-    const response = await databases.createDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_VENDORS_COLLECTION_ID!,
-      ID.unique(),
-      vendorData
-    );
+    const insertedVendor = await db
+      .insert(vendorsTable)
+      .values(vendorData)
+      .returning();
 
     revalidatePath("/vendors");
-    return parseStringify(response);
+    return parseStringify(insertedVendor);
   } catch (error) {
     console.error("Error adding vendor:", error);
     throw error;
   }
 };
 
-// Edit Vendors
+// Edit Vendor
 export const editVendor = async (
   vendorData: VendorFormValues,
   vendorId: string
 ) => {
   try {
-    const response = await databases.updateDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_VENDORS_COLLECTION_ID!,
-      vendorId,
-      vendorData
-    );
+    const updatedVendor = await db
+      .update(vendorsTable)
+      .set(vendorData)
+      .where(eq(vendorsTable.id, vendorId))
+      .returning();
 
     revalidatePath("/vendors");
-    revalidatePath(`/vendors/edit-vendor/${vendorId}`);
-    return parseStringify(response);
+    return parseStringify(updatedVendor);
   } catch (error) {
     console.error("Error editing vendor:", error);
     throw error;
   }
 };
 
-// Permanently Delete vendors
+// Permanently Delete Vendor
 export const deleteVendor = async (vendorId: string) => {
   try {
-    const response = await databases.deleteDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_VENDORS_COLLECTION_ID!,
-      vendorId
-    );
+    const deletedVendor = await db
+      .delete(vendorsTable)
+      .where(eq(vendorsTable.id, vendorId))
+      .returning();
 
     revalidatePath("/vendors");
-    return parseStringify(response);
+    return parseStringify(deletedVendor);
   } catch (error) {
     console.error("Error deleting vendor:", error);
     throw error;
   }
 };
 
-// Soft Delete vendors
+// Soft Delete Vendor
 export const softDeleteVendor = async (vendorId: string) => {
   try {
-    const response = await databases.updateDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_VENDORS_COLLECTION_ID!,
-      vendorId,
-      { isActive: false }
-    );
+    const updatedVendor = await db
+      .update(vendorsTable)
+      .set({ isActive: false })
+      .where(eq(vendorsTable.id, vendorId))
+      .returning();
 
     revalidatePath("/vendors");
-    return parseStringify(response);
+    return parseStringify(updatedVendor);
   } catch (error) {
     console.error("Error soft deleting vendor:", error);
     throw error;

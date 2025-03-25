@@ -9,21 +9,15 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "../ui/button";
 import { useCategories } from "@/hooks/useCategories";
-import {
-  Vendor,
-  Category,
-  Product,
-  ProductType,
-  Unit,
-} from "@/types/appwrite.types";
 import { SelectItem } from "../ui/select";
 import { useTypes } from "@/hooks/useTypes";
 import { useUnits } from "@/hooks/useUnits";
 import { FileUploader } from "../FileUploader";
-import { useVendors } from "@/hooks/useVendors";
-import { useProducts } from "@/hooks/useProducts";
-import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
+import { useBrands } from "@/hooks/useBrands";
+import { getFlattenedCategories } from "./CategoriesForm";
+import Loading from "../loading";
+import { Brand, Product, ProductType, Unit } from "@/types";
 
 interface ProductFormProps {
   mode: "create" | "edit";
@@ -32,11 +26,12 @@ interface ProductFormProps {
 }
 const ProductForm = ({ mode, initialData, onSubmit }: ProductFormProps) => {
   const [isLoading, setIsLoading] = useState(false);
-  const { categories } = useCategories({ getAllCategories: true });
+  const { categories, isLoading: categoriesLoading } = useCategories({
+    getAllCategories: true,
+  });
   const { types } = useTypes({ getAllTypes: true });
   const { units } = useUnits({ getAllUnits: true });
-  const { vendors } = useVendors({ getAllVendors: true });
-  const { products } = useProducts({ getAllProducts: true });
+  const { brands } = useBrands({ getAllBrands: true });
 
   const router = useRouter();
 
@@ -44,40 +39,22 @@ const ProductForm = ({ mode, initialData, onSubmit }: ProductFormProps) => {
     resolver: zodResolver(ProductFormValidation),
     defaultValues: initialData || {
       name: "",
-      lotNumber: "",
+      alertQuantity: 1,
+      categoryId: "",
+      typeId: "",
+      brandId: "",
+      unitId: "",
       description: "",
-      costPrice: 0,
-      sellingPrice: 0,
       quantity: 0,
-      category: "",
-      vendor: "",
-      type: "",
-      unit: "",
       image: [],
     },
   });
 
   const handleSubmit = async (values: ProductFormValues) => {
+    console.log("Product values", values);
+
     setIsLoading(true);
     try {
-      const existingProduct = products?.find(
-        (product: Product) => product.lotNumber === values.lotNumber
-      );
-      if (existingProduct && mode === "create") {
-        toast.error("A product with the same lot number already exists.");
-        return;
-      }
-
-      if (mode === "edit" && initialData?.lotNumber !== values.lotNumber) {
-        const existingProduct = products?.find(
-          (product: Product) => product.lotNumber === values.lotNumber
-        );
-        if (existingProduct) {
-          toast.error("A product with the same lot number already exists.");
-          return;
-        }
-      }
-
       if (
         mode === "edit" &&
         values?.image &&
@@ -95,11 +72,16 @@ const ProductForm = ({ mode, initialData, onSubmit }: ProductFormProps) => {
     }
   };
 
+  // Create flattened categories with indentation
+  const flattenedCategories = categories
+    ? getFlattenedCategories(categories)
+    : [];
+
   return (
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit(handleSubmit)}
-        className="space-y-5 text-dark-500 lg:max-w-5xl"
+        className="space-y-5 text-dark-500"
       >
         <CustomFormField
           fieldType={FormFieldType.SKELETON}
@@ -128,28 +110,48 @@ const ProductForm = ({ mode, initialData, onSubmit }: ProductFormProps) => {
 
         <div className="flex flex-col sm:flex-row gap-5">
           <CustomFormField
-            fieldType={FormFieldType.INPUT}
+            fieldType={FormFieldType.SELECT}
             control={form.control}
-            name="lotNumber"
-            label="Lot Number"
-            placeholder="Enter product lot number"
-          />
+            name="categoryId"
+            label="Category"
+            placeholder="Select category"
+            onAddNew={() => router.push("/settings/categories")}
+            hideSearch={true}
+          >
+            {categoriesLoading && (
+              <div className="py-5">
+                <Loading />
+              </div>
+            )}
+            {categories &&
+              flattenedCategories &&
+              flattenedCategories.map((category) => (
+                <SelectItem
+                  key={category.id}
+                  value={category.id}
+                  className="text-14-medium cursor-pointer hover:bg-blue-800 hover:text-white"
+                  style={{ paddingLeft: `${category.depth * 20}px` }}
+                >
+                  {category.name}
+                </SelectItem>
+              ))}
+          </CustomFormField>
 
           <CustomFormField
             fieldType={FormFieldType.SELECT}
             control={form.control}
-            name="vendor"
-            label="Vendor"
-            placeholder="Select vendor"
-            onAddNew={() => router.push("/vendors/add-vendor")}
+            name="brandId"
+            label="Brand"
+            placeholder="Select brand"
+            onAddNew={() => router.push("/settings/brands")}
           >
-            {vendors?.map((vendor: Vendor) => (
+            {brands?.map((brand: Brand) => (
               <SelectItem
-                key={vendor.$id}
-                value={vendor.$id}
+                key={brand.id}
+                value={brand.id}
                 className="text-14-medium text-blue-800 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
               >
-                {vendor.name}
+                {brand.name}
               </SelectItem>
             ))}
           </CustomFormField>
@@ -159,86 +161,58 @@ const ProductForm = ({ mode, initialData, onSubmit }: ProductFormProps) => {
           <CustomFormField
             fieldType={FormFieldType.SELECT}
             control={form.control}
-            name="category"
-            label="Category"
-            placeholder="Select category"
-            onAddNew={() => router.push("/settings/categories")}
-          >
-            {categories?.map((category: Category) => (
-              <SelectItem
-                key={category.$id}
-                value={category.$id}
-                className="text-14-medium text-blue-800 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
-              >
-                {category.name}
-              </SelectItem>
-            ))}
-          </CustomFormField>
-
-          <CustomFormField
-            fieldType={FormFieldType.SELECT}
-            control={form.control}
-            name="type"
+            name="typeId"
             label="Type"
-            placeholder="Select type"
+            placeholder="Select product type"
             onAddNew={() => router.push("/settings/types")}
           >
             {types?.map((productType: ProductType) => (
               <SelectItem
-                key={productType.$id}
-                value={productType.$id}
+                key={productType.id}
+                value={productType.id}
                 className="text-14-medium text-blue-800 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
               >
                 {productType.name}
               </SelectItem>
             ))}
           </CustomFormField>
-        </div>
-
-        <div className="flex flex-col sm:flex-row gap-5">
-          <CustomFormField
-            fieldType={FormFieldType.AMOUNT}
-            control={form.control}
-            name="costPrice"
-            label="Cost Price"
-            placeholder="Enter product cost price"
-          />
-
-          <CustomFormField
-            fieldType={FormFieldType.AMOUNT}
-            control={form.control}
-            name="sellingPrice"
-            label="Selling Price"
-            placeholder="Enter product selling price"
-          />
-        </div>
-        <div className="flex flex-col sm:flex-row gap-5">
-          <CustomFormField
-            fieldType={FormFieldType.NUMBER}
-            control={form.control}
-            name="quantity"
-            label="Quantity"
-            placeholder="Enter quantity in stock"
-          />
 
           <CustomFormField
             fieldType={FormFieldType.SELECT}
             control={form.control}
-            name="unit"
+            name="unitId"
             label="Unit of Measure"
             placeholder="Select unit of measure"
             onAddNew={() => router.push("/settings/units")}
           >
             {units?.map((unit: Unit) => (
               <SelectItem
-                key={unit.$id}
-                value={unit.$id}
+                key={unit.id}
+                value={unit.id}
                 className="text-14-medium text-blue-800 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
               >
                 {unit.name} ({unit.code})
               </SelectItem>
             ))}
           </CustomFormField>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-5">
+          <CustomFormField
+            fieldType={FormFieldType.NUMBER}
+            control={form.control}
+            name="quantity"
+            label="Quantity At Hand"
+            placeholder="Enter quantity at hand"
+          />
+
+          <CustomFormField
+            fieldType={FormFieldType.NUMBER}
+            control={form.control}
+            name="alertQuantity"
+            label="Alert Quantity"
+            placeholder="Enter alert quantity"
+          />
         </div>
 
         <CustomFormField

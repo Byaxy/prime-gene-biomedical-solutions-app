@@ -20,7 +20,7 @@ const Header = () => {
           <User2Icon className="w-10 h-10 bg-light-200 p-2 rounded-full text-blue-800 cursor-pointer" />
         </PopoverTrigger>
         <PopoverContent className="w-72 flex flex-col mt-2 ring-0 gap-4 bg-white z-50">
-          <Link href="/settings" onClick={() => setOpen(false)}>
+          <Link href="/settings/profile" onClick={() => setOpen(false)}>
             <Button className="shad-primary-btn font-semibold w-full">
               View Profile
             </Button>

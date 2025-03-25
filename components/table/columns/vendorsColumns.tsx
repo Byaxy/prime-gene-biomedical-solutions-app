@@ -2,10 +2,10 @@
 
 import { ColumnDef } from "@tanstack/table-core";
 import { formatDateTime } from "@/lib/utils";
-import { Vendor } from "@/types/appwrite.types";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import VendorActions from "@/components/vendors/VendorActions";
+import { Vendor } from "@/types";
 
 export const vendorsColumns: ColumnDef<Vendor>[] = [
   {
@@ -77,7 +77,7 @@ export const vendorsColumns: ColumnDef<Vendor>[] = [
       const vendor = row.original;
       return (
         <p className="text-14-medium ">
-          {formatDateTime(vendor.$createdAt).dateTime}
+          {formatDateTime(vendor.createdAt).dateTime}
         </p>
       );
     },
@@ -100,7 +100,7 @@ export const vendorsColumns: ColumnDef<Vendor>[] = [
       const vendor = row.original;
       return (
         <p className="text-14-medium">
-          {formatDateTime(vendor.$updatedAt).dateTime}
+          {formatDateTime(vendor.updatedAt).dateTime}
         </p>
       );
     },

@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Customer } from "@/types/appwrite.types";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useCustomers } from "@/hooks/useCustomers";
 import CustomerDialog from "./CustomerDialog";
 import { useRouter } from "next/navigation";
+import { Customer } from "@/types";
 
 const CustomerActions = ({ customer }: { customer: Customer }) => {
   const [open, setOpen] = useState(false);
@@ -18,7 +18,7 @@ const CustomerActions = ({ customer }: { customer: Customer }) => {
   const handleAction = async () => {
     try {
       if (mode === "delete") {
-        await softDeleteCustomer(customer.$id, {
+        await softDeleteCustomer(customer.id, {
           onSuccess: () => setOpen(false),
         });
       }
@@ -32,7 +32,7 @@ const CustomerActions = ({ customer }: { customer: Customer }) => {
       <span
         onClick={() => {
           setMode("edit");
-          router.push(`/customers/edit-customer/${customer.$id}`);
+          router.push(`/customers/edit-customer/${customer.id}`);
         }}
         className="text-[#475BE8] p-1 hover:bg-white hover:rounded-md cursor-pointer"
       >

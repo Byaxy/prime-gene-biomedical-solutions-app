@@ -7,8 +7,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { CreateUserFormValues, EditUserFormValues } from "@/lib/validation";
-import { User } from "@/types/appwrite.types";
 import UserForm from "../forms/UserForm";
+import { User } from "@/types";
 
 interface UserDialogProps {
   mode: "add" | "edit" | "delete";
@@ -105,20 +105,11 @@ export function UserDialog({
             initialData={
               mode === "edit" && user
                 ? {
-                    $id: user.$id,
-                    name: user.name,
-                    email: user.email,
-                    phone: user.phone,
-                    role: user.role,
-                    profileImageId: user.profileImageId,
-                    profileImageUrl: user.profileImageUrl,
-                    $createdAt: user.$createdAt,
-                    $updatedAt: user.$updatedAt,
+                    ...user,
                   }
                 : undefined
             }
-            onSubmit={(data) => onSubmit(data, user?.profileImageId)}
-            onCancel={() => onOpenChange(false)}
+            onSubmit={onSubmit}
           />
         )}
       </DialogContent>

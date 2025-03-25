@@ -5,28 +5,28 @@ import CompanySettingsForm from "../forms/CompanySettingsForm";
 import { CompanySettingsFormValues } from "@/lib/validation";
 import Loading from "@/components/loading";
 import { useAuth } from "@/hooks/useAuth";
-import { useUser } from "@/hooks/useUser";
 
 const CompanySettings = () => {
-  const { user } = useAuth();
-  const { singleUser, isLoading } = useUser(user?.$id ?? "");
-  const { companySettings, addCompanySettings, updateCompanySettings } =
-    useCompanySettings();
-
-  if (isLoading) {
-    return <Loading />;
-  }
+  const { isAdmin } = useAuth();
+  const {
+    companySettings,
+    addCompanySettings,
+    updateCompanySettings,
+    isLoading,
+    isUpdatingCompanySettings,
+    isAddingCompanySettings,
+  } = useCompanySettings();
 
   const handleSubmit = async (
     data: CompanySettingsFormValues,
     prevLogoId?: string
   ) => {
     try {
-      if (companySettings.length === 0) {
+      if (!companySettings) {
         await addCompanySettings(data);
-      } else if (companySettings.length > 0) {
+      } else {
         await updateCompanySettings({
-          id: companySettings[0].$id,
+          id: companySettings.id,
           data: data,
           prevLogoId: data?.image && data.image.length > 0 ? prevLogoId! : "",
         });
@@ -36,31 +36,27 @@ const CompanySettings = () => {
     }
   };
 
+  if (isLoading) {
+    return <Loading />;
+  }
+
   return (
     <div className="w-full">
       <CompanySettingsForm
         initialData={
-          companySettings && companySettings.length > 0
+          companySettings
             ? {
-                $id: companySettings[0].$id,
-                name: companySettings[0].name,
-                email: companySettings[0].email,
-                phone: companySettings[0].phone,
-                address: companySettings[0].address,
-                city: companySettings[0].city,
-                state: companySettings[0].state,
-                country: companySettings[0].country,
-                currency: companySettings[0].currency,
-                currencySymbol: companySettings[0].currencySymbol,
-                logoId: companySettings[0].logoId,
-                logoUrl: companySettings[0].logoUrl,
-                $createdAt: companySettings[0].$createdAt,
-                $updatedAt: companySettings[0].$updatedAt,
+                ...companySettings,
+                logoId: companySettings.logoId || "",
+                logoUrl: companySettings.logoUrl || "",
               }
             : null
         }
         onSubmit={handleSubmit}
-        isAdmin={singleUser?.role === "admin"}
+        isAdmin={isAdmin}
+        isLoading={
+          companySettings ? isUpdatingCompanySettings : isAddingCompanySettings
+        }
       />
     </div>
   );

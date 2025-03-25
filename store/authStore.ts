@@ -1,13 +1,13 @@
+import { User } from "@/types";
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
-import { Models } from "appwrite";
 
 interface AuthState {
-  user: Models.User<Models.Preferences> | null;
+  user: User | null;
   isAdmin: boolean;
   isLoading: boolean;
-  setUser: (user: Models.User<Models.Preferences> | null) => void;
+  setUser: (user: User | null) => void;
   setIsAdmin: (isAdmin: boolean) => void;
   setIsLoading: (isLoading: boolean) => void;
 }

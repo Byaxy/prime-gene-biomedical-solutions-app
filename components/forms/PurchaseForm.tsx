@@ -10,10 +10,8 @@ import { useProducts } from "@/hooks/useProducts";
 import {
   DeliveryStatus,
   PaymentMethod,
-  Product,
   Purchase,
   PurchaseStatus,
-  Vendor,
 } from "@/types/appwrite.types";
 import { useEffect, useState } from "react";
 import {
@@ -36,9 +34,10 @@ import Loading from "@/components/loading";
 import FormatNumber from "@/components/FormatNumber";
 import { usePurchases } from "@/hooks/usePurchases";
 import { useVendors } from "@/hooks/useVendors";
+import { Product, Vendor } from "@/types";
 
 interface ProductType extends Product {
-  $id: string;
+  id: string;
   name: string;
   lotNumber: string;
   unit: { name: string; code: string };
@@ -131,7 +130,7 @@ const PurchaseForm = ({ mode, initialData, onSubmit }: PurchaseFormProps) => {
             initialData.products.map(async (product: PurchaseProduct) => {
               const productId =
                 typeof product.product === "object"
-                  ? product.product.$id
+                  ? product.product.id
                   : product.product;
 
               try {
@@ -220,7 +219,7 @@ const PurchaseForm = ({ mode, initialData, onSubmit }: PurchaseFormProps) => {
         form.getValues("tempPrice") || selectedProduct.costPrice;
 
       const newProduct: FormProduct = {
-        product: selectedProduct.$id,
+        product: selectedProduct.id,
         quantity,
         unitPrice,
         totalPrice: unitPrice * quantity,
@@ -369,11 +368,11 @@ const PurchaseForm = ({ mode, initialData, onSubmit }: PurchaseFormProps) => {
             >
               {products?.map((product: Product) => (
                 <SelectItem
-                  key={product.$id}
-                  value={product.$id}
+                  key={product.id}
+                  value={product.id}
                   className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
                 >
-                  {product.lotNumber} - {product.name}
+                  {product.name}
                 </SelectItem>
               ))}
             </CustomFormField>
@@ -528,8 +527,8 @@ const PurchaseForm = ({ mode, initialData, onSubmit }: PurchaseFormProps) => {
           >
             {vendors?.map((vendor: Vendor) => (
               <SelectItem
-                key={vendor.$id}
-                value={vendor.$id}
+                key={vendor.id}
+                value={vendor.id}
                 className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
               >
                 {vendor.name}

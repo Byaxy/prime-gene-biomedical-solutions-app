@@ -1,10 +1,10 @@
 import { CategoryFormValues } from "@/lib/validation";
-import { Category } from "@/types/appwrite.types";
 import { useState } from "react";
 import { CategoryDialog } from "./CategoryDialog";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useCategories } from "@/hooks/useCategories";
+import { Category } from "@/types";
 
 const CategoryActions = ({ category }: { category: Category }) => {
   const [open, setOpen] = useState(false);
@@ -23,13 +23,13 @@ const CategoryActions = ({ category }: { category: Category }) => {
       if (mode === "edit") {
         // Edit category
         await editCategory(
-          { id: category.$id, data },
+          { id: category.id, data },
           { onSuccess: () => setOpen(false) }
         );
         setOpen(false);
       } else if (mode === "delete") {
         // Delete category
-        await softDeleteCategory(category.$id, {
+        await softDeleteCategory(category.id, {
           onSuccess: () => setOpen(false),
         });
       }

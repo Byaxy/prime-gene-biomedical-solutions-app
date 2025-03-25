@@ -2,11 +2,11 @@
 
 import { ColumnDef } from "@tanstack/table-core";
 import { formatDateTime } from "@/lib/utils";
-import { ProductType } from "@/types/appwrite.types";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 import TypeActions from "@/components/productTypes/TypeActions";
+import { ProductType } from "@/types";
 
 export const typesColumns: ColumnDef<ProductType>[] = [
   {
@@ -62,7 +62,7 @@ export const typesColumns: ColumnDef<ProductType>[] = [
       const type = row.original;
       return (
         <p className="text-14-medium ">
-          {formatDateTime(type.$createdAt).dateTime}
+          {formatDateTime(type.createdAt).dateTime}
         </p>
       );
     },
@@ -85,7 +85,7 @@ export const typesColumns: ColumnDef<ProductType>[] = [
       const type = row.original;
       return (
         <p className="text-14-medium">
-          {formatDateTime(type.$updatedAt).dateTime}
+          {formatDateTime(type.updatedAt).dateTime}
         </p>
       );
     },

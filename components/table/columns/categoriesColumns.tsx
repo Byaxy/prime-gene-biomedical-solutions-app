@@ -2,11 +2,12 @@
 
 import { ColumnDef } from "@tanstack/table-core";
 import { formatDateTime } from "@/lib/utils";
-import { Category } from "@/types/appwrite.types";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 import CategoryActions from "@/components/categories/CategoryActions";
+import SingleCategory from "@/components/categories/SingleCategory";
+import { Category } from "@/types";
 
 export const categoriesColumns: ColumnDef<Category>[] = [
   {
@@ -37,6 +38,19 @@ export const categoriesColumns: ColumnDef<Category>[] = [
     },
   },
   {
+    accessorKey: "parentId",
+    header: "Parent Category",
+
+    cell: ({ row }) => {
+      const category = row.original;
+      return category.parentId ? (
+        <SingleCategory categoryId={category.parentId} />
+      ) : (
+        <span>Null</span>
+      );
+    },
+  },
+  {
     accessorKey: "description",
     header: "Description",
     cell: ({ row }) => {
@@ -62,7 +76,7 @@ export const categoriesColumns: ColumnDef<Category>[] = [
       const category = row.original;
       return (
         <p className="text-14-medium ">
-          {formatDateTime(category.$createdAt).dateTime}
+          {formatDateTime(category.createdAt).dateTime}
         </p>
       );
     },
@@ -85,7 +99,7 @@ export const categoriesColumns: ColumnDef<Category>[] = [
       const category = row.original;
       return (
         <p className="text-14-medium">
-          {formatDateTime(category.$updatedAt).dateTime}
+          {formatDateTime(category.updatedAt).dateTime}
         </p>
       );
     },

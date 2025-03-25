@@ -1,0 +1,1 @@
+ALTER TABLE "waybills" ALTER COLUMN "transportation_fee" SET DEFAULT 0;

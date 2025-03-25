@@ -1,3 +1,5 @@
+"use client";
+
 import {
   addUser,
   editUser,
@@ -5,18 +7,16 @@ import {
   deleteUser,
   updatePassword,
 } from "@/lib/actions/user.actions";
-import { storage } from "@/lib/appwrite-client";
 import {
   CreateUserFormValues,
   EditUserFormValues,
   UpdatePasswordFormValues,
 } from "@/lib/validation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ID } from "appwrite";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
-
-const BUCKET_ID = process.env.NEXT_PUBLIC_APPWRITE_BUCKET_ID;
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { User } from "@/types";
 
 interface UseUsersOptions {
   getAllUsers?: boolean;
@@ -68,27 +68,28 @@ export const useUsers = ({
   // Create user mutation
   const { mutate: addUserMutation, status: addUserStatus } = useMutation({
     mutationFn: async (data: CreateUserFormValues) => {
+      const supabase = createSupabaseBrowserClient();
       let profileImageId = "";
       let profileImageUrl = "";
 
       if (data.image && data.image.length > 0) {
         try {
           const file = data.image[0]; // Get the first file
-          profileImageId = ID.unique();
+          profileImageId = `${Date.now()}-${file.name}`; // Generate a unique file name
 
-          // Upload the file
-          const upload = await storage.createFile(
-            BUCKET_ID!,
-            profileImageId,
-            file
-          );
+          // Upload the file to Supabase Storage
+          const { error: uploadError } = await supabase.storage
+            .from("images")
+            .upload(profileImageId, file);
 
-          // Get the file view URL
-          if (upload) {
-            profileImageUrl = storage
-              .getFileView(BUCKET_ID!, profileImageId)
-              .toString();
-          }
+          if (uploadError) throw uploadError;
+
+          // Get the file URL
+          const { data: urlData } = supabase.storage
+            .from("images")
+            .getPublicUrl(profileImageId);
+
+          profileImageUrl = urlData.publicUrl;
         } catch (error) {
           console.error("Error uploading file:", error);
           throw new Error("Failed to upload profile image");
@@ -111,7 +112,7 @@ export const useUsers = ({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
-      toast.success("User createed successfully");
+      toast.success("User created successfully");
     },
     onError: (error) => {
       console.error("Error creating user:", error);
@@ -130,30 +131,38 @@ export const useUsers = ({
       data: EditUserFormValues;
       prevImageId?: string;
     }) => {
+      const supabase = createSupabaseBrowserClient();
       let profileImageId = "";
       let profileImageUrl = "";
 
-      if (prevImageId) {
-        await storage.deleteFile(BUCKET_ID!, prevImageId);
+      // Delete the previous image if it exists and new image is provided
+      if (prevImageId && data?.image && data?.image.length > 0) {
+        const { error: deleteError } = await supabase.storage
+          .from("images")
+          .remove([prevImageId]);
+
+        if (deleteError)
+          console.warn("Failed to delete previous image:", deleteError);
       }
 
+      // Upload the new image if provided
       if (data.image && data.image.length > 0) {
         const file = data.image[0];
-        profileImageId = ID.unique();
+        profileImageId = `${Date.now()}-${file.name}`; // Generate a unique file name
 
-        // Upload the file
-        const upload = await storage.createFile(
-          BUCKET_ID!,
-          profileImageId,
-          file
-        );
+        // Upload the file to Supabase Storage
+        const { error: uploadError } = await supabase.storage
+          .from("images")
+          .upload(profileImageId, file);
 
-        // Get the file view URL
-        if (upload) {
-          profileImageUrl = storage
-            .getFileView(BUCKET_ID!, profileImageId)
-            .toString();
-        }
+        if (uploadError) throw uploadError;
+
+        // Get the file URL
+        const { data: urlData } = supabase.storage
+          .from("images")
+          .getPublicUrl(profileImageId);
+
+        profileImageUrl = urlData.publicUrl;
       }
 
       const userData = {
@@ -176,7 +185,7 @@ export const useUsers = ({
     },
   });
 
-  // update user password mutation
+  // Update user password mutation
   const { mutate: updatePasswordMutation, status: updatePasswordStatus } =
     useMutation({
       mutationFn: async ({
@@ -199,7 +208,26 @@ export const useUsers = ({
 
   // Delete user mutation
   const { mutate: deleteUserMutation, status: deleteUserStatus } = useMutation({
-    mutationFn: (id: string) => deleteUser(id),
+    mutationFn: async (id: string) => {
+      const supabase = createSupabaseBrowserClient();
+
+      // Delete the user's profile image from Supabase Storage if it exists
+      const user = await getUsers(0, 0, true).then((res) =>
+        res.documents.find((u: User) => u.id === id)
+      );
+
+      if (user?.profileImageId) {
+        const { error: deleteError } = await supabase.storage
+          .from("images")
+          .remove([user.profileImageId]);
+
+        if (deleteError)
+          console.warn("Failed to delete profile image:", deleteError);
+      }
+
+      // Delete the user from the database
+      return deleteUser(id);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       toast.success("User deleted successfully");

@@ -14,10 +14,6 @@ const LoginPage = () => {
     router.replace("/");
   }
 
-  if (user) {
-    return null;
-  }
-
   return (
     <section className="flex items-center justify-center h-screen w-full">
       <div className="flex items-center justify-center w-full h-full bg-primaryLight px-4">
@@ -28,6 +24,7 @@ const LoginPage = () => {
               alt="Logo"
               width={280}
               height={80}
+              priority
             />
           </div>
 

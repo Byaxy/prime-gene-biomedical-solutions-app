@@ -7,20 +7,14 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "../ui/button";
 import { SelectItem } from "../ui/select";
-import { Expense, PaymentMethod } from "@/types/appwrite.types";
+import { Expense, PaymentMethod } from "@/types";
 
 interface ExpenseFormProps {
   mode: "create" | "edit";
   initialData?: Expense;
   onSubmit: (data: ExpenseFormValues) => Promise<void>;
-  onCancel?: () => void;
 }
-const ExpenseForm = ({
-  mode,
-  initialData,
-  onSubmit,
-  onCancel,
-}: ExpenseFormProps) => {
+const ExpenseForm = ({ mode, initialData, onSubmit }: ExpenseFormProps) => {
   const [isLoading, setIsLoading] = useState(false);
 
   const form = useForm<ExpenseFormValues>({
@@ -38,6 +32,7 @@ const ExpenseForm = ({
     setIsLoading(true);
     try {
       await onSubmit(values);
+      form.reset();
     } catch (error) {
       console.error("Error submitting form:", error);
     } finally {
@@ -47,11 +42,8 @@ const ExpenseForm = ({
 
   return (
     <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(handleSubmit)}
-        className="text-dark-500"
-      >
-        <div className="flex flex-col space-y-5 overflow-y-auto max-h-[60vh] pb-5 remove-scrollbar">
+      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-5">
+        <div className="flex flex-col sm:flex-row gap-5">
           <CustomFormField
             fieldType={FormFieldType.DATE_PICKER}
             control={form.control}
@@ -66,7 +58,8 @@ const ExpenseForm = ({
             label="Expense Title"
             placeholder="Enter expense title"
           />
-
+        </div>
+        <div className="flex flex-col sm:flex-row gap-5">
           <CustomFormField
             fieldType={FormFieldType.AMOUNT}
             control={form.control}
@@ -92,26 +85,25 @@ const ExpenseForm = ({
               </SelectItem>
             ))}
           </CustomFormField>
-
-          <CustomFormField
-            fieldType={FormFieldType.TEXTAREA}
-            control={form.control}
-            name="description"
-            label="Description"
-            placeholder="Enter expense description"
-          />
         </div>
 
+        <CustomFormField
+          fieldType={FormFieldType.TEXTAREA}
+          control={form.control}
+          name="description"
+          label="Description"
+          placeholder="Enter expense description"
+        />
+
         <div className="flex justify-end gap-4 mt-4">
-          {onCancel && (
-            <Button
-              type="button"
-              onClick={onCancel}
-              className="shad-danger-btn"
-            >
-              Cancel
-            </Button>
-          )}
+          <Button
+            type="button"
+            onClick={() => form.reset()}
+            className="shad-danger-btn"
+          >
+            Cancel
+          </Button>
+
           <SubmitButton isLoading={isLoading} className="shad-primary-btn">
             {mode === "create" ? "Create Expense" : "Update Expense"}
           </SubmitButton>

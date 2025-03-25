@@ -1,28 +1,49 @@
 "use server";
 
-import { ID, Models, Query } from "node-appwrite";
 import { revalidatePath } from "next/cache";
 import { parseStringify } from "../utils";
-
-import {
-  databases,
-  DATABASE_ID,
-  NEXT_PUBLIC_CATEGORIES_COLLECTION_ID,
-} from "../appwrite-server";
 import { CategoryFormValues } from "../validation";
+import { db } from "@/drizzle/db";
+import { categoriesTable } from "@/drizzle/schema";
+import { eq, desc } from "drizzle-orm";
 
 // Add Category
 export const addCategory = async (categoryData: CategoryFormValues) => {
   try {
-    const response = await databases.createDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_CATEGORIES_COLLECTION_ID!,
-      ID.unique(),
-      categoryData
-    );
+    let path = "";
+    let depth = 0;
+
+    // If the category has a parent, calculate the path and depth
+    if (categoryData.parentId) {
+      const parentCategory = await db
+        .select()
+        .from(categoriesTable)
+        .where(eq(categoriesTable.id, categoryData.parentId))
+        .then((res) => res[0]);
+
+      if (!parentCategory) {
+        throw new Error("Parent category not found");
+      }
+
+      // Build the path and depth
+      path = parentCategory.path
+        ? `${parentCategory.path}/${parentCategory.id}`
+        : parentCategory.id;
+      depth = parentCategory.depth ? parentCategory.depth + 1 : 1;
+    }
+
+    // Insert the new category
+    const insertedCategory = await db
+      .insert(categoriesTable)
+      .values({
+        ...categoryData,
+        path,
+        depth,
+      })
+      .returning();
 
     revalidatePath("/products/categories");
-    return parseStringify(response);
+    return parseStringify(insertedCategory);
   } catch (error) {
     console.error("Error adding category:", error);
     throw error;
@@ -36,49 +57,38 @@ export const getCategories = async (
   getAllCategories: boolean = false
 ) => {
   try {
-    const queries = [
-      Query.equal("isActive", true),
-      Query.orderDesc("$createdAt"),
-    ];
+    let query = db
+      .select()
+      .from(categoriesTable)
+      .where(eq(categoriesTable.isActive, true))
+      .orderBy(desc(categoriesTable.createdAt));
 
     if (!getAllCategories) {
-      queries.push(Query.limit(limit));
-      queries.push(Query.offset(page * limit));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      query = (query as any).limit(limit).offset(page * limit);
+    }
 
-      const response = await databases.listDocuments(
-        DATABASE_ID!,
-        NEXT_PUBLIC_CATEGORIES_COLLECTION_ID!,
-        queries
-      );
+    const categories = await query;
 
-      return {
-        documents: parseStringify(response.documents),
-        total: response.total,
-      };
-    } else {
-      let allDocuments: Models.Document[] = [];
+    // For getAllCategories, fetch all categories in batches (if needed)
+    if (getAllCategories) {
+      let allCategories: typeof categories = [];
       let offset = 0;
-      const batchSize = 100; // Maximum limit per request(appwrite's max)
+      const batchSize = 100; // Adjust batch size as needed
 
       while (true) {
-        const batchQueries = [
-          Query.equal("isActive", true),
-          Query.orderDesc("$createdAt"),
-          Query.limit(batchSize),
-          Query.offset(offset),
-        ];
+        const batch = await db
+          .select()
+          .from(categoriesTable)
+          .where(eq(categoriesTable.isActive, true))
+          .orderBy(desc(categoriesTable.createdAt))
+          .limit(batchSize)
+          .offset(offset);
 
-        const response = await databases.listDocuments(
-          DATABASE_ID!,
-          NEXT_PUBLIC_CATEGORIES_COLLECTION_ID!,
-          batchQueries
-        );
+        allCategories = [...allCategories, ...batch];
 
-        const documents = response.documents;
-        allDocuments = [...allDocuments, ...documents];
-
-        // If we got fewer documents than the batch size, we've reached the end
-        if (documents.length < batchSize) {
+        // If we got fewer categories than the batch size, we've reached the end
+        if (batch.length < batchSize) {
           break;
         }
 
@@ -86,12 +96,40 @@ export const getCategories = async (
       }
 
       return {
-        documents: parseStringify(allDocuments),
-        total: allDocuments.length,
+        documents: parseStringify(allCategories),
+        total: allCategories.length,
       };
     }
+
+    // For paginated results
+    const total = await db
+      .select()
+      .from(categoriesTable)
+      .where(eq(categoriesTable.isActive, true))
+      .then((res) => res.length);
+
+    return {
+      documents: parseStringify(categories),
+      total,
+    };
   } catch (error) {
     console.error("Error getting categories:", error);
+    throw error;
+  }
+};
+
+// Get Category by ID
+export const getCategoryById = async (categoryId: string) => {
+  try {
+    const response = await db
+      .select()
+      .from(categoriesTable)
+      .where(eq(categoriesTable.id, categoryId))
+      .then((res) => res[0]);
+
+    return parseStringify(response);
+  } catch (error) {
+    console.error("Error getting category by ID:", error);
     throw error;
   }
 };
@@ -102,15 +140,46 @@ export const editCategory = async (
   categoryId: string
 ) => {
   try {
-    const response = await databases.updateDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_CATEGORIES_COLLECTION_ID!,
-      categoryId,
-      categoryData
-    );
+    let path = "";
+    let depth = 0;
+
+    // If the category has a parent, calculate the path and depth
+    if (categoryData.parentId) {
+      const parentCategory = await db
+        .select()
+        .from(categoriesTable)
+        .where(eq(categoriesTable.id, categoryData.parentId))
+        .then((res) => res[0]);
+
+      if (!parentCategory) {
+        throw new Error("Parent category not found");
+      }
+
+      // Prevent a category from referencing itself as the parent
+      if (parentCategory.id === categoryId) {
+        throw new Error("A category cannot reference itself as the parent");
+      }
+
+      // Build the path and depth
+      path = parentCategory.path
+        ? `${parentCategory.path}/${parentCategory.id}`
+        : parentCategory.id;
+      depth = parentCategory.depth ? parentCategory.depth + 1 : 1;
+    }
+
+    // Update the category
+    const updatedCategory = await db
+      .update(categoriesTable)
+      .set({
+        ...categoryData,
+        path,
+        depth,
+      })
+      .where(eq(categoriesTable.id, categoryId))
+      .returning();
 
     revalidatePath("/products/categories");
-    return parseStringify(response);
+    return parseStringify(updatedCategory);
   } catch (error) {
     console.error("Error editing category:", error);
     throw error;
@@ -120,14 +189,13 @@ export const editCategory = async (
 // Permanently Delete Category
 export const deleteCategory = async (categoryId: string) => {
   try {
-    const response = await databases.deleteDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_CATEGORIES_COLLECTION_ID!,
-      categoryId
-    );
+    const deletedCategory = await db
+      .delete(categoriesTable)
+      .where(eq(categoriesTable.id, categoryId))
+      .returning();
 
     revalidatePath("/products/categories");
-    return parseStringify(response);
+    return parseStringify(deletedCategory);
   } catch (error) {
     console.error("Error deleting category:", error);
     throw error;
@@ -137,15 +205,14 @@ export const deleteCategory = async (categoryId: string) => {
 // Soft Delete Category
 export const softDeleteCategory = async (categoryId: string) => {
   try {
-    const response = await databases.updateDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_CATEGORIES_COLLECTION_ID!,
-      categoryId,
-      { isActive: false }
-    );
+    const updatedCategory = await db
+      .update(categoriesTable)
+      .set({ isActive: false })
+      .where(eq(categoriesTable.id, categoryId))
+      .returning();
 
     revalidatePath("/products/categories");
-    return parseStringify(response);
+    return parseStringify(updatedCategory);
   } catch (error) {
     console.error("Error soft deleting category:", error);
     throw error;

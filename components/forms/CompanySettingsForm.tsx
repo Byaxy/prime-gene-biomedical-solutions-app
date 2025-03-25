@@ -13,9 +13,9 @@ import {
 } from "@/lib/validation";
 import { SelectItem } from "../ui/select";
 import { FileUploader } from "../FileUploader";
-import { CompanySettings } from "@/types/appwrite.types";
 import { Country, State, City } from "country-state-city";
 import { IState, ICity } from "country-state-city";
+import { CompanySettings } from "@/types";
 
 interface CompanySettingsFormProps {
   initialData?: CompanySettings | null;
@@ -24,14 +24,15 @@ interface CompanySettingsFormProps {
     prevLogoId?: string
   ) => Promise<void>;
   isAdmin?: boolean;
+  isLoading: boolean;
 }
 
 const CompanySettingsForm = ({
   initialData = null,
   onSubmit,
   isAdmin,
+  isLoading,
 }: CompanySettingsFormProps) => {
-  const [isLoading, setIsLoading] = useState(false);
   const [states, setStates] = useState<IState[]>(() =>
     initialData?.country ? State.getStatesOfCountry(initialData.country) : []
   );
@@ -106,7 +107,6 @@ const CompanySettingsForm = ({
   };
 
   const handleSubmit = async (values: CompanySettingsFormValues) => {
-    setIsLoading(true);
     try {
       if (initialData && values?.image) {
         await onSubmit(values, initialData.logoId);
@@ -115,8 +115,6 @@ const CompanySettingsForm = ({
       }
     } catch (error) {
       console.error("Error submitting form:", error);
-    } finally {
-      setIsLoading(false);
     }
   };
 

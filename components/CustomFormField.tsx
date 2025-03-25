@@ -60,11 +60,12 @@ interface CustomProps {
   fieldType: FormFieldType;
   onValueChange?: (value: any) => void;
   onAddNew?: () => void;
+  hideSearch?: boolean;
 }
 
 const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
   const { companySettings } = useCompanySettings();
-  const currencySymbol = companySettings?.[0]?.currencySymbol || "$";
+  const currencySymbol = companySettings?.currencySymbol || "$";
   const [searchTerm, setSearchTerm] = useState("");
   const [filteredChildren, setFilteredChildren] = useState(props.children);
   const [childrenCount, setChildrenCount] = useState(0);
@@ -285,7 +286,7 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
                   e.preventDefault();
                 }}
               >
-                {childrenCount > 5 && (
+                {!props.hideSearch && childrenCount > 5 && (
                   <div
                     className="sticky top-0 bg-white px-2 py-2 z-10"
                     onClick={(e) => e.stopPropagation()}

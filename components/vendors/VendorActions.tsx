@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { VendorFormValues } from "@/lib/validation";
-import { Vendor } from "@/types/appwrite.types";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useVendors } from "@/hooks/useVendors";
 import VendorDialog from "./VendorDialog";
+import { Vendor } from "@/types";
 
 const VendorActions = ({ vendor }: { vendor: Vendor }) => {
   const [open, setOpen] = useState(false);
@@ -21,12 +21,12 @@ const VendorActions = ({ vendor }: { vendor: Vendor }) => {
     try {
       if (mode === "edit") {
         await editVendor(
-          { id: vendor.$id, data },
+          { id: vendor.id, data },
           { onSuccess: () => setOpen(false) }
         );
         setOpen(false);
       } else if (mode === "delete") {
-        await softDeleteVendor(vendor.$id, {
+        await softDeleteVendor(vendor.id, {
           onSuccess: () => setOpen(false),
         });
       }

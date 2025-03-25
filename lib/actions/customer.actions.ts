@@ -1,14 +1,11 @@
 "use server";
 
-import { ID, Models, Query } from "node-appwrite";
-import {
-  DATABASE_ID,
-  databases,
-  NEXT_PUBLIC_CUSTOMERS_COLLECTION_ID,
-} from "../appwrite-server";
 import { parseStringify } from "../utils";
 import { revalidatePath } from "next/cache";
 import { CustomerFormValues } from "../validation";
+import { customersTable } from "@/drizzle/schema";
+import { db } from "@/drizzle/db";
+import { desc, eq } from "drizzle-orm";
 
 // Get Customers
 export const getCustomers = async (
@@ -17,49 +14,38 @@ export const getCustomers = async (
   getAllCustomers: boolean = false
 ) => {
   try {
-    const queries = [
-      Query.equal("isActive", true),
-      Query.orderDesc("$createdAt"),
-    ];
+    let query = db
+      .select()
+      .from(customersTable)
+      .where(eq(customersTable.isActive, true))
+      .orderBy(desc(customersTable.createdAt));
 
     if (!getAllCustomers) {
-      queries.push(Query.limit(limit));
-      queries.push(Query.offset(page * limit));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      query = (query as any).limit(limit).offset(page * limit);
+    }
 
-      const response = await databases.listDocuments(
-        DATABASE_ID!,
-        NEXT_PUBLIC_CUSTOMERS_COLLECTION_ID!,
-        queries
-      );
+    const customers = await query;
 
-      return {
-        documents: parseStringify(response.documents),
-        total: response.total,
-      };
-    } else {
-      let allDocuments: Models.Document[] = [];
+    // For getAllCustomers, fetch all Customers in batches (if needed)
+    if (getAllCustomers) {
+      let allCustomers: typeof customers = [];
       let offset = 0;
-      const batchSize = 100; // Maximum limit per request(appwrite's max)
+      const batchSize = 100;
 
       while (true) {
-        const batchQueries = [
-          Query.equal("isActive", true),
-          Query.orderDesc("$createdAt"),
-          Query.limit(batchSize),
-          Query.offset(offset),
-        ];
+        const batch = await db
+          .select()
+          .from(customersTable)
+          .where(eq(customersTable.isActive, true))
+          .orderBy(desc(customersTable.createdAt))
+          .limit(batchSize)
+          .offset(offset);
 
-        const response = await databases.listDocuments(
-          DATABASE_ID!,
-          NEXT_PUBLIC_CUSTOMERS_COLLECTION_ID!,
-          batchQueries
-        );
+        allCustomers = [...allCustomers, ...batch];
 
-        const documents = response.documents;
-        allDocuments = [...allDocuments, ...documents];
-
-        // If we got fewer documents than the batch size, we've reached the end
-        if (documents.length < batchSize) {
+        // If we got fewer Customers than the batch size, we've reached the end
+        if (batch.length < batchSize) {
           break;
         }
 
@@ -67,29 +53,40 @@ export const getCustomers = async (
       }
 
       return {
-        documents: parseStringify(allDocuments),
-        total: allDocuments.length,
+        documents: parseStringify(allCustomers),
+        total: allCustomers.length,
       };
     }
+
+    // For paginated results
+    const total = await db
+      .select()
+      .from(customersTable)
+      .where(eq(customersTable.isActive, true))
+      .then((res) => res.length);
+
+    return {
+      documents: parseStringify(customers),
+      total,
+    };
   } catch (error) {
     console.error("Error getting customers:", error);
     throw error;
   }
 };
 
-// Get Single Customer
+// Get customer by ID
 export const getCustomerById = async (customerId: string) => {
   try {
-    const response = await databases.getDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_CUSTOMERS_COLLECTION_ID!,
-      customerId
-    );
+    const response = await db
+      .select()
+      .from(customersTable)
+      .where(eq(customersTable.id, customerId))
+      .then((res) => res[0]);
 
-    console.log(response);
     return parseStringify(response);
   } catch (error) {
-    console.error("Error getting customer:", error);
+    console.error("Error getting customer by ID:", error);
     throw error;
   }
 };
@@ -97,72 +94,66 @@ export const getCustomerById = async (customerId: string) => {
 // Add Customer
 export const addCustomer = async (customerData: CustomerFormValues) => {
   try {
-    const response = await databases.createDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_CUSTOMERS_COLLECTION_ID!,
-      ID.unique(),
-      customerData
-    );
+    const insertedCustomer = await db
+      .insert(customersTable)
+      .values(customerData)
+      .returning();
 
     revalidatePath("/customers");
-    return parseStringify(response);
+    return parseStringify(insertedCustomer);
   } catch (error) {
     console.error("Error adding customer:", error);
     throw error;
   }
 };
 
-// Edit Customers
+// Edit Customer
 export const editCustomer = async (
   customerData: CustomerFormValues,
   customerId: string
 ) => {
   try {
-    const response = await databases.updateDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_CUSTOMERS_COLLECTION_ID!,
-      customerId,
-      customerData
-    );
+    const updatedCustomer = await db
+      .update(customersTable)
+      .set(customerData)
+      .where(eq(customersTable.id, customerId))
+      .returning();
 
     revalidatePath("/customers");
-    revalidatePath(`/customers/edit-customer/${customerId}`);
-    return parseStringify(response);
+    return parseStringify(updatedCustomer);
   } catch (error) {
     console.error("Error editing customer:", error);
     throw error;
   }
 };
 
-// Permanently Delete Customers
+// Permanently Delete Customer
 export const deleteCustomer = async (customerId: string) => {
   try {
-    const response = await databases.deleteDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_CUSTOMERS_COLLECTION_ID!,
-      customerId
-    );
+    const deletedCustomer = await db
+      .delete(customersTable)
+      .where(eq(customersTable.id, customerId))
+      .returning();
 
     revalidatePath("/customers");
-    return parseStringify(response);
+    return parseStringify(deletedCustomer);
   } catch (error) {
     console.error("Error deleting customer:", error);
     throw error;
   }
 };
 
-// Soft Delete Customers
+// Soft Delete Customer
 export const softDeleteCustomer = async (customerId: string) => {
   try {
-    const response = await databases.updateDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_CUSTOMERS_COLLECTION_ID!,
-      customerId,
-      { isActive: false }
-    );
+    const updatedCustomer = await db
+      .update(customersTable)
+      .set({ isActive: false })
+      .where(eq(customersTable.id, customerId))
+      .returning();
 
     revalidatePath("/customers");
-    return parseStringify(response);
+    return parseStringify(updatedCustomer);
   } catch (error) {
     console.error("Error soft deleting customer:", error);
     throw error;

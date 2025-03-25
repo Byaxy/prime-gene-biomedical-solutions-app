@@ -1,5 +1,4 @@
 import { UnitFormValues } from "@/lib/validation";
-import { Unit } from "@/types/appwrite.types";
 import {
   Dialog,
   DialogContent,
@@ -9,6 +8,7 @@ import {
 } from "../ui/dialog";
 import { Button } from "../ui/button";
 import UnitsForm from "../forms/UnitsForm";
+import { Unit } from "@/types";
 
 interface UnitDialogProps {
   mode: "add" | "edit" | "delete";
@@ -97,9 +97,7 @@ const UnitsDialog = ({
             initialData={
               mode === "edit" && unit
                 ? {
-                    name: unit?.name,
-                    code: unit.code,
-                    description: unit?.description,
+                    ...unit,
                   }
                 : undefined
             }

@@ -2,10 +2,10 @@
 
 import { ColumnDef } from "@tanstack/table-core";
 import { formatDateTime } from "@/lib/utils";
-import { Unit } from "@/types/appwrite.types";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import UnitActions from "@/components/units/UnitActions";
+import { Unit } from "@/types";
 
 export const unitsColumns: ColumnDef<Unit>[] = [
   {
@@ -69,7 +69,7 @@ export const unitsColumns: ColumnDef<Unit>[] = [
       const unit = row.original;
       return (
         <p className="text-14-medium ">
-          {formatDateTime(unit.$createdAt).dateTime}
+          {formatDateTime(unit.createdAt).dateTime}
         </p>
       );
     },
@@ -92,7 +92,7 @@ export const unitsColumns: ColumnDef<Unit>[] = [
       const unit = row.original;
       return (
         <p className="text-14-medium">
-          {formatDateTime(unit.$updatedAt).dateTime}
+          {formatDateTime(unit.updatedAt).dateTime}
         </p>
       );
     },

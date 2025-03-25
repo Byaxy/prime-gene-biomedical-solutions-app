@@ -1,12 +1,16 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/table-core";
-import { Product } from "@/types/appwrite.types";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ProductActions from "@/components/products/ProductActions";
-import FormatNumber from "@/components/FormatNumber";
 import Image from "next/image";
+import { formatNumber } from "@/lib/utils";
+import SingleCategory from "@/components/categories/SingleCategory";
+import SingleBrand from "@/components/brands/SingleBrand";
+import SingleType from "@/components/productTypes/SingleType";
+import SingleUnit from "@/components/units/SingleUnit";
+import { Product } from "@/types";
 
 export const productsColumns: ColumnDef<Product>[] = [
   {
@@ -34,27 +38,6 @@ export const productsColumns: ColumnDef<Product>[] = [
     },
   },
   {
-    id: "lotNumber",
-    accessorKey: "lotNumber",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="font-semibold px-0"
-        >
-          Lot Number
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      );
-    },
-
-    cell: ({ row }) => {
-      const product = row.original;
-      return <p className="text-14-medium ">{product.lotNumber || "-"}</p>;
-    },
-  },
-  {
     id: "name",
     accessorKey: "name",
     header: ({ column }) => {
@@ -76,11 +59,15 @@ export const productsColumns: ColumnDef<Product>[] = [
     },
   },
   {
-    accessorKey: "vendor",
-    header: "Vendor",
+    accessorKey: "brand",
+    header: "Brand",
     cell: ({ row }) => {
       const product = row.original;
-      return <p className="text-14-medium">{product?.vendor.name || "-"}</p>;
+      return product.brandId ? (
+        <SingleBrand brandId={product.brandId} />
+      ) : (
+        <span>Null</span>
+      );
     },
   },
   {
@@ -88,10 +75,10 @@ export const productsColumns: ColumnDef<Product>[] = [
     header: "Type",
     cell: ({ row }) => {
       const product = row.original;
-      return (
-        <p className="text-14-medium">
-          {(product?.type && product?.type.name) || "-"}
-        </p>
+      return product.typeId ? (
+        <SingleType typeId={product.typeId} />
+      ) : (
+        <span>Null</span>
       );
     },
   },
@@ -100,35 +87,39 @@ export const productsColumns: ColumnDef<Product>[] = [
     header: "Category",
     cell: ({ row }) => {
       const product = row.original;
-      return (
-        <p className="text-14-medium">
-          {(product?.category && product?.category.name) || "-"}
-        </p>
+      return product.categoryId ? (
+        <SingleCategory categoryId={product.categoryId} />
+      ) : (
+        <span>Null</span>
       );
     },
   },
   {
     accessorKey: "quantity",
-    header: "Quantity Available",
+    header: "Quantity At Hand",
     cell: ({ row }) => {
       const product = row.original;
       return (
-        <p className="text-14-medium">
+        <div className="text-14-medium flex flex-row items-center gap-1">
           {product.quantity || 0}
-          {(product?.unit && product?.unit.code) || ""}
-        </p>
+          {product.unitId ? (
+            <SingleUnit unitId={product.unitId} showCode={true} />
+          ) : (
+            <span>Null</span>
+          )}
+        </div>
       );
     },
   },
   {
-    accessorKey: "price",
-    header: "Price",
+    accessorKey: "alertQuantity",
+    header: "Alert Quantity",
     cell: ({ row }) => {
       const product = row.original;
       return (
         <>
           <p className="text-14-medium">
-            <FormatNumber value={product.sellingPrice} />
+            {formatNumber(String(product.alertQuantity))}
           </p>
         </>
       );

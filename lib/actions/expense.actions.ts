@@ -1,30 +1,44 @@
 "use server";
 
-import { ID, Models, Query } from "node-appwrite";
 import { revalidatePath } from "next/cache";
 import { parseStringify } from "../utils";
-
-import {
-  databases,
-  DATABASE_ID,
-  NEXT_PUBLIC_EXPENSES_COLLECTION_ID,
-} from "../appwrite-server";
 import { ExpenseFormValues } from "../validation";
+import { db } from "@/drizzle/db";
+import { expensesTable } from "@/drizzle/schema";
+import { PaymentMethod } from "@/types";
+import { desc, eq } from "drizzle-orm";
 
 // Add Expense
 export const addExpense = async (expenseData: ExpenseFormValues) => {
   try {
-    const response = await databases.createDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_EXPENSES_COLLECTION_ID!,
-      ID.unique(),
-      expenseData
-    );
+    const insertedExpense = await db
+      .insert(expensesTable)
+      .values({
+        ...expenseData,
+        paymentMethod: expenseData.paymentMethod as PaymentMethod,
+      })
+      .returning();
 
     revalidatePath("/expenses");
+    return parseStringify(insertedExpense);
+  } catch (error) {
+    console.error("Error adding Expense:", error);
+    throw error;
+  }
+};
+
+// Get Expense By ID
+export const getExpenseById = async (expenseId: string) => {
+  try {
+    const response = await db
+      .select()
+      .from(expensesTable)
+      .where(eq(expensesTable.id, expenseId))
+      .then((res) => res[0]);
+
     return parseStringify(response);
   } catch (error) {
-    console.error("Error adding expense:", error);
+    console.error("Error getting expense by ID:", error);
     throw error;
   }
 };
@@ -36,49 +50,38 @@ export const getExpenses = async (
   getAllExpenses: boolean = false
 ) => {
   try {
-    const queries = [
-      Query.equal("isActive", true),
-      Query.orderDesc("$createdAt"),
-    ];
+    let query = db
+      .select()
+      .from(expensesTable)
+      .where(eq(expensesTable.isActive, true))
+      .orderBy(desc(expensesTable.createdAt));
 
     if (!getAllExpenses) {
-      queries.push(Query.limit(limit));
-      queries.push(Query.offset(page * limit));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      query = (query as any).limit(limit).offset(page * limit);
+    }
 
-      const response = await databases.listDocuments(
-        DATABASE_ID!,
-        NEXT_PUBLIC_EXPENSES_COLLECTION_ID!,
-        queries
-      );
+    const expenses = await query;
 
-      return {
-        documents: parseStringify(response.documents),
-        total: response.total,
-      };
-    } else {
-      let allDocuments: Models.Document[] = [];
+    // For getAllExpenses, fetch all expenses in batches (if needed)
+    if (getAllExpenses) {
+      let allExpenses: typeof expenses = [];
       let offset = 0;
-      const batchSize = 100; // Maximum limit per request(appwrite's max)
+      const batchSize = 100;
 
       while (true) {
-        const batchQueries = [
-          Query.equal("isActive", true),
-          Query.orderDesc("$createdAt"),
-          Query.limit(batchSize),
-          Query.offset(offset),
-        ];
+        const batch = await db
+          .select()
+          .from(expensesTable)
+          .where(eq(expensesTable.isActive, true))
+          .orderBy(desc(expensesTable.createdAt))
+          .limit(batchSize)
+          .offset(offset);
 
-        const response = await databases.listDocuments(
-          DATABASE_ID!,
-          NEXT_PUBLIC_EXPENSES_COLLECTION_ID!,
-          batchQueries
-        );
+        allExpenses = [...allExpenses, ...batch];
 
-        const documents = response.documents;
-        allDocuments = [...allDocuments, ...documents];
-
-        // If we got fewer documents than the batch size, we've reached the end
-        if (documents.length < batchSize) {
+        // If we got fewer expenses than the batch size, we've reached the end
+        if (batch.length < batchSize) {
           break;
         }
 
@@ -86,10 +89,22 @@ export const getExpenses = async (
       }
 
       return {
-        documents: parseStringify(allDocuments),
-        total: allDocuments.length,
+        documents: parseStringify(allExpenses),
+        total: allExpenses.length,
       };
     }
+
+    // For paginated results
+    const total = await db
+      .select()
+      .from(expensesTable)
+      .where(eq(expensesTable.isActive, true))
+      .then((res) => res.length);
+
+    return {
+      documents: parseStringify(expenses),
+      total,
+    };
   } catch (error) {
     console.error("Error getting expenses:", error);
     throw error;
@@ -102,15 +117,18 @@ export const editExpense = async (
   expenseId: string
 ) => {
   try {
-    const response = await databases.updateDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_EXPENSES_COLLECTION_ID!,
-      expenseId,
-      expenseData
-    );
+    const updatedExpense = await db
+      .update(expensesTable)
+      .set({
+        ...expenseData,
+        paymentMethod: expenseData.paymentMethod as PaymentMethod,
+      })
+      .where(eq(expensesTable.id, expenseId))
+      .returning();
 
     revalidatePath("/expenses");
-    return parseStringify(response);
+    revalidatePath(`/expenses/edit-expense/${expenseId}`);
+    return parseStringify(updatedExpense);
   } catch (error) {
     console.error("Error editing expense:", error);
     throw error;
@@ -120,14 +138,13 @@ export const editExpense = async (
 // Permanently Delete Expense
 export const deleteExpense = async (expenseId: string) => {
   try {
-    const response = await databases.deleteDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_EXPENSES_COLLECTION_ID!,
-      expenseId
-    );
+    const deletedExpense = await db
+      .delete(expensesTable)
+      .where(eq(expensesTable.id, expenseId))
+      .returning();
 
     revalidatePath("/expenses");
-    return parseStringify(response);
+    return parseStringify(deletedExpense);
   } catch (error) {
     console.error("Error deleting expense:", error);
     throw error;
@@ -137,15 +154,14 @@ export const deleteExpense = async (expenseId: string) => {
 // Soft Delete Expense
 export const softDeleteExpense = async (expenseId: string) => {
   try {
-    const response = await databases.updateDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_EXPENSES_COLLECTION_ID!,
-      expenseId,
-      { isActive: false }
-    );
+    const updatedExpense = await db
+      .update(expensesTable)
+      .set({ isActive: false })
+      .where(eq(expensesTable.id, expenseId))
+      .returning();
 
     revalidatePath("/expenses");
-    return parseStringify(response);
+    return parseStringify(updatedExpense);
   } catch (error) {
     console.error("Error soft deleting expense:", error);
     throw error;

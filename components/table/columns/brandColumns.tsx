@@ -1,6 +1,6 @@
 import BrandActions from "@/components/brands/BrandActions";
 import { Button } from "@/components/ui/button";
-import { Brand } from "@/types/appwrite.types";
+import { Brand } from "@/types";
 import { ColumnDef } from "@tanstack/react-table";
 import { ArrowUpDown } from "lucide-react";
 import Image from "next/image";

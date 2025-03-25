@@ -1,5 +1,4 @@
 import { CustomerFormValues } from "@/lib/validation";
-import { Customer } from "@/types/appwrite.types";
 import {
   Dialog,
   DialogContent,
@@ -8,6 +7,7 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 import { Button } from "../ui/button";
+import { Customer } from "@/types";
 
 interface CustomerDialogProps {
   mode: "add" | "edit" | "delete";

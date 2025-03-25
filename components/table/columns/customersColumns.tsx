@@ -2,10 +2,10 @@
 
 import { ColumnDef } from "@tanstack/table-core";
 import { formatDateTime } from "@/lib/utils";
-import { Customer } from "@/types/appwrite.types";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import CustomerActions from "@/components/customers/CustomerActions";
+import { Customer } from "@/types";
 
 export const customersColumns: ColumnDef<Customer>[] = [
   {
@@ -77,7 +77,7 @@ export const customersColumns: ColumnDef<Customer>[] = [
       const customer = row.original;
       return (
         <p className="text-14-medium ">
-          {formatDateTime(customer.$createdAt).dateTime}
+          {formatDateTime(customer.createdAt).dateTime}
         </p>
       );
     },
@@ -100,7 +100,7 @@ export const customersColumns: ColumnDef<Customer>[] = [
       const customer = row.original;
       return (
         <p className="text-14-medium">
-          {formatDateTime(customer.$updatedAt).dateTime}
+          {formatDateTime(customer.updatedAt).dateTime}
         </p>
       );
     },

@@ -10,11 +10,8 @@ import {
   getProducts,
   softDeleteProduct,
 } from "@/lib/actions/product.actions";
-import { storage } from "@/lib/appwrite-client";
-import { ID } from "appwrite";
 import { useEffect, useState } from "react";
-
-const BUCKET_ID = process.env.NEXT_PUBLIC_APPWRITE_BUCKET_ID;
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 interface UseProductsOptions {
   getAllProducts?: boolean;
@@ -72,37 +69,42 @@ export const useProducts = ({
   // Add product mutation
   const { mutate: addProductMutation, status: addProductStatus } = useMutation({
     mutationFn: async (data: ProductFormValues) => {
+      const supabase = createSupabaseBrowserClient();
       let imageId = "";
       let imageUrl = "";
 
       if (data.image && data.image.length > 0) {
         try {
           const file = data.image[0]; // Get the first file
-          imageId = ID.unique();
+          imageId = `${Date.now()}-${file.name}`; // Generate a unique file name
 
-          // Upload the file
-          const upload = await storage.createFile(BUCKET_ID!, imageId, file);
+          // Upload the file to Supabase Storage
+          const { error: uploadError } = await supabase.storage
+            .from("images")
+            .upload(imageId, file);
 
-          // Get the file view URL
-          if (upload) {
-            imageUrl = storage.getFileView(BUCKET_ID!, imageId).toString();
-          }
+          if (uploadError) throw uploadError;
+
+          // Get the file URL
+          const { data: urlData } = supabase.storage
+            .from("images")
+            .getPublicUrl(imageId);
+
+          imageUrl = urlData.publicUrl;
         } catch (error) {
           console.error("Error uploading file:", error);
-          throw new Error("Failed to upload product image");
+          throw new Error("Failed to upload image");
         }
       }
 
       const productData = {
         name: data.name,
-        lotNumber: data.lotNumber,
-        costPrice: data.costPrice,
-        sellingPrice: data.sellingPrice,
+        alertQuantity: data.alertQuantity,
         quantity: data.quantity,
-        category: data.category,
-        vendor: data.vendor,
-        type: data.type,
-        unit: data.unit,
+        categoryId: data.categoryId,
+        brandId: data.brandId,
+        typeId: data.typeId,
+        unitId: data.unitId,
         description: data.description,
         imageId,
         imageUrl,
@@ -132,45 +134,48 @@ export const useProducts = ({
         data: ProductFormValues;
         prevImageId?: string;
       }) => {
+        const supabase = createSupabaseBrowserClient();
         let imageId = "";
         let imageUrl = "";
 
-        if (prevImageId && data.image && data.image.length > 0) {
-          try {
-            storage.deleteFile(BUCKET_ID!, prevImageId);
-          } catch (error) {
-            console.warn("Error deleting previous image:", error);
-          }
+        // Delete the previous image if it exists and new image is provided
+        if (prevImageId && data?.image && data?.image.length > 0) {
+          const { error: deleteError } = await supabase.storage
+            .from("images")
+            .remove([prevImageId]);
+
+          if (deleteError)
+            console.warn("Failed to delete previous image:", deleteError);
         }
 
+        // Upload the new image if provided
         if (data.image && data.image.length > 0) {
-          try {
-            const file = data.image[0]; // Get the first file
-            imageId = ID.unique();
+          const file = data.image[0];
+          imageId = `${Date.now()}-${file.name}`; // Generate a unique file name
 
-            // Upload the file
-            const upload = await storage.createFile(BUCKET_ID!, imageId, file);
+          // Upload the file to Supabase Storage
+          const { error: uploadError } = await supabase.storage
+            .from("images")
+            .upload(imageId, file);
 
-            // Get the file view URL
-            if (upload) {
-              imageUrl = storage.getFileView(BUCKET_ID!, imageId).toString();
-            }
-          } catch (error) {
-            console.error("Error uploading file:", error);
-            throw new Error("Failed to upload product image");
-          }
+          if (uploadError) throw uploadError;
+
+          // Get the file URL
+          const { data: urlData } = supabase.storage
+            .from("images")
+            .getPublicUrl(imageId);
+
+          imageUrl = urlData.publicUrl;
         }
 
         const productData = {
           name: data.name,
-          lotNumber: data.lotNumber,
-          costPrice: data.costPrice,
-          sellingPrice: data.sellingPrice,
+          alertQuantity: data.alertQuantity,
           quantity: data.quantity,
-          category: data.category,
-          vendor: data.vendor,
-          type: data.type,
-          unit: data.unit,
+          categoryId: data.categoryId,
+          brandId: data.brandId,
+          typeId: data.typeId,
+          unitId: data.unitId,
           description: data.description,
           imageId,
           imageUrl,

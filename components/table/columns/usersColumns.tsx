@@ -2,11 +2,11 @@
 
 import { ColumnDef } from "@tanstack/table-core";
 import { formatDateTime } from "@/lib/utils";
-import { User } from "@/types/appwrite.types";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import UserActions from "@/components/users/UserActions";
 import Image from "next/image";
+import { User } from "@/types";
 
 export const usersColumns: ColumnDef<User>[] = [
   {
@@ -96,7 +96,7 @@ export const usersColumns: ColumnDef<User>[] = [
       const user = row.original;
       return (
         <p className="text-14-medium ">
-          {formatDateTime(user.$createdAt).dateTime}
+          {formatDateTime(user.createdAt).dateTime}
         </p>
       );
     },
@@ -119,7 +119,7 @@ export const usersColumns: ColumnDef<User>[] = [
       const user = row.original;
       return (
         <p className="text-14-medium">
-          {formatDateTime(user.$updatedAt).dateTime}
+          {formatDateTime(user.updatedAt).dateTime}
         </p>
       );
     },

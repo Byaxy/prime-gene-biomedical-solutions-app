@@ -1,10 +1,10 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/table-core";
-import { User } from "@/types/appwrite.types";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
+import { User } from "@/types";
 
 export const dashboardUsersColumns: ColumnDef<User>[] = [
   {
