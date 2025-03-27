@@ -4,10 +4,11 @@ import { ColumnDef } from "@tanstack/table-core";
 import { formatDateTime } from "@/lib/utils";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import UnitActions from "@/components/units/UnitActions";
-import { Unit } from "@/types";
 
-export const unitsColumns: ColumnDef<Unit>[] = [
+import { Store } from "@/types";
+import StoreActions from "@/components/stores/StoreActions";
+
+export const storesColumns: ColumnDef<Store>[] = [
   {
     header: "#",
     cell: ({ row }) => {
@@ -31,24 +32,16 @@ export const unitsColumns: ColumnDef<Unit>[] = [
     },
 
     cell: ({ row }) => {
-      const unit = row.original;
-      return <p className="text-14-medium ">{unit.name}</p>;
+      const store = row.original;
+      return <p className="text-14-medium ">{store.name}</p>;
     },
   },
   {
-    accessorKey: "code",
-    header: "Code",
+    accessorKey: "location",
+    header: "Location",
     cell: ({ row }) => {
-      const unit = row.original;
-      return <p className="text-14-medium ">{unit.code || "-"}</p>;
-    },
-  },
-  {
-    accessorKey: "description",
-    header: "Description",
-    cell: ({ row }) => {
-      const unit = row.original;
-      return <p className="text-14-medium ">{unit.description || "-"}</p>;
+      const store = row.original;
+      return <p className="text-14-medium ">{store.location || "-"}</p>;
     },
   },
   {
@@ -66,10 +59,10 @@ export const unitsColumns: ColumnDef<Unit>[] = [
       );
     },
     cell: ({ row }) => {
-      const unit = row.original;
+      const store = row.original;
       return (
         <p className="text-14-medium ">
-          {formatDateTime(unit.createdAt).dateTime}
+          {formatDateTime(store.createdAt).dateTime}
         </p>
       );
     },
@@ -89,10 +82,10 @@ export const unitsColumns: ColumnDef<Unit>[] = [
       );
     },
     cell: ({ row }) => {
-      const unit = row.original;
+      const store = row.original;
       return (
         <p className="text-14-medium">
-          {formatDateTime(unit.updatedAt).dateTime}
+          {formatDateTime(store.updatedAt).dateTime}
         </p>
       );
     },
@@ -101,7 +94,7 @@ export const unitsColumns: ColumnDef<Unit>[] = [
     id: "actions",
     header: "Actions",
     cell: ({ row }) => {
-      return <UnitActions unit={row.original} />;
+      return <StoreActions store={row.original} />;
     },
   },
 ];

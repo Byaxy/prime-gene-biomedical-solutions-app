@@ -423,36 +423,13 @@ export const sidebarData: SidebarDataType[] = [
         title: "Units",
         path: "/settings/units",
       },
+      {
+        id: generateId(),
+        title: "Stores",
+        path: "/settings/stores",
+      },
     ],
   },
 ];
 
 export const RoleOptions = ["user", "admin"];
-
-export const purchaseStatus = [
-  { label: "Pending", value: "pending" },
-  { label: "Completed", value: "completed" },
-  { label: "Cancelled", value: "cancelled" },
-];
-export const saleStatus = [
-  { label: "Pending", value: "pending" },
-  { label: "Completed", value: "completed" },
-  { label: "Cancelled", value: "cancelled" },
-];
-export const quotationStatus = [
-  { label: "Pending", value: "pending" },
-  { label: "Completed", value: "completed" },
-  { label: "Cancelled", value: "cancelled" },
-];
-export const paymentMethods = [
-  { label: "Cash", value: "cash" },
-  { label: "Check", value: "check" },
-  { label: "Mobile Money", value: "mobile-money" },
-];
-
-export const deliveryStatus = [
-  { label: "Pending", value: "pending" },
-  { label: "In Progress", value: "in-progress" },
-  { label: "Delivered", value: "delivered" },
-  { label: "Cancelled", value: "cancelled" },
-];

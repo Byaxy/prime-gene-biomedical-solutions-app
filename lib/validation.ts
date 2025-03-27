@@ -291,3 +291,10 @@ export const QuotationFormValidation = z.object({
   tempPrice: z.number().optional(),
 });
 export type QuotationFormValues = z.infer<typeof QuotationFormValidation>;
+
+// Stores
+export const StoreFormValidation = z.object({
+  name: z.string().nonempty("Name is required"),
+  location: z.string().nonempty("Location is required"),
+});
+export type StoreFormValues = z.infer<typeof StoreFormValidation>;

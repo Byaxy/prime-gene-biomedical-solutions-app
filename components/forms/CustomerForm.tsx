@@ -42,19 +42,15 @@ const CustomerForm = ({ mode, initialData, onSubmit }: CustomerFormProps) => {
 
   return (
     <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(handleSubmit)}
-        className="text-dark-500 lg:max-w-4xl"
-      >
-        <div className="flex flex-col space-y-5 overflow-y-auto max-h-[60vh] pb-5 remove-scrollbar">
-          <CustomFormField
-            fieldType={FormFieldType.INPUT}
-            control={form.control}
-            name="name"
-            label="Name"
-            placeholder="Enter customer name"
-          />
-
+      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-5">
+        <CustomFormField
+          fieldType={FormFieldType.INPUT}
+          control={form.control}
+          name="name"
+          label="Name"
+          placeholder="Enter customer name"
+        />
+        <div className="flex flex-col sm:flex-row gap-5">
           <CustomFormField
             fieldType={FormFieldType.INPUT}
             control={form.control}
@@ -70,14 +66,14 @@ const CustomerForm = ({ mode, initialData, onSubmit }: CustomerFormProps) => {
             label="Phone number"
             placeholder="(555) 123-4567"
           />
-          <CustomFormField
-            fieldType={FormFieldType.TEXTAREA}
-            control={form.control}
-            name="address"
-            label="Address"
-            placeholder="Enter customer address"
-          />
         </div>
+        <CustomFormField
+          fieldType={FormFieldType.TEXTAREA}
+          control={form.control}
+          name="address"
+          label="Address"
+          placeholder="Enter customer address"
+        />
 
         <div className="flex justify-end gap-4 mt-4">
           <Button

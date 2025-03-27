@@ -510,7 +510,8 @@ export const inventoryTransactionsTable = pgTable("inventory_transactions", {
     .notNull()
     .references(() => usersTable.id, { onDelete: "set null" }), // Foreign key to users
   transactionType: inventoryTransactionTypeEnum("transaction_type").notNull(),
-  quantity: integer("quantity").notNull(),
+  quantityBefore: integer("quantity_before").notNull(),
+  quantityAfter: integer("quantity_after").notNull(),
   transactionDate: timestamp("transaction_date").notNull(),
   referenceId: uuid("reference_id"), // Foreign key to related table (e.g., purchase, sale, transfer)
   notes: text("notes"),

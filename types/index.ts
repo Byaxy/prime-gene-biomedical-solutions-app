@@ -137,6 +137,16 @@ export interface CompanySettings {
   updatedAt: Date;
 }
 
+// Stores
+export interface Store {
+  id: string;
+  name: string;
+  location: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // payment methods
 export enum PaymentMethod {
   Cash = "cash",
