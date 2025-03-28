@@ -29,6 +29,13 @@
       "when": 1742925146546,
       "tag": "0003_kind_santa_claus",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1743190411812,
+      "tag": "0004_complete_quasar",
+      "breakpoints": true
     }
   ]
 }

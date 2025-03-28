@@ -34,14 +34,14 @@ const Profile = () => {
                   </span>
                 </PopoverTrigger>
               </div>
-              <PopoverContent className="w-48 min-h-52 flex flex-col ring-0 bg-white rounded-lg z-50 mr-8">
+              <PopoverContent className="w-64 min-h-48 flex flex-col ring-0 bg-white rounded-lg z-50 mr-8">
                 <TabsList className="grid w-full grid-cols-1 gap-4">
                   <TabsTrigger
                     value="profile"
                     className="w-full bg-light-200 py-2 data-[state=active]:bg-blue-800 data-[state=active]:text-white"
                     onClick={() => setOpen(false)}
                   >
-                    User Profile
+                    My Profile
                   </TabsTrigger>
 
                   <TabsTrigger
@@ -61,7 +61,7 @@ const Profile = () => {
               value="profile"
               className="w-full bg-white py-3 data-[state=active]:bg-blue-800 data-[state=active]:text-white"
             >
-              User Profile
+              My Profile
             </TabsTrigger>
 
             <TabsTrigger

@@ -287,6 +287,34 @@ export const inventoryTable = pgTable("inventory", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// Inventory Transactions Table
+export const inventoryTransactionsTable = pgTable("inventory_transactions", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  productId: uuid("product_id")
+    .notNull()
+    .references(() => productsTable.id, { onDelete: "set null" }), // Foreign key to products
+  storeId: uuid("store_id")
+    .notNull()
+    .references(() => storesTable.id, { onDelete: "set null" }), // Foreign key to stores
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "set null" }), // Foreign key to users
+  inventoryId: uuid("inventory_id").references(() => inventoryTable.id, {
+    onDelete: "set null",
+  }), // Foreign key to inventory
+  transactionType: inventoryTransactionTypeEnum("transaction_type").notNull(),
+  quantityBefore: integer("quantity_before").notNull(),
+  quantityAfter: integer("quantity_after").notNull(),
+  transactionDate: timestamp("transaction_date").notNull(),
+  referenceId: uuid("reference_id"), // Foreign key to related table (e.g., purchase, sale, transfer)
+  notes: text("notes").default(""),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Purchases
 export const purchasesTable = pgTable("purchases", {
   id: uuid("id")
@@ -490,31 +518,6 @@ export const saleItemsTable = pgTable("sale_items", {
   quantity: integer("quantity").notNull(),
   sellingPrice: numeric("selling_price").notNull(),
   totalPrice: numeric("total_price").notNull(),
-  isActive: boolean("is_active").notNull().default(true),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
-// Inventory Transactions Table
-export const inventoryTransactionsTable = pgTable("inventory_transactions", {
-  id: uuid("id")
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
-  productId: uuid("product_id")
-    .notNull()
-    .references(() => productsTable.id, { onDelete: "set null" }), // Foreign key to products
-  storeId: uuid("store_id")
-    .notNull()
-    .references(() => storesTable.id, { onDelete: "set null" }), // Foreign key to stores
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => usersTable.id, { onDelete: "set null" }), // Foreign key to users
-  transactionType: inventoryTransactionTypeEnum("transaction_type").notNull(),
-  quantityBefore: integer("quantity_before").notNull(),
-  quantityAfter: integer("quantity_after").notNull(),
-  transactionDate: timestamp("transaction_date").notNull(),
-  referenceId: uuid("reference_id"), // Foreign key to related table (e.g., purchase, sale, transfer)
-  notes: text("notes"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

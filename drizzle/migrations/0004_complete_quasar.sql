@@ -1,0 +1,3 @@
+ALTER TABLE "inventory_transactions" ALTER COLUMN "notes" SET DEFAULT '';--> statement-breakpoint
+ALTER TABLE "inventory_transactions" ADD COLUMN "inventory_id" uuid;--> statement-breakpoint
+ALTER TABLE "inventory_transactions" ADD CONSTRAINT "inventory_transactions_inventory_id_inventory_id_fk" FOREIGN KEY ("inventory_id") REFERENCES "public"."inventory"("id") ON DELETE set null ON UPDATE no action;

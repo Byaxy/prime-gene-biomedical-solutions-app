@@ -298,3 +298,37 @@ export const StoreFormValidation = z.object({
   location: z.string().nonempty("Location is required"),
 });
 export type StoreFormValues = z.infer<typeof StoreFormValidation>;
+
+// Stock Adjustments
+export const StockAdjustmentFormValidation = z.object({
+  storeId: z.string().nonempty("Store is required"),
+  receivedDate: z.date().refine((date) => date <= new Date(), {
+    message: "Received date cannot be in the future",
+  }),
+  notes: z.string().optional(),
+  products: z
+    .array(
+      z.object({
+        productId: z.string().nonempty("Product is required"),
+        quantity: z.number().int().min(1, "Quantity must be at least 1"),
+        lotNumber: z.string().nonempty("Lot number is required"),
+        costPrice: z.number().min(0, "Cost price must be positive"),
+        sellingPrice: z.number().min(0, "Selling price must be positive"),
+        manufactureDate: z.date().optional(),
+        expiryDate: z.date().optional(),
+      })
+    )
+    .min(1, "At least one product is required"),
+
+  // Temporary fields for product selection
+  selectedProduct: z.string().optional(),
+  tempLotNumber: z.string().optional(),
+  tempQuantity: z.number().optional(),
+  tempCostPrice: z.number().optional(),
+  tempSellingPrice: z.number().optional(),
+  tempManufactureDate: z.date().optional(),
+  tempExpiryDate: z.date().optional(),
+});
+export type StockAdjustmentFormValues = z.infer<
+  typeof StockAdjustmentFormValidation
+>;

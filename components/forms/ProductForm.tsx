@@ -29,9 +29,11 @@ const ProductForm = ({ mode, initialData, onSubmit }: ProductFormProps) => {
   const { categories, isLoading: categoriesLoading } = useCategories({
     getAllCategories: true,
   });
-  const { types } = useTypes({ getAllTypes: true });
-  const { units } = useUnits({ getAllUnits: true });
-  const { brands } = useBrands({ getAllBrands: true });
+  const { types, isLoading: typesLoading } = useTypes({ getAllTypes: true });
+  const { units, isLoading: unitsLoading } = useUnits({ getAllUnits: true });
+  const { brands, isLoading: brandsLoading } = useBrands({
+    getAllBrands: true,
+  });
 
   const router = useRouter();
 
@@ -51,8 +53,6 @@ const ProductForm = ({ mode, initialData, onSubmit }: ProductFormProps) => {
   });
 
   const handleSubmit = async (values: ProductFormValues) => {
-    console.log("Product values", values);
-
     setIsLoading(true);
     try {
       if (
@@ -119,7 +119,7 @@ const ProductForm = ({ mode, initialData, onSubmit }: ProductFormProps) => {
             hideSearch={true}
           >
             {categoriesLoading && (
-              <div className="py-5">
+              <div className="py-4">
                 <Loading />
               </div>
             )}
@@ -145,15 +145,21 @@ const ProductForm = ({ mode, initialData, onSubmit }: ProductFormProps) => {
             placeholder="Select brand"
             onAddNew={() => router.push("/settings/brands")}
           >
-            {brands?.map((brand: Brand) => (
-              <SelectItem
-                key={brand.id}
-                value={brand.id}
-                className="text-14-medium text-blue-800 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
-              >
-                {brand.name}
-              </SelectItem>
-            ))}
+            {brandsLoading && (
+              <div className="py-4">
+                <Loading />
+              </div>
+            )}
+            {brands &&
+              brands?.map((brand: Brand) => (
+                <SelectItem
+                  key={brand.id}
+                  value={brand.id}
+                  className="text-14-medium text-blue-800 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+                >
+                  {brand.name}
+                </SelectItem>
+              ))}
           </CustomFormField>
         </div>
 
@@ -166,15 +172,21 @@ const ProductForm = ({ mode, initialData, onSubmit }: ProductFormProps) => {
             placeholder="Select product type"
             onAddNew={() => router.push("/settings/types")}
           >
-            {types?.map((productType: ProductType) => (
-              <SelectItem
-                key={productType.id}
-                value={productType.id}
-                className="text-14-medium text-blue-800 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
-              >
-                {productType.name}
-              </SelectItem>
-            ))}
+            {typesLoading && (
+              <div className="py-4">
+                <Loading />
+              </div>
+            )}
+            {types &&
+              types?.map((productType: ProductType) => (
+                <SelectItem
+                  key={productType.id}
+                  value={productType.id}
+                  className="text-14-medium text-blue-800 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+                >
+                  {productType.name}
+                </SelectItem>
+              ))}
           </CustomFormField>
 
           <CustomFormField
@@ -185,15 +197,21 @@ const ProductForm = ({ mode, initialData, onSubmit }: ProductFormProps) => {
             placeholder="Select unit of measure"
             onAddNew={() => router.push("/settings/units")}
           >
-            {units?.map((unit: Unit) => (
-              <SelectItem
-                key={unit.id}
-                value={unit.id}
-                className="text-14-medium text-blue-800 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
-              >
-                {unit.name} ({unit.code})
-              </SelectItem>
-            ))}
+            {unitsLoading && (
+              <div className="py-4">
+                <Loading />
+              </div>
+            )}
+            {units &&
+              units?.map((unit: Unit) => (
+                <SelectItem
+                  key={unit.id}
+                  value={unit.id}
+                  className="text-14-medium text-blue-800 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+                >
+                  {unit.name} ({unit.code})
+                </SelectItem>
+              ))}
           </CustomFormField>
         </div>
 

@@ -1,3 +1,5 @@
+import { inventoryTransactionsTable } from "@/drizzle/schema";
+
 export type SearchParamProps = {
   params: { [key: string]: string };
   searchParams: { [key: string]: string | string[] | undefined };
@@ -145,6 +147,57 @@ export interface Store {
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
+}
+
+// Inventory Stock
+export interface InventoryStock {
+  id: string;
+  storeId: string;
+  productId: string;
+  receivedDate: Date;
+  lotNumber: string;
+  quantity: number;
+  costPrice: number;
+  sellingPrice: number;
+  manufactureDate: Date | null;
+  expiryDate: Date | null;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface InventoryStockWithRelations {
+  inventory: InventoryStock;
+  product: {
+    id: string;
+    name: string;
+  };
+  store: {
+    id: string;
+    name: string;
+    location: string;
+  };
+}
+
+export interface InventoryTransactionWithRelations {
+  transaction: typeof inventoryTransactionsTable.$inferSelect;
+  inventory: {
+    id: string;
+    lotNumber: string;
+  };
+  product: {
+    id: string;
+    name: string;
+  };
+  store: {
+    id: string;
+    name: string;
+    location: string;
+  };
+  user: {
+    id: string;
+    name: string;
+  };
 }
 
 // payment methods
