@@ -4,15 +4,11 @@ import { ColumnDef } from "@tanstack/table-core";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ProductActions from "@/components/products/ProductActions";
-import Image from "next/image";
 import { formatNumber } from "@/lib/utils";
-import SingleCategory from "@/components/categories/SingleCategory";
-import SingleBrand from "@/components/brands/SingleBrand";
-import SingleType from "@/components/productTypes/SingleType";
-import SingleUnit from "@/components/units/SingleUnit";
-import { Product } from "@/types";
+import { ProductWithRelations } from "@/types";
+import PreviewImage from "@/components/PreviewImage";
 
-export const productsColumns: ColumnDef<Product>[] = [
+export const productsColumns: ColumnDef<ProductWithRelations>[] = [
   {
     header: "#",
     cell: ({ row }) => {
@@ -23,17 +19,17 @@ export const productsColumns: ColumnDef<Product>[] = [
     header: "Image",
     cell: ({ row }) => {
       const product = row.original;
+      return <PreviewImage imageUrl={product.product.imageUrl ?? ""} />;
+    },
+  },
+  {
+    header: "Product ID",
+    cell: ({ row }) => {
+      const product = row.original;
       return (
-        <div className="flex">
-          <Image
-            src={product.imageUrl || "/assets/images/placeholder.jpg"}
-            alt={product.name}
-            width={200}
-            height={50}
-            className="h-12 w-24 rounded-md object-cover"
-            priority={true}
-          />
-        </div>
+        <>
+          <p className="text-14-medium">{product.product.productID}</p>
+        </>
       );
     },
   },
@@ -55,7 +51,7 @@ export const productsColumns: ColumnDef<Product>[] = [
 
     cell: ({ row }) => {
       const product = row.original;
-      return <p className="text-14-medium ">{product.name}</p>;
+      return <p className="text-14-medium ">{product.product.name}</p>;
     },
   },
   {
@@ -63,11 +59,7 @@ export const productsColumns: ColumnDef<Product>[] = [
     header: "Brand",
     cell: ({ row }) => {
       const product = row.original;
-      return product.brandId ? (
-        <SingleBrand brandId={product.brandId} />
-      ) : (
-        <span>Null</span>
-      );
+      return <p className="text-14-medium ">{product.brand.name || "-"}</p>;
     },
   },
   {
@@ -75,11 +67,7 @@ export const productsColumns: ColumnDef<Product>[] = [
     header: "Type",
     cell: ({ row }) => {
       const product = row.original;
-      return product.typeId ? (
-        <SingleType typeId={product.typeId} />
-      ) : (
-        <span>Null</span>
-      );
+      return <p className="text-14-medium ">{product.type.name || "-"}</p>;
     },
   },
   {
@@ -87,11 +75,7 @@ export const productsColumns: ColumnDef<Product>[] = [
     header: "Category",
     cell: ({ row }) => {
       const product = row.original;
-      return product.categoryId ? (
-        <SingleCategory categoryId={product.categoryId} />
-      ) : (
-        <span>Null</span>
-      );
+      return <p className="text-14-medium ">{product.category.name || "-"}</p>;
     },
   },
   {
@@ -101,12 +85,8 @@ export const productsColumns: ColumnDef<Product>[] = [
       const product = row.original;
       return (
         <div className="text-14-medium flex flex-row items-center gap-1">
-          {product.quantity || 0}
-          {product.unitId ? (
-            <SingleUnit unitId={product.unitId} showCode={true} />
-          ) : (
-            <span>Null</span>
-          )}
+          {product.product.quantity || 0}
+          {product.unit.code || "-"}
         </div>
       );
     },
@@ -119,21 +99,20 @@ export const productsColumns: ColumnDef<Product>[] = [
       return (
         <>
           <p className="text-14-medium">
-            {formatNumber(String(product.alertQuantity))}
+            {formatNumber(String(product.product.alertQuantity))}
           </p>
         </>
       );
     },
   },
   {
-    accessorKey: "description",
-    header: "Description",
+    header: "Tax",
     cell: ({ row }) => {
       const product = row.original;
       return (
-        <p className="text-14-medium">
-          {product.description.substring(0, 20).concat("...") || "-"}
-        </p>
+        <>
+          <p className="text-14-medium">{product.taxRate.taxRate}%</p>
+        </>
       );
     },
   },
@@ -142,7 +121,7 @@ export const productsColumns: ColumnDef<Product>[] = [
     id: "actions",
     header: "Actions",
     cell: ({ row }) => {
-      return <ProductActions product={row.original} />;
+      return <ProductActions product={row.original.product} />;
     },
   },
 ];

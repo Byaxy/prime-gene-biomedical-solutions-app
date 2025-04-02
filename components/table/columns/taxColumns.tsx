@@ -4,11 +4,10 @@ import { ColumnDef } from "@tanstack/table-core";
 import { formatDateTime } from "@/lib/utils";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import CategoryActions from "@/components/categories/CategoryActions";
-import { Category } from "@/types";
-import SingleCategory from "@/components/categories/SingleCategory";
+import TaxActions from "@/components/taxes/TaxActions";
+import { Tax } from "@/types";
 
-export const categoriesColumns: ColumnDef<Category>[] = [
+export const taxColumns: ColumnDef<Tax>[] = [
   {
     header: "#",
     cell: ({ row }) => {
@@ -25,40 +24,43 @@ export const categoriesColumns: ColumnDef<Category>[] = [
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           className="font-semibold px-0"
         >
-          Name
+          Tax Name
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       );
     },
 
     cell: ({ row }) => {
-      const category = row.original;
-      return <p className="text-14-medium ">{category.name}</p>;
+      const tax = row.original;
+      return <p className="text-14-medium ">{tax.name}</p>;
     },
   },
   {
-    accessorKey: "parentId",
-    header: "Parent Category",
-
+    accessorKey: "code",
+    header: "Tax Code",
     cell: ({ row }) => {
-      const category = row.original;
-      return category.parentId ? (
-        <SingleCategory categoryId={category.parentId} />
-      ) : (
-        <span>Null</span>
-      );
+      const tax = row.original;
+      return <p className="text-14-medium ">{tax.code || "-"}</p>;
+    },
+  },
+  {
+    accessorKey: "taxRate",
+    header: "Tax Rate",
+    cell: ({ row }) => {
+      const tax = row.original;
+      return <p className="text-14-medium ">{tax.taxRate || 0}%</p>;
     },
   },
   {
     accessorKey: "description",
     header: "Description",
     cell: ({ row }) => {
-      const category = row.original;
-      return <p className="text-14-medium ">{category.description || "-"}</p>;
+      const tax = row.original;
+      return <p className="text-14-medium ">{tax.description || "-"}</p>;
     },
   },
   {
-    accessorKey: "$createdAt",
+    accessorKey: "createdAt",
     header: ({ column }) => {
       return (
         <Button
@@ -72,16 +74,16 @@ export const categoriesColumns: ColumnDef<Category>[] = [
       );
     },
     cell: ({ row }) => {
-      const category = row.original;
+      const tax = row.original;
       return (
         <p className="text-14-medium ">
-          {formatDateTime(category.createdAt).dateTime}
+          {formatDateTime(tax.createdAt).dateTime}
         </p>
       );
     },
   },
   {
-    accessorKey: "$updatedAt",
+    accessorKey: "updatedAt",
     header: ({ column }) => {
       return (
         <Button
@@ -95,10 +97,10 @@ export const categoriesColumns: ColumnDef<Category>[] = [
       );
     },
     cell: ({ row }) => {
-      const category = row.original;
+      const tax = row.original;
       return (
         <p className="text-14-medium">
-          {formatDateTime(category.updatedAt).dateTime}
+          {formatDateTime(tax.updatedAt).dateTime}
         </p>
       );
     },
@@ -107,7 +109,7 @@ export const categoriesColumns: ColumnDef<Category>[] = [
     id: "actions",
     header: "Actions",
     cell: ({ row }) => {
-      return <CategoryActions category={row.original} />;
+      return <TaxActions tax={row.original} />;
     },
   },
 ];

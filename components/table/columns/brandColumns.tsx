@@ -1,9 +1,9 @@
 import BrandActions from "@/components/brands/BrandActions";
+import PreviewImage from "@/components/PreviewImage";
 import { Button } from "@/components/ui/button";
 import { Brand } from "@/types";
 import { ColumnDef } from "@tanstack/react-table";
 import { ArrowUpDown } from "lucide-react";
-import Image from "next/image";
 
 export const brandColumns: ColumnDef<Brand>[] = [
   {
@@ -16,18 +16,7 @@ export const brandColumns: ColumnDef<Brand>[] = [
     header: "Image",
     cell: ({ row }) => {
       const brand = row.original;
-      return (
-        <div className="flex items-center px-2 bg-white rounded-md max-w-48">
-          <Image
-            src={brand.imageUrl || "/assets/images/placeholder.jpg"}
-            alt={brand.name}
-            width={300}
-            height={50}
-            className="h-14 w-40 rounded-md object-contain"
-            priority={true}
-          />
-        </div>
-      );
+      return <PreviewImage imageUrl={brand.imageUrl ?? ""} />;
     },
   },
   {

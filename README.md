@@ -81,3 +81,10 @@ A modern, scalable, and user-friendly **Sales and Inventory Management Applicati
 
 - **Settings**
   ![Settings page](/public/assets/images/settings.png)
+
+to do
+-product ID on add inventory
+-navigate to list page on add success
+-preview product image in dialog on double click
+-capture cost price and selling price on the add inventory
+-when Adjusting inventory, load product cost price and selling price as defaults.

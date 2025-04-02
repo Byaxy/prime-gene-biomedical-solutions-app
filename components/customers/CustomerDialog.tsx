@@ -43,7 +43,7 @@ const CustomerDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg bg-light-200">
+      <DialogContent className="sm:max-w-2xl bg-light-200">
         <DialogHeader className="space-y-2">
           <DialogTitle className="text-xl text-blue-800">
             Delete Customer

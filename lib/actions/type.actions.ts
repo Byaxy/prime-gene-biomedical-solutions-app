@@ -16,6 +16,7 @@ export const addType = async (typeData: TypeFormValues) => {
       .returning();
 
     revalidatePath("/settings/types");
+    revalidatePath("/inventory/add-inventory");
     return parseStringify(insertedType);
   } catch (error) {
     console.error("Error adding type:", error);
@@ -117,6 +118,7 @@ export const editType = async (typeData: TypeFormValues, typeId: string) => {
       .returning();
 
     revalidatePath("/settings/types");
+    revalidatePath("/inventory/add-inventory");
     return parseStringify(updatedType);
   } catch (error) {
     console.error("Error editing type:", error);
@@ -133,6 +135,7 @@ export const deleteType = async (typeId: string) => {
       .returning();
 
     revalidatePath("/settings/types");
+    revalidatePath("/inventory/add-inventory");
     return parseStringify(deletedType);
   } catch (error) {
     console.error("Error deleting type:", error);
@@ -150,6 +153,7 @@ export const softDeleteType = async (typeId: string) => {
       .returning();
 
     revalidatePath("/settings/types");
+    revalidatePath("/inventory/add-inventory");
     return parseStringify(updatedType);
   } catch (error) {
     console.error("Error soft deleting type:", error);

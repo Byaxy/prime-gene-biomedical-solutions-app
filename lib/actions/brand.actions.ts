@@ -21,6 +21,7 @@ export const addBrand = async (brandData: BrandDataWithImage) => {
       .returning();
 
     revalidatePath("/settings/brands");
+    revalidatePath("/inventory/add-inventory");
     return parseStringify(insertedBrand);
   } catch (error) {
     console.error("Error adding brand:", error);
@@ -139,6 +140,7 @@ export const editBrand = async (brand: BrandDataWithImage, brandId: string) => {
       .returning();
 
     revalidatePath("/settings/brands");
+    revalidatePath("/inventory/add-inventory");
     return parseStringify(updatedBrand);
   } catch (error) {
     console.error("Error editing brand:", error);
@@ -155,6 +157,7 @@ export const deleteBrand = async (brandId: string) => {
       .returning();
 
     revalidatePath("/settings/brands");
+    revalidatePath("/inventory/add-inventory");
     return parseStringify(deletedBrand);
   } catch (error) {
     console.error("Error deleting brand:", error);
@@ -172,6 +175,7 @@ export const softDeleteBrand = async (brandId: string) => {
       .returning();
 
     revalidatePath("/settings/brands");
+    revalidatePath("/inventory/add-inventory");
     return parseStringify(updatedBrand);
   } catch (error) {
     console.error("Error soft deleting brand:", error);

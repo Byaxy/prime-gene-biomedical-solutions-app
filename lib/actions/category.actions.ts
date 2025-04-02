@@ -43,6 +43,7 @@ export const addCategory = async (categoryData: CategoryFormValues) => {
       .returning();
 
     revalidatePath("/products/categories");
+    revalidatePath("/inventory/add-inventory");
     return parseStringify(insertedCategory);
   } catch (error) {
     console.error("Error adding category:", error);
@@ -179,6 +180,7 @@ export const editCategory = async (
       .returning();
 
     revalidatePath("/products/categories");
+    revalidatePath("/inventory/add-inventory");
     return parseStringify(updatedCategory);
   } catch (error) {
     console.error("Error editing category:", error);
@@ -195,6 +197,7 @@ export const deleteCategory = async (categoryId: string) => {
       .returning();
 
     revalidatePath("/products/categories");
+    revalidatePath("/inventory/add-inventory");
     return parseStringify(deletedCategory);
   } catch (error) {
     console.error("Error deleting category:", error);
@@ -212,6 +215,7 @@ export const softDeleteCategory = async (categoryId: string) => {
       .returning();
 
     revalidatePath("/products/categories");
+    revalidatePath("/inventory/add-inventory");
     return parseStringify(updatedCategory);
   } catch (error) {
     console.error("Error soft deleting category:", error);

@@ -1,7 +1,7 @@
 "use client";
 
 import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
-import { ThemeProvider } from "@/components/theme-provider";
+import { ThemeProvider } from "@/components/context/theme-provider";
 import { Toaster } from "react-hot-toast";
 
 const queryClient = new QueryClient();

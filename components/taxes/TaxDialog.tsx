@@ -1,57 +1,57 @@
+import { TaxFormValues } from "@/lib/validation";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+} from "../ui/dialog";
+import { Button } from "../ui/button";
+import TaxForm from "../forms/TaxForm";
+import { Tax } from "@/types";
 
-import { CategoryFormValues } from "@/lib/validation";
-import CategoryForm from "../forms/CategoriesForm";
-import { Category } from "@/types";
-
-interface CategoryDialogProps {
+interface TaxDialogProps {
   mode: "add" | "edit" | "delete";
   open: boolean;
   onOpenChange: (open: boolean) => void;
   isLoading?: boolean;
-  category?: Category;
-  onSubmit: (data: CategoryFormValues) => Promise<void>;
+  tax?: Tax;
+  onSubmit: (data: TaxFormValues) => Promise<void>;
 }
-
-export function CategoryDialog({
+const TaxDialog = ({
   mode,
   open,
   onOpenChange,
-  category,
+  tax,
   isLoading,
   onSubmit,
-}: CategoryDialogProps) {
+}: TaxDialogProps) => {
   const handleDelete = async () => {
     try {
       await onSubmit({
-        name: category?.name || "",
-        description: category?.description ?? "",
+        taxRate: tax?.taxRate || 0,
+        name: tax?.name || "",
+        code: tax?.code || "",
+        description: tax?.description,
       });
       onOpenChange(false);
     } catch (error) {
-      console.error("Error deleting category:", error);
+      console.error("Error deleting tax:", error);
     } finally {
     }
   };
 
   const dialogTitle = {
-    add: "Add Category",
-    edit: "Edit Category",
-    delete: "Delete Category",
+    add: "Add Tax",
+    edit: "Edit Tax",
+    delete: "Delete Tax",
   }[mode];
 
   const dialogDescription = {
-    add: "Add a new category to your collection.",
-    edit: "Edit the selected category.",
+    add: "Add a new tax to your collection.",
+    edit: "Edit the selected tax.",
     delete:
-      "Are you sure you want to delete this category? This action cannot be undone.",
+      "Are you sure you want to delete this tax? This action cannot be undone.",
   }[mode];
 
   return (
@@ -69,7 +69,7 @@ export function CategoryDialog({
         {mode === "delete" ? (
           <div className="flex flex-col gap-4">
             <p className="text-sm text-red-500">
-              Category: <span className="font-semibold">{category?.name}</span>
+              Tax: <span className="font-semibold">{tax?.name}</span>
             </p>
             <div className="flex justify-end gap-4">
               <Button
@@ -93,12 +93,12 @@ export function CategoryDialog({
             </div>
           </div>
         ) : (
-          <CategoryForm
+          <TaxForm
             mode={mode === "add" ? "create" : "edit"}
             initialData={
-              mode === "edit" && category
+              mode === "edit" && tax
                 ? {
-                    ...category,
+                    ...tax,
                   }
                 : undefined
             }
@@ -109,4 +109,6 @@ export function CategoryDialog({
       </DialogContent>
     </Dialog>
   );
-}
+};
+
+export default TaxDialog;

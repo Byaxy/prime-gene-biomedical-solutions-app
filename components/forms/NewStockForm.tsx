@@ -1,11 +1,10 @@
 import { useProducts } from "@/hooks/useProducts";
 import { getProductById } from "@/lib/actions/product.actions";
-import { getUnitById } from "@/lib/actions/unit.actions";
 import {
   StockAdjustmentFormValidation,
   StockAdjustmentFormValues,
 } from "@/lib/validation";
-import { Product, Store, Unit } from "@/types";
+import { ProductWithRelations, Store } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -101,8 +100,10 @@ const NewStockForm = () => {
       if (!selectedProductId) return;
 
       try {
-        const product = await getProductById(selectedProductId);
-        setSelectedProductName(product.name);
+        const product: ProductWithRelations = await getProductById(
+          selectedProductId
+        );
+        setSelectedProductName(product.product.name);
       } catch (error) {
         console.error("Error fetching product:", error);
         setSelectedProductName("");
@@ -123,19 +124,18 @@ const NewStockForm = () => {
     try {
       const selectedProduct = (await getProductById(
         currentProductId
-      )) as Product;
+      )) as ProductWithRelations;
       if (!selectedProduct) {
         throw new Error("Product not found");
       }
 
-      const selectedProductUnit = (await getUnitById(
-        selectedProduct.unitId
-      )) as Unit;
-
       const quantity = form.getValues("tempQuantity") || 0;
       const lotNumber = form.getValues("tempLotNumber") || "";
-      const costPrice = form.getValues("tempCostPrice") || 0;
-      const sellingPrice = form.getValues("tempSellingPrice") || 0;
+      const costPrice =
+        form.getValues("tempCostPrice") || selectedProduct.product.costPrice;
+      const sellingPrice =
+        form.getValues("tempSellingPrice") ||
+        selectedProduct.product.sellingPrice;
       const manufactureDate =
         form.getValues("tempManufactureDate") || undefined;
       const expiryDate = form.getValues("tempExpiryDate") || undefined;
@@ -158,15 +158,15 @@ const NewStockForm = () => {
       }
 
       const newProduct: FormProduct = {
-        productId: selectedProduct.id,
+        productId: selectedProduct.product.id,
         quantity,
         lotNumber,
         costPrice,
         sellingPrice,
         manufactureDate,
         expiryDate,
-        productName: selectedProduct.name,
-        productUnit: selectedProductUnit.code,
+        productName: selectedProduct.product.name,
+        productUnit: selectedProduct.unit.code,
       };
 
       if (editingIndex !== null) {
@@ -246,8 +246,6 @@ const NewStockForm = () => {
           expiryDate: field.expiryDate || undefined,
         })),
       };
-
-      console.log("Submitting:", submissionData); // Debug log
 
       await addInventoryStock(
         { data: submissionData, userId: user.id },
@@ -330,13 +328,13 @@ const NewStockForm = () => {
                 </div>
               )}
               {products &&
-                products?.map((product: Product) => (
+                products?.map((product: ProductWithRelations) => (
                   <SelectItem
-                    key={product.id}
-                    value={product.id}
+                    key={product.product.id}
+                    value={product.product.id}
                     className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
                   >
-                    {product.name}
+                    {product.product.productID} - {product.product.name}
                   </SelectItem>
                 ))}
             </CustomFormField>

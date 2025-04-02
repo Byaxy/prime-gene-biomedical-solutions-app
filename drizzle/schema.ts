@@ -230,8 +230,14 @@ export const productsTable = pgTable("products", {
     .primaryKey()
     .default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
+  productID: text("product_id").notNull().unique(),
   description: text("description").default(""),
+  costPrice: numeric("cost_price").notNull(),
+  sellingPrice: numeric("selling_price").notNull(),
   quantity: integer("quantity").notNull(),
+  taxRateId: uuid("tax_rate_id")
+    .notNull()
+    .references(() => taxRatesTable.id, { onDelete: "set null" }), // Foreign key to taxt rates
   alertQuantity: integer("alert_quantity").notNull(),
   categoryId: uuid("category_id")
     .notNull()
@@ -657,6 +663,20 @@ export const waybillItemsTable = pgTable("waybill_items", {
   quantity: integer("quantity").notNull(),
   unitPrice: numeric("unit_price").notNull(),
   subTotal: numeric("sub_total").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Tax rates table
+export const taxRatesTable = pgTable("tax_rates", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  taxRate: numeric("tax_rate").notNull(),
+  code: text("code").notNull(), // e.g., "VAT", "GST"
+  description: text("description"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

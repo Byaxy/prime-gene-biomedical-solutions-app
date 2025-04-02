@@ -16,6 +16,7 @@ export const addUnit = async (unitData: UnitFormValues) => {
       .returning();
 
     revalidatePath("/settings/units");
+    revalidatePath("/inventory/add-inventory");
     return parseStringify(insertedUnit);
   } catch (error) {
     console.error("Error adding unit:", error);
@@ -117,6 +118,7 @@ export const editUnit = async (unitData: UnitFormValues, unitId: string) => {
       .returning();
 
     revalidatePath("/products/units");
+    revalidatePath("/inventory/add-inventory");
     return parseStringify(updatedUnit);
   } catch (error) {
     console.error("Error editing unit:", error);
@@ -133,6 +135,7 @@ export const deleteUnit = async (unitId: string) => {
       .returning();
 
     revalidatePath("/products/units");
+    revalidatePath("/inventory/add-inventory");
     return parseStringify(deletedUnit);
   } catch (error) {
     console.error("Error deleting unit:", error);
@@ -150,6 +153,7 @@ export const softDeleteUnit = async (unitId: string) => {
       .returning();
 
     revalidatePath("/products/units");
+    revalidatePath("/inventory/add-inventory");
     return parseStringify(updatedUnit);
   } catch (error) {
     console.error("Error soft deleting unit:", error);

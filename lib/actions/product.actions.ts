@@ -4,8 +4,15 @@ import { revalidatePath } from "next/cache";
 import { parseStringify } from "../utils";
 import { ProductFormValues } from "../validation";
 import { db } from "@/drizzle/db";
-import { productsTable } from "@/drizzle/schema";
-import { desc, eq } from "drizzle-orm";
+import {
+  brandsTable,
+  categoriesTable,
+  productsTable,
+  productTypesTable,
+  taxRatesTable,
+  unitsTable,
+} from "@/drizzle/schema";
+import { desc, eq, sql } from "drizzle-orm";
 
 interface ProductDataWithImage extends Omit<ProductFormValues, "image"> {
   imageId: string;
@@ -28,23 +35,7 @@ export const addProduct = async (productData: ProductDataWithImage) => {
   }
 };
 
-// Get Product by ID
-export const getProductById = async (productId: string) => {
-  try {
-    const response = await db
-      .select()
-      .from(productsTable)
-      .where(eq(productsTable.id, productId))
-      .then((res) => res[0]);
-
-    return parseStringify(response);
-  } catch (error) {
-    console.error("Error getting product by ID:", error);
-    throw error;
-  }
-};
-
-// Get Products
+// Get Products with relations
 export const getProducts = async (
   page: number = 0,
   limit: number = 10,
@@ -52,8 +43,43 @@ export const getProducts = async (
 ) => {
   try {
     let query = db
-      .select()
+      .select({
+        product: productsTable,
+        category: {
+          id: categoriesTable.id,
+          name: categoriesTable.name,
+        },
+        brand: {
+          id: brandsTable.id,
+          name: brandsTable.name,
+        },
+        type: {
+          id: productTypesTable.id,
+          name: productTypesTable.name,
+        },
+        unit: {
+          id: unitsTable.id,
+          name: unitsTable.name,
+          code: unitsTable.code,
+        },
+        taxRate: {
+          id: taxRatesTable.id,
+          name: taxRatesTable.name,
+          taxRate: taxRatesTable.taxRate,
+        },
+      })
       .from(productsTable)
+      .leftJoin(
+        categoriesTable,
+        eq(productsTable.categoryId, categoriesTable.id)
+      )
+      .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id))
+      .leftJoin(
+        productTypesTable,
+        eq(productsTable.typeId, productTypesTable.id)
+      )
+      .leftJoin(unitsTable, eq(productsTable.unitId, unitsTable.id))
+      .leftJoin(taxRatesTable, eq(productsTable.taxRateId, taxRatesTable.id))
       .where(eq(productsTable.isActive, true))
       .orderBy(desc(productsTable.createdAt));
 
@@ -72,8 +98,46 @@ export const getProducts = async (
 
       while (true) {
         const batch = await db
-          .select()
+          .select({
+            product: productsTable,
+            category: {
+              id: categoriesTable.id,
+              name: categoriesTable.name,
+            },
+            brand: {
+              id: brandsTable.id,
+              name: brandsTable.name,
+            },
+            type: {
+              id: productTypesTable.id,
+              name: productTypesTable.name,
+            },
+            unit: {
+              id: unitsTable.id,
+              name: unitsTable.name,
+              code: unitsTable.code,
+            },
+            taxRate: {
+              id: taxRatesTable.id,
+              name: taxRatesTable.name,
+              taxRate: taxRatesTable.taxRate,
+            },
+          })
           .from(productsTable)
+          .leftJoin(
+            categoriesTable,
+            eq(productsTable.categoryId, categoriesTable.id)
+          )
+          .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id))
+          .leftJoin(
+            productTypesTable,
+            eq(productsTable.typeId, productTypesTable.id)
+          )
+          .leftJoin(unitsTable, eq(productsTable.unitId, unitsTable.id))
+          .leftJoin(
+            taxRatesTable,
+            eq(productsTable.taxRateId, taxRatesTable.id)
+          )
           .where(eq(productsTable.isActive, true))
           .orderBy(desc(productsTable.createdAt))
           .limit(batchSize)
@@ -97,10 +161,10 @@ export const getProducts = async (
 
     // For paginated results
     const total = await db
-      .select()
+      .select({ count: sql<number>`count(*)` })
       .from(productsTable)
       .where(eq(productsTable.isActive, true))
-      .then((res) => res.length);
+      .then((res) => res[0]?.count || 0);
 
     return {
       documents: parseStringify(products),
@@ -108,6 +172,57 @@ export const getProducts = async (
     };
   } catch (error) {
     console.error("Error getting products:", error);
+    throw error;
+  }
+};
+
+// Get Product by ID with relations
+export const getProductById = async (productId: string) => {
+  try {
+    const response = await db
+      .select({
+        product: productsTable,
+        category: {
+          id: categoriesTable.id,
+          name: categoriesTable.name,
+        },
+        brand: {
+          id: brandsTable.id,
+          name: brandsTable.name,
+        },
+        type: {
+          id: productTypesTable.id,
+          name: productTypesTable.name,
+        },
+        unit: {
+          id: unitsTable.id,
+          name: unitsTable.name,
+          code: unitsTable.code,
+        },
+        taxRate: {
+          id: taxRatesTable.id,
+          name: taxRatesTable.name,
+          taxRate: taxRatesTable.taxRate,
+        },
+      })
+      .from(productsTable)
+      .leftJoin(
+        categoriesTable,
+        eq(productsTable.categoryId, categoriesTable.id)
+      )
+      .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id))
+      .leftJoin(
+        productTypesTable,
+        eq(productsTable.typeId, productTypesTable.id)
+      )
+      .leftJoin(unitsTable, eq(productsTable.unitId, unitsTable.id))
+      .leftJoin(taxRatesTable, eq(productsTable.taxRateId, taxRatesTable.id))
+      .where(eq(productsTable.id, productId))
+      .then((res) => res[0]);
+
+    return parseStringify(response);
+  } catch (error) {
+    console.error("Error getting product by ID:", error);
     throw error;
   }
 };
@@ -122,9 +237,13 @@ export const editProduct = async (
 
     if (productData.imageId && productData.imageUrl) {
       updatedProductData = {
+        productID: productData.productID,
         name: productData.name,
         alertQuantity: productData.alertQuantity,
         quantity: productData.quantity,
+        costPrice: productData.costPrice,
+        sellingPrice: productData.sellingPrice,
+        taxRateId: productData.taxRateId,
         categoryId: productData.categoryId,
         brandId: productData.brandId,
         typeId: productData.typeId,
@@ -135,9 +254,13 @@ export const editProduct = async (
       };
     } else {
       updatedProductData = {
+        productID: productData.productID,
         name: productData.name,
         alertQuantity: productData.alertQuantity,
         quantity: productData.quantity,
+        costPrice: productData.costPrice,
+        sellingPrice: productData.sellingPrice,
+        taxRateId: productData.taxRateId,
         categoryId: productData.categoryId,
         brandId: productData.brandId,
         typeId: productData.typeId,

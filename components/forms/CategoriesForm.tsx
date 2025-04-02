@@ -84,7 +84,8 @@ const CategoryForm = ({
             label="Parent Category"
             placeholder="Select parent category"
             onAddNew={
-              pathname !== "/settings/categories"
+              pathname !== "/settings/categories" &&
+              pathname !== "/inventory/add-inventory"
                 ? () => router.push("/settings/categories")
                 : undefined
             }

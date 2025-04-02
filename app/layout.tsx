@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
-import { Providers } from "@/components/Providers";
+import { Providers } from "@/components/context/Providers";
 import "@/app/dynamic-routes";
 import { Analytics } from "@vercel/analytics/react";
 

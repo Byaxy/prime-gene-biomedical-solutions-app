@@ -425,6 +425,11 @@ export const sidebarData: SidebarDataType[] = [
       },
       {
         id: generateId(),
+        title: "Taxes",
+        path: "/settings/taxes",
+      },
+      {
+        id: generateId(),
         title: "Stores",
         path: "/settings/stores",
       },

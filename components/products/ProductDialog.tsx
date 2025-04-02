@@ -30,7 +30,11 @@ export function ProductDialog({
   const handleDelete = async () => {
     try {
       await onSubmit({
+        productID: product?.id || "",
         name: product?.name || "",
+        taxRateId: product?.taxRateId || "",
+        costPrice: product?.costPrice || 0,
+        sellingPrice: product?.sellingPrice || 0,
         description: product?.description || "",
         alertQuantity: product?.alertQuantity || 0,
         quantity: product?.quantity || 0,

@@ -74,12 +74,19 @@ export type BrandFormValues = z.infer<typeof BrandFormValidation>;
 
 // Products
 export const ProductFormValidation = z.object({
+  productID: z
+    .string()
+    .nonempty("Product ID is required")
+    .min(2, "Product ID must be at least 2 characters"),
   name: z
     .string()
     .nonempty("Name is required")
     .min(2, "Name must be at least 2 characters"),
   description: z.string().optional(),
+  taxRateId: z.string().nonempty("Tax rate is required"),
   quantity: z.number().int().min(0, "Quantity must be 0 or more"),
+  costPrice: z.number().min(0, "Cost price must be positive"),
+  sellingPrice: z.number().min(0, "Selling price must be positive"),
   alertQuantity: z.number().int().min(1, "Alert quantity must be 1 or more"),
   categoryId: z.string().nonempty("Category is required"),
   typeId: z.string().nonempty("Type is required"),
@@ -171,6 +178,15 @@ export const UnitFormValidation = z.object({
   description: z.string().optional(),
 });
 export type UnitFormValues = z.infer<typeof UnitFormValidation>;
+
+// Tax
+export const TaxFormValidation = z.object({
+  taxRate: z.number().min(0, "Unit price must be 0 or more"),
+  name: z.string().nonempty("Name is required"),
+  code: z.string().nonempty("Code is required"),
+  description: z.string().optional(),
+});
+export type TaxFormValues = z.infer<typeof TaxFormValidation>;
 
 // Sales
 export const SaleFormValidation = z.object({

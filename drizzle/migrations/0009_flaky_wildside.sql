@@ -1,0 +1,1 @@
+ALTER TABLE "tax_rates" ALTER COLUMN "tax_rate" SET DATA TYPE numeric(12, 2);

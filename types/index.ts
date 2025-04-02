@@ -37,6 +37,16 @@ export interface Unit {
   createdAt: Date;
   updatedAt: Date;
 }
+export interface Tax {
+  id: string;
+  name: string;
+  taxRate: number;
+  code: string;
+  description: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 export interface ProductType {
   id: string;
@@ -94,7 +104,11 @@ export interface Customer {
 
 export interface Product {
   id: string;
+  productID: string;
   name: string;
+  taxRateId: string;
+  costPrice: number;
+  sellingPrice: number;
   description: string;
   quantity: number;
   alertQuantity: number;
@@ -200,6 +214,15 @@ export interface InventoryTransactionWithRelations {
   };
 }
 
+// Product with relations
+export interface ProductWithRelations {
+  product: Product;
+  category: { id: string; name: string };
+  brand: { id: string; name: string };
+  type: { id: string; name: string };
+  unit: { id: string; name: string; code: string };
+  taxRate: { id: string; name: string; taxRate: number };
+}
 // payment methods
 export enum PaymentMethod {
   Cash = "cash",

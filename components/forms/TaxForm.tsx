@@ -1,4 +1,4 @@
-import { UnitFormValidation, UnitFormValues } from "@/lib/validation";
+import { TaxFormValidation, TaxFormValues } from "@/lib/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -6,33 +6,29 @@ import { Button } from "../ui/button";
 import SubmitButton from "../SubmitButton";
 import CustomFormField, { FormFieldType } from "../CustomFormField";
 import { Form } from "../ui/form";
-import { Unit } from "@/types";
+import { Tax } from "@/types";
 
-interface UnitFormProps {
+interface TaxFormProps {
   mode: "create" | "edit";
-  initialData?: Unit;
-  onSubmit: (data: UnitFormValues) => Promise<void>;
+  initialData?: Tax;
+  onSubmit: (data: TaxFormValues) => Promise<void>;
   onCancel?: () => void;
 }
 
-const UnitsForm = ({
-  mode,
-  initialData,
-  onSubmit,
-  onCancel,
-}: UnitFormProps) => {
+const TaxForm = ({ mode, initialData, onSubmit, onCancel }: TaxFormProps) => {
   const [isLoading, setIsLoading] = useState(false);
 
-  const form = useForm<UnitFormValues>({
-    resolver: zodResolver(UnitFormValidation),
+  const form = useForm<TaxFormValues>({
+    resolver: zodResolver(TaxFormValidation),
     defaultValues: initialData || {
       name: "",
+      taxRate: 0,
       code: "",
       description: "",
     },
   });
 
-  const handleSubmit = async (values: UnitFormValues) => {
+  const handleSubmit = async (values: TaxFormValues) => {
     setIsLoading(true);
     try {
       await onSubmit(values);
@@ -51,16 +47,24 @@ const UnitsForm = ({
             fieldType={FormFieldType.INPUT}
             control={form.control}
             name="name"
-            label="Product Unit Name"
-            placeholder="Enter product unit name"
+            label="Tax Name"
+            placeholder="Enter tax name"
           />
 
           <CustomFormField
             fieldType={FormFieldType.INPUT}
             control={form.control}
             name="code"
-            label="Product Unit Code"
-            placeholder="Enter product unit code"
+            label="Tax Code"
+            placeholder="Enter tax code"
+          />
+
+          <CustomFormField
+            fieldType={FormFieldType.NUMBER}
+            control={form.control}
+            name="taxRate"
+            label="Tax Rate(%)"
+            placeholder="Enter tax rate"
           />
 
           <CustomFormField
@@ -68,7 +72,7 @@ const UnitsForm = ({
             control={form.control}
             name="description"
             label="Description"
-            placeholder="Enter product unit description"
+            placeholder="Enter tax description"
           />
         </div>
 
@@ -83,7 +87,7 @@ const UnitsForm = ({
             </Button>
           )}
           <SubmitButton isLoading={isLoading} className="shad-primary-btn">
-            {mode === "create" ? "Create Unit" : "Update Unit"}
+            {mode === "create" ? "Create Tax" : "Update Tax"}
           </SubmitButton>
         </div>
       </form>
@@ -91,4 +95,4 @@ const UnitsForm = ({
   );
 };
 
-export default UnitsForm;
+export default TaxForm;

@@ -39,7 +39,11 @@ export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Skip middleware for static files and API routes
-  if (pathname.startsWith("/_next") || pathname.startsWith("/api")) {
+  if (
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/api") ||
+    pathname.startsWith("/assets")
+  ) {
     return NextResponse.next();
   }
 

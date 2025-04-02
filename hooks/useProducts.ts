@@ -12,6 +12,7 @@ import {
 } from "@/lib/actions/product.actions";
 import { useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { ProductWithRelations } from "@/types";
 
 interface UseProductsOptions {
   getAllProducts?: boolean;
@@ -98,9 +99,13 @@ export const useProducts = ({
       }
 
       const productData = {
+        productID: data.productID,
         name: data.name,
         alertQuantity: data.alertQuantity,
         quantity: data.quantity,
+        costPrice: data.costPrice,
+        sellingPrice: data.sellingPrice,
+        taxRateId: data.taxRateId,
         categoryId: data.categoryId,
         brandId: data.brandId,
         typeId: data.typeId,
@@ -114,11 +119,6 @@ export const useProducts = ({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
-      toast.success("Product added successfully");
-    },
-    onError: (error) => {
-      console.error("Error adding product:", error);
-      toast.error("Failed to add product");
     },
   });
 
@@ -169,6 +169,10 @@ export const useProducts = ({
         }
 
         const productData = {
+          productID: data.productID,
+          costPrice: data.costPrice,
+          sellingPrice: data.sellingPrice,
+          taxRateId: data.taxRateId,
           name: data.name,
           alertQuantity: data.alertQuantity,
           quantity: data.quantity,
@@ -185,11 +189,6 @@ export const useProducts = ({
       },
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["products"] });
-        toast.success("Product updated successfully");
-      },
-      onError: (error) => {
-        console.error("Error updating product:", error);
-        toast.error("Failed to update product");
       },
     });
 
@@ -224,7 +223,8 @@ export const useProducts = ({
   return {
     products: getAllProducts
       ? allProductsQuery.data
-      : paginatedProductsQuery.data?.documents || [],
+      : paginatedProductsQuery.data?.documents ||
+        ([] as ProductWithRelations[]),
     totalItems: paginatedProductsQuery.data?.total || 0,
     isLoading: getAllProducts
       ? allProductsQuery.isLoading
