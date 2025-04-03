@@ -7,8 +7,32 @@ import { Button } from "@/components/ui/button";
 
 import { Store } from "@/types";
 import StoreActions from "@/components/stores/StoreActions";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export const storesColumns: ColumnDef<Store>[] = [
+  {
+    id: "select",
+    header: ({ table }) => (
+      <Checkbox
+        checked={
+          table.getIsAllPageRowsSelected() ||
+          (table.getIsSomePageRowsSelected() && "indeterminate")
+        }
+        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        aria-label="Select all"
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(value) => row.toggleSelected(!!value)}
+        className="hover:bg-white w-4 h-4"
+        aria-label="Select row"
+      />
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  },
   {
     id: "index",
     header: "#",

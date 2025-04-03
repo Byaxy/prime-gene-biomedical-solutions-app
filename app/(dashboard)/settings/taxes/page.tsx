@@ -5,11 +5,16 @@ import { taxColumns } from "@/components/table/columns/taxColumns";
 import { DataTable } from "@/components/table/DataTable";
 import TaxDialog from "@/components/taxes/TaxDialog";
 import { useTaxes } from "@/hooks/useTaxes";
+import { exportToExcel } from "@/lib/utils";
 import { TaxFormValues } from "@/lib/validation";
+import { Tax } from "@/types";
 import { useState } from "react";
+import toast from "react-hot-toast";
 
-const Tax = () => {
+const Taxes = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [rowSelection, setRowSelection] = useState({});
+
   const {
     taxes,
     isLoading,
@@ -36,6 +41,32 @@ const Tax = () => {
     });
   };
 
+  const handleDownloadSelected = async (selectedItems: Tax[]) => {
+    try {
+      if (selectedItems.length === 0) {
+        toast.error("No Items selected for download");
+        return;
+      }
+
+      const exportData = selectedItems.map((item) => ({
+        id: item.id,
+        name: item.name,
+        description: item.description ?? "",
+        taxRate: `${item.taxRate}%`,
+        code: item.code,
+        isActive: item.isActive,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+      }));
+      exportToExcel(exportData, "selected-taxes");
+      setRowSelection({});
+      toast.success("Export started successfully");
+    } catch (error) {
+      console.error("Error exporting taxes:", error);
+      toast.error("Failed to export taxes");
+    }
+  };
+
   return (
     <PageWraper
       title="Taxes"
@@ -52,6 +83,9 @@ const Tax = () => {
           onPageChange={setPage}
           pageSize={pageSize}
           onPageSizeChange={setPageSize}
+          rowSelection={rowSelection}
+          onRowSelectionChange={setRowSelection}
+          onDownloadSelected={handleDownloadSelected}
         />
         <TaxDialog
           mode="add"
@@ -65,4 +99,4 @@ const Tax = () => {
   );
 };
 
-export default Tax;
+export default Taxes;

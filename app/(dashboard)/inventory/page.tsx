@@ -11,7 +11,6 @@ import toast from "react-hot-toast";
 
 const Inventory = () => {
   const [rowSelection, setRowSelection] = useState({});
-  const [isDownloading, setIsDownloading] = useState(false);
 
   const {
     products,
@@ -41,7 +40,6 @@ const Inventory = () => {
   const handleDownloadSelected = async (
     selectedItems: ProductWithRelations[]
   ) => {
-    setIsDownloading(true);
     try {
       if (selectedItems.length === 0) {
         toast.error("No products selected for download");
@@ -55,8 +53,6 @@ const Inventory = () => {
     } catch (error) {
       console.error("Error exporting products:", error);
       toast.error("Failed to export products");
-    } finally {
-      setIsDownloading(false);
     }
   };
 
@@ -80,7 +76,6 @@ const Inventory = () => {
         onRowSelectionChange={setRowSelection}
         isDeletingSelected={isSoftDeletingMultipleProducts}
         onDownloadSelected={handleDownloadSelected}
-        isDownloadingSelected={isDownloading}
       />
     </PageWraper>
   );

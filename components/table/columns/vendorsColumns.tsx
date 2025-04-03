@@ -6,8 +6,32 @@ import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import VendorActions from "@/components/vendors/VendorActions";
 import { Vendor } from "@/types";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export const vendorsColumns: ColumnDef<Vendor>[] = [
+  {
+    id: "select",
+    header: ({ table }) => (
+      <Checkbox
+        checked={
+          table.getIsAllPageRowsSelected() ||
+          (table.getIsSomePageRowsSelected() && "indeterminate")
+        }
+        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        aria-label="Select all"
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(value) => row.toggleSelected(!!value)}
+        className="hover:bg-white w-4 h-4"
+        aria-label="Select row"
+      />
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  },
   {
     id: "index",
     header: "#",

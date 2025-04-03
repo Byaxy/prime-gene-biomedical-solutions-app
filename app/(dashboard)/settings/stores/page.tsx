@@ -7,9 +7,14 @@ import StoreDialog from "@/components/stores/StoreDialog";
 import { useStores } from "@/hooks/useStores";
 import { StoreFormValues } from "@/lib/validation";
 import { useState } from "react";
+import { Store } from "@/types";
+import toast from "react-hot-toast";
+import { exportToExcel } from "@/lib/utils";
 
 const Stores = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [rowSelection, setRowSelection] = useState({});
+
   const {
     stores,
     isLoading,
@@ -35,6 +40,31 @@ const Stores = () => {
       });
     });
   };
+
+  const handleDownloadSelected = async (selectedItems: Store[]) => {
+    try {
+      if (selectedItems.length === 0) {
+        toast.error("No Items selected for download");
+        return;
+      }
+
+      const exportData = selectedItems.map((item) => ({
+        id: item.id,
+        name: item.name,
+        location: item.location,
+        isActive: item.isActive,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+      }));
+      exportToExcel(exportData, "selected-stores");
+      setRowSelection({});
+      toast.success("Export started successfully");
+    } catch (error) {
+      console.error("Error exporting stores:", error);
+      toast.error("Failed to export stores");
+    }
+  };
+
   return (
     <PageWraper
       title="Stores"
@@ -51,6 +81,9 @@ const Stores = () => {
           onPageChange={setPage}
           pageSize={pageSize}
           onPageSizeChange={setPageSize}
+          rowSelection={rowSelection}
+          onRowSelectionChange={setRowSelection}
+          onDownloadSelected={handleDownloadSelected}
         />
         <StoreDialog
           mode="add"

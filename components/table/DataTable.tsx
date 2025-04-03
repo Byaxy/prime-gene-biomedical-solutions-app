@@ -38,7 +38,6 @@ interface DataTableProps<TData, TValue> {
   rowSelection?: Record<string, boolean>;
   onRowSelectionChange?: (selection: Record<string, boolean>) => void;
   onDownloadSelected?: (items: TData[]) => void;
-  isDownloadingSelected?: boolean;
 }
 import { HeaderGroup, Header } from "@tanstack/react-table";
 import { useState } from "react";
@@ -72,7 +71,6 @@ export function DataTable<TData, TValue>({
   onRowSelectionChange,
   rowSelection,
   onDownloadSelected,
-  isDownloadingSelected,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -132,67 +130,56 @@ export function DataTable<TData, TValue>({
             {table.getSelectedRowModel().rows.length} Rows Selected
           </div>
           <div className="flex gap-2">
-            <Button
-              disabled={isDeletingSelected}
-              variant="default"
-              size="sm"
-              className="shad-danger-btn"
-              onClick={async () => {
-                const selectedRows = table
-                  .getSelectedRowModel()
-                  .rows.map((row) => row.original);
+            {onDeleteSelected && (
+              <Button
+                disabled={isDeletingSelected}
+                variant="default"
+                size="sm"
+                className="shad-danger-btn"
+                onClick={async () => {
+                  const selectedRows = table
+                    .getSelectedRowModel()
+                    .rows.map((row) => row.original);
 
-                await onDeleteSelected?.(selectedRows);
-              }}
-            >
-              {isDeletingSelected ? (
-                <div className="flex items-center gap-4">
-                  <Image
-                    src="/assets/icons/loader.svg"
-                    alt="loader"
-                    width={20}
-                    height={20}
-                    className="animate-spin"
-                  />
-                  Deleting...
-                </div>
-              ) : (
-                <>
-                  <Trash2Icon className="h-4 w-4" />
-                  Delete
-                </>
-              )}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="shad-primary-btn"
-              onClick={() => {
-                const selectedProducts = table
-                  .getSelectedRowModel()
-                  .rows.map((row) => row.original);
+                  await onDeleteSelected(selectedRows);
+                }}
+              >
+                {isDeletingSelected ? (
+                  <div className="flex items-center gap-4">
+                    <Image
+                      src="/assets/icons/loader.svg"
+                      alt="loader"
+                      width={20}
+                      height={20}
+                      className="animate-spin"
+                    />
+                    Deleting...
+                  </div>
+                ) : (
+                  <>
+                    <Trash2Icon className="h-4 w-4" />
+                    Delete
+                  </>
+                )}
+              </Button>
+            )}
+            {onDownloadSelected && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="shad-primary-btn"
+                onClick={() => {
+                  const selectedProducts = table
+                    .getSelectedRowModel()
+                    .rows.map((row) => row.original);
 
-                onDownloadSelected?.(selectedProducts);
-              }}
-            >
-              {isDownloadingSelected ? (
-                <div className="flex items-center gap-4">
-                  <Image
-                    src="/assets/icons/loader.svg"
-                    alt="loader"
-                    width={20}
-                    height={20}
-                    className="animate-spin"
-                  />
-                  Downloading...
-                </div>
-              ) : (
-                <>
-                  <DownloadIcon className="h-4 w-4" />
-                  Download
-                </>
-              )}
-            </Button>
+                  onDownloadSelected?.(selectedProducts);
+                }}
+              >
+                <DownloadIcon className="h-4 w-4" />
+                Download
+              </Button>
+            )}
           </div>
         </div>
       )}

@@ -42,7 +42,7 @@ const BulkProductUpload = ({ closeDialog }: { closeDialog?: () => void }) => {
       // Validate headers (id is optional)
       const headers = Object.keys(jsonData[0] || {});
       const missingHeaders = requiredHeaders.filter(
-        (h) => h !== "id" && !headers.includes(h) // id is optional
+        (h) => h !== "id" && h !== "description" && !headers.includes(h) // id and description are optional
       );
 
       if (missingHeaders.length) {
@@ -52,7 +52,7 @@ const BulkProductUpload = ({ closeDialog }: { closeDialog?: () => void }) => {
 
       // Transform data
       const products = jsonData.map((row) => ({
-        id: row.id ? String(row.id) : undefined, // Optional id
+        id: row.id ? String(row.id) : undefined,
         productID: String(row.productID),
         name: String(row.name),
         description: String(row.description || ""),

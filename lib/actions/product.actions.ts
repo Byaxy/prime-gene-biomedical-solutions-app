@@ -325,9 +325,6 @@ export const bulkAddProducts = async (
     const productsToUpdate = products.filter((p) => p.id);
     const productsToCreate = products.filter((p) => !p.id);
 
-    console.log("new", productsToCreate);
-    console.log("Old", productsToUpdate);
-
     const productIDs = products.map((p) => p.productID!);
     const duplicateIDs = productIDs.filter(
       (id, index) => productIDs.indexOf(id) !== index
