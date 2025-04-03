@@ -3,9 +3,9 @@
 import { ColumnDef } from "@tanstack/table-core";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { formatDateTime, formatNumber } from "@/lib/utils";
-
+import { formatDateTime } from "@/lib/utils";
 import { InventoryStockWithRelations } from "@/types";
+import FormatNumber from "@/components/FormatNumber";
 
 export const inventoryStockColumns: ColumnDef<InventoryStockWithRelations>[] = [
   {
@@ -62,22 +62,14 @@ export const inventoryStockColumns: ColumnDef<InventoryStockWithRelations>[] = [
     header: "Cost Price",
     cell: ({ row }) => {
       const inventoryStock = row.original;
-      return (
-        <p className="text-14-medium ">
-          {formatNumber(String(inventoryStock.inventory.costPrice))}
-        </p>
-      );
+      return <FormatNumber value={inventoryStock.inventory.costPrice} />;
     },
   },
   {
     header: "Selling Price",
     cell: ({ row }) => {
       const inventoryStock = row.original;
-      return (
-        <p className="text-14-medium ">
-          {formatNumber(String(inventoryStock.inventory.sellingPrice))}
-        </p>
-      );
+      return <FormatNumber value={inventoryStock.inventory.sellingPrice} />;
     },
   },
   {
@@ -87,7 +79,7 @@ export const inventoryStockColumns: ColumnDef<InventoryStockWithRelations>[] = [
       return (
         <p className="text-14-medium ">
           {inventoryStock.inventory?.manufactureDate
-            ? formatDateTime(inventoryStock.inventory.manufactureDate).dateTime
+            ? formatDateTime(inventoryStock.inventory.manufactureDate).dateOnly
             : "N/A"}
         </p>
       );
@@ -100,7 +92,7 @@ export const inventoryStockColumns: ColumnDef<InventoryStockWithRelations>[] = [
       return (
         <p className="text-14-medium ">
           {inventoryStock.inventory?.expiryDate
-            ? formatDateTime(inventoryStock.inventory.expiryDate).dateTime
+            ? formatDateTime(inventoryStock.inventory.expiryDate).dateOnly
             : "N/A"}
         </p>
       );

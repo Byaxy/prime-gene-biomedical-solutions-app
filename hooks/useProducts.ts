@@ -1,10 +1,11 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ProductFormValues } from "@/lib/validation";
+import { BulkProductValues, ProductFormValues } from "@/lib/validation";
 import toast from "react-hot-toast";
 import {
   addProduct,
+  bulkAddProducts,
   deleteProduct,
   editProduct,
   getProducts,
@@ -122,6 +123,22 @@ export const useProducts = ({
     },
   });
 
+  // Add Products in bulk
+  const { mutate: bulkAddProductsMutation, status: bulkAddProductsStatus } =
+    useMutation({
+      mutationFn: async (products: BulkProductValues) => {
+        return bulkAddProducts(products);
+      },
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["products"] });
+        toast.success("Products imported successfully");
+      },
+      onError: (error) => {
+        console.error("Error bulk adding products:", error);
+        toast.error(error.message || "Failed to upload products");
+      },
+    });
+
   // Edit product mutation
   const { mutate: editProductMutation, status: editProductStatus } =
     useMutation({
@@ -202,7 +219,7 @@ export const useProducts = ({
       },
       onError: (error) => {
         console.error("Error deleting product:", error);
-        toast.error("Failed to delete product");
+        toast.error(error.message || "Failed to delete product");
       },
     });
 
@@ -216,7 +233,7 @@ export const useProducts = ({
       },
       onError: (error) => {
         console.error("Error deleting product:", error);
-        toast.error("Failed to delete product");
+        toast.error(error.message || "Failed to delete product");
       },
     });
 
@@ -237,10 +254,12 @@ export const useProducts = ({
     pageSize,
     setPageSize,
     addProduct: addProductMutation,
+    bulkAddProducts: bulkAddProductsMutation,
     editProduct: editProductMutation,
     softDeleteProduct: softDeleteProductMutation,
     deleteProduct: deleteProductMutation,
     isAddingProduct: addProductStatus === "pending",
+    isBulkAddingProducts: bulkAddProductsStatus === "pending",
     isEditingProduct: editProductStatus === "pending",
     isDeletingProduct: deleteProductStatus === "pending",
     isSoftDeletingProduct: softDeleteProductStatus === "pending",

@@ -76,6 +76,20 @@ export const addInventoryStock = async (
             .returning();
 
           transactions.push(transaction[0]);
+
+          // Get the product
+          const currentProduct = await tx
+            .select()
+            .from(productsTable)
+            .where(eq(productsTable.id, product.productId))
+            .then((res) => res[0]);
+
+          await tx
+            .update(productsTable)
+            .set({ quantity: currentProduct.quantity + product.quantity })
+            .where(eq(productsTable.id, product.productId));
+
+          revalidatePath("/inventory");
         } else {
           // Create new inventory record
           const newInventory = await tx
@@ -112,6 +126,20 @@ export const addInventoryStock = async (
             .returning();
 
           transactions.push(transaction[0]);
+
+          // Get the product
+          const currentProduct = await tx
+            .select()
+            .from(productsTable)
+            .where(eq(productsTable.id, product.productId))
+            .then((res) => res[0]);
+
+          await tx
+            .update(productsTable)
+            .set({ quantity: currentProduct.quantity + product.quantity })
+            .where(eq(productsTable.id, product.productId));
+
+          revalidatePath("/inventory");
         }
       }
 

@@ -39,6 +39,18 @@ const PageWraper = ({
               <ArrowBackIcon className="h-6 w-6" />
               <span className=" font-medium capitalize">Back</span>
             </Button>
+
+            {buttonPath && (
+              <Link href={buttonPath}>
+                <Button className="shad-primary-btn flex flex-row items-center justify-center gap-1">
+                  <AddIcon className="h-6 w-6" />
+                  <span className="text-white font-medium capitalize">
+                    {buttonText}
+                  </span>
+                </Button>
+              </Link>
+            )}
+
             {buttonAction && (
               <Button
                 onClick={buttonAction}
@@ -49,16 +61,6 @@ const PageWraper = ({
                   {buttonText}
                 </span>
               </Button>
-            )}
-            {buttonPath && (
-              <Link href={buttonPath}>
-                <Button className="shad-primary-btn flex flex-row items-center justify-center gap-1">
-                  <AddIcon className="h-6 w-6" />
-                  <span className="text-white font-medium capitalize">
-                    {buttonText}
-                  </span>
-                </Button>
-              </Link>
             )}
           </div>
         </div>

@@ -59,38 +59,40 @@ const BrandForm = ({
         onSubmit={form.handleSubmit(handleSubmit)}
         className="space-y-5 text-dark-500"
       >
-        <CustomFormField
-          fieldType={FormFieldType.SKELETON}
-          control={form.control}
-          name="image"
-          label="Brand Image"
-          renderSkeleton={(field) => (
-            <FormControl>
-              <FileUploader
-                files={field.value}
-                onChange={field.onChange}
-                mode={mode}
-                currentImageUrl={initialData?.imageUrl}
-              />
-            </FormControl>
-          )}
-        />
+        <div className="flex flex-col space-y-5 overflow-y-auto max-h-[60vh] pb-5 remove-scrollbar">
+          <CustomFormField
+            fieldType={FormFieldType.SKELETON}
+            control={form.control}
+            name="image"
+            label="Brand Image"
+            renderSkeleton={(field) => (
+              <FormControl>
+                <FileUploader
+                  files={field.value}
+                  onChange={field.onChange}
+                  mode={mode}
+                  currentImageUrl={initialData?.imageUrl}
+                />
+              </FormControl>
+            )}
+          />
 
-        <CustomFormField
-          fieldType={FormFieldType.INPUT}
-          control={form.control}
-          name="name"
-          label="Brand Name"
-          placeholder="Enter brand name"
-        />
+          <CustomFormField
+            fieldType={FormFieldType.INPUT}
+            control={form.control}
+            name="name"
+            label="Brand Name"
+            placeholder="Enter brand name"
+          />
 
-        <CustomFormField
-          fieldType={FormFieldType.TEXTAREA}
-          control={form.control}
-          name="description"
-          label="Description"
-          placeholder="Enter brand description"
-        />
+          <CustomFormField
+            fieldType={FormFieldType.TEXTAREA}
+            control={form.control}
+            name="description"
+            label="Description"
+            placeholder="Enter brand description"
+          />
+        </div>
 
         <div className="flex justify-end gap-4 py-5">
           {onCancel && (

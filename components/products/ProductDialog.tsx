@@ -7,8 +7,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ProductFormValues } from "@/lib/validation";
-import { cn } from "@/lib/utils";
 import { Product } from "@/types";
+import BulkProductUpload from "./BulkProductUpload";
 
 interface ProductDialogProps {
   mode: "add" | "edit" | "delete";
@@ -16,7 +16,8 @@ interface ProductDialogProps {
   onOpenChange: (open: boolean) => void;
   isLoading?: boolean;
   product?: Product;
-  onSubmit: (data: ProductFormValues) => Promise<void>;
+  onSubmit?: (data: ProductFormValues) => Promise<void>;
+  isBulkProductUpload?: boolean;
 }
 
 export function ProductDialog({
@@ -26,27 +27,29 @@ export function ProductDialog({
   product,
   isLoading,
   onSubmit,
+  isBulkProductUpload,
 }: ProductDialogProps) {
   const handleDelete = async () => {
     try {
-      await onSubmit({
-        productID: product?.id || "",
-        name: product?.name || "",
-        taxRateId: product?.taxRateId || "",
-        costPrice: product?.costPrice || 0,
-        sellingPrice: product?.sellingPrice || 0,
-        description: product?.description || "",
-        alertQuantity: product?.alertQuantity || 0,
-        quantity: product?.quantity || 0,
-        categoryId: product?.categoryId || "",
-        typeId: product?.typeId || "",
-        unitId: product?.unitId || "",
-        brandId: product?.brandId || "",
-      });
-      onOpenChange(false);
+      if (onSubmit) {
+        await onSubmit({
+          productID: product?.id || "",
+          name: product?.name || "",
+          taxRateId: product?.taxRateId || "",
+          costPrice: product?.costPrice || 0,
+          sellingPrice: product?.sellingPrice || 0,
+          description: product?.description || "",
+          alertQuantity: product?.alertQuantity || 0,
+          quantity: product?.quantity || 0,
+          categoryId: product?.categoryId || "",
+          typeId: product?.typeId || "",
+          unitId: product?.unitId || "",
+          brandId: product?.brandId || "",
+        });
+        onOpenChange(false);
+      }
     } catch (error) {
       console.error("Error deleting product:", error);
-    } finally {
     }
   };
 
@@ -54,12 +57,7 @@ export function ProductDialog({
     <div>
       {mode === "delete" && (
         <Dialog open={open} onOpenChange={onOpenChange}>
-          <DialogContent
-            className={cn(
-              "sm:max-w-2xl bg-light-200 mx-2 sm:mx-0",
-              mode === "delete" && "sm:max-w-lg"
-            )}
-          >
+          <DialogContent className="sm:max-w-2xl bg-light-200 mx-2 sm:mx-0">
             <DialogHeader className="space-y-2">
               <DialogTitle className="text-xl text-blue-800">
                 Delete Inventory
@@ -94,6 +92,35 @@ export function ProductDialog({
                   Delete
                 </Button>
               </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {mode === "add" && isBulkProductUpload && (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <DialogContent className="sm:max-w-3xl bg-light-200 mx-2 sm:mx-0">
+            <DialogHeader>
+              <DialogTitle className="text-xl text-blue-800">
+                Bulk Inventory Upload
+              </DialogTitle>
+              <DialogDescription className="text-dark-600">
+                Upload an Excel file to import multiple products at once
+              </DialogDescription>
+            </DialogHeader>
+
+            <BulkProductUpload closeDialog={() => onOpenChange(false)} />
+
+            <div className="flex justify-end gap-4 mt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={isLoading}
+                className="shad-danger-btn"
+              >
+                Close
+              </Button>
             </div>
           </DialogContent>
         </Dialog>

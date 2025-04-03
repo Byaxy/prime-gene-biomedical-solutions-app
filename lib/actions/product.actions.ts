@@ -12,7 +12,7 @@ import {
   taxRatesTable,
   unitsTable,
 } from "@/drizzle/schema";
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq, inArray, sql } from "drizzle-orm";
 
 interface ProductDataWithImage extends Omit<ProductFormValues, "image"> {
   imageId: string;
@@ -313,6 +313,56 @@ export const softDeleteProduct = async (productId: string) => {
     return parseStringify(updatedProduct);
   } catch (error) {
     console.error("Error soft deleting product:", error);
+    throw error;
+  }
+};
+
+// Bulck Products Upload.
+export const bulkAddProducts = async (products: ProductFormValues[]) => {
+  try {
+    // Validate product IDs are unique in the batch
+    const productIDs = products.map((p) => p.productID);
+    const duplicateIDs = productIDs.filter(
+      (id, index) => productIDs.indexOf(id) !== index
+    );
+
+    if (duplicateIDs.length) {
+      throw new Error(
+        `Duplicate product IDs in upload: ${duplicateIDs.join(", ")}`
+      );
+    }
+
+    // Check for existing product IDs
+    const existingProducts = await db
+      .select({ productID: productsTable.productID })
+      .from(productsTable)
+      .where(inArray(productsTable.productID, productIDs));
+
+    if (existingProducts.length) {
+      throw new Error(
+        `Product IDs already exist: ${existingProducts
+          .map((p) => p.productID)
+          .join(", ")}`
+      );
+    }
+
+    // Insert all products in a transaction
+    const insertedProducts = await db.transaction(async (tx) => {
+      const results = [];
+      for (const product of products) {
+        const inserted = await tx
+          .insert(productsTable)
+          .values(product)
+          .returning();
+        results.push(inserted[0]);
+      }
+      return results;
+    });
+
+    revalidatePath("/inventory");
+    return { success: true, count: insertedProducts.length };
+  } catch (error) {
+    console.error("Error in bulkAddProducts:", error);
     throw error;
   }
 };

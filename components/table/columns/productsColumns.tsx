@@ -23,7 +23,7 @@ export const productsColumns: ColumnDef<ProductWithRelations>[] = [
     },
   },
   {
-    header: "Product ID",
+    header: "PID",
     cell: ({ row }) => {
       const product = row.original;
       return (
@@ -43,7 +43,7 @@ export const productsColumns: ColumnDef<ProductWithRelations>[] = [
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           className="font-semibold px-0"
         >
-          Name
+          Product Description
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       );
@@ -56,7 +56,7 @@ export const productsColumns: ColumnDef<ProductWithRelations>[] = [
   },
   {
     accessorKey: "brand",
-    header: "Brand",
+    header: "Vendor/Brand",
     cell: ({ row }) => {
       const product = row.original;
       return <p className="text-14-medium ">{product.brand.name || "-"}</p>;
@@ -80,7 +80,7 @@ export const productsColumns: ColumnDef<ProductWithRelations>[] = [
   },
   {
     accessorKey: "quantity",
-    header: "Quantity At Hand",
+    header: "Qnty on Hand",
     cell: ({ row }) => {
       const product = row.original;
       return (
@@ -93,7 +93,7 @@ export const productsColumns: ColumnDef<ProductWithRelations>[] = [
   },
   {
     accessorKey: "alertQuantity",
-    header: "Alert Quantity",
+    header: "Alert Qnty",
     cell: ({ row }) => {
       const product = row.original;
       return (

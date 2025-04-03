@@ -219,7 +219,7 @@ const ProductForm = ({ mode, initialData }: ProductFormProps) => {
           },
           onError: (error) => {
             console.error("Submission error:", error);
-            toast.error("Failed to add inventory stock");
+            toast.error(error.message || "Failed to add inventory stock");
           },
         });
       }
@@ -251,7 +251,7 @@ const ProductForm = ({ mode, initialData }: ProductFormProps) => {
               },
               onError: (error) => {
                 console.error("Submission error:", error);
-                toast.error("Failed to edit inventory stock");
+                toast.error(error.message || "Failed to edit inventory stock");
               },
             }
           );
@@ -269,7 +269,7 @@ const ProductForm = ({ mode, initialData }: ProductFormProps) => {
               },
               onError: (error) => {
                 console.error("Submission error:", error);
-                toast.error("Failed to edit inventory stock");
+                toast.error(error.message || "Failed to edit inventory stock");
               },
             }
           );

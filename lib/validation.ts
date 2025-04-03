@@ -348,3 +348,9 @@ export const StockAdjustmentFormValidation = z.object({
 export type StockAdjustmentFormValues = z.infer<
   typeof StockAdjustmentFormValidation
 >;
+
+// Product Bulck Upload
+export const BulkProductValidation = z.array(
+  ProductFormValidation.omit({ image: true })
+);
+export type BulkProductValues = z.infer<typeof BulkProductValidation>;
