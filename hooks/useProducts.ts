@@ -6,9 +6,11 @@ import toast from "react-hot-toast";
 import {
   addProduct,
   bulkAddProducts,
+  deleteMultipleProducts,
   deleteProduct,
   editProduct,
   getProducts,
+  softDeleteMultipleProducts,
   softDeleteProduct,
 } from "@/lib/actions/product.actions";
 import { useEffect, useState } from "react";
@@ -135,7 +137,7 @@ export const useProducts = ({
       },
       onError: (error) => {
         console.error("Error bulk adding products:", error);
-        toast.error(error.message || "Failed to upload products");
+        toast.error("Failed to upload products");
       },
     });
 
@@ -219,7 +221,7 @@ export const useProducts = ({
       },
       onError: (error) => {
         console.error("Error deleting product:", error);
-        toast.error(error.message || "Failed to delete product");
+        toast.error("Failed to delete product");
       },
     });
 
@@ -233,9 +235,43 @@ export const useProducts = ({
       },
       onError: (error) => {
         console.error("Error deleting product:", error);
-        toast.error(error.message || "Failed to delete product");
+        toast.error("Failed to delete product");
       },
     });
+
+  const {
+    mutate: deleteMultipleProductsMutation,
+    status: deleteMultipleProductsStatus,
+  } = useMutation({
+    mutationFn: async (productIds: string[]) => {
+      return await deleteMultipleProducts(productIds);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      toast.success("Selected products deleted successfully");
+    },
+    onError: (error) => {
+      console.error("Error deleting products:", error);
+      toast.error("Failed to delete selected products");
+    },
+  });
+
+  const {
+    mutate: softDeleteMultipleProductsMutation,
+    status: softDeleteMultipleProductsStatus,
+  } = useMutation({
+    mutationFn: async (productIds: string[]) => {
+      return await softDeleteMultipleProducts(productIds);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      toast.success("Selected products deleted successfully");
+    },
+    onError: (error) => {
+      console.error("Error deleting products:", error);
+      toast.error("Failed to delete selected products");
+    },
+  });
 
   return {
     products: getAllProducts
@@ -258,10 +294,15 @@ export const useProducts = ({
     editProduct: editProductMutation,
     softDeleteProduct: softDeleteProductMutation,
     deleteProduct: deleteProductMutation,
+    deleteMultipleProducts: deleteMultipleProductsMutation,
+    softDeleteMultipleProducts: softDeleteMultipleProductsMutation,
     isAddingProduct: addProductStatus === "pending",
     isBulkAddingProducts: bulkAddProductsStatus === "pending",
     isEditingProduct: editProductStatus === "pending",
     isDeletingProduct: deleteProductStatus === "pending",
     isSoftDeletingProduct: softDeleteProductStatus === "pending",
+    isDeletingMultipleProducts: deleteMultipleProductsStatus === "pending",
+    isSoftDeletingMultipleProducts:
+      softDeleteMultipleProductsStatus === "pending",
   };
 };

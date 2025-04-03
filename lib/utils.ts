@@ -1,7 +1,10 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { ProductWithRelations } from "@/types";
 import { type ClassValue, clsx } from "clsx";
 import { numericFormatter } from "react-number-format";
 import { twMerge } from "tailwind-merge";
 import { v4 as uuidv4 } from "uuid";
+import { utils, writeFile } from "xlsx";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -100,4 +103,43 @@ export const formatCamelCase = (str: string) => {
   const spaced = str.replace(/([a-z])([A-Z])/g, "$1 $2");
 
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+};
+
+export const exportToExcel = (data: any[], fileName: string) => {
+  const wb = utils.book_new();
+
+  const ws = utils.json_to_sheet(data);
+
+  utils.book_append_sheet(wb, ws, "Products");
+
+  writeFile(wb, `${fileName}.xlsx`);
+};
+
+// lib/utils.ts
+export const transformProductsForExport = (
+  products: ProductWithRelations[]
+) => {
+  return products.map((item) => {
+    const product = item.product;
+    return {
+      id: product.id,
+      productID: product.productID,
+      name: product.name,
+      description: product.description || "",
+      quantity: product.quantity,
+      costPrice: product.costPrice,
+      sellingPrice: product.sellingPrice,
+      alertQuantity: product.alertQuantity,
+      Category: item.category.name,
+      categoryId: product.categoryId,
+      Brand: item.brand.name,
+      brandId: product.brandId,
+      Type: item.type.name,
+      typeId: product.typeId,
+      Unit: item.unit.name,
+      unitId: product.unitId,
+      "Tax Rate": `${item.taxRate.taxRate}%`,
+      taxRateId: product.taxRateId,
+    };
+  });
 };

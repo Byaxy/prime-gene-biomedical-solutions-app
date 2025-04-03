@@ -33,6 +33,12 @@ interface DataTableProps<TData, TValue> {
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
   searchBy?: string;
+  onDeleteSelected?: (items: TData[]) => void;
+  isDeletingSelected?: boolean;
+  rowSelection?: Record<string, boolean>;
+  onRowSelectionChange?: (selection: Record<string, boolean>) => void;
+  onDownloadSelected?: (items: TData[]) => void;
+  isDownloadingSelected?: boolean;
 }
 import { HeaderGroup, Header } from "@tanstack/react-table";
 import { useState } from "react";
@@ -46,6 +52,9 @@ import {
   SelectValue,
 } from "../ui/select";
 import { formatCamelCase } from "@/lib/utils";
+import { Trash2Icon } from "lucide-react";
+import { DownloadIcon } from "lucide-react";
+import Image from "next/image";
 
 export function DataTable<TData, TValue>({
   columns,
@@ -58,6 +67,12 @@ export function DataTable<TData, TValue>({
   pageSize,
   onPageSizeChange,
   searchBy,
+  onDeleteSelected,
+  isDeletingSelected,
+  onRowSelectionChange,
+  rowSelection,
+  onDownloadSelected,
+  isDownloadingSelected,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -70,6 +85,13 @@ export function DataTable<TData, TValue>({
     getFilteredRowModel: getFilteredRowModel(),
     onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),
+    onRowSelectionChange: (updaterOrValue) => {
+      const newSelection =
+        typeof updaterOrValue === "function"
+          ? updaterOrValue(table.getState().rowSelection)
+          : updaterOrValue;
+      onRowSelectionChange?.(newSelection);
+    },
     state: {
       sorting,
       columnFilters,
@@ -77,6 +99,7 @@ export function DataTable<TData, TValue>({
         pageIndex: page,
         pageSize,
       },
+      rowSelection: rowSelection || {},
     },
     // These ensure the table knows about the total pages
     pageCount: Math.ceil(totalItems / pageSize),
@@ -100,6 +123,77 @@ export function DataTable<TData, TValue>({
             }
             className="max-w-lg placeholder:text-dark-500 border-dark-700 h-11 focus-visible:ring-0 focus-visible:ring-offset-0"
           />
+        </div>
+      )}
+
+      {table.getSelectedRowModel().rows.length > 0 && (
+        <div className="w-full bg-white py-4 px-5 rounded-lg shadow-md flex items-center justify-between mt-2 mb-4">
+          <div className="text-blue-800 text-sm font-semibold">
+            {table.getSelectedRowModel().rows.length} Rows Selected
+          </div>
+          <div className="flex gap-2">
+            <Button
+              disabled={isDeletingSelected}
+              variant="default"
+              size="sm"
+              className="shad-danger-btn"
+              onClick={async () => {
+                const selectedRows = table
+                  .getSelectedRowModel()
+                  .rows.map((row) => row.original);
+
+                await onDeleteSelected?.(selectedRows);
+              }}
+            >
+              {isDeletingSelected ? (
+                <div className="flex items-center gap-4">
+                  <Image
+                    src="/assets/icons/loader.svg"
+                    alt="loader"
+                    width={20}
+                    height={20}
+                    className="animate-spin"
+                  />
+                  Deleting...
+                </div>
+              ) : (
+                <>
+                  <Trash2Icon className="h-4 w-4" />
+                  Delete
+                </>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="shad-primary-btn"
+              onClick={() => {
+                const selectedProducts = table
+                  .getSelectedRowModel()
+                  .rows.map((row) => row.original);
+
+                onDownloadSelected?.(selectedProducts);
+              }}
+            >
+              {isDownloadingSelected ? (
+                <div className="flex items-center gap-4">
+                  <Image
+                    src="/assets/icons/loader.svg"
+                    alt="loader"
+                    width={20}
+                    height={20}
+                    className="animate-spin"
+                  />
+                  Downloading...
+                </div>
+              ) : (
+                <>
+                  <DownloadIcon className="h-4 w-4" />
+                  Download
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       )}
 

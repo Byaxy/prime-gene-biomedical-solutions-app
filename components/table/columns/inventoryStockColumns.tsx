@@ -9,6 +9,18 @@ import FormatNumber from "@/components/FormatNumber";
 
 export const inventoryStockColumns: ColumnDef<InventoryStockWithRelations>[] = [
   {
+    id: "index",
+    header: "#",
+    cell: ({ row, table }) => {
+      const pagination = table.getState().pagination;
+
+      const globalIndex =
+        pagination.pageIndex * pagination.pageSize + row.index + 1;
+      return <span className="text-sm text-dark-600">{globalIndex}</span>;
+    },
+    enableSorting: false,
+  },
+  {
     header: "Date",
     cell: ({ row }) => {
       const inventoryStock = row.original;

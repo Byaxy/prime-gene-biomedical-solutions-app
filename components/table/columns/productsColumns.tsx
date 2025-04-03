@@ -7,13 +7,43 @@ import ProductActions from "@/components/products/ProductActions";
 import { formatNumber } from "@/lib/utils";
 import { ProductWithRelations } from "@/types";
 import PreviewImage from "@/components/PreviewImage";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export const productsColumns: ColumnDef<ProductWithRelations>[] = [
   {
+    id: "select",
+    header: ({ table }) => (
+      <Checkbox
+        checked={
+          table.getIsAllPageRowsSelected() ||
+          (table.getIsSomePageRowsSelected() && "indeterminate")
+        }
+        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        aria-label="Select all"
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(value) => row.toggleSelected(!!value)}
+        className="hover:bg-white w-4 h-4"
+        aria-label="Select row"
+      />
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    id: "index",
     header: "#",
-    cell: ({ row }) => {
-      return <p className="text-14-medium pl-2">{row.index + 1}</p>;
+    cell: ({ row, table }) => {
+      const pagination = table.getState().pagination;
+
+      const globalIndex =
+        pagination.pageIndex * pagination.pageSize + row.index + 1;
+      return <span className="text-sm text-dark-600">{globalIndex}</span>;
     },
+    enableSorting: false,
   },
   {
     header: "Image",

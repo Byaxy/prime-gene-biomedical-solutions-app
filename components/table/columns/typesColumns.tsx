@@ -10,10 +10,16 @@ import { ProductType } from "@/types";
 
 export const typesColumns: ColumnDef<ProductType>[] = [
   {
+    id: "index",
     header: "#",
-    cell: ({ row }) => {
-      return <p className="text-14-medium pl-2">{row.index + 1}</p>;
+    cell: ({ row, table }) => {
+      const pagination = table.getState().pagination;
+
+      const globalIndex =
+        pagination.pageIndex * pagination.pageSize + row.index + 1;
+      return <span className="text-sm text-dark-600">{globalIndex}</span>;
     },
+    enableSorting: false,
   },
   {
     id: "name",

@@ -318,10 +318,17 @@ export const softDeleteProduct = async (productId: string) => {
 };
 
 // Bulck Products Upload.
-export const bulkAddProducts = async (products: ProductFormValues[]) => {
+export const bulkAddProducts = async (
+  products: (ProductFormValues & { id?: string; productID: string })[]
+) => {
   try {
-    // Validate product IDs are unique in the batch
-    const productIDs = products.map((p) => p.productID);
+    const productsToUpdate = products.filter((p) => p.id);
+    const productsToCreate = products.filter((p) => !p.id);
+
+    console.log("new", productsToCreate);
+    console.log("Old", productsToUpdate);
+
+    const productIDs = products.map((p) => p.productID!);
     const duplicateIDs = productIDs.filter(
       (id, index) => productIDs.indexOf(id) !== index
     );
@@ -332,37 +339,122 @@ export const bulkAddProducts = async (products: ProductFormValues[]) => {
       );
     }
 
-    // Check for existing product IDs
-    const existingProducts = await db
-      .select({ productID: productsTable.productID })
-      .from(productsTable)
-      .where(inArray(productsTable.productID, productIDs));
+    if (productsToCreate.length > 0) {
+      const existingProducts = await db
+        .select({ productID: productsTable.productID })
+        .from(productsTable)
+        .where(
+          inArray(
+            productsTable.productID,
+            productsToCreate.map((p) => p.productID)
+          )
+        );
 
-    if (existingProducts.length) {
-      throw new Error(
-        `Product IDs already exist: ${existingProducts
-          .map((p) => p.productID)
-          .join(", ")}`
-      );
+      if (existingProducts.length) {
+        throw new Error(
+          `Product IDs already exist: ${existingProducts
+            .map((p) => p.productID)
+            .join(", ")}`
+        );
+      }
     }
 
-    // Insert all products in a transaction
-    const insertedProducts = await db.transaction(async (tx) => {
-      const results = [];
-      for (const product of products) {
+    // Process in a transaction
+    const result = await db.transaction(async (tx) => {
+      const createdProducts = [];
+      const updatedProducts = [];
+
+      // Create new products
+      for (const product of productsToCreate) {
         const inserted = await tx
           .insert(productsTable)
           .values(product)
           .returning();
-        results.push(inserted[0]);
+        createdProducts.push(inserted[0]);
+      }
+
+      // Update existing products
+      for (const product of productsToUpdate) {
+        if (!product.id) continue;
+
+        const updated = await tx
+          .update(productsTable)
+          .set({
+            productID: product.productID,
+            name: product.name,
+            description: product.description,
+            taxRateId: product.taxRateId,
+            quantity: product.quantity,
+            costPrice: product.costPrice,
+            sellingPrice: product.sellingPrice,
+            alertQuantity: product.alertQuantity,
+            categoryId: product.categoryId,
+            typeId: product.typeId,
+            brandId: product.brandId,
+            unitId: product.unitId,
+            updatedAt: new Date(),
+          })
+          .where(eq(productsTable.id, product.id))
+          .returning();
+        updatedProducts.push(updated[0]);
+      }
+
+      return { createdProducts, updatedProducts };
+    });
+
+    revalidatePath("/inventory");
+    return {
+      success: true,
+      createdCount: result.createdProducts.length,
+      updatedCount: result.updatedProducts.length,
+    };
+  } catch (error) {
+    console.error("Error in bulkAddProducts:", error);
+    throw error;
+  }
+};
+
+export const softDeleteMultipleProducts = async (productIds: string[]) => {
+  try {
+    const deletedProducts = await db.transaction(async (tx) => {
+      const results = [];
+      for (const id of productIds) {
+        const deleted = await tx
+          .update(productsTable)
+          .set({ isActive: false })
+          .where(eq(productsTable.id, id))
+          .returning();
+        results.push(deleted[0]);
       }
       return results;
     });
 
     revalidatePath("/inventory");
-    return { success: true, count: insertedProducts.length };
+    return parseStringify(deletedProducts);
   } catch (error) {
-    console.error("Error in bulkAddProducts:", error);
+    console.error("Error deleting multiple products:", error);
+    throw error;
+  }
+};
+
+export const deleteMultipleProducts = async (productIds: string[]) => {
+  try {
+    const deletedProducts = await db.transaction(async (tx) => {
+      const results = [];
+      for (const id of productIds) {
+        const deleted = await tx
+          .delete(productsTable)
+          .where(eq(productsTable.id, id))
+          .returning();
+        results.push(deleted[0]);
+      }
+      return results;
+    });
+
+    revalidatePath("/inventory");
+    return parseStringify(deletedProducts);
+  } catch (error) {
+    console.error("Error deleting multiple products:", error);
     throw error;
   }
 };

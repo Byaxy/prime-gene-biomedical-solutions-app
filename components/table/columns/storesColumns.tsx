@@ -10,10 +10,16 @@ import StoreActions from "@/components/stores/StoreActions";
 
 export const storesColumns: ColumnDef<Store>[] = [
   {
+    id: "index",
     header: "#",
-    cell: ({ row }) => {
-      return <p className="text-14-medium pl-2">{row.index + 1}</p>;
+    cell: ({ row, table }) => {
+      const pagination = table.getState().pagination;
+
+      const globalIndex =
+        pagination.pageIndex * pagination.pageSize + row.index + 1;
+      return <span className="text-sm text-dark-600">{globalIndex}</span>;
     },
+    enableSorting: false,
   },
   {
     id: "name",

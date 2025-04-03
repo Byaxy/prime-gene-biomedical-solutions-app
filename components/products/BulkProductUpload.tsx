@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import Loading from "../loading";
 
 const requiredHeaders = [
+  "id",
   "productID",
   "name",
   "description",
@@ -38,10 +39,10 @@ const BulkProductUpload = ({ closeDialog }: { closeDialog?: () => void }) => {
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       const jsonData = utils.sheet_to_json(worksheet) as Record<string, any>[];
 
-      // Validate headers
+      // Validate headers (id is optional)
       const headers = Object.keys(jsonData[0] || {});
       const missingHeaders = requiredHeaders.filter(
-        (h) => !headers.includes(h)
+        (h) => h !== "id" && !headers.includes(h) // id is optional
       );
 
       if (missingHeaders.length) {
@@ -51,6 +52,7 @@ const BulkProductUpload = ({ closeDialog }: { closeDialog?: () => void }) => {
 
       // Transform data
       const products = jsonData.map((row) => ({
+        id: row.id ? String(row.id) : undefined, // Optional id
         productID: String(row.productID),
         name: String(row.name),
         description: String(row.description || ""),
