@@ -129,8 +129,14 @@ export const useInventoryStock = ({
       return result;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["inventory-stock"] });
-      queryClient.invalidateQueries({ queryKey: ["inventory-transactions"] });
+      queryClient.invalidateQueries({
+        queryKey: [
+          "inventory-stock",
+          "inventory-transactions",
+          "allTransactions",
+          "paginatedInventoryStock",
+        ],
+      });
     },
   });
 
