@@ -315,7 +315,7 @@ export const StoreFormValidation = z.object({
 });
 export type StoreFormValues = z.infer<typeof StoreFormValidation>;
 
-// Stock Adjustments
+// New Stock Adjustments
 export const StockAdjustmentFormValidation = z.object({
   storeId: z.string().nonempty("Store is required"),
   receivedDate: z.date().refine((date) => date <= new Date(), {
@@ -347,6 +347,38 @@ export const StockAdjustmentFormValidation = z.object({
 });
 export type StockAdjustmentFormValues = z.infer<
   typeof StockAdjustmentFormValidation
+>;
+
+// Existing Stock Adjustments
+export const ExistingStockAdjustmentFormValidation = z.object({
+  storeId: z.string().nonempty("Store is required"),
+  receivedDate: z.date().refine((date) => date <= new Date(), {
+    message: "Received date cannot be in the future",
+  }),
+  notes: z.string().optional(),
+  entries: z
+    .array(
+      z.object({
+        inventoryStockId: z.string().nonempty("Inventory stock is required"),
+        currentQuantity: z.number().int().min(0, "Quantity must be at least 0"),
+        lotNumber: z.string().nonempty("Lot number is required"),
+        costPrice: z.number().optional(),
+        sellingPrice: z.number().optional(),
+        manufactureDate: z.date().optional(),
+        expiryDate: z.date().optional(),
+        productName: z.string().optional(),
+        productID: z.string().optional(),
+        adjustmentQuantity: z
+          .number()
+          .min(0, "Adjustment quantity must be greater than 0"),
+        adjustmentType: z.enum(["ADD", "SUBTRACT"]).default("ADD"),
+      })
+    )
+    .min(1, "At least one inventory stock is required"),
+  selectedInventoryStockId: z.string().optional(),
+});
+export type ExistingStockAdjustmentFormValues = z.infer<
+  typeof ExistingStockAdjustmentFormValidation
 >;
 
 // Product Bulck Upload

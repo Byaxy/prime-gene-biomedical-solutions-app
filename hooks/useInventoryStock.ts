@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 import {
   addInventoryStock,
+  adjustInventoryStock,
   getInventoryStock,
   getInventoryTransactions,
 } from "@/lib/actions/inventoryStock.actions";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExtendedStockAdjustmentFormValues } from "@/components/forms/NewStockForm";
 import { InventoryStockWithRelations } from "@/types";
+import { ExistingStockAdjustmentFormValues } from "@/lib/validation";
 
 interface UseInventoryStockOptions {
   getAllInventoryStocks?: boolean;
@@ -111,6 +113,27 @@ export const useInventoryStock = ({
     },
   });
 
+  // Adjust inventory stock mutation
+  const {
+    mutateAsync: adjustInventoryStockMutation,
+    status: adjustInventoryStockStatus,
+  } = useMutation({
+    mutationFn: async ({
+      data,
+      userId,
+    }: {
+      data: ExistingStockAdjustmentFormValues;
+      userId: string;
+    }) => {
+      const result = await adjustInventoryStock(data, userId);
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory-stock"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory-transactions"] });
+    },
+  });
+
   return {
     inventoryStock: getAllInventoryStocks
       ? allInventoryStockQuery.data
@@ -129,6 +152,8 @@ export const useInventoryStock = ({
     setPageSize,
     addInventoryStock: addInventoryStockMutation,
     isAddingInventoryStock: addInventoryStockStatus === "pending",
+    adjustInventoryStock: adjustInventoryStockMutation,
+    isAdjustingInventoryStock: adjustInventoryStockStatus === "pending",
     inventoryTransactions: inventoryTransactionsQuery.data || [],
     getFilteredTransactions: getFilteredTransactions.mutateAsync,
     isFetchingTransactions: inventoryTransactionsQuery.isLoading,

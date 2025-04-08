@@ -185,6 +185,7 @@ export interface InventoryStockWithRelations {
   product: {
     id: string;
     name: string;
+    productID: string;
   };
   store: {
     id: string;

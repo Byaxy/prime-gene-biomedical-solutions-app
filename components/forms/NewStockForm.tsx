@@ -104,9 +104,13 @@ const NewStockForm = () => {
           selectedProductId
         );
         setSelectedProductName(product.product.name);
+        form.setValue("tempCostPrice", product.product.costPrice);
+        form.setValue("tempSellingPrice", product.product.sellingPrice);
       } catch (error) {
         console.error("Error fetching product:", error);
         setSelectedProductName("");
+        form.setValue("tempCostPrice", 0);
+        form.setValue("tempSellingPrice", 0);
       }
     };
 
@@ -253,6 +257,7 @@ const NewStockForm = () => {
           onSuccess: () => {
             toast.success("Inventory stock added successfully!");
             form.reset();
+            router.push("/inventory/inventory-stocks");
           },
           onError: (error) => {
             console.error("Submission error:", error);

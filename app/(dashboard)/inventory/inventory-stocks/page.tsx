@@ -17,6 +17,7 @@ const InventoryStocks = () => {
   } = useInventoryStock({
     initialPageSize: 10,
   });
+
   return (
     <PageWraper
       title="Inventory Stock List"

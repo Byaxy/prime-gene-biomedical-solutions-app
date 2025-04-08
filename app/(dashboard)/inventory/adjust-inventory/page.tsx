@@ -11,6 +11,7 @@ import {
 import { Menu, X } from "lucide-react";
 import Loading from "@/components/loading";
 import NewStockForm from "@/components/forms/NewStockForm";
+import AdjustStockForm from "@/components/forms/AdjustStockForm";
 
 export const dynamic = "force-dynamic";
 
@@ -82,7 +83,7 @@ const AdjustInventory = () => {
           <TabsContent value="existing">
             <Card className="w-full bg-white py-5">
               <CardContent className="space-y-2">
-                Adjust Existing Stock
+                <AdjustStockForm />
               </CardContent>
             </Card>
           </TabsContent>

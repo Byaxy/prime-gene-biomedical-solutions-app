@@ -11,6 +11,7 @@ import {
   usersTable,
 } from "@/drizzle/schema";
 import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
+import { ExistingStockAdjustmentFormValues } from "../validation";
 import { ExtendedStockAdjustmentFormValues } from "@/components/forms/NewStockForm";
 
 // Add new inventory stock
@@ -88,8 +89,6 @@ export const addInventoryStock = async (
             .update(productsTable)
             .set({ quantity: currentProduct.quantity + product.quantity })
             .where(eq(productsTable.id, product.productId));
-
-          revalidatePath("/inventory");
         } else {
           // Create new inventory record
           const newInventory = await tx
@@ -138,8 +137,6 @@ export const addInventoryStock = async (
             .update(productsTable)
             .set({ quantity: currentProduct.quantity + product.quantity })
             .where(eq(productsTable.id, product.productId));
-
-          revalidatePath("/inventory");
         }
       }
 
@@ -147,10 +144,138 @@ export const addInventoryStock = async (
     });
 
     revalidatePath("/inventory");
+    revalidatePath("/inventory/inventory-stocks");
+    revalidatePath("/inventory/inventory-adjustment-list");
     return parseStringify(result);
   } catch (error) {
     console.error("Error adding inventory stock:", error);
     throw error;
+  }
+};
+
+// Addjust inventory stock
+export const adjustInventoryStock = async (
+  data: ExistingStockAdjustmentFormValues,
+  userId: string
+) => {
+  try {
+    const { storeId, entries, notes } = data;
+
+    // Start a transaction
+    const result = await db.transaction(async (tx) => {
+      const inventoryItems = [];
+      const transactions = [];
+
+      // Process each adjustment entry
+      for (const entry of entries) {
+        // Get the existing inventory record
+        const existingInventory = await tx
+          .select()
+          .from(inventoryTable)
+          .where(
+            and(
+              eq(inventoryTable.id, entry.inventoryStockId),
+              eq(inventoryTable.isActive, true)
+            )
+          )
+          .then((res) => res[0]);
+
+        if (!existingInventory) {
+          throw new Error(
+            `Inventory stock not found for ID: ${entry.inventoryStockId}`
+          );
+        }
+
+        // Calculate new quantity based on adjustment type
+        let newQuantity = existingInventory.quantity;
+        let adjustmentNote = "";
+
+        if (entry.adjustmentType === "ADD") {
+          newQuantity += entry.adjustmentQuantity;
+          adjustmentNote = `Added ${entry.adjustmentQuantity} units`;
+        } else {
+          if (entry.adjustmentQuantity > existingInventory.quantity) {
+            throw new Error(
+              `Cannot subtract ${entry.adjustmentQuantity} from current quantity ${existingInventory.quantity}`
+            );
+          }
+          newQuantity -= entry.adjustmentQuantity;
+          adjustmentNote = `Subtracted ${entry.adjustmentQuantity} units`;
+        }
+
+        // Update inventory record
+        const updatedInventory = await tx
+          .update(inventoryTable)
+          .set({
+            quantity: newQuantity,
+            updatedAt: new Date(),
+          })
+          .where(eq(inventoryTable.id, existingInventory.id))
+          .returning();
+
+        inventoryItems.push(updatedInventory[0]);
+
+        // Log transaction
+        const transaction = await tx
+          .insert(inventoryTransactionsTable)
+          .values({
+            inventoryId: existingInventory.id,
+            productId: existingInventory.productId,
+            storeId,
+            userId: userId,
+            transactionType: "adjustment",
+            quantityBefore: existingInventory.quantity,
+            quantityAfter: newQuantity,
+            transactionDate: new Date(),
+            notes: `${adjustmentNote} | ${notes || "No additional notes"}`,
+          })
+          .returning();
+
+        transactions.push(transaction[0]);
+
+        // Update product total quantity
+        const currentProduct = await tx
+          .select()
+          .from(productsTable)
+          .where(eq(productsTable.id, existingInventory.productId))
+          .then((res) => res[0]);
+
+        if (!currentProduct) {
+          throw new Error(
+            `Product not found for ID: ${existingInventory.productId}`
+          );
+        }
+
+        let newProductQuantity = currentProduct.quantity;
+        if (entry.adjustmentType === "ADD") {
+          newProductQuantity += entry.adjustmentQuantity;
+        } else {
+          newProductQuantity -= entry.adjustmentQuantity;
+        }
+
+        await tx
+          .update(productsTable)
+          .set({
+            quantity: newProductQuantity,
+            updatedAt: new Date(),
+          })
+          .where(eq(productsTable.id, existingInventory.productId));
+      }
+
+      return { inventoryItems, transactions };
+    });
+
+    revalidatePath("/inventory");
+    revalidatePath("/inventory/inventory-stocks");
+    revalidatePath("/inventory/inventory-adjustment-list");
+    return parseStringify(result);
+  } catch (error) {
+    console.error("Error adjusting inventory stock:", error);
+    throw new Error(
+      error instanceof Error
+        ? error.message
+        : "Failed to adjust inventory stock"
+    );
   }
 };
 
@@ -166,6 +291,7 @@ export const getInventoryStock = async (
         inventory: inventoryTable,
         product: {
           id: productsTable.id,
+          productID: productsTable.productID,
           name: productsTable.name,
         },
         store: {
@@ -199,6 +325,7 @@ export const getInventoryStock = async (
             inventory: inventoryTable,
             product: {
               id: productsTable.id,
+              productID: productsTable.productID,
               name: productsTable.name,
               description: productsTable.description,
             },
@@ -244,6 +371,37 @@ export const getInventoryStock = async (
     };
   } catch (error) {
     console.error("Error getting expenses:", error);
+    throw error;
+  }
+};
+
+// Get inventory stock by ID
+export const getInventoryStockById = async (inventoryId: string) => {
+  try {
+    const inventoryStock = await db
+      .select({
+        inventory: inventoryTable,
+        product: {
+          id: productsTable.id,
+          name: productsTable.name,
+          productID: productsTable.productID,
+          description: productsTable.description,
+        },
+        store: {
+          id: storesTable.id,
+          name: storesTable.name,
+          location: storesTable.location,
+        },
+      })
+      .from(inventoryTable)
+      .leftJoin(productsTable, eq(inventoryTable.productId, productsTable.id))
+      .leftJoin(storesTable, eq(inventoryTable.storeId, storesTable.id))
+      .where(eq(inventoryTable.id, inventoryId))
+      .then((res) => res[0]);
+
+    return parseStringify(inventoryStock);
+  } catch (error) {
+    console.error("Error getting inventory stock by ID:", error);
     throw error;
   }
 };
