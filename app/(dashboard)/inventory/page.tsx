@@ -65,6 +65,13 @@ const Inventory = () => {
       <DataTable
         columns={productsColumns}
         data={products || []}
+        searchBy={[
+          "product.name",
+          "product.productID",
+          "brand.name",
+          "category.name",
+          "type.name",
+        ]}
         isLoading={isLoading}
         totalItems={totalItems}
         page={page}

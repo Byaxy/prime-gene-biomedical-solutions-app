@@ -112,6 +112,7 @@ export interface Product {
   description: string;
   quantity: number;
   alertQuantity: number;
+  maxAlertQuantity: number;
   categoryId: string;
   typeId: string;
   brandId: string;

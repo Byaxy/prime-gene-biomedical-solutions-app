@@ -238,7 +238,8 @@ export const productsTable = pgTable("products", {
   taxRateId: uuid("tax_rate_id")
     .notNull()
     .references(() => taxRatesTable.id, { onDelete: "set null" }), // Foreign key to taxt rates
-  alertQuantity: integer("alert_quantity").notNull(),
+  alertQuantity: integer("alert_quantity").default(1),
+  maxAlertQuantity: integer("max_alert_quantity").default(5),
   categoryId: uuid("category_id")
     .notNull()
     .references(() => categoriesTable.id, { onDelete: "set null" }), // Foreign key to categories

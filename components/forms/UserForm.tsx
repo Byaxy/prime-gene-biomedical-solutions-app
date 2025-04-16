@@ -104,6 +104,7 @@ const UserForm = ({ mode, initialData, onSubmit }: UserFormProps) => {
             name="role"
             label="Role"
             placeholder="Select a role"
+            key={`role-select-${form.watch("role") || ""}`}
           >
             {RoleOptions.map((role, i) => (
               <SelectItem

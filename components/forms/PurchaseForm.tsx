@@ -365,6 +365,7 @@ const PurchaseForm = ({ mode, initialData, onSubmit }: PurchaseFormProps) => {
               name="selectedProduct"
               label="Select Product"
               placeholder="Select product"
+              key={`product-select-${form.watch("selectedProduct") || ""}`}
             >
               {products?.map((product: Product) => (
                 <SelectItem
@@ -504,6 +505,7 @@ const PurchaseForm = ({ mode, initialData, onSubmit }: PurchaseFormProps) => {
             name="paymentMethod"
             label="Payment Method"
             placeholder="Select payment method"
+            key={`payment-select-${form.watch("paymentMethod") || ""}`}
           >
             {Object.values(PaymentMethod).map((method) => (
               <SelectItem
@@ -524,6 +526,7 @@ const PurchaseForm = ({ mode, initialData, onSubmit }: PurchaseFormProps) => {
             name="vendor"
             label="Vendor"
             placeholder="Select vendor"
+            key={`vendor-select-${form.watch("vendor") || ""}`}
           >
             {vendors?.map((vendor: Vendor) => (
               <SelectItem
@@ -542,6 +545,7 @@ const PurchaseForm = ({ mode, initialData, onSubmit }: PurchaseFormProps) => {
             name="status"
             label="Purchase Status"
             placeholder="Select status"
+            key={`status-select-${form.watch("status") || ""}`}
           >
             {Object.values(PurchaseStatus).map((status) => (
               <SelectItem
@@ -562,6 +566,7 @@ const PurchaseForm = ({ mode, initialData, onSubmit }: PurchaseFormProps) => {
             name="deliveryStatus"
             label="Delivery Status"
             placeholder="Select delivery status"
+            key={`delivery-select-${form.watch("deliveryStatus") || ""}`}
           >
             {Object.values(DeliveryStatus).map((status) => (
               <SelectItem

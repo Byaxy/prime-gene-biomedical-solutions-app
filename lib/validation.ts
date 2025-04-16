@@ -87,7 +87,11 @@ export const ProductFormValidation = z.object({
   quantity: z.number().int().min(0, "Quantity must be 0 or more"),
   costPrice: z.number().min(0, "Cost price must be positive"),
   sellingPrice: z.number().min(0, "Selling price must be positive"),
-  alertQuantity: z.number().int().min(1, "Alert quantity must be 1 or more"),
+  alertQuantity: z.number().int().min(1, "Min reoder level must be 1 or more"),
+  maxAlertQuantity: z
+    .number()
+    .int()
+    .min(1, "Max reoder level must be 1 or more"),
   categoryId: z.string().nonempty("Category is required"),
   typeId: z.string().nonempty("Type is required"),
   brandId: z.string().nonempty("Brand is required"),

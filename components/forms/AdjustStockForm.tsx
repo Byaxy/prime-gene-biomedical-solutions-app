@@ -2,6 +2,7 @@ import { useInventoryStock } from "@/hooks/useInventoryStock";
 import {
   ExistingStockAdjustmentFormValidation,
   ExistingStockAdjustmentFormValues,
+  StoreFormValues,
 } from "@/lib/validation";
 import { InventoryStockWithRelations, Store } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -25,6 +26,13 @@ import {
   TableRow,
 } from "../ui/table";
 import DeleteIcon from "@mui/icons-material/Delete";
+import { formatDateTime } from "@/lib/utils";
+import { useState } from "react";
+import { Check } from "lucide-react";
+import StoreDialog from "../stores/StoreDialog";
+import { Input } from "../ui/input";
+import { Search } from "lucide-react";
+import { X } from "lucide-react";
 
 interface AdjustmentEntry {
   inventoryStockId: string;
@@ -41,6 +49,10 @@ interface AdjustmentEntry {
 }
 
 const AdjustStockForm = () => {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [prevSelectedInventoryStockId, setPrevSelectedInventoryStockId] =
+    useState<string | null>(null);
   const {
     inventoryStock,
     isLoading: inventoryStockLoading,
@@ -49,7 +61,12 @@ const AdjustStockForm = () => {
   } = useInventoryStock({
     getAllInventoryStocks: true,
   });
-  const { stores, isLoading: storesLoading } = useStores({
+  const {
+    stores,
+    addStore,
+    isAddingStore,
+    isLoading: storesLoading,
+  } = useStores({
     getAllStores: true,
   });
   const { user } = useAuth();
@@ -77,9 +94,21 @@ const AdjustStockForm = () => {
   const selectedInventoryStockId = form.watch("selectedInventoryStockId");
 
   // Filter inventory stock based on selected store
-  const filteredInventoryStock = inventoryStock?.filter(
-    (stock: InventoryStockWithRelations) => stock.store.id === selectedStoreId
-  );
+  const filteredInventoryStock = inventoryStock
+    ?.filter(
+      (stock: InventoryStockWithRelations) => stock.store.id === selectedStoreId
+    )
+    // Apply search filter if search query exists
+    .filter((stock: InventoryStockWithRelations) => {
+      if (!searchQuery.trim()) return true;
+
+      const query = searchQuery.toLowerCase().trim();
+      return (
+        stock.product.productID?.toLowerCase().includes(query) ||
+        stock.inventory.lotNumber?.toLowerCase().includes(query) ||
+        stock.product.name?.toLowerCase().includes(query)
+      );
+    });
 
   const handleAddProduct = () => {
     if (!selectedInventoryStockId || !selectedStoreId) {
@@ -131,6 +160,32 @@ const AdjustStockForm = () => {
   const handleCancel = () => {
     form.reset(defaultValues);
     form.setValue("selectedInventoryStockId", "");
+  };
+
+  // handle close dialog
+  const closeDialog = () => {
+    setDialogOpen(false);
+
+    setTimeout(() => {
+      const stuckSection = document.querySelector(".MuiBox-root.css-0");
+      if (stuckSection instanceof HTMLElement) {
+        stuckSection.style.pointerEvents = "auto";
+      }
+    }, 100);
+  };
+
+  const handleAddStore = async (data: StoreFormValues): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      addStore(data, {
+        onSuccess: () => {
+          closeDialog();
+          resolve();
+        },
+        onError: (error) => {
+          reject(error);
+        },
+      });
+    });
   };
 
   // In your handleSubmit function:
@@ -214,208 +269,356 @@ const AdjustStockForm = () => {
   };
 
   return (
-    <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(handleSubmit)}
-        className="space-y-6 pt-8"
-      >
-        <div className="flex flex-col sm:flex-row gap-5">
-          <CustomFormField
-            fieldType={FormFieldType.DATE_PICKER}
-            control={form.control}
-            name="receivedDate"
-            label="Adjustment Date"
-            dateFormat="MM/dd/yyyy"
-          />
-
-          <CustomFormField
-            fieldType={FormFieldType.SELECT}
-            control={form.control}
-            name="storeId"
-            label="Store"
-            placeholder="Select store"
-            onAddNew={() => router.push("/settings/stores")}
-          >
-            {storesLoading && (
-              <div className="py-4">
-                <Loading />
-              </div>
-            )}
-            {stores?.map((store: Store) => (
-              <SelectItem
-                key={store.id}
-                value={store.id}
-                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
-              >
-                {store.name}
-              </SelectItem>
-            ))}
-          </CustomFormField>
-        </div>
-        <div
-          className={`space-y-4 ${
-            form.formState.errors.entries && fields.length === 0
-              ? "border-2 border-red-500 p-4 rounded-md"
-              : ""
-          }`}
+    <>
+      <Form {...form}>
+        <form
+          onSubmit={form.handleSubmit(handleSubmit)}
+          className="space-y-6 pt-8"
         >
-          <div className="space-y-5">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="w-full sm:w-1/2">
-                <CustomFormField
-                  fieldType={FormFieldType.SELECT}
-                  control={form.control}
-                  name="selectedInventoryStockId"
-                  label="Select Inventory Stock"
-                  placeholder={
-                    selectedStoreId
-                      ? "Select inventory stock"
-                      : "Select store first"
-                  }
-                  disabled={!selectedStoreId}
+          <div className="flex flex-col sm:flex-row gap-5">
+            <CustomFormField
+              fieldType={FormFieldType.DATE_PICKER}
+              control={form.control}
+              name="receivedDate"
+              label="Adjustment Date"
+              dateFormat="MM/dd/yyyy"
+            />
+
+            <CustomFormField
+              fieldType={FormFieldType.SELECT}
+              control={form.control}
+              name="storeId"
+              label="Store"
+              placeholder="Select store"
+              onAddNew={() => setDialogOpen(true)}
+              key={`store-select-${form.watch("storeId") || ""}`}
+            >
+              {storesLoading && (
+                <div className="py-4">
+                  <Loading />
+                </div>
+              )}
+              {stores?.map((store: Store) => (
+                <SelectItem
+                  key={store.id}
+                  value={store.id}
+                  className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
                 >
-                  {inventoryStockLoading ? (
-                    <div className="py-4">
-                      <Loading />
+                  {store.name}
+                </SelectItem>
+              ))}
+            </CustomFormField>
+          </div>
+          <div
+            className={`space-y-4 ${
+              form.formState.errors.entries && fields.length === 0
+                ? "border-2 border-red-500 p-4 rounded-md"
+                : ""
+            }`}
+          >
+            <div className="space-y-5">
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="w-full sm:w-1/2">
+                  <CustomFormField
+                    fieldType={FormFieldType.SELECT}
+                    control={form.control}
+                    name="selectedInventoryStockId"
+                    label="Select Inventory Stock"
+                    placeholder={
+                      selectedStoreId
+                        ? "Select inventory stock"
+                        : "Select store first"
+                    }
+                    disabled={!selectedStoreId}
+                    key={`inventory-select-${selectedInventoryStockId || ""}`}
+                  >
+                    <div className="py-3">
+                      <div className="relative flex items-center rounded-md border border-dark-700 bg-white">
+                        <Search className="ml-2 h-4 w-4 opacity-50" />
+                        <Input
+                          type="text"
+                          placeholder="Search by Product ID, Lot Number, or Product Name"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
+                          disabled={!selectedStoreId || inventoryStockLoading}
+                        />
+                        {searchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => setSearchQuery("")}
+                            className="absolute right-3 top-3 text-dark-700 hover:text-dark-600"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  ) : filteredInventoryStock &&
-                    filteredInventoryStock.length > 0 ? (
-                    filteredInventoryStock.map(
-                      (stock: InventoryStockWithRelations) => (
-                        <SelectItem
-                          key={stock.inventory.id}
-                          value={stock.inventory.id}
-                          className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
-                        >
-                          {stock.product.productID} - {stock.product.name} (Lot:{" "}
-                          {stock.inventory.lotNumber}, Qty:{" "}
-                          {stock.inventory.quantity})
-                        </SelectItem>
-                      )
-                    )
-                  ) : (
-                    <SelectItem value="null" disabled>
-                      {selectedStoreId
-                        ? "No inventory found for this store"
-                        : "Select a store first"}
-                    </SelectItem>
-                  )}
-                </CustomFormField>
+                    {inventoryStockLoading ? (
+                      <div className="py-4">
+                        <Loading />
+                      </div>
+                    ) : filteredInventoryStock &&
+                      filteredInventoryStock.length > 0 ? (
+                      <>
+                        <Table className="shad-table border border-light-200 rounded-lg">
+                          <TableHeader>
+                            <TableRow className="w-full bg-blue-800 text-white px-2 font-semibold">
+                              <TableHead>Product ID</TableHead>
+                              <TableHead>Lot Number</TableHead>
+                              <TableHead>Product Name</TableHead>
+                              <TableHead>Qnty</TableHead>
+                              <TableHead>Expiry</TableHead>
+                              <TableHead></TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody className="w-full bg-white">
+                            {filteredInventoryStock.map(
+                              (stock: InventoryStockWithRelations) => (
+                                <TableRow
+                                  key={stock.inventory.id}
+                                  className="cursor-pointer hover:bg-blue-50"
+                                  onClick={() => {
+                                    form.setValue(
+                                      "selectedInventoryStockId",
+                                      stock.inventory.id
+                                    );
+                                    setPrevSelectedInventoryStockId(
+                                      stock.inventory.id
+                                    );
+                                    setSearchQuery("");
+                                    // Find and click the hidden SelectItem with this value
+                                    const selectItem = document.querySelector(
+                                      `[data-value="${stock.inventory.id}"]`
+                                    ) as HTMLElement;
+                                    if (selectItem) {
+                                      selectItem.click();
+                                    }
+                                  }}
+                                >
+                                  <TableCell>
+                                    {stock.product.productID}
+                                  </TableCell>
+                                  <TableCell>
+                                    {stock.inventory.lotNumber}
+                                  </TableCell>
+                                  <TableCell>{stock.product.name}</TableCell>
+                                  <TableCell>
+                                    {stock.inventory.quantity}
+                                  </TableCell>
+                                  <TableCell>
+                                    {stock.inventory.expiryDate
+                                      ? formatDateTime(
+                                          stock.inventory.expiryDate
+                                        ).dateOnly
+                                      : "N/A"}
+                                  </TableCell>
+                                  <TableCell className="w-10">
+                                    {prevSelectedInventoryStockId ===
+                                      stock.inventory.id && (
+                                      <span className="text-blue-800">
+                                        <Check className="h-5 w-5" />
+                                      </span>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              )
+                            )}
+                          </TableBody>
+                        </Table>
+                        {/* Hidden select options for form control */}
+                        <div className="hidden">
+                          {filteredInventoryStock.map(
+                            (stock: InventoryStockWithRelations) => (
+                              <SelectItem
+                                key={stock.inventory.id}
+                                value={stock.inventory.id}
+                                data-value={stock.inventory.id}
+                              >
+                                {stock.product.productID} -
+                                {stock.inventory.lotNumber} -{" "}
+                                {stock.product.name}
+                                {}
+                              </SelectItem>
+                            )
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <SelectItem value="null" disabled>
+                        {selectedStoreId ? (
+                          <div>No inventory found for this store</div>
+                        ) : (
+                          <div>Please select a store first</div>
+                        )}
+                      </SelectItem>
+                    )}
+                  </CustomFormField>
+                </div>
+                <Button
+                  type="button"
+                  onClick={handleAddProduct}
+                  disabled={!selectedInventoryStockId}
+                  className="self-end shad-primary-btn h-11"
+                >
+                  Add Inventory Stock
+                </Button>
               </div>
-              <Button
-                type="button"
-                onClick={handleAddProduct}
-                disabled={!selectedInventoryStockId}
-                className="self-end shad-primary-btn"
-              >
-                Add Inventory Stock
-              </Button>
+
+              <Table className="shad-table border border-light-200 rounded-lg">
+                <TableHeader>
+                  <TableRow className="w-full bg-blue-800 text-white px-2 font-semibold">
+                    <TableHead>#</TableHead>
+                    <TableHead>PID</TableHead>
+                    <TableHead>Product Name</TableHead>
+                    <TableHead>Lot Number</TableHead>
+                    <TableHead>Current Qnty</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Adj Qnty</TableHead>
+                    <TableHead>Net Qnty</TableHead>
+                    <TableHead>Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="w-full bg-white">
+                  {fields.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-center py-4">
+                        No products added
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {fields.map((entry, index) => (
+                    <TableRow key={entry.inventoryStockId}>
+                      <TableCell>{index + 1}</TableCell>
+                      <TableCell>{entry.productID}</TableCell>
+                      <TableCell>{entry.productName}</TableCell>
+                      <TableCell>{entry.lotNumber}</TableCell>
+                      <TableCell>
+                        <div className="border border-dark-700 h-11 rounded-md p-2">
+                          {entry.currentQuantity}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <CustomFormField
+                          fieldType={FormFieldType.SELECT}
+                          control={form.control}
+                          name={`entries.${index}.adjustmentType`}
+                          label=""
+                          placeholder=""
+                        >
+                          <SelectItem className="cursor-pointer" value="ADD">
+                            Addition
+                          </SelectItem>
+                          <SelectItem
+                            className="cursor-pointer"
+                            value="SUBTRACT"
+                          >
+                            Subtraction
+                          </SelectItem>
+                        </CustomFormField>
+                      </TableCell>
+                      <TableCell>
+                        <CustomFormField
+                          fieldType={FormFieldType.NUMBER}
+                          control={form.control}
+                          name={`entries.${index}.adjustmentQuantity`}
+                          label=""
+                          placeholder="Qty"
+                        />
+                        {form.formState.errors.entries?.[index]
+                          ?.adjustmentQuantity && (
+                          <p className="text-red-500 text-xs mt-1">
+                            {
+                              form.formState.errors.entries[index]
+                                ?.adjustmentQuantity?.message
+                            }
+                          </p>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="border border-dark-700 h-11 rounded-md p-2">
+                          {form.watch(`entries.${index}.adjustmentType`) ===
+                          "ADD" ? (
+                            <span>
+                              {entry.currentQuantity +
+                                form.watch(
+                                  `entries.${index}.adjustmentQuantity`
+                                )}
+                            </span>
+                          ) : (
+                            <span
+                              className={`${
+                                entry.currentQuantity -
+                                  form.watch(
+                                    `entries.${index}.adjustmentQuantity`
+                                  ) <
+                                0
+                                  ? "text-red-600 font-semibold"
+                                  : ""
+                              }`}
+                            >
+                              {entry.currentQuantity -
+                                form.watch(
+                                  `entries.${index}.adjustmentQuantity`
+                                )}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          onClick={() => handleRemoveEntry(index)}
+                          className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
+                        >
+                          <DeleteIcon className="h-5 w-5" />
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
 
-            <Table className="shad-table border border-light-200 rounded-lg">
-              <TableHeader>
-                <TableRow className="w-full bg-blue-800 text-white px-2 font-semibold">
-                  <TableHead>#</TableHead>
-                  <TableHead>PID</TableHead>
-                  <TableHead>Product Name</TableHead>
-                  <TableHead>Lot Number</TableHead>
-                  <TableHead>Current Qty</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Adjust Qty</TableHead>
-                  <TableHead>Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody className="w-full bg-white">
-                {fields.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-4">
-                      No products added
-                    </TableCell>
-                  </TableRow>
-                )}
-                {fields.map((entry, index) => (
-                  <TableRow key={entry.inventoryStockId}>
-                    <TableCell>{index + 1}</TableCell>
-                    <TableCell>{entry.productID}</TableCell>
-                    <TableCell>{entry.productName}</TableCell>
-                    <TableCell>{entry.lotNumber}</TableCell>
-                    <TableCell>{entry.currentQuantity}</TableCell>
-                    <TableCell>
-                      <CustomFormField
-                        fieldType={FormFieldType.SELECT}
-                        control={form.control}
-                        name={`entries.${index}.adjustmentType`}
-                        label=""
-                        placeholder=""
-                      >
-                        <SelectItem value="ADD">Addition</SelectItem>
-                        <SelectItem value="SUBTRACT">Subtraction</SelectItem>
-                      </CustomFormField>
-                    </TableCell>
-                    <TableCell>
-                      <CustomFormField
-                        fieldType={FormFieldType.NUMBER}
-                        control={form.control}
-                        name={`entries.${index}.adjustmentQuantity`}
-                        label=""
-                        placeholder="Qty"
-                      />
-                      {form.formState.errors.entries?.[index]
-                        ?.adjustmentQuantity && (
-                        <p className="text-red-500 text-xs mt-1">
-                          {
-                            form.formState.errors.entries[index]
-                              ?.adjustmentQuantity?.message
-                          }
-                        </p>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        onClick={() => handleRemoveEntry(index)}
-                        className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
-                      >
-                        <DeleteIcon className="h-5 w-5" />
-                      </span>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            {form.formState.errors.entries && fields.length === 0 && (
+              <p className="shad-error text-xs">
+                {form.formState.errors.entries.message}
+              </p>
+            )}
           </div>
 
-          {form.formState.errors.entries && fields.length === 0 && (
-            <p className="shad-error text-xs">
-              {form.formState.errors.entries.message}
-            </p>
-          )}
-        </div>
+          <CustomFormField
+            fieldType={FormFieldType.TEXTAREA}
+            control={form.control}
+            name="notes"
+            label="Notes"
+            placeholder="Enter notes for this adjustment"
+          />
 
-        <CustomFormField
-          fieldType={FormFieldType.TEXTAREA}
-          control={form.control}
-          name="notes"
-          label="Notes"
-          placeholder="Enter notes for this adjustment"
-        />
-
-        <div className="flex justify-end gap-4">
-          <Button
-            type="button"
-            onClick={handleCancel}
-            className="shad-danger-btn"
-          >
-            Cancel
-          </Button>
-          <SubmitButton
-            isLoading={isAdjustingInventoryStock}
-            className="shad-primary-btn"
-          >
-            Adjust Stock
-          </SubmitButton>
-        </div>
-      </form>
-    </Form>
+          <div className="flex justify-end gap-4">
+            <Button
+              type="button"
+              onClick={handleCancel}
+              className="shad-danger-btn"
+            >
+              Cancel
+            </Button>
+            <SubmitButton
+              isLoading={isAdjustingInventoryStock}
+              className="shad-primary-btn"
+            >
+              Adjust Stock
+            </SubmitButton>
+          </div>
+        </form>
+      </Form>
+      <StoreDialog
+        mode="add"
+        onSubmit={handleAddStore}
+        open={dialogOpen}
+        onOpenChange={closeDialog}
+        isLoading={isAddingStore}
+      />
+    </>
   );
 };
 

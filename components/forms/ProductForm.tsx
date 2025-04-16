@@ -98,6 +98,7 @@ const ProductForm = ({ mode, initialData }: ProductFormProps) => {
       productID: "",
       name: "",
       alertQuantity: 1,
+      maxAlertQuantity: 1,
       categoryId: "",
       typeId: "",
       brandId: "",
@@ -334,6 +335,7 @@ const ProductForm = ({ mode, initialData }: ProductFormProps) => {
               label="Category"
               placeholder="Select category"
               onAddNew={() => setCategoryDialogOpen(true)}
+              key={`category-select-${form.watch("categoryId") || ""}`}
               hideSearch={true}
             >
               {categoriesLoading && (
@@ -362,6 +364,7 @@ const ProductForm = ({ mode, initialData }: ProductFormProps) => {
               label="Brand"
               placeholder="Select brand"
               onAddNew={() => setBrandDialogOpen(true)}
+              key={`brand-select-${form.watch("brandId") || ""}`}
             >
               {brandsLoading && (
                 <div className="py-4">
@@ -389,6 +392,7 @@ const ProductForm = ({ mode, initialData }: ProductFormProps) => {
               label="Type"
               placeholder="Select product type"
               onAddNew={() => setTypeDialogOpen(true)}
+              key={`type-select-${form.watch("typeId") || ""}`}
             >
               {typesLoading && (
                 <div className="py-4">
@@ -414,6 +418,7 @@ const ProductForm = ({ mode, initialData }: ProductFormProps) => {
               label="Unit of Measure"
               placeholder="Select unit of measure"
               onAddNew={() => setUnitDialogOpen(true)}
+              key={`unit-select-${form.watch("unitId") || ""}`}
             >
               {unitsLoading && (
                 <div className="py-4">
@@ -458,6 +463,7 @@ const ProductForm = ({ mode, initialData }: ProductFormProps) => {
               label="Tax Rate"
               placeholder="Select tax rate"
               onAddNew={() => setTaxDialogOpen(true)}
+              key={`tax-select-${form.watch("taxRateId") || ""}`}
             >
               {taxesLoading && (
                 <div className="py-4">
@@ -479,8 +485,15 @@ const ProductForm = ({ mode, initialData }: ProductFormProps) => {
               fieldType={FormFieldType.NUMBER}
               control={form.control}
               name="alertQuantity"
-              label="Alert Quantity"
-              placeholder="Enter alert quantity"
+              label="Min Reoder Level"
+              placeholder="Enter min reoder level"
+            />
+            <CustomFormField
+              fieldType={FormFieldType.NUMBER}
+              control={form.control}
+              name="maxAlertQuantity"
+              label="Max Reoder Level"
+              placeholder="Enter max reoder level"
             />
             <CustomFormField
               fieldType={FormFieldType.NUMBER}
@@ -488,6 +501,7 @@ const ProductForm = ({ mode, initialData }: ProductFormProps) => {
               name="quantity"
               label="Quantity At Hand"
               placeholder="Enter quantity at hand"
+              disabled
             />
           </div>
 

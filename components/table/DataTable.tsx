@@ -5,9 +5,10 @@ import {
   flexRender,
   SortingState,
   useReactTable,
-  ColumnFiltersState,
   getFilteredRowModel,
   getSortedRowModel,
+  getFacetedRowModel,
+  getFacetedUniqueValues,
 } from "@tanstack/react-table";
 import { getCoreRowModel, ColumnDef } from "@tanstack/table-core";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
@@ -32,7 +33,7 @@ interface DataTableProps<TData, TValue> {
   page: number;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
-  searchBy?: string;
+  searchBy?: string | string[];
   onDeleteSelected?: (items: TData[]) => void;
   isDeletingSelected?: boolean;
   rowSelection?: Record<string, boolean>;
@@ -50,10 +51,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
-import { formatCamelCase } from "@/lib/utils";
 import { Trash2Icon } from "lucide-react";
 import { DownloadIcon } from "lucide-react";
 import Image from "next/image";
+import { Search } from "lucide-react";
 
 export function DataTable<TData, TValue>({
   columns,
@@ -73,14 +74,15 @@ export function DataTable<TData, TValue>({
   onDownloadSelected,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [globalFilter, setGlobalFilter] = useState("");
 
   const table = useReactTable({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
+    getFacetedRowModel: getFacetedRowModel(),
+    getFacetedUniqueValues: getFacetedUniqueValues(),
     onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),
     onRowSelectionChange: (updaterOrValue) => {
@@ -90,36 +92,47 @@ export function DataTable<TData, TValue>({
           : updaterOrValue;
       onRowSelectionChange?.(newSelection);
     },
+    onGlobalFilterChange: setGlobalFilter,
+    globalFilterFn: (row, columnId, filterValue) => {
+      if (!filterValue) return true;
+
+      const searchColumns = Array.isArray(searchBy)
+        ? searchBy
+        : searchBy
+        ? [searchBy]
+        : ["name"];
+
+      return searchColumns.some((colId) => {
+        const value = row.getValue(colId);
+        return String(value).toLowerCase().includes(filterValue.toLowerCase());
+      });
+    },
     state: {
       sorting,
-      columnFilters,
+      globalFilter,
       pagination: {
         pageIndex: page,
         pageSize,
       },
       rowSelection: rowSelection || {},
     },
-    // These ensure the table knows about the total pages
     pageCount: Math.ceil(totalItems / pageSize),
     manualPagination: true,
   });
 
-  // Get the searchable column
-  const searchableColumn = table?.getColumn(searchBy ? searchBy : "name");
-
   return (
     <div>
       {!hideSearch && (
-        <div className="flex items-center py-4">
+        <div className="relative flex items-center py-4">
+          <Search
+            className="absolute left-3 top-1/2 transform -translate-y-1/2 text-dark-600"
+            size={16}
+          />
           <Input
-            placeholder={`Search by ${formatCamelCase(
-              searchableColumn?.id ?? ""
-            )}`}
-            value={(searchableColumn?.getFilterValue() as string) ?? ""}
-            onChange={(event) =>
-              searchableColumn?.setFilterValue(event.target.value)
-            }
-            className="max-w-lg placeholder:text-dark-500 border-dark-700 h-11 focus-visible:ring-0 focus-visible:ring-offset-0"
+            placeholder={"Search..."}
+            value={globalFilter ?? ""}
+            onChange={(event) => setGlobalFilter(event.target.value)}
+            className="max-w-lg pl-10 placeholder:text-dark-600 border-dark-700 h-11 focus-visible:ring-0 focus-visible:ring-offset-0"
           />
         </div>
       )}

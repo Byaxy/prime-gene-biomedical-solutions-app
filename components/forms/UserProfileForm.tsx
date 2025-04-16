@@ -98,6 +98,7 @@ const UserProfileForm = ({
             name="role"
             label="Role"
             disabled={!isAdmin}
+            key={`role-select-${form.watch("role") || ""}`}
           >
             {RoleOptions.map((role) => (
               <SelectItem

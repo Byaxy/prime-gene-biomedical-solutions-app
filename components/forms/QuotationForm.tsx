@@ -378,6 +378,7 @@ const QuotationForm = ({ mode, initialData, onSubmit }: QuotationFormProps) => {
               label="Select Product"
               placeholder="Select product"
               onAddNew={() => router.push("/inventory/add-inventory")}
+              key={`product-select-${form.watch("selectedProduct") || ""}`}
             >
               {products?.map((product: Product) => (
                 <SelectItem
@@ -520,6 +521,7 @@ const QuotationForm = ({ mode, initialData, onSubmit }: QuotationFormProps) => {
             name="paymentMethod"
             label="Payment Method"
             placeholder="Select payment method"
+            key={`payment-select-${form.watch("paymentMethod") || ""}`}
           >
             {Object.values(PaymentMethod).map((method) => (
               <SelectItem
@@ -540,6 +542,7 @@ const QuotationForm = ({ mode, initialData, onSubmit }: QuotationFormProps) => {
             name="customer"
             label="Customer"
             placeholder="Select customer"
+            key={`customer-select-${form.watch("customer") || ""}`}
           >
             {customers?.map((customer: Customer) => (
               <SelectItem
@@ -558,6 +561,7 @@ const QuotationForm = ({ mode, initialData, onSubmit }: QuotationFormProps) => {
             name="status"
             label="Status"
             placeholder="Select status"
+            key={`status-select-${form.watch("status") || ""}`}
           >
             {Object.values(QuotationStatus).map((status) => (
               <SelectItem

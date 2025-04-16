@@ -33,6 +33,12 @@ const InventoryStocks = () => {
         onPageChange={setPage}
         pageSize={pageSize}
         onPageSizeChange={setPageSize}
+        searchBy={[
+          "product.name",
+          "product.productID",
+          "inventory.lotNumber",
+          "store.name",
+        ]}
       />
     </PageWraper>
   );

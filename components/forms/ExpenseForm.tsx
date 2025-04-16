@@ -74,6 +74,7 @@ const ExpenseForm = ({ mode, initialData, onSubmit }: ExpenseFormProps) => {
             name="paymentMethod"
             label="Payment Method"
             placeholder="Select payment method"
+            key={`payment-select-${form.watch("paymentMethod") || ""}`}
           >
             {Object.values(PaymentMethod).map((method) => (
               <SelectItem

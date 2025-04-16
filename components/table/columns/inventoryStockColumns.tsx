@@ -32,7 +32,18 @@ export const inventoryStockColumns: ColumnDef<InventoryStockWithRelations>[] = [
     },
   },
   {
-    id: "name",
+    id: "product.productID",
+    accessorKey: "product.productID",
+    header: "PID",
+    cell: ({ row }) => {
+      const inventoryStock = row.original;
+      return (
+        <p className="text-14-medium ">{inventoryStock.product.productID}</p>
+      );
+    },
+  },
+  {
+    id: "product.name",
     accessorKey: "product.name",
     header: ({ column }) => {
       return (
@@ -53,6 +64,8 @@ export const inventoryStockColumns: ColumnDef<InventoryStockWithRelations>[] = [
     },
   },
   {
+    id: "inventory.lotNumber",
+    accessorKey: "inventory.lotNumber",
     header: "Lot Number",
     cell: ({ row }) => {
       const inventoryStock = row.original;
@@ -111,6 +124,8 @@ export const inventoryStockColumns: ColumnDef<InventoryStockWithRelations>[] = [
     },
   },
   {
+    id: "store.name",
+    accessorKey: "store.name",
     header: "Store",
     cell: ({ row }) => {
       const inventoryStock = row.original;

@@ -90,6 +90,7 @@ const CategoryForm = ({
                 : undefined
             }
             hideSearch={true}
+            key={`parent-category-select-${form.watch("parentId") || ""}`}
           >
             {categoriesLoading && (
               <div className="py-5">

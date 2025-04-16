@@ -105,6 +105,7 @@ export const useProducts = ({
         productID: data.productID,
         name: data.name,
         alertQuantity: data.alertQuantity,
+        maxAlertQuantity: data.maxAlertQuantity,
         quantity: data.quantity,
         costPrice: data.costPrice,
         sellingPrice: data.sellingPrice,
@@ -194,6 +195,7 @@ export const useProducts = ({
           taxRateId: data.taxRateId,
           name: data.name,
           alertQuantity: data.alertQuantity,
+          maxAlertQuantity: data.maxAlertQuantity,
           quantity: data.quantity,
           categoryId: data.categoryId,
           brandId: data.brandId,
@@ -239,6 +241,8 @@ export const useProducts = ({
       },
     });
 
+  // Delete multiple products mutation
+  // Permanently Delete multiple products mutation
   const {
     mutate: deleteMultipleProductsMutation,
     status: deleteMultipleProductsStatus,
@@ -256,6 +260,7 @@ export const useProducts = ({
     },
   });
 
+  // Soft Delete multiple products mutation
   const {
     mutate: softDeleteMultipleProductsMutation,
     status: softDeleteMultipleProductsStatus,

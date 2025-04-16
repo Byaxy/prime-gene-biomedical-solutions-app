@@ -3,6 +3,7 @@ import { getProductById } from "@/lib/actions/product.actions";
 import {
   StockAdjustmentFormValidation,
   StockAdjustmentFormValues,
+  StoreFormValues,
 } from "@/lib/validation";
 import { ProductWithRelations, Store } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -32,6 +33,7 @@ import { useStores } from "@/hooks/useStores";
 import { useInventoryStock } from "@/hooks/useInventoryStock";
 import { useAuth } from "@/hooks/useAuth";
 import Loading from "../loading";
+import StoreDialog from "../stores/StoreDialog";
 
 interface FormProduct {
   productId: string;
@@ -55,10 +57,16 @@ export type ExtendedStockAdjustmentFormValues = Omit<
 const NewStockForm = () => {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [selectedProductName, setSelectedProductName] = useState<string>("");
+  const [dialogOpen, setDialogOpen] = useState(false);
   const { products, isLoading: productsLoading } = useProducts({
     getAllProducts: true,
   });
-  const { stores, isLoading: storesLoading } = useStores({
+  const {
+    stores,
+    addStore,
+    isLoading: storesLoading,
+    isAddingStore,
+  } = useStores({
     getAllStores: true,
   });
   const { addInventoryStock, isAddingInventoryStock } = useInventoryStock();
@@ -219,6 +227,32 @@ const NewStockForm = () => {
     setSelectedProductName("");
   };
 
+  // handle close dialog
+  const closeDialog = () => {
+    setDialogOpen(false);
+
+    setTimeout(() => {
+      const stuckSection = document.querySelector(".MuiBox-root.css-0");
+      if (stuckSection instanceof HTMLElement) {
+        stuckSection.style.pointerEvents = "auto";
+      }
+    }, 100);
+  };
+
+  const handleAddStore = async (data: StoreFormValues): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      addStore(data, {
+        onSuccess: () => {
+          closeDialog();
+          resolve();
+        },
+        onError: (error) => {
+          reject(error);
+        },
+      });
+    });
+  };
+
   const handleSubmit = async (values: ExtendedStockAdjustmentFormValues) => {
     try {
       if (!user) {
@@ -270,254 +304,270 @@ const NewStockForm = () => {
       toast.error("An unexpected error occurred");
     }
   };
+
   return (
-    <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(handleSubmit)}
-        className="space-y-6 pt-8 "
-      >
-        <div className="flex flex-col sm:flex-row gap-5">
-          <CustomFormField
-            fieldType={FormFieldType.DATE_PICKER}
-            control={form.control}
-            name="receivedDate"
-            label="Recieved Date"
-            dateFormat="MM/dd/yyyy"
-          />
-
-          <CustomFormField
-            fieldType={FormFieldType.SELECT}
-            control={form.control}
-            name="storeId"
-            label="Store"
-            placeholder="Select store"
-            onAddNew={() => router.push("/settings/stores")}
-          >
-            {storesLoading && (
-              <div className="py-4">
-                <Loading />
-              </div>
-            )}
-            {stores &&
-              stores?.map((store: Store) => (
-                <SelectItem
-                  key={store.id}
-                  value={store.id}
-                  className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
-                >
-                  {store.name}
-                </SelectItem>
-              ))}
-          </CustomFormField>
-        </div>
-
-        <div
-          className={`space-y-4 ${
-            form.formState.errors.products && fields.length === 0
-              ? "border-2 border-red-500 p-4 rounded-md"
-              : ""
-          }`}
+    <>
+      <Form {...form}>
+        <form
+          onSubmit={form.handleSubmit(handleSubmit)}
+          className="space-y-6 pt-8 "
         >
-          <div className="w-full sm:w-1/2">
+          <div className="flex flex-col sm:flex-row gap-5">
+            <CustomFormField
+              fieldType={FormFieldType.DATE_PICKER}
+              control={form.control}
+              name="receivedDate"
+              label="Recieved Date"
+              dateFormat="MM/dd/yyyy"
+            />
+
             <CustomFormField
               fieldType={FormFieldType.SELECT}
               control={form.control}
-              name="selectedProduct"
-              label="Select Product"
-              placeholder="Select product"
-              onAddNew={() => router.push("/inventory/add-inventory")}
+              name="storeId"
+              label="Store"
+              placeholder="Select store"
+              onAddNew={() => setDialogOpen(true)}
+              key={`store-select-${form.watch("storeId") || ""}`}
             >
-              {productsLoading && (
+              {storesLoading && (
                 <div className="py-4">
                   <Loading />
                 </div>
               )}
-              {products &&
-                products?.map((product: ProductWithRelations) => (
+              {stores &&
+                stores?.map((store: Store) => (
                   <SelectItem
-                    key={product.product.id}
-                    value={product.product.id}
-                    className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+                    key={store.id}
+                    value={store.id}
+                    className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
                   >
-                    {product.product.productID} - {product.product.name}
+                    {store.name}
                   </SelectItem>
                 ))}
             </CustomFormField>
           </div>
-          <div className="w-full flex flex-col justify-between sm:flex-row gap-4">
-            <div className="flex w-full flex-col gap-5">
-              <div className="flex w-full flex-col sm:flex-row gap-5">
-                <div className="flex flex-1 flex-col gap-3">
-                  <p className="text-14-medium text-blue-800">Product Name</p>
-                  <p className="text-14-medium bg-white text-blue-800 border border-dark-700 h-[42px] rounded-md flex items-center px-3 w-full shadow-sm min-w-[200px]">
-                    {selectedProductName || "Select a product"}
-                  </p>
-                </div>
-                <CustomFormField
-                  fieldType={FormFieldType.INPUT}
-                  control={form.control}
-                  name="tempLotNumber"
-                  label="Lot Number"
-                  placeholder="Enter Lot number"
-                />
-                <CustomFormField
-                  fieldType={FormFieldType.NUMBER}
-                  control={form.control}
-                  name="tempQuantity"
-                  label="Quantity"
-                  placeholder="Enter quantity"
-                />
-              </div>
-              <div className="flex w-full flex-col sm:flex-row gap-5">
-                <CustomFormField
-                  fieldType={FormFieldType.AMOUNT}
-                  control={form.control}
-                  name="tempCostPrice"
-                  label="Cost Price"
-                  placeholder="Enter cost price"
-                />
-                <CustomFormField
-                  fieldType={FormFieldType.AMOUNT}
-                  control={form.control}
-                  name="tempSellingPrice"
-                  label="Selling Price"
-                  placeholder="Enter selling price"
-                />
-                <CustomFormField
-                  fieldType={FormFieldType.DATE_PICKER}
-                  control={form.control}
-                  name="tempManufactureDate"
-                  label="Manufacture Date"
-                  dateFormat="MM/dd/yyyy"
-                />
-                <CustomFormField
-                  fieldType={FormFieldType.DATE_PICKER}
-                  control={form.control}
-                  name="tempExpiryDate"
-                  label="Expiry Date"
-                  dateFormat="MM/dd/yyyy"
-                />
-              </div>
-            </div>
-            <div className="flex flex-row gap-2 justify-end">
-              <Button
-                type="button"
-                size={"icon"}
-                onClick={handleCancel}
-                className="self-end mb-1 shad-danger-btn"
-              >
-                <X />
-              </Button>
 
-              <Button
-                type="button"
-                onClick={handleAddProduct}
-                className="self-end mb-1 shad-primary-btn"
+          <div
+            className={`space-y-4 ${
+              form.formState.errors.products && fields.length === 0
+                ? "border-2 border-red-500 p-4 rounded-md"
+                : ""
+            }`}
+          >
+            <div className="w-full sm:w-1/2">
+              <CustomFormField
+                fieldType={FormFieldType.SELECT}
+                control={form.control}
+                name="selectedProduct"
+                label="Select Product"
+                placeholder="Select product"
+                onAddNew={() => router.push("/inventory/add-inventory")}
+                key={`product-select-${selectedProductId || ""}`}
               >
-                {editingIndex !== null ? "Update Product" : "Add Product"}
-              </Button>
+                {productsLoading && (
+                  <div className="py-4">
+                    <Loading />
+                  </div>
+                )}
+                {products &&
+                  products?.map((product: ProductWithRelations) => (
+                    <SelectItem
+                      key={product.product.id}
+                      value={product.product.id}
+                      className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+                    >
+                      {product.product.productID} - {product.product.name}
+                    </SelectItem>
+                  ))}
+              </CustomFormField>
             </div>
+            <div className="w-full flex flex-col justify-between sm:flex-row gap-4">
+              <div className="flex w-full flex-col gap-5">
+                <div className="flex w-full flex-col sm:flex-row gap-5">
+                  <div className="flex flex-1 flex-col gap-3">
+                    <p className="text-14-medium text-blue-800">Product Name</p>
+                    <p className="text-14-medium bg-white text-blue-800 border border-dark-700 h-[42px] rounded-md flex items-center px-3 w-full shadow-sm min-w-[200px]">
+                      {selectedProductName ?? "Select a product"}
+                    </p>
+                  </div>
+                  <CustomFormField
+                    fieldType={FormFieldType.INPUT}
+                    control={form.control}
+                    name="tempLotNumber"
+                    label="Lot Number"
+                    placeholder="Enter Lot number"
+                  />
+                  <CustomFormField
+                    fieldType={FormFieldType.NUMBER}
+                    control={form.control}
+                    name="tempQuantity"
+                    label="Quantity"
+                    placeholder="Enter quantity"
+                  />
+                </div>
+                <div className="flex w-full flex-col sm:flex-row gap-5">
+                  <CustomFormField
+                    fieldType={FormFieldType.AMOUNT}
+                    control={form.control}
+                    name="tempCostPrice"
+                    label="Cost Price"
+                    placeholder="Enter cost price"
+                  />
+                  <CustomFormField
+                    fieldType={FormFieldType.AMOUNT}
+                    control={form.control}
+                    name="tempSellingPrice"
+                    label="Selling Price"
+                    placeholder="Enter selling price"
+                  />
+                  <CustomFormField
+                    fieldType={FormFieldType.DATE_PICKER}
+                    control={form.control}
+                    name="tempManufactureDate"
+                    label="Manufacture Date"
+                    dateFormat="MM/dd/yyyy"
+                  />
+                  <CustomFormField
+                    fieldType={FormFieldType.DATE_PICKER}
+                    control={form.control}
+                    name="tempExpiryDate"
+                    label="Expiry Date"
+                    dateFormat="MM/dd/yyyy"
+                  />
+                </div>
+              </div>
+              <div className="flex flex-row gap-2 justify-end">
+                <Button
+                  type="button"
+                  size={"icon"}
+                  onClick={handleCancel}
+                  className="self-end mb-1 shad-danger-btn"
+                >
+                  <X />
+                </Button>
+
+                <Button
+                  type="button"
+                  onClick={handleAddProduct}
+                  className="self-end mb-1 shad-primary-btn"
+                >
+                  {editingIndex !== null ? "Update Product" : "Add Product"}
+                </Button>
+              </div>
+            </div>
+
+            <Table className="shad-table border border-light-200 rounded-lg">
+              <TableHeader>
+                <TableRow className="w-full bg-blue-800 text-white px-2 font-semibold">
+                  <TableHead>#</TableHead>
+                  <TableHead>Product</TableHead>
+                  <TableHead>Lot Number</TableHead>
+                  <TableHead>Quantity</TableHead>
+                  <TableHead>Cost Price</TableHead>
+                  <TableHead>Selling Price</TableHead>
+                  <TableHead>Manufacture Date</TableHead>
+                  <TableHead>Expiry Date</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody className="w-full bg-white">
+                {fields.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={9} className="text-center py-4">
+                      No products added
+                    </TableCell>
+                  </TableRow>
+                )}
+                {fields.map((entry, index) => (
+                  <TableRow key={`${entry.productId}-${index}`}>
+                    <TableCell>{index + 1}</TableCell>
+                    <TableCell>{entry.productName}</TableCell>
+                    <TableCell>{entry.lotNumber}</TableCell>
+                    <TableCell>
+                      {entry.quantity}
+                      {entry.productUnit}
+                    </TableCell>
+                    <TableCell>
+                      <FormatNumber value={entry.costPrice} />
+                    </TableCell>
+                    <TableCell>
+                      <FormatNumber value={entry.sellingPrice} />
+                    </TableCell>
+                    <TableCell>
+                      {entry.manufactureDate
+                        ? formatDateTime(entry.manufactureDate).dateTime
+                        : "N/A"}
+                    </TableCell>
+                    <TableCell>
+                      {entry.expiryDate
+                        ? formatDateTime(entry.expiryDate).dateTime
+                        : "N/A"}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-row items-center">
+                        <span
+                          onClick={() => handleEditEntry(index)}
+                          className="text-[#475BE8] p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
+                        >
+                          <EditIcon className="h-5 w-5" />
+                        </span>
+                        <span
+                          onClick={() => handleDeleteEntry(index)}
+                          className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
+                        >
+                          <DeleteIcon className="h-5 w-5" />
+                        </span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            {form.formState.errors.products && fields.length === 0 && (
+              <p className="shad-error text-xs">
+                {form.formState.errors.products.message}
+              </p>
+            )}
           </div>
 
-          <Table className="shad-table border border-light-200 rounded-lg">
-            <TableHeader>
-              <TableRow className="w-full bg-blue-800 text-white px-2 font-semibold">
-                <TableHead>#</TableHead>
-                <TableHead>Product</TableHead>
-                <TableHead>Lot Number</TableHead>
-                <TableHead>Quantity</TableHead>
-                <TableHead>Cost Price</TableHead>
-                <TableHead>Selling Price</TableHead>
-                <TableHead>Manufacture Date</TableHead>
-                <TableHead>Expiry Date</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody className="w-full bg-white">
-              {fields.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={9} className="text-center py-4">
-                    No products added
-                  </TableCell>
-                </TableRow>
-              )}
-              {fields.map((entry, index) => (
-                <TableRow key={`${entry.productId}-${index}`}>
-                  <TableCell>{index + 1}</TableCell>
-                  <TableCell>{entry.productName}</TableCell>
-                  <TableCell>{entry.lotNumber}</TableCell>
-                  <TableCell>
-                    {entry.quantity}
-                    {entry.productUnit}
-                  </TableCell>
-                  <TableCell>
-                    <FormatNumber value={entry.costPrice} />
-                  </TableCell>
-                  <TableCell>
-                    <FormatNumber value={entry.sellingPrice} />
-                  </TableCell>
-                  <TableCell>
-                    {entry.manufactureDate
-                      ? formatDateTime(entry.manufactureDate).dateTime
-                      : "N/A"}
-                  </TableCell>
-                  <TableCell>
-                    {entry.expiryDate
-                      ? formatDateTime(entry.expiryDate).dateTime
-                      : "N/A"}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-row items-center">
-                      <span
-                        onClick={() => handleEditEntry(index)}
-                        className="text-[#475BE8] p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
-                      >
-                        <EditIcon className="h-5 w-5" />
-                      </span>
-                      <span
-                        onClick={() => handleDeleteEntry(index)}
-                        className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
-                      >
-                        <DeleteIcon className="h-5 w-5" />
-                      </span>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          {form.formState.errors.products && fields.length === 0 && (
-            <p className="shad-error text-xs">
-              {form.formState.errors.products.message}
-            </p>
-          )}
-        </div>
+          <CustomFormField
+            fieldType={FormFieldType.TEXTAREA}
+            control={form.control}
+            name="notes"
+            label="Notes"
+            placeholder="Enter notes"
+          />
 
-        <CustomFormField
-          fieldType={FormFieldType.TEXTAREA}
-          control={form.control}
-          name="notes"
-          label="Notes"
-          placeholder="Enter notes"
-        />
+          <div className="flex justify-end gap-4">
+            <Button
+              type="button"
+              onClick={() => {
+                form.reset();
+                handleCancel();
+              }}
+              className="shad-danger-btn"
+            >
+              Cancel
+            </Button>
+            <SubmitButton
+              isLoading={isAddingInventoryStock}
+              className="shad-primary-btn"
+            >
+              Add Stock
+            </SubmitButton>
+          </div>
+        </form>
+      </Form>
 
-        <div className="flex justify-end gap-4">
-          <Button
-            type="button"
-            onClick={() => form.reset()}
-            className="shad-danger-btn"
-          >
-            Cancel
-          </Button>
-          <SubmitButton
-            isLoading={isAddingInventoryStock}
-            className="shad-primary-btn"
-          >
-            Add Stock
-          </SubmitButton>
-        </div>
-      </form>
-    </Form>
+      <StoreDialog
+        mode="add"
+        onSubmit={handleAddStore}
+        open={dialogOpen}
+        onOpenChange={closeDialog}
+        isLoading={isAddingStore}
+      />
+    </>
   );
 };
 

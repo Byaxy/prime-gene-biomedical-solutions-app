@@ -8,6 +8,7 @@ import { formatNumber } from "@/lib/utils";
 import { ProductWithRelations } from "@/types";
 import PreviewImage from "@/components/PreviewImage";
 import { Checkbox } from "@/components/ui/checkbox";
+import FormatNumber from "@/components/FormatNumber";
 
 export const productsColumns: ColumnDef<ProductWithRelations>[] = [
   {
@@ -53,19 +54,17 @@ export const productsColumns: ColumnDef<ProductWithRelations>[] = [
     },
   },
   {
+    id: "product.productID",
     header: "PID",
+    accessorKey: "product.productID",
     cell: ({ row }) => {
       const product = row.original;
-      return (
-        <>
-          <p className="text-14-medium">{product.product.productID}</p>
-        </>
-      );
+      return <p className="text-14-medium">{product.product.productID}</p>;
     },
   },
   {
-    id: "name",
-    accessorKey: "name",
+    id: "product.name",
+    accessorKey: "product.name",
     header: ({ column }) => {
       return (
         <Button
@@ -85,7 +84,24 @@ export const productsColumns: ColumnDef<ProductWithRelations>[] = [
     },
   },
   {
-    accessorKey: "brand",
+    accessorKey: "product.costPrice",
+    header: "Cost Price",
+    cell: ({ row }) => {
+      const product = row.original;
+      return <FormatNumber value={product.product.sellingPrice} />;
+    },
+  },
+  {
+    accessorKey: "product.sellingPrice",
+    header: "Selling Price",
+    cell: ({ row }) => {
+      const product = row.original;
+      return <FormatNumber value={product.product.sellingPrice} />;
+    },
+  },
+  {
+    id: "brand.name",
+    accessorKey: "brand.name",
     header: "Vendor/Brand",
     cell: ({ row }) => {
       const product = row.original;
@@ -93,7 +109,8 @@ export const productsColumns: ColumnDef<ProductWithRelations>[] = [
     },
   },
   {
-    accessorKey: "type",
+    id: "type.name",
+    accessorKey: "type.name",
     header: "Type",
     cell: ({ row }) => {
       const product = row.original;
@@ -101,7 +118,8 @@ export const productsColumns: ColumnDef<ProductWithRelations>[] = [
     },
   },
   {
-    accessorKey: "category",
+    id: "category.name",
+    accessorKey: "category.name",
     header: "Category",
     cell: ({ row }) => {
       const product = row.original;
@@ -109,21 +127,29 @@ export const productsColumns: ColumnDef<ProductWithRelations>[] = [
     },
   },
   {
-    accessorKey: "quantity",
+    accessorKey: "product.quantity",
     header: "Qnty on Hand",
     cell: ({ row }) => {
       const product = row.original;
       return (
-        <div className="text-14-medium flex flex-row items-center gap-1">
-          {product.product.quantity || 0}
-          {product.unit.code || "-"}
+        <div
+          className={`text-14-medium flex flex-row items-center justify-center gap-1 px-1.5 py-2 text-white font-bold rounded-md ${
+            product.product.quantity <= product.product.alertQuantity
+              ? "bg-red-600"
+              : product.product.quantity <= product.product.maxAlertQuantity
+              ? "bg-yellow-500"
+              : "bg-green-500"
+          }`}
+        >
+          <span>{product.product.quantity || 0}</span>
+          <span>{product.unit.code || "-"}</span>
         </div>
       );
     },
   },
   {
-    accessorKey: "alertQuantity",
-    header: "Alert Qnty",
+    accessorKey: "product.alertQuantity",
+    header: "Reorder Level",
     cell: ({ row }) => {
       const product = row.original;
       return (
@@ -136,6 +162,7 @@ export const productsColumns: ColumnDef<ProductWithRelations>[] = [
     },
   },
   {
+    accessorKey: "taxRate.taxRate",
     header: "Tax",
     cell: ({ row }) => {
       const product = row.original;
@@ -151,7 +178,7 @@ export const productsColumns: ColumnDef<ProductWithRelations>[] = [
     id: "actions",
     header: "Actions",
     cell: ({ row }) => {
-      return <ProductActions product={row.original.product} />;
+      return <ProductActions product={row.original} />;
     },
   },
 ];

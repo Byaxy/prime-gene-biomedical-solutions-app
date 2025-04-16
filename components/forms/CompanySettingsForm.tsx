@@ -169,6 +169,7 @@ const CompanySettingsForm = ({
             label="Country"
             placeholder="Select a country"
             onValueChange={handleCountryChange}
+            key={`country-select-${form.watch("country") || ""}`}
           >
             {Country.getAllCountries().map((country) => (
               <SelectItem
@@ -191,6 +192,7 @@ const CompanySettingsForm = ({
             }
             onValueChange={handleStateChange}
             disabled={!selectedCountry}
+            key={`state-select-${form.watch("state") || ""}`}
           >
             {states.map((state) => (
               <SelectItem
@@ -213,6 +215,7 @@ const CompanySettingsForm = ({
             }
             onValueChange={(value) => form.setValue("city", value)}
             disabled={!selectedState}
+            key={`city-select-${form.watch("city") || ""}`}
           >
             {cities.map((city) => (
               <SelectItem
