@@ -321,6 +321,26 @@
   font-weight: 500 !important;
 }
 
+.react-datepicker__month-dropdown-container,
+.react-datepicker__year-dropdown-container {
+  padding: 8px 0;
+}
+.react-datepicker__month-dropdown,
+.react-datepicker__year-dropdown {
+  padding: 8px;
+}
+.react-datepicker__month-option,
+.react-datepicker__year-option {
+  padding: 8px 12px;
+  margin: 2px 0;
+}
+
+/* For custom header dropdowns */
+.react-datepicker__header select {
+  padding: 4px 8px;
+  margin: 0 4px;
+}
+
 /* =====  REACT PHONE NUMBER INPUT OVERRIDES */
 .PhoneInputInput {
   outline: none;

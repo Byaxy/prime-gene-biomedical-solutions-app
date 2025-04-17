@@ -16,6 +16,33 @@ interface UseInventoryStockOptions {
   getAllInventoryStocks?: boolean;
   initialPageSize?: number;
 }
+interface InventoryStockFilters {
+  quantity_min?: number;
+  quantity_max?: number;
+  costPrice_min?: number;
+  costPrice_max?: number;
+  sellingPrice_min?: number;
+  sellingPrice_max?: number;
+  expiryDate_start?: string;
+  expiryDate_end?: string;
+  manufactureDate_start?: string;
+  manufactureDate_end?: string;
+  store?: string;
+}
+
+export const defaultInventoryStockFilters: InventoryStockFilters = {
+  quantity_min: undefined,
+  quantity_max: undefined,
+  costPrice_min: undefined,
+  costPrice_max: undefined,
+  sellingPrice_min: undefined,
+  sellingPrice_max: undefined,
+  expiryDate_start: undefined,
+  expiryDate_end: undefined,
+  manufactureDate_start: undefined,
+  manufactureDate_end: undefined,
+  store: undefined,
+};
 
 export const useInventoryStock = ({
   getAllInventoryStocks = false,
@@ -24,12 +51,15 @@ export const useInventoryStock = ({
   const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(initialPageSize);
+  const [filters, setFilters] = useState<InventoryStockFilters>(
+    defaultInventoryStockFilters
+  );
 
   // Query for all inventory stock
   const allInventoryStockQuery = useQuery({
-    queryKey: ["inventory-stock", "allInventoryStock"],
+    queryKey: ["inventory-stock", "allInventoryStock", filters],
     queryFn: async () => {
-      const result = await getInventoryStock(0, 0, true);
+      const result = await getInventoryStock(0, 0, true, filters);
       return result.documents;
     },
     enabled: getAllInventoryStocks,
@@ -37,9 +67,15 @@ export const useInventoryStock = ({
 
   // Query for paginated inventory stock
   const paginatedInventoryStockQuery = useQuery({
-    queryKey: ["inventory-stock", "paginatedInventoryStock", page, pageSize],
+    queryKey: [
+      "inventory-stock",
+      "paginatedInventoryStock",
+      page,
+      pageSize,
+      filters,
+    ],
     queryFn: async () => {
-      const result = await getInventoryStock(page, pageSize, false);
+      const result = await getInventoryStock(page, pageSize, false, filters);
       return result;
     },
     enabled: !getAllInventoryStocks,
@@ -58,8 +94,9 @@ export const useInventoryStock = ({
           "paginatedInventoryStock",
           page + 1,
           pageSize,
+          filters,
         ],
-        queryFn: () => getInventoryStock(page + 1, pageSize, false),
+        queryFn: () => getInventoryStock(page + 1, pageSize, false, filters),
       });
     }
   }, [
@@ -68,7 +105,14 @@ export const useInventoryStock = ({
     paginatedInventoryStockQuery.data,
     queryClient,
     getAllInventoryStocks,
+    filters,
   ]);
+
+  // Handle filter changes
+  const handleFilterChange = (newFilters: InventoryStockFilters) => {
+    setFilters(newFilters);
+    setPage(0);
+  };
 
   // Add inventory stock mutation
   const {
@@ -156,6 +200,9 @@ export const useInventoryStock = ({
     setPage,
     pageSize,
     setPageSize,
+    filters,
+    onFilterChange: handleFilterChange,
+    defaultFilterValues: defaultInventoryStockFilters,
     addInventoryStock: addInventoryStockMutation,
     isAddingInventoryStock: addInventoryStockStatus === "pending",
     adjustInventoryStock: adjustInventoryStockMutation,

@@ -283,7 +283,20 @@ export const adjustInventoryStock = async (
 export const getInventoryStock = async (
   page: number = 0,
   limit: number = 10,
-  getAllInventoryStock: boolean = false
+  getAllInventoryStock: boolean = false,
+  filters?: {
+    quantity_min?: number;
+    quantity_max?: number;
+    costPrice_min?: number;
+    costPrice_max?: number;
+    sellingPrice_min?: number;
+    sellingPrice_max?: number;
+    expiryDate_start?: string;
+    expiryDate_end?: string;
+    manufactureDate_start?: string;
+    manufactureDate_end?: string;
+    store?: string;
+  }
 ) => {
   try {
     let query = db
@@ -303,8 +316,82 @@ export const getInventoryStock = async (
       .from(inventoryTable)
       .leftJoin(productsTable, eq(inventoryTable.productId, productsTable.id))
       .leftJoin(storesTable, eq(inventoryTable.storeId, storesTable.id))
-      .where(eq(inventoryTable.isActive, true))
-      .orderBy(desc(inventoryTable.createdAt));
+      .$dynamic();
+
+    // Create conditions array
+    const conditions = [eq(inventoryTable.isActive, true)];
+
+    // Apply filters if provided
+    if (filters) {
+      // Quantity range
+      if (filters.quantity_min !== undefined) {
+        conditions.push(gte(inventoryTable.quantity, filters.quantity_min));
+      }
+      if (filters.quantity_max !== undefined) {
+        conditions.push(lte(inventoryTable.quantity, filters.quantity_max));
+      }
+
+      // Cost price range
+      if (filters.costPrice_min !== undefined) {
+        conditions.push(gte(inventoryTable.costPrice, filters.costPrice_min));
+      }
+      if (filters.costPrice_max !== undefined) {
+        conditions.push(lte(inventoryTable.costPrice, filters.costPrice_max));
+      }
+
+      // Selling price range
+      if (filters.sellingPrice_min !== undefined) {
+        conditions.push(
+          gte(inventoryTable.sellingPrice, filters.sellingPrice_min)
+        );
+      }
+      if (filters.sellingPrice_max !== undefined) {
+        conditions.push(
+          lte(inventoryTable.sellingPrice, filters.sellingPrice_max)
+        );
+      }
+
+      // Expiry date range
+      if (filters.expiryDate_start) {
+        conditions.push(
+          gte(inventoryTable.expiryDate, new Date(filters.expiryDate_start))
+        );
+      }
+      if (filters.expiryDate_end) {
+        conditions.push(
+          lte(inventoryTable.expiryDate, new Date(filters.expiryDate_end))
+        );
+      }
+
+      // Manufacture date range
+      if (filters.manufactureDate_start) {
+        conditions.push(
+          gte(
+            inventoryTable.manufactureDate,
+            new Date(filters.manufactureDate_start)
+          )
+        );
+      }
+      if (filters.manufactureDate_end) {
+        conditions.push(
+          lte(
+            inventoryTable.manufactureDate,
+            new Date(filters.manufactureDate_end)
+          )
+        );
+      }
+
+      // Store filter
+      if (filters.store) {
+        conditions.push(eq(storesTable.id, filters.store));
+      }
+    }
+
+    // Apply where conditions
+    query = query.where(and(...conditions));
+
+    // Apply order by
+    query = query.orderBy(desc(inventoryTable.createdAt));
 
     if (!getAllInventoryStock) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

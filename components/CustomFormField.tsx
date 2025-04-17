@@ -256,6 +256,9 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
               shouldCloseOnSelect={true}
               calendarClassName="shadow-lg"
               popperClassName="react-datepicker-popper"
+              showMonthDropdown
+              showYearDropdown
+              dropdownMode="select"
               disabled={props.disabled}
               wrapperClassName="date-picker w-full"
             />
