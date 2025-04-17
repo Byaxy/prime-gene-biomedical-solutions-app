@@ -306,6 +306,7 @@ export const getInventoryStock = async (
           id: productsTable.id,
           productID: productsTable.productID,
           name: productsTable.name,
+          alertQuantity: productsTable.alertQuantity,
         },
         store: {
           id: storesTable.id,
@@ -414,7 +415,7 @@ export const getInventoryStock = async (
               id: productsTable.id,
               productID: productsTable.productID,
               name: productsTable.name,
-              description: productsTable.description,
+              alertQuantity: productsTable.alertQuantity,
             },
             store: {
               id: storesTable.id,

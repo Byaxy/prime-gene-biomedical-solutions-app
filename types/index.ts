@@ -187,6 +187,7 @@ export interface InventoryStockWithRelations {
     id: string;
     name: string;
     productID: string;
+    alertQuantity: number;
   };
   store: {
     id: string;

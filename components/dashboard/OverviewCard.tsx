@@ -14,9 +14,16 @@ interface OverviewCardProps {
   }[];
   total: number;
   isLoading: boolean;
+  isNumber?: boolean;
 }
 
-const OverviewCard = ({ title, data, total, isLoading }: OverviewCardProps) => {
+const OverviewCard = ({
+  title,
+  data,
+  total,
+  isLoading,
+  isNumber,
+}: OverviewCardProps) => {
   const { companySettings } = useCompanySettings();
 
   const currencySymbol = companySettings
@@ -38,7 +45,7 @@ const OverviewCard = ({ title, data, total, isLoading }: OverviewCardProps) => {
               {title}
             </span>
             <CardTitle className="text-xl font-bold">
-              {formattedTotal}
+              {isNumber ? total : formattedTotal}
             </CardTitle>
           </CardHeader>
           <CardContent className="w-full max-w-32 h-32 p-0 -mr-3">

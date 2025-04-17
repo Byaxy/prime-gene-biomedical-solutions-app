@@ -1,5 +1,6 @@
 "use client";
 
+import InventoryStats from "@/components/inventory/InventoryStats";
 import PageWraper from "@/components/PageWraper";
 import { inventoryStockColumns } from "@/components/table/columns/inventoryStockColumns";
 import { DataTable } from "@/components/table/DataTable";
@@ -64,26 +65,29 @@ const InventoryStocks = () => {
       buttonText="Add New/Adjust"
       buttonPath="/inventory/adjust-inventory"
     >
-      <DataTable
-        columns={inventoryStockColumns}
-        data={inventoryStock || []}
-        isLoading={isLoading}
-        totalItems={totalItems}
-        page={page}
-        onPageChange={setPage}
-        pageSize={pageSize}
-        onPageSizeChange={setPageSize}
-        filters={inventoryStockFilters}
-        filterValues={filters}
-        onFilterChange={onFilterChange}
-        defaultFilterValues={defaultFilterValues}
-        searchBy={[
-          "product.name",
-          "product.productID",
-          "inventory.lotNumber",
-          "store.name",
-        ]}
-      />
+      <>
+        <InventoryStats />
+        <DataTable
+          columns={inventoryStockColumns}
+          data={inventoryStock || []}
+          isLoading={isLoading}
+          totalItems={totalItems}
+          page={page}
+          onPageChange={setPage}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
+          filters={inventoryStockFilters}
+          filterValues={filters}
+          onFilterChange={onFilterChange}
+          defaultFilterValues={defaultFilterValues}
+          searchBy={[
+            "product.name",
+            "product.productID",
+            "inventory.lotNumber",
+            "store.name",
+          ]}
+        />
+      </>
     </PageWraper>
   );
 };
