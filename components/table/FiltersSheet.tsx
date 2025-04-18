@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -25,26 +26,65 @@ interface FilterSheetProps {
     [key: string]: {
       type: "text" | "number" | "date" | "select";
       label: string;
-      options?: { value: string; label: string }[]; // For select type
+      options?: { value: string; label: string }[];
     };
   };
-  localFilters: Record<string, any>;
-  handleLocalFilterChange: (key: string, value: any) => void;
-  isFilterDirty: boolean;
-  handleClearFilters: () => void;
-  handleApplyFilters: () => void;
   filterValues: Record<string, any>;
+  onFilterChange?: (filters: Record<string, any>) => void;
+  defaultFilterValues?: Record<string, any> | null;
 }
 
 const FiltersSheet = ({
   filters,
-  localFilters,
-  handleLocalFilterChange,
-  isFilterDirty,
-  handleApplyFilters,
-  handleClearFilters,
   filterValues = {},
+  onFilterChange,
+  defaultFilterValues = {},
 }: FilterSheetProps) => {
+  const [localFilters, setLocalFilters] =
+    useState<Record<string, any>>(filterValues);
+  const [isFilterDirty, setIsFilterDirty] = useState(false);
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    isMounted.current = true;
+
+    if (isMounted.current && filterValues) {
+      setLocalFilters(filterValues);
+      setIsFilterDirty(false);
+    }
+
+    return () => {
+      isMounted.current = false;
+    };
+  }, [filterValues]);
+
+  const handleLocalFilterChange = (key: string, value: any) => {
+    if (isMounted.current) {
+      setLocalFilters((prev) => ({ ...prev, [key]: value }));
+      setIsFilterDirty(true);
+    }
+  };
+
+  const handleApplyFilters = () => {
+    if (isMounted.current && onFilterChange) {
+      onFilterChange(localFilters);
+      setIsFilterDirty(false);
+    }
+  };
+
+  const handleClearFilters = () => {
+    if (isMounted.current) {
+      const clearedFilters = defaultFilterValues
+        ? { ...defaultFilterValues }
+        : {};
+      setLocalFilters(clearedFilters);
+      if (onFilterChange) {
+        onFilterChange(clearedFilters);
+      }
+      setIsFilterDirty(false);
+    }
+  };
+
   return (
     <Sheet>
       <SheetTrigger asChild>
@@ -223,7 +263,7 @@ const FiltersSheet = ({
           </div>
         </div>
         <SheetFooter>
-          <div className=" w-full flex justify-between gap-2 mt-4">
+          <div className="w-full flex justify-between gap-2 mt-4">
             <SheetClose asChild>
               <Button
                 className="shad-gray-btn"

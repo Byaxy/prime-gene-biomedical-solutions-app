@@ -65,7 +65,7 @@ const InventoryStocks = () => {
       buttonText="Add New/Adjust"
       buttonPath="/inventory/adjust-inventory"
     >
-      <>
+      <div className="flex flex-col gap-5">
         <InventoryStats />
         <DataTable
           columns={inventoryStockColumns}
@@ -87,7 +87,7 @@ const InventoryStocks = () => {
             "store.name",
           ]}
         />
-      </>
+      </div>
     </PageWraper>
   );
 };

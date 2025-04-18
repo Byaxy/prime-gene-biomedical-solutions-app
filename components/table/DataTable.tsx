@@ -23,7 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { HeaderGroup, Header } from "@tanstack/react-table";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Input } from "../ui/input";
 import Loading from "@/components/loading";
 import {
@@ -64,7 +64,7 @@ interface DataTableProps<TData, TValue> {
   };
   filterValues?: Record<string, any>;
   onFilterChange?: (filters: Record<string, any>) => void;
-  defaultFilterValues?: Record<string, any>;
+  defaultFilterValues?: Record<string, any> | null;
 }
 
 export function DataTable<TData, TValue>({
@@ -90,9 +90,6 @@ export function DataTable<TData, TValue>({
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
-  const [localFilters, setLocalFilters] =
-    useState<Record<string, any>>(filterValues);
-  const [isFilterDirty, setIsFilterDirty] = useState(false);
 
   const table = useReactTable({
     data,
@@ -138,28 +135,6 @@ export function DataTable<TData, TValue>({
     manualPagination: true,
   });
 
-  useEffect(() => {
-    setLocalFilters(filterValues);
-    setIsFilterDirty(false);
-  }, [filterValues]);
-
-  const handleLocalFilterChange = (key: string, value: any) => {
-    setLocalFilters((prev) => ({ ...prev, [key]: value }));
-    setIsFilterDirty(true);
-  };
-
-  const handleApplyFilters = () => {
-    onFilterChange?.(localFilters);
-    setIsFilterDirty(false);
-  };
-
-  const handleClearFilters = () => {
-    const clearedFilters = { ...defaultFilterValues };
-    setLocalFilters(clearedFilters);
-    onFilterChange?.(clearedFilters);
-    setIsFilterDirty(false);
-  };
-
   return (
     <div>
       <div className="w-full flex flex-col sm:flex-row sm:items-center justify-between gap-x-4 pb-5 sm:pb-0">
@@ -183,7 +158,7 @@ export function DataTable<TData, TValue>({
             <Button
               variant="outline"
               className="border-blue-800/60 text-dark-500"
-              onClick={handleClearFilters}
+              onClick={() => onFilterChange?.(defaultFilterValues || {})}
               disabled={
                 !Object.values(filterValues).some(
                   (val) => val !== undefined && val !== ""
@@ -195,11 +170,8 @@ export function DataTable<TData, TValue>({
             <FiltersSheet
               filters={filters}
               filterValues={filterValues}
-              localFilters={localFilters}
-              handleApplyFilters={handleApplyFilters}
-              handleClearFilters={handleClearFilters}
-              handleLocalFilterChange={handleLocalFilterChange}
-              isFilterDirty={isFilterDirty}
+              onFilterChange={onFilterChange}
+              defaultFilterValues={defaultFilterValues}
             />
           </div>
         )}
