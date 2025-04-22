@@ -1,14 +1,14 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/table-core";
-import { Quotation } from "@/types/appwrite.types";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import QuotationActions from "@/components/quotations/QuotationActions";
 import { cn, formatDateTime } from "@/lib/utils";
 import FormatNumber from "@/components/FormatNumber";
+import { QuotationWithRelations } from "@/types";
 
-export const quotationsColumns: ColumnDef<Quotation>[] = [
+export const quotationsColumns: ColumnDef<QuotationWithRelations>[] = [
   {
     id: "index",
     header: "#",
@@ -22,7 +22,7 @@ export const quotationsColumns: ColumnDef<Quotation>[] = [
     enableSorting: false,
   },
   {
-    accessorKey: "quotationDate",
+    accessorKey: "quotation.quotationDate",
     header: ({ column }) => {
       return (
         <Button
@@ -39,14 +39,14 @@ export const quotationsColumns: ColumnDef<Quotation>[] = [
       const quotation = row.original;
       return (
         <p className="text-14-medium ">
-          {formatDateTime(quotation.quotationDate).dateTime}
+          {formatDateTime(quotation.quotation.quotationDate).dateTime}
         </p>
       );
     },
   },
   {
-    id: "quotationNumber",
-    accessorKey: "quotationNumber",
+    id: "quotation.quotationNumber",
+    accessorKey: "quotation.quotationNumber",
     header: ({ column }) => {
       return (
         <Button
@@ -62,12 +62,14 @@ export const quotationsColumns: ColumnDef<Quotation>[] = [
     cell: ({ row }) => {
       const quotation = row.original;
       return (
-        <p className="text-14-medium ">{quotation.quotationNumber || "-"}</p>
+        <p className="text-14-medium ">
+          {quotation.quotation.quotationNumber || "-"}
+        </p>
       );
     },
   },
   {
-    accessorKey: "quantity",
+    accessorKey: "product.quantity",
     header: "Quantity",
     cell: ({ row }) => {
       const quotation = row.original;
@@ -82,7 +84,7 @@ export const quotationsColumns: ColumnDef<Quotation>[] = [
     },
   },
   {
-    accessorKey: "totalAmount",
+    accessorKey: "quotation.totalAmount",
     header: ({ column }) => {
       return (
         <Button
@@ -99,37 +101,13 @@ export const quotationsColumns: ColumnDef<Quotation>[] = [
       const quotation = row.original;
       return (
         <p className="text-14-medium ">
-          <FormatNumber value={quotation.totalAmount} />
+          <FormatNumber value={quotation.quotation.totalAmount} />
         </p>
       );
     },
   },
   {
-    accessorKey: "amountPaid",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="font-semibold px-0"
-        >
-          Paid
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      );
-    },
-    cell: ({ row }) => {
-      const quotation = row.original;
-      return (
-        <p className="text-14-medium ">
-          <FormatNumber value={quotation.amountPaid} />
-        </p>
-      );
-    },
-  },
-
-  {
-    accessorKey: "status",
+    accessorKey: "quotation.status",
     header: "Status",
     cell: ({ row }) => {
       const quotation = row.original;
@@ -138,15 +116,15 @@ export const quotationsColumns: ColumnDef<Quotation>[] = [
           <span
             className={cn(
               "text-14-medium capitalize",
-              quotation.status === "pending" &&
+              quotation.quotation.status === "pending" &&
                 "text-white bg-orange-500 px-3 py-1 rounded-xl",
-              quotation.status === "completed" &&
+              quotation.quotation.status === "completed" &&
                 "bg-green-500 text-white px-3 py-1 rounded-xl",
-              quotation.status === "cancelled" &&
+              quotation.quotation.status === "cancelled" &&
                 "bg-red-600 text-white px-3 py-1 rounded-xl"
             )}
           >
-            {quotation.status}
+            {quotation.quotation.status}
           </span>
         </p>
       );
@@ -154,14 +132,13 @@ export const quotationsColumns: ColumnDef<Quotation>[] = [
   },
 
   {
-    accessorKey: "customer",
+    id: "customer.name",
+    accessorKey: "customer.name",
     header: "Customer",
     cell: ({ row }) => {
       const quotation = row.original;
       return (
-        <p className="text-14-medium ">
-          {quotation.customer ? quotation.customer.name : "-"}
-        </p>
+        <p className="text-14-medium ">{quotation.customer.name || "-"}</p>
       );
     },
   },

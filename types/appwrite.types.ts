@@ -35,24 +35,6 @@ export interface Sale {
   $updatedAt: Date;
 }
 
-
-
-// Quotations
-export interface Quotation {
-  $id: string;
-  quotationNumber: string;
-  quotationDate: Date;
-  customer: any;
-  totalAmount: number;
-  amountPaid: number;
-  status: QuotationStatus;
-  paymentMethod: PaymentMethod;
-  notes: string;
-  products: any[];
-  $createdAt: Date;
-  $updatedAt: Date;
-}
-
 // payment methods
 export enum PaymentMethod {
   Cash = "cash",

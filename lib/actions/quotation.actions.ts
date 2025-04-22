@@ -1,328 +1,346 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// quotation.actions.ts
 "use server";
 
-import { ID, Query, Models } from "node-appwrite";
 import { revalidatePath } from "next/cache";
 import { parseStringify } from "../utils";
+import { db } from "@/drizzle/db";
 import {
-  databases,
-  DATABASE_ID,
-  NEXT_PUBLIC_QUOTATIONS_COLLECTION_ID,
-  NEXT_PUBLIC_QUOTATION_ITEMS_COLLECTION_ID,
-} from "../appwrite-server";
+  quotationsTable,
+  quotationItemsTable,
+  customersTable,
+} from "@/drizzle/schema";
+import { eq, desc, sql, inArray } from "drizzle-orm";
 import { QuotationFormValues } from "../validation";
 
-// Quotation item document interface
-interface QuotationItemDocument extends Models.Document {
-  quotation: string;
-  product: string;
-  quantity: number;
-  unitPrice: number;
-  totalPrice: number;
-}
-
-// add quotation
+// Add new quotation with transaction
 export const addQuotation = async (quotation: QuotationFormValues) => {
   try {
-    // Create quotation
-    const quotationData = {
-      quotationNumber: quotation.quotationNumber,
-      quotationDate: quotation.quotationDate,
-      totalAmount: quotation.totalAmount,
-      amountPaid: quotation.amountPaid,
-      customer: quotation.customer,
-      status: quotation.status,
-      notes: quotation.notes,
-    };
-    const createQuotationResponse = await databases.createDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_QUOTATIONS_COLLECTION_ID!,
-      ID.unique(),
-      quotationData
-    );
+    const result = await db.transaction(async (tx) => {
+      // Create main quotation record
+      const [newQuotation] = await tx
+        .insert(quotationsTable)
+        .values({
+          quotationNumber: quotation.quotationNumber,
+          quotationDate: quotation.quotationDate,
+          customerId: quotation.customerId,
+          totalAmount: quotation.totalAmount,
+          totalTaxAmount: quotation.totalTaxAmount,
+          status: quotation.status as "pending" | "completed" | "cancelled",
+          notes: quotation.notes,
+          convertedToSale: quotation.convertedToSale,
+        })
+        .returning();
 
-    // Create quotation items
-    const createQuotationItemsPromises = quotation.products.map(
-      async (product) => {
-        const quotationItemData = {
-          quotation: createQuotationResponse.$id,
-          product: product.product,
-          quantity: product.quantity,
-          unitPrice: product.unitPrice,
-          totalPrice: product.totalPrice,
-        };
+      // Create quotation items
+      const quotationItems = await Promise.all(
+        quotation.products.map(async (product) => {
+          const [newItem] = await tx
+            .insert(quotationItemsTable)
+            .values({
+              quotationId: newQuotation.id,
+              productId: product.productId,
+              quantity: product.quantity,
+              unitPrice: product.unitPrice,
+              totalPrice: product.totalPrice,
+              taxAmount: product.taxAmount,
+              taxRate: product.taxRate,
+              productName: product.productName,
+              productID: product.productID,
+            })
+            .returning();
+          return newItem;
+        })
+      );
 
-        return databases.createDocument(
-          DATABASE_ID!,
-          NEXT_PUBLIC_QUOTATION_ITEMS_COLLECTION_ID!,
-          ID.unique(),
-          quotationItemData
-        );
-      }
-    );
-
-    const response = await Promise.all(createQuotationItemsPromises);
+      return { quotation: newQuotation, items: quotationItems };
+    });
 
     revalidatePath("/quotations");
-    return parseStringify(response);
+    return parseStringify(result);
   } catch (error) {
     console.error("Error creating quotation:", error);
     throw error;
   }
 };
 
-// edit quotation
+// Edit quotation with transaction
 export const editQuotation = async (
   quotation: QuotationFormValues,
   quotationId: string
 ) => {
   try {
-    // Update main quotation record
-    const quotationData = {
-      quotationNumber: quotation.quotationNumber,
-      quotationDate: quotation.quotationDate,
-      totalAmount: quotation.totalAmount,
-      amountPaid: quotation.amountPaid,
-      customer: quotation.customer,
-      status: quotation.status,
-      notes: quotation.notes,
-    };
+    const result = await db.transaction(async (tx) => {
+      // Update main quotation record
+      const [updatedQuotation] = await tx
+        .update(quotationsTable)
+        .set({
+          quotationNumber: quotation.quotationNumber,
+          quotationDate: quotation.quotationDate,
+          customerId: quotation.customerId,
+          totalAmount: quotation.totalAmount,
+          totalTaxAmount: quotation.totalTaxAmount,
+          status: quotation.status as "pending" | "completed" | "cancelled",
+          notes: quotation.notes,
+          convertedToSale: quotation.convertedToSale,
+        })
+        .where(eq(quotationsTable.id, quotationId))
+        .returning();
 
-    // Get existing quotation items first
-    const existingItems = await databases.listDocuments<QuotationItemDocument>(
-      DATABASE_ID!,
-      NEXT_PUBLIC_QUOTATION_ITEMS_COLLECTION_ID!,
-      [Query.equal("quotation", quotationId)]
-    );
+      // Get existing quotation items
+      const existingItems = await tx
+        .select()
+        .from(quotationItemsTable)
+        .where(eq(quotationItemsTable.quotationId, quotationId));
 
-    const newProductIds = new Set(
-      quotation.products.map((product) => product.product)
-    );
-
-    // Find items to delete (exist in database but not in new products)
-    const itemsToDelete = existingItems.documents.filter(
-      (item) => !newProductIds.has(item.productId)
-    );
-
-    // Delete removed items first
-    if (itemsToDelete.length > 0) {
-      await Promise.all(
-        itemsToDelete.map((item) =>
-          databases.deleteDocument(
-            DATABASE_ID!,
-            NEXT_PUBLIC_QUOTATION_ITEMS_COLLECTION_ID!,
-            item.$id
-          )
-        )
+      const newProductIds = new Set(
+        quotation.products.map((product) => product.productId)
       );
-    }
 
-    // Create a map of existing items for updates
-    const existingItemsMap = new Map(
-      existingItems.documents.map((item) => [item.product, item])
-    );
+      // Find items to delete (exist in database but not in new products)
+      const itemsToDelete = existingItems.filter(
+        (item) => !newProductIds.has(item.productId)
+      );
 
-    // Handle updates and additions after deletions are complete
-    await Promise.all(
-      quotation.products.map(async (product) => {
-        const existingItem = existingItemsMap.get(product.product);
-        const quotationItemData = {
-          quotation: quotationId,
-          product: product.product,
-          quantity: product.quantity,
-          unitPrice: product.unitPrice,
-          totalPrice: product.totalPrice,
-        };
+      // Delete removed items first
+      if (itemsToDelete.length > 0) {
+        await Promise.all(
+          itemsToDelete.map((item) =>
+            tx
+              .delete(quotationItemsTable)
+              .where(eq(quotationItemsTable.id, item.id))
+          )
+        );
+      }
 
-        if (existingItem) {
-          // Update existing item
-          return databases.updateDocument(
-            DATABASE_ID!,
-            NEXT_PUBLIC_QUOTATION_ITEMS_COLLECTION_ID!,
-            existingItem.$id,
-            quotationItemData
-          );
-        } else {
-          // Create new item
-          return databases.createDocument(
-            DATABASE_ID!,
-            NEXT_PUBLIC_QUOTATION_ITEMS_COLLECTION_ID!,
-            ID.unique(),
-            quotationItemData
-          );
-        }
-      })
-    );
+      // Create a map of existing items for updates
+      const existingItemsMap = new Map(
+        existingItems.map((item) => [item.productId, item])
+      );
 
-    // Update the main quotation record after all item operations are complete
-    const updateQuotationResponse = await databases.updateDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_QUOTATIONS_COLLECTION_ID!,
-      quotationId,
-      quotationData
-    );
+      // Process updates and additions
+      const updatedItems = await Promise.all(
+        quotation.products.map(async (product) => {
+          const existingItem = existingItemsMap.get(product.productId);
+
+          if (existingItem) {
+            // Update existing item
+            const [updatedItem] = await tx
+              .update(quotationItemsTable)
+              .set({
+                quantity: product.quantity,
+                unitPrice: product.unitPrice,
+                totalPrice: product.totalPrice,
+                taxAmount: product.taxAmount,
+                taxRate: product.taxRate,
+              })
+              .where(eq(quotationItemsTable.id, existingItem.id))
+              .returning();
+            return updatedItem;
+          } else {
+            // Create new item
+            const [newItem] = await tx
+              .insert(quotationItemsTable)
+              .values({
+                quotationId,
+                productId: product.productId,
+                quantity: product.quantity,
+                unitPrice: product.unitPrice,
+                totalPrice: product.totalPrice,
+                taxAmount: product.taxAmount,
+                taxRate: product.taxRate,
+                productName: product.productName,
+                productID: product.productID,
+              })
+              .returning();
+            return newItem;
+          }
+        })
+      );
+
+      return { quotation: updatedQuotation, items: updatedItems };
+    });
 
     revalidatePath("/quotations");
     revalidatePath(`/quotations/edit-quotation/${quotationId}`);
-    return parseStringify(updateQuotationResponse);
+    return parseStringify(result);
   } catch (error) {
     console.error("Error updating quotation:", error);
     throw error;
   }
 };
 
-// get quotation by id
+// Get quotation by ID with items
 export const getQuotationById = async (quotationId: string) => {
   try {
-    const response = await databases.getDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_QUOTATIONS_COLLECTION_ID!,
-      quotationId
-    );
+    const result = await db.transaction(async (tx) => {
+      // Get the main quotation
+      const quotation = await tx
+        .select({
+          quotation: quotationsTable,
+          customer: customersTable,
+        })
+        .from(quotationsTable)
+        .leftJoin(
+          customersTable,
+          eq(quotationsTable.customerId, customersTable.id)
+        )
+        .where(eq(quotationsTable.id, quotationId))
+        .then((res) => res[0]);
 
-    // Get quotation items for the quotation
-    const items = await databases.listDocuments(
-      DATABASE_ID!,
-      NEXT_PUBLIC_QUOTATION_ITEMS_COLLECTION_ID!,
-      [Query.equal("quotation", quotationId)]
-    );
+      if (!quotation) {
+        return null;
+      }
 
-    response.products = items.documents;
+      // Get all items for this quotation
+      const items = await tx
+        .select({
+          id: quotationItemsTable.id,
+          quantity: quotationItemsTable.quantity,
+          unitPrice: quotationItemsTable.unitPrice,
+          totalPrice: quotationItemsTable.totalPrice,
+          taxAmount: quotationItemsTable.taxAmount,
+          taxRate: quotationItemsTable.taxRate,
+          productName: quotationItemsTable.productName,
+          productID: quotationItemsTable.productID,
+          productId: quotationItemsTable.productId,
+        })
+        .from(quotationItemsTable)
+        .where(eq(quotationItemsTable.quotationId, quotationId));
 
-    return parseStringify(response);
+      // Combine the data
+      const quotationWithItems = {
+        ...quotation,
+        products: items.map((item) => ({
+          id: item.id,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          totalPrice: item.totalPrice,
+          taxAmount: item.taxAmount,
+          taxRate: item.taxRate,
+          productName: item.productName,
+          productID: item.productID,
+          productId: item.productId,
+        })),
+      };
+
+      return quotationWithItems;
+    });
+
+    return result ? parseStringify(result) : null;
   } catch (error) {
     console.error("Error getting quotation:", error);
     throw error;
   }
 };
 
-// get all quotations
+// Get all quotations with pagination
 export const getQuotations = async (
   page: number = 0,
   limit: number = 10,
   getAllQuotations: boolean = false
 ) => {
   try {
-    const queries = [
-      Query.equal("isActive", true),
-      Query.orderDesc("$createdAt"),
-    ];
-
-    if (!getAllQuotations) {
-      queries.push(Query.limit(limit));
-      queries.push(Query.offset(page * limit));
-
-      const response = await databases.listDocuments(
-        DATABASE_ID!,
-        NEXT_PUBLIC_QUOTATIONS_COLLECTION_ID!,
-        queries
-      );
-
-      // Get quotation items for each quotation
-      const quotationsWithItems = await Promise.all(
-        response.documents.map(async (quotation) => {
-          const items = await databases.listDocuments(
-            DATABASE_ID!,
-            NEXT_PUBLIC_QUOTATION_ITEMS_COLLECTION_ID!,
-            [Query.equal("quotation", quotation.$id)]
-          );
-
-          return {
-            ...quotation,
-            products: items.documents,
-          };
+    const result = await db.transaction(async (tx) => {
+      // Get the main quotations (all or paginated)
+      const quotationsQuery = tx
+        .select({
+          quotation: quotationsTable,
+          customer: customersTable,
         })
-      );
+        .from(quotationsTable)
+        .leftJoin(
+          customersTable,
+          eq(quotationsTable.customerId, customersTable.id)
+        )
+        .orderBy(desc(quotationsTable.createdAt));
 
-      return {
-        documents: parseStringify(quotationsWithItems),
-        total: response.total,
-      };
-    } else {
-      let allDocuments: Models.Document[] = [];
-      let offset = 0;
-      const batchSize = 100; // Maximum limit per request(appwrite's max)
-
-      while (true) {
-        const batchQueries = [
-          Query.equal("isActive", true),
-          Query.orderDesc("$createdAt"),
-          Query.limit(batchSize),
-          Query.offset(offset),
-        ];
-
-        const response = await databases.listDocuments(
-          DATABASE_ID!,
-          NEXT_PUBLIC_QUOTATIONS_COLLECTION_ID!,
-          batchQueries
-        );
-
-        // Get quotation items for each quotation
-        const quotationsWithItems = await Promise.all(
-          response.documents.map(async (quotation) => {
-            const items = await databases.listDocuments(
-              DATABASE_ID!,
-              NEXT_PUBLIC_QUOTATION_ITEMS_COLLECTION_ID!,
-              [Query.equal("quotation", quotation.$id)]
-            );
-
-            return {
-              ...quotation,
-              products: items.documents,
-            };
-          })
-        );
-
-        allDocuments = [...allDocuments, ...quotationsWithItems];
-
-        // If we got fewer documents than the batch size, we've reached the end
-        if (quotationsWithItems.length < batchSize) {
-          break;
-        }
-
-        offset += batchSize;
+      if (!getAllQuotations) {
+        quotationsQuery.limit(limit).offset(page * limit);
       }
 
+      const quotations = await quotationsQuery;
+
+      // Get all items for these quotations in a single query
+      const quotationIds = quotations.map((q) => q.quotation.id);
+      const items = await tx
+        .select({
+          quotationId: quotationItemsTable.quotationId,
+          id: quotationItemsTable.id,
+          quantity: quotationItemsTable.quantity,
+          unitPrice: quotationItemsTable.unitPrice,
+          totalPrice: quotationItemsTable.totalPrice,
+          taxAmount: quotationItemsTable.taxAmount,
+          taxRate: quotationItemsTable.taxRate,
+          productName: quotationItemsTable.productName,
+          productID: quotationItemsTable.productID,
+          productId: quotationItemsTable.productId,
+        })
+        .from(quotationItemsTable)
+        .where(inArray(quotationItemsTable.quotationId, quotationIds));
+
+      // Combine the data
+      const quotationsWithItems = quotations.map((quotation) => ({
+        ...quotation,
+        products: items
+          .filter((item) => item.quotationId === quotation.quotation.id)
+          .map((item) => ({
+            id: item.id,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            totalPrice: item.totalPrice,
+            taxAmount: item.taxAmount,
+            taxRate: item.taxRate,
+            productName: item.productName,
+            productID: item.productID,
+            productId: item.productId,
+          })),
+      }));
+
+      // Get total count for pagination
+      const total = getAllQuotations
+        ? quotations.length
+        : await tx
+            .select({ count: sql<number>`count(*)` })
+            .from(quotationsTable)
+            .then((res) => res[0]?.count || 0);
+
       return {
-        documents: parseStringify(allDocuments),
-        total: allDocuments.length,
+        documents: quotationsWithItems,
+        total,
       };
-    }
+    });
+
+    return {
+      documents: parseStringify(result.documents),
+      total: result.total,
+    };
   } catch (error) {
     console.error("Error getting quotations:", error);
     throw error;
   }
 };
 
-// permanently delete quotation
+// Permanently delete quotation with transaction
 export const deleteQuotation = async (quotationId: string) => {
   try {
-    // Get existing quotation items first
-    const existingItems = await databases.listDocuments<QuotationItemDocument>(
-      DATABASE_ID!,
-      NEXT_PUBLIC_QUOTATION_ITEMS_COLLECTION_ID!,
-      [Query.equal("quotation", quotationId)]
-    );
+    const result = await db.transaction(async (tx) => {
+      // Delete quotation items first
+      await tx
+        .delete(quotationItemsTable)
+        .where(eq(quotationItemsTable.quotationId, quotationId));
 
-    // Delete quotation items first
-    await Promise.all(
-      existingItems.documents.map((item) =>
-        databases.deleteDocument(
-          DATABASE_ID!,
-          NEXT_PUBLIC_QUOTATION_ITEMS_COLLECTION_ID!,
-          item.$id
-        )
-      )
-    );
+      // Delete the main quotation record
+      const [deletedQuotation] = await tx
+        .delete(quotationsTable)
+        .where(eq(quotationsTable.id, quotationId))
+        .returning();
 
-    // Delete the main quotation record
-    const response = await databases.deleteDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_QUOTATIONS_COLLECTION_ID!,
-      quotationId
-    );
+      return deletedQuotation;
+    });
 
     revalidatePath("/quotations");
-    return parseStringify(response);
+    return parseStringify(result);
   } catch (error) {
     console.error("Error deleting quotation:", error);
     throw error;

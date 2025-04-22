@@ -31,7 +31,7 @@ const Quotations = () => {
         onPageChange={setPage}
         pageSize={pageSize}
         onPageSizeChange={setPageSize}
-        searchBy="quotationNumber"
+        searchBy={["quotation.quotationNumber", "customer.name"]}
       />
     </PageWraper>
   );

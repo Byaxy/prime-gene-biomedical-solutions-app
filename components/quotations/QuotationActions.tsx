@@ -1,12 +1,16 @@
-import { Quotation } from "@/types/appwrite.types";
 import { useState } from "react";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useQuotations } from "@/hooks/useQuotations";
 import QuotationDialog from "./QuotationsDialog";
 import { useRouter } from "next/navigation";
+import { QuotationWithRelations } from "@/types";
 
-const QuotationActions = ({ quotation }: { quotation: Quotation }) => {
+const QuotationActions = ({
+  quotation,
+}: {
+  quotation: QuotationWithRelations;
+}) => {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"add" | "edit" | "delete">("add");
 
@@ -17,7 +21,7 @@ const QuotationActions = ({ quotation }: { quotation: Quotation }) => {
   const handleAction = async () => {
     try {
       if (mode === "delete") {
-        await deleteQuotation(quotation.$id, {
+        await deleteQuotation(quotation.quotation.id, {
           onSuccess: () => setOpen(false),
         });
       }
@@ -31,7 +35,7 @@ const QuotationActions = ({ quotation }: { quotation: Quotation }) => {
       <span
         onClick={() => {
           setMode("edit");
-          router.push(`/quotations/edit-quotation/${quotation.$id}`);
+          router.push(`/quotations/edit-quotation/${quotation.quotation.id}`);
         }}
         className="text-[#475BE8] p-1 hover:bg-white hover:rounded-md cursor-pointer"
       >
@@ -51,7 +55,7 @@ const QuotationActions = ({ quotation }: { quotation: Quotation }) => {
         mode="delete"
         open={open && mode === "delete"}
         onOpenChange={setOpen}
-        quotation={quotation}
+        quotation={quotation.quotation}
         onSubmit={handleAction}
         isLoading={isDeletingQuotation}
       />

@@ -7,6 +7,7 @@ import {
   getQuotations,
 } from "@/lib/actions/quotation.actions";
 import { QuotationFormValues } from "@/lib/validation";
+import { QuotationWithRelations } from "@/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -70,12 +71,9 @@ export const useQuotations = ({
         return addQuotation(data);
       },
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["quotations"] });
-        toast.success("Quotation created successfully");
-      },
-      onError: (error) => {
-        console.error("Error creating quotation:", error);
-        toast.error("Failed to create quotation");
+        queryClient.invalidateQueries({
+          queryKey: ["quotations", "paginatedQuotations"],
+        });
       },
     });
 
@@ -91,12 +89,9 @@ export const useQuotations = ({
         return editQuotation(data, id);
       },
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["quotations"] });
-        toast.success("Quotation updated successfully");
-      },
-      onError: (error) => {
-        console.error("Error updating quotation:", error);
-        toast.error("Failed to update quotation");
+        queryClient.invalidateQueries({
+          queryKey: ["quotations", "paginatedQuotations"],
+        });
       },
     });
 
@@ -116,7 +111,8 @@ export const useQuotations = ({
   return {
     quotations: getAllQuotations
       ? allQuotationsQuery.data
-      : paginatedQuotationsQuery.data?.documents || [],
+      : paginatedQuotationsQuery.data?.documents ||
+        ([] as QuotationWithRelations[]),
     totalItems: paginatedQuotationsQuery.data?.total || 0,
     isLoading: getAllQuotations
       ? allQuotationsQuery.isLoading

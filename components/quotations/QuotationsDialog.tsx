@@ -1,5 +1,4 @@
 import { QuotationFormValues } from "@/lib/validation";
-import { Quotation } from "@/types/appwrite.types";
 import {
   Dialog,
   DialogContent,
@@ -8,6 +7,7 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 import { Button } from "../ui/button";
+import { Quotation } from "@/types";
 interface QuotationDialogProps {
   mode: "add" | "edit" | "delete";
   open: boolean;
@@ -27,9 +27,10 @@ const QuotationDialog = ({
 }: QuotationDialogProps) => {
   const handleDelete = async () => {
     try {
-      if (quotation && quotation.$id) {
+      if (quotation && quotation.id) {
         await onSubmit({
           ...quotation,
+          products: [],
         });
       } else {
         throw new Error("Quotation is required.");

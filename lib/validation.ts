@@ -281,34 +281,31 @@ export const QuotationFormValidation = z.object({
   quotationDate: z.date().refine((date) => date <= new Date(), {
     message: "Quotation date cannot be in the future",
   }),
-  customer: z.string().nonempty("Customer is required"),
+  customerId: z.string().nonempty("Customer is required"),
   totalAmount: z.number().min(0, "Total amount must be 0 or more"),
-  amountPaid: z.number().min(0, "Amount paid must be 0 or more"),
+  totalTaxAmount: z.number().min(0, "Tax amount must be 0 or more"),
   status: z
     .enum(Object.values(QuotationStatus) as [string, ...string[]])
     .default(QuotationStatus.Pending),
-  paymentMethod: z
-    .enum(Object.values(PaymentMethod) as [string, ...string[]])
-    .default(PaymentMethod.Cash),
   notes: z.string().optional(),
+  convertedToSale: z.boolean().default(false),
   products: z
     .array(
       z.object({
-        product: z.string().nonempty("Product is required"),
+        productId: z.string().nonempty("Product is required"),
         quantity: z.number().int().min(0, "Quantity must be 0 or more"),
         unitPrice: z.number().min(0, "Unit price must be 0 or more"),
         totalPrice: z.number().min(0, "Total price must be 0 or more"),
-        productName: z.string().optional(),
-        productLotNumber: z.string().optional(),
-        productUnit: z.string().optional(),
+        taxAmount: z.number().min(0, "Tax amount must be 0 or more"),
+        taxRate: z.number().min(0, "Tax rate must be 0 or more"),
+        productName: z.string(),
+        productID: z.string(),
       })
     )
     .min(1, "At least one product is required"),
 
   // Temporary fields for product selection
-  selectedProduct: z.string().optional(),
-  tempQuantity: z.number().optional(),
-  tempPrice: z.number().optional(),
+  selectedProductId: z.string().optional(),
 });
 export type QuotationFormValues = z.infer<typeof QuotationFormValidation>;
 

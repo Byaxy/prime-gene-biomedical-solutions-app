@@ -440,13 +440,9 @@ export const quotationsTable = pgTable("quotations", {
   customerId: uuid("customer_id")
     .notNull()
     .references(() => customersTable.id, { onDelete: "set null" }), // Foreign key to customers
-  storeId: uuid("store_id")
-    .notNull()
-    .references(() => storesTable.id, { onDelete: "cascade" }), // Foreign key to stores
   totalAmount: numeric("total_amount").notNull(),
-  amountPaid: numeric("amount_paid").notNull(),
+  totalTaxAmount: numeric("total_tax_amount").notNull(),
   status: quotationStatusEnum("status").notNull().default("pending"),
-  paymentMethod: paymentMethodEnum("payment_method").notNull().default("cash"),
   convertedToSale: boolean("converted_to_sale").notNull().default(false), // Track if converted to sale
   notes: text("notes"),
   isActive: boolean("is_active").notNull().default(true),
@@ -465,14 +461,13 @@ export const quotationItemsTable = pgTable("quotation_items", {
   productId: uuid("product_id")
     .notNull()
     .references(() => productsTable.id, { onDelete: "cascade" }), // Foreign key to products
-  storeId: uuid("store_id")
-    .notNull()
-    .references(() => storesTable.id, { onDelete: "cascade" }), // Foreign key to stores
-  lotNumber: text("lot_number").notNull(),
   quantity: integer("quantity").notNull(),
-  sellingPrice: numeric("selling_price").notNull(),
+  unitPrice: numeric("unit_price").notNull(),
   totalPrice: numeric("total_price").notNull(),
-  status: quotationItemStatusEnum("status").notNull().default("pending"),
+  taxAmount: numeric("tax_amount").notNull(),
+  taxRate: numeric("tax_rate").default(0),
+  productName: text("product_name"),
+  productID: text("product_ID"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

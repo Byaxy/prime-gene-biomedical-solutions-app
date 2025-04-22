@@ -735,3 +735,434 @@ export const payslipsTable = pgTable("payslips", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+// Recruitment
+export const jobOpeningsTable = pgTable("job_openings", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  jobPositionId: uuid("job_position_id")
+    .notNull()
+    .references(() => jobPositionsTable.id, { onDelete: "restrict" }),
+  departmentId: uuid("department_id")
+    .notNull()
+    .references(() => departmentsTable.id, { onDelete: "restrict" }),
+  description: text("description"),
+  requirements: text("requirements"),
+  responsibilities: text("responsibilities"),
+  status: text("status").notNull().default("draft"), // draft, open, closed, cancelled
+  openingDate: timestamp("opening_date").notNull(),
+  closingDate: timestamp("closing_date"),
+  expectedHires: integer("expected_hires"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const jobApplicantsTable = pgTable("job_applicants", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  jobOpeningId: uuid("job_opening_id")
+    .notNull()
+    .references(() => jobOpeningsTable.id, { onDelete: "cascade" }),
+  firstName: text("first_name").notNull(),
+  middleName: text("middle_name"),
+  lastName: text("last_name").notNull(),
+  email: text("email").notNull(),
+  phone: text("phone").notNull(),
+  resumeId: text("resume_id"),
+  resumeUrl: text("resume_url"),
+  coverLetter: text("cover_letter"),
+  status: text("status").notNull().default("applied"), // applied, under_review, interview_scheduled, rejected, hired
+  source: text("source"), // How they found the job
+  currentCompany: text("current_company"),
+  currentJobTitle: text("current_job_title"),
+  expectedSalary: numeric("expected_salary"),
+  noticePeriod: text("notice_period"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const interviewsTable = pgTable("interviews", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  jobApplicantId: uuid("job_applicant_id")
+    .notNull()
+    .references(() => jobApplicantsTable.id, { onDelete: "cascade" }),
+  scheduledDate: timestamp("scheduled_date").notNull(),
+  interviewType: text("interview_type").notNull(), // phone, video, in-person
+  interviewers: text("interviewers"), // Comma-separated list of interviewer IDs
+  feedback: text("feedback"),
+  status: text("status").notNull().default("scheduled"), // scheduled, completed, cancelled
+  rating: integer("rating"),
+  notes: text("notes"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Training & Development
+export const trainingProgramsTable = pgTable("training_programs", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date").notNull(),
+  duration: text("duration"), // e.g., "2 weeks", "3 months"
+  trainer: text("trainer"),
+  location: text("location"),
+  cost: numeric("cost").default(0),
+  status: text("status").notNull().default("planned"), // planned, in_progress, completed, cancelled
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const employeeTrainingTable = pgTable("employee_training", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  employeeId: uuid("employee_id")
+    .notNull()
+    .references(() => employeesTable.id, { onDelete: "cascade" }),
+  trainingProgramId: uuid("training_program_id")
+    .notNull()
+    .references(() => trainingProgramsTable.id, { onDelete: "cascade" }),
+  status: text("status").notNull().default("registered"), // registered, in_progress, completed, dropped
+  completionDate: timestamp("completion_date"),
+  feedback: text("feedback"),
+  score: numeric("score"),
+  certificateId: text("certificate_id"),
+  certificateUrl: text("certificate_url"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const skillsTable = pgTable("skills", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  category: text("category"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const employeeSkillsTable = pgTable("employee_skills", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  employeeId: uuid("employee_id")
+    .notNull()
+    .references(() => employeesTable.id, { onDelete: "cascade" }),
+  skillId: uuid("skill_id")
+    .notNull()
+    .references(() => skillsTable.id, { onDelete: "cascade" }),
+  proficiency: text("proficiency").notNull(), // beginner, intermediate, advanced, expert
+  yearsOfExperience: numeric("years_of_experience"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Performance Management
+export const performanceCyclesTable = pgTable("performance_cycles", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date").notNull(),
+  description: text("description"),
+  status: text("status").notNull().default("draft"), // draft, active, completed
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const performanceReviewsTable = pgTable("performance_reviews", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  employeeId: uuid("employee_id")
+    .notNull()
+    .references(() => employeesTable.id, { onDelete: "cascade" }),
+  reviewerId: uuid("reviewer_id")
+    .notNull()
+    .references(() => employeesTable.id, { onDelete: "restrict" }),
+  performanceCycleId: uuid("performance_cycle_id")
+    .notNull()
+    .references(() => performanceCyclesTable.id, { onDelete: "cascade" }),
+  reviewDate: timestamp("review_date").notNull(),
+  status: text("status").notNull().default("draft"), // draft, in_progress, completed
+  overallRating: numeric("overall_rating"),
+  strengths: text("strengths"),
+  areasForImprovement: text("areas_for_improvement"),
+  comments: text("comments"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const performanceGoalsTable = pgTable("performance_goals", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  employeeId: uuid("employee_id")
+    .notNull()
+    .references(() => employeesTable.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date").notNull(),
+  targetValue: text("target_value"),
+  currentValue: text("current_value"),
+  progress: numeric("progress").default(0),
+  status: text("status").notNull().default("draft"), // draft, in_progress, completed, cancelled
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Employee Benefits
+export const benefitTypesTable = pgTable("benefit_types", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  isTaxable: boolean("is_taxable").notNull().default(false),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const benefitPlansTable = pgTable("benefit_plans", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  benefitTypeId: uuid("benefit_type_id")
+    .notNull()
+    .references(() => benefitTypesTable.id, { onDelete: "restrict" }),
+  description: text("description"),
+  costToCompany: numeric("cost_to_company").default(0),
+  employeeContribution: numeric("employee_contribution").default(0),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const employeeBenefitsTable = pgTable("employee_benefits", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  employeeId: uuid("employee_id")
+    .notNull()
+    .references(() => employeesTable.id, { onDelete: "cascade" }),
+  benefitPlanId: uuid("benefit_plan_id")
+    .notNull()
+    .references(() => benefitPlansTable.id, { onDelete: "restrict" }),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date"),
+  amount: numeric("amount").default(0),
+  status: text("status").notNull().default("active"), // active, cancelled, suspended
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Employee Documents
+export const documentTypesTable = pgTable("document_types", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  isRequired: boolean("is_required").notNull().default(false),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const employeeDocumentsTable = pgTable("employee_documents", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  employeeId: uuid("employee_id")
+    .notNull()
+    .references(() => employeesTable.id, { onDelete: "cascade" }),
+  documentTypeId: uuid("document_type_id")
+    .notNull()
+    .references(() => documentTypesTable.id, { onDelete: "restrict" }),
+  documentId: text("document_id").notNull(),
+  documentUrl: text("document_url").notNull(),
+  issueDate: timestamp("issue_date"),
+  expiryDate: timestamp("expiry_date"),
+  isVerified: boolean("is_verified").notNull().default(false),
+  verifiedBy: uuid("verified_by").references(() => employeesTable.id, {
+    onDelete: "set null",
+  }),
+  verifiedDate: timestamp("verified_date"),
+  notes: text("notes"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Grievances & Disciplinary Actions
+export const grievanceTypesTable = pgTable("grievance_types", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  severity: text("severity").notNull(), // low, medium, high, critical
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const employeeGrievancesTable = pgTable("employee_grievances", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  employeeId: uuid("employee_id")
+    .notNull()
+    .references(() => employeesTable.id, { onDelete: "cascade" }),
+  grievanceTypeId: uuid("grievance_type_id")
+    .notNull()
+    .references(() => grievanceTypesTable.id, { onDelete: "restrict" }),
+  reportedDate: timestamp("reported_date").notNull(),
+  description: text("description").notNull(),
+  status: text("status").notNull().default("open"), // open, investigating, resolved, closed
+  resolution: text("resolution"),
+  resolvedDate: timestamp("resolved_date"),
+  resolvedBy: uuid("resolved_by").references(() => employeesTable.id, {
+    onDelete: "set null",
+  }),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const disciplinaryActionTypesTable = pgTable(
+  "disciplinary_action_types",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    name: text("name").notNull(),
+    description: text("description"),
+    severity: text("severity").notNull(), // warning, reprimand, suspension, termination
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  }
+);
+
+export const disciplinaryActionsTable = pgTable("disciplinary_actions", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  employeeId: uuid("employee_id")
+    .notNull()
+    .references(() => employeesTable.id, { onDelete: "cascade" }),
+  actionTypeId: uuid("action_type_id")
+    .notNull()
+    .references(() => disciplinaryActionTypesTable.id, {
+      onDelete: "restrict",
+    }),
+  issuedDate: timestamp("issued_date").notNull(),
+  effectiveDate: timestamp("effective_date").notNull(),
+  endDate: timestamp("end_date"),
+  description: text("description").notNull(),
+  reason: text("reason").notNull(),
+  status: text("status").notNull().default("active"), // active, expired, cancelled
+  issuedBy: uuid("issued_by")
+    .notNull()
+    .references(() => employeesTable.id, { onDelete: "restrict" }),
+  notes: text("notes"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Exit Management
+export const exitTypesTable = pgTable("exit_types", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const exitReasonsTable = pgTable("exit_reasons", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const employeeExitsTable = pgTable("employee_exits", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  employeeId: uuid("employee_id")
+    .notNull()
+    .references(() => employeesTable.id, { onDelete: "cascade" }),
+  exitTypeId: uuid("exit_type_id")
+    .notNull()
+    .references(() => exitTypesTable.id, { onDelete: "restrict" }),
+  exitReasonId: uuid("exit_reason_id").references(() => exitReasonsTable.id, {
+    onDelete: "set null",
+  }),
+  resignationDate: timestamp("resignation_date"),
+  lastWorkingDate: timestamp("last_working_date").notNull(),
+  noticePeriod: text("notice_period"),
+  status: text("status").notNull().default("initiated"), // initiated, in_progress, completed
+  exitInterviewDate: timestamp("exit_interview_date"),
+  exitInterviewNotes: text("exit_interview_notes"),
+  feedback: text("feedback"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const exitChecklistTable = pgTable("exit_checklist", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  employeeExitId: uuid("employee_exit_id")
+    .notNull()
+    .references(() => employeeExitsTable.id, { onDelete: "cascade" }),
+  task: text("task").notNull(),
+  assignedTo: uuid("assigned_to").references(() => employeesTable.id, {
+    onDelete: "set null",
+  }),
+  status: text("status").notNull().default("pending"), // pending, in_progress, completed
+  dueDate: timestamp("due_date"),
+  completedDate: timestamp("completed_date"),
+  notes: text("notes"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});

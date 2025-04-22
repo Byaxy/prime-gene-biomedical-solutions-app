@@ -91,6 +91,7 @@ export interface Vendor {
   updatedAt: Date;
 }
 
+// Customers
 export interface Customer {
   id: string;
   name: string;
@@ -102,6 +103,7 @@ export interface Customer {
   updatedAt: Date;
 }
 
+// Products
 export interface Product {
   id: string;
   productID: string;
@@ -122,6 +124,15 @@ export interface Product {
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
+}
+// Product with relations
+export interface ProductWithRelations {
+  product: Product;
+  category: { id: string; name: string };
+  brand: { id: string; name: string };
+  type: { id: string; name: string };
+  unit: { id: string; name: string; code: string };
+  taxRate: { id: string; name: string; taxRate: number };
 }
 
 export interface Expense {
@@ -217,15 +228,40 @@ export interface InventoryTransactionWithRelations {
   };
 }
 
-// Product with relations
-export interface ProductWithRelations {
-  product: Product;
-  category: { id: string; name: string };
-  brand: { id: string; name: string };
-  type: { id: string; name: string };
-  unit: { id: string; name: string; code: string };
-  taxRate: { id: string; name: string; taxRate: number };
+// Quotations
+export interface Quotation {
+  id: string;
+  quotationNumber: string;
+  quotationDate: Date;
+  customerId: string;
+  totalAmount: number;
+  totalTaxAmount: number;
+  convertedToSale: boolean;
+  status: QuotationStatus;
+  notes: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
+
+export interface QuotationItem {
+  id: string;
+  quotationId: string;
+  productId: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  taxAmount: number;
+  taxRate: number;
+  productName: string;
+  productID: string;
+}
+export interface QuotationWithRelations {
+  quotation: Quotation;
+  customer: Customer;
+  products: QuotationItem[];
+}
+
 // payment methods
 export enum PaymentMethod {
   Cash = "cash",
