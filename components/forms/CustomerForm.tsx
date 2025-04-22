@@ -14,9 +14,15 @@ interface CustomerFormProps {
   mode: "create" | "edit";
   initialData?: Customer;
   onSubmit: (data: CustomerFormValues) => Promise<void>;
+  onCancel?: () => void;
 }
 
-const CustomerForm = ({ mode, initialData, onSubmit }: CustomerFormProps) => {
+const CustomerForm = ({
+  mode,
+  initialData,
+  onSubmit,
+  onCancel,
+}: CustomerFormProps) => {
   const [isLoading, setIsLoading] = useState(false);
 
   const form = useForm<CustomerFormValues>({
@@ -33,6 +39,7 @@ const CustomerForm = ({ mode, initialData, onSubmit }: CustomerFormProps) => {
     setIsLoading(true);
     try {
       await onSubmit(values);
+      onCancel?.();
     } catch (error) {
       console.error("Error submitting form:", error);
     } finally {
@@ -78,7 +85,10 @@ const CustomerForm = ({ mode, initialData, onSubmit }: CustomerFormProps) => {
         <div className="flex justify-end gap-4 mt-4">
           <Button
             type="button"
-            onClick={() => form.reset()}
+            onClick={() => {
+              form.reset();
+              onCancel?.();
+            }}
             className="shad-danger-btn"
           >
             Cancel

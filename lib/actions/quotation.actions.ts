@@ -234,6 +234,48 @@ export const getQuotationById = async (quotationId: string) => {
   }
 };
 
+// Generate quotation number
+export const generateQuotationNumber = async (): Promise<string> => {
+  try {
+    const result = await db.transaction(async (tx) => {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+
+      const lastQuotation = await tx
+        .select({ quotationNumber: quotationsTable.quotationNumber })
+        .from(quotationsTable)
+        .where(
+          sql`quotation_number LIKE ${`QN${year}/${month}/%`}` &&
+            eq(quotationsTable.isActive, true)
+        )
+        .orderBy(desc(quotationsTable.createdAt))
+        .limit(1);
+
+      let nextSequence = 1;
+      if (lastQuotation.length > 0) {
+        const lastQuotationNumber = lastQuotation[0].quotationNumber;
+        const lastSequence = parseInt(
+          lastQuotationNumber.split("/").pop() || "0",
+          10
+        );
+        nextSequence = lastSequence + 1;
+      }
+
+      const sequenceNumber = String(nextSequence).padStart(4, "0");
+
+      revalidatePath("/quotations/create-quotation");
+
+      return `QN${year}/${month}/${sequenceNumber}`;
+    });
+
+    return result;
+  } catch (error) {
+    console.error("Error generating quotation number:", error);
+    throw error;
+  }
+};
+
 // Get all quotations with pagination
 export const getQuotations = async (
   page: number = 0,
@@ -253,6 +295,7 @@ export const getQuotations = async (
           customersTable,
           eq(quotationsTable.customerId, customersTable.id)
         )
+        .where(eq(quotationsTable.isActive, true))
         .orderBy(desc(quotationsTable.createdAt));
 
       if (!getAllQuotations) {
@@ -277,7 +320,10 @@ export const getQuotations = async (
           productId: quotationItemsTable.productId,
         })
         .from(quotationItemsTable)
-        .where(inArray(quotationItemsTable.quotationId, quotationIds));
+        .where(
+          inArray(quotationItemsTable.quotationId, quotationIds) &&
+            eq(quotationItemsTable.isActive, true)
+        );
 
       // Combine the data
       const quotationsWithItems = quotations.map((quotation) => ({
@@ -343,6 +389,31 @@ export const deleteQuotation = async (quotationId: string) => {
     return parseStringify(result);
   } catch (error) {
     console.error("Error deleting quotation:", error);
+    throw error;
+  }
+};
+
+// Soft delete quotation with transaction
+export const softDeleteQuotation = async (quotationId: string) => {
+  try {
+    const result = await db.transaction(async (tx) => {
+      await tx
+        .update(quotationItemsTable)
+        .set({ isActive: false })
+        .where(eq(quotationItemsTable.quotationId, quotationId));
+
+      const [updatedQuotation] = await tx
+        .update(quotationsTable)
+        .set({ isActive: false })
+        .where(eq(quotationsTable.id, quotationId))
+        .returning();
+
+      return updatedQuotation;
+    });
+    revalidatePath("/quotations");
+    return parseStringify(result);
+  } catch (error) {
+    console.error("Error soft deleting quotation:", error);
     throw error;
   }
 };

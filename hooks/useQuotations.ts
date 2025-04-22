@@ -5,6 +5,7 @@ import {
   deleteQuotation,
   editQuotation,
   getQuotations,
+  softDeleteQuotation,
 } from "@/lib/actions/quotation.actions";
 import { QuotationFormValues } from "@/lib/validation";
 import { QuotationWithRelations } from "@/types";
@@ -95,6 +96,21 @@ export const useQuotations = ({
       },
     });
 
+  const {
+    mutate: softDeleteQuotationMutation,
+    status: softDeleteQuotationStatus,
+  } = useMutation({
+    mutationFn: (id: string) => softDeleteQuotation(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["quotations"] });
+      toast.success("Quotation deleted successfully");
+    },
+    onError: (error) => {
+      console.error("Error deleting quotation:", error);
+      toast.error("Failed to delete quotation");
+    },
+  });
+
   const { mutate: deleteQuotationMutation, status: deleteQuotationStatus } =
     useMutation({
       mutationFn: (id: string) => deleteQuotation(id),
@@ -130,5 +146,7 @@ export const useQuotations = ({
     isEditingQuotation: editQuotationStatus === "pending",
     deleteQuotation: deleteQuotationMutation,
     isDeletingQuotation: deleteQuotationStatus === "pending",
+    softDeleteQuotation: softDeleteQuotationMutation,
+    isSoftDeletingQuotation: softDeleteQuotationStatus === "pending",
   };
 };

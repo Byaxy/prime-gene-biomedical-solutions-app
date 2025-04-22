@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { ProductWithRelations } from "@/types";
 import { type ClassValue, clsx } from "clsx";
 import { numericFormatter } from "react-number-format";
@@ -115,7 +116,6 @@ export const exportToExcel = (data: any[], fileName: string) => {
   writeFile(wb, `${fileName}.xlsx`);
 };
 
-// lib/utils.ts
 export const transformProductsForExport = (
   products: ProductWithRelations[]
 ) => {

@@ -34,6 +34,7 @@ const DuplicateInventory = () => {
             product
               ? {
                   ...product.product,
+                  quantity: 0,
                 }
               : undefined
           }

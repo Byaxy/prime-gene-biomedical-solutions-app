@@ -8,6 +8,7 @@ import {
 } from "../ui/dialog";
 import { Button } from "../ui/button";
 import { Customer } from "@/types";
+import CustomerForm from "../forms/CustomerForm";
 
 interface CustomerDialogProps {
   mode: "add" | "edit" | "delete";
@@ -79,6 +80,16 @@ const CustomerDialog = ({
                 Delete
               </Button>
             </div>
+          </div>
+        )}
+
+        {mode === "add" && (
+          <div className="flex flex-col gap-4">
+            <CustomerForm
+              onSubmit={onSubmit}
+              mode="create"
+              onCancel={() => onOpenChange(false)}
+            />
           </div>
         )}
       </DialogContent>

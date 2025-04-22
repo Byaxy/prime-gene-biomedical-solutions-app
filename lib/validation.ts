@@ -293,7 +293,7 @@ export const QuotationFormValidation = z.object({
     .array(
       z.object({
         productId: z.string().nonempty("Product is required"),
-        quantity: z.number().int().min(0, "Quantity must be 0 or more"),
+        quantity: z.number().int().min(1, "Quantity must be 1 or more"),
         unitPrice: z.number().min(0, "Unit price must be 0 or more"),
         totalPrice: z.number().min(0, "Total price must be 0 or more"),
         taxAmount: z.number().min(0, "Tax amount must be 0 or more"),
