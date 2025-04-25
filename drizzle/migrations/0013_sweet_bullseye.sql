@@ -1,0 +1,1 @@
+ALTER TABLE "quotations" ADD COLUMN "rfq_number" text NOT NULL;

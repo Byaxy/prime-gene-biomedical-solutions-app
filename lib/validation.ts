@@ -278,12 +278,16 @@ export type CompanySettingsFormValues = z.infer<
 // Quotations
 export const QuotationFormValidation = z.object({
   quotationNumber: z.string().nonempty("Quotation number is required"),
+  rfqNumber: z.string().nonempty("Request for quotation number is required"),
   quotationDate: z.date().refine((date) => date <= new Date(), {
     message: "Quotation date cannot be in the future",
   }),
   customerId: z.string().nonempty("Customer is required"),
+  taxRateId: z.string().nonempty("Tax is required"),
   totalAmount: z.number().min(0, "Total amount must be 0 or more"),
   totalTaxAmount: z.number().min(0, "Tax amount must be 0 or more"),
+  discountAmount: z.number().min(0, "Discount amount must be 0 or more"),
+  discountRate: z.number().min(0, "Discount rate must be 0 or more"),
   status: z
     .enum(Object.values(QuotationStatus) as [string, ...string[]])
     .default(QuotationStatus.Pending),
@@ -296,13 +300,19 @@ export const QuotationFormValidation = z.object({
         quantity: z.number().int().min(1, "Quantity must be 1 or more"),
         unitPrice: z.number().min(0, "Unit price must be 0 or more"),
         totalPrice: z.number().min(0, "Total price must be 0 or more"),
+        subTotal: z.number().min(0, "Sub total must be 0 or more"),
         taxAmount: z.number().min(0, "Tax amount must be 0 or more"),
         taxRate: z.number().min(0, "Tax rate must be 0 or more"),
+        discountAmount: z.number().min(0, "Discount amount must be 0 or more"),
+        discountRate: z.number().min(0, "Discount rate must be 0 or more"),
         productName: z.string(),
         productID: z.string(),
       })
     )
     .min(1, "At least one product is required"),
+  attachment: z.any().optional(),
+  attachmentUrl: z.string().optional(),
+  attachmentId: z.string().optional(),
 
   // Temporary fields for product selection
   selectedProductId: z.string().optional(),

@@ -232,13 +232,19 @@ export interface InventoryTransactionWithRelations {
 export interface Quotation {
   id: string;
   quotationNumber: string;
+  rfqNumber: string;
   quotationDate: Date;
   customerId: string;
+  taxRateId: string;
+  discountRate: number;
+  discountAmount: number;
   totalAmount: number;
   totalTaxAmount: number;
   convertedToSale: boolean;
   status: QuotationStatus;
   notes: string;
+  attachmentId: string;
+  attachmentUrl: string;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -251,8 +257,11 @@ export interface QuotationItem {
   quantity: number;
   unitPrice: number;
   totalPrice: number;
+  subTotal: number;
   taxAmount: number;
   taxRate: number;
+  discountRate: number;
+  discountAmount: number;
   productName: string;
   productID: string;
 }

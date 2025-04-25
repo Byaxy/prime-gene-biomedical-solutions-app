@@ -22,12 +22,18 @@ export const addQuotation = async (quotation: QuotationFormValues) => {
         .insert(quotationsTable)
         .values({
           quotationNumber: quotation.quotationNumber,
+          rfqNumber: quotation.rfqNumber,
           quotationDate: quotation.quotationDate,
           customerId: quotation.customerId,
+          taxRateId: quotation.taxRateId,
+          discountAmount: quotation.discountAmount,
+          discountRate: quotation.discountRate,
           totalAmount: quotation.totalAmount,
           totalTaxAmount: quotation.totalTaxAmount,
           status: quotation.status as "pending" | "completed" | "cancelled",
           notes: quotation.notes,
+          attachmentId: quotation.attachmentId,
+          attachmentUrl: quotation.attachmentUrl,
           convertedToSale: quotation.convertedToSale,
         })
         .returning();
@@ -43,7 +49,10 @@ export const addQuotation = async (quotation: QuotationFormValues) => {
               quantity: product.quantity,
               unitPrice: product.unitPrice,
               totalPrice: product.totalPrice,
+              subTotal: product.subTotal,
               taxAmount: product.taxAmount,
+              discountAmount: product.discountAmount,
+              discountRate: product.discountRate,
               taxRate: product.taxRate,
               productName: product.productName,
               productID: product.productID,
@@ -72,18 +81,45 @@ export const editQuotation = async (
   try {
     const result = await db.transaction(async (tx) => {
       // Update main quotation record
-      const [updatedQuotation] = await tx
-        .update(quotationsTable)
-        .set({
+      let updatedQuotationData;
+
+      if (quotation.attachmentId && quotation.attachmentUrl) {
+        updatedQuotationData = {
           quotationNumber: quotation.quotationNumber,
+          rfqNumber: quotation.rfqNumber,
           quotationDate: quotation.quotationDate,
           customerId: quotation.customerId,
+          taxRateId: quotation.taxRateId,
+          discountAmount: quotation.discountAmount,
+          discountRate: quotation.discountRate,
+          totalAmount: quotation.totalAmount,
+          totalTaxAmount: quotation.totalTaxAmount,
+          status: quotation.status as "pending" | "completed" | "cancelled",
+          notes: quotation.notes,
+          attachmentId: quotation.attachmentId,
+          attachmentUrl: quotation.attachmentUrl,
+          convertedToSale: quotation.convertedToSale,
+        };
+      } else {
+        updatedQuotationData = {
+          quotationNumber: quotation.quotationNumber,
+          rfqNumber: quotation.rfqNumber,
+          quotationDate: quotation.quotationDate,
+          customerId: quotation.customerId,
+          taxRateId: quotation.taxRateId,
+          discountAmount: quotation.discountAmount,
+          discountRate: quotation.discountRate,
           totalAmount: quotation.totalAmount,
           totalTaxAmount: quotation.totalTaxAmount,
           status: quotation.status as "pending" | "completed" | "cancelled",
           notes: quotation.notes,
           convertedToSale: quotation.convertedToSale,
-        })
+        };
+      }
+
+      const [updatedQuotation] = await tx
+        .update(quotationsTable)
+        .set(updatedQuotationData)
         .where(eq(quotationsTable.id, quotationId))
         .returning();
 
@@ -131,8 +167,11 @@ export const editQuotation = async (
                 quantity: product.quantity,
                 unitPrice: product.unitPrice,
                 totalPrice: product.totalPrice,
+                subTotal: product.subTotal,
                 taxAmount: product.taxAmount,
                 taxRate: product.taxRate,
+                discountAmount: product.discountAmount,
+                discountRate: product.discountRate,
               })
               .where(eq(quotationItemsTable.id, existingItem.id))
               .returning();
@@ -147,8 +186,11 @@ export const editQuotation = async (
                 quantity: product.quantity,
                 unitPrice: product.unitPrice,
                 totalPrice: product.totalPrice,
+                subTotal: product.subTotal,
                 taxAmount: product.taxAmount,
                 taxRate: product.taxRate,
+                discountAmount: product.discountAmount,
+                discountRate: product.discountRate,
                 productName: product.productName,
                 productID: product.productID,
               })
@@ -199,8 +241,11 @@ export const getQuotationById = async (quotationId: string) => {
           quantity: quotationItemsTable.quantity,
           unitPrice: quotationItemsTable.unitPrice,
           totalPrice: quotationItemsTable.totalPrice,
+          subTotal: quotationItemsTable.subTotal,
           taxAmount: quotationItemsTable.taxAmount,
           taxRate: quotationItemsTable.taxRate,
+          discountAmount: quotationItemsTable.discountAmount,
+          discountRate: quotationItemsTable.discountRate,
           productName: quotationItemsTable.productName,
           productID: quotationItemsTable.productID,
           productId: quotationItemsTable.productId,
@@ -216,8 +261,11 @@ export const getQuotationById = async (quotationId: string) => {
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           totalPrice: item.totalPrice,
+          subTotal: item.subTotal,
           taxAmount: item.taxAmount,
           taxRate: item.taxRate,
+          discountAmount: item.discountAmount,
+          discountRate: item.discountRate,
           productName: item.productName,
           productID: item.productID,
           productId: item.productId,
@@ -246,7 +294,7 @@ export const generateQuotationNumber = async (): Promise<string> => {
         .select({ quotationNumber: quotationsTable.quotationNumber })
         .from(quotationsTable)
         .where(
-          sql`quotation_number LIKE ${`QN${year}/${month}/%`}` &&
+          sql`quotation_number LIKE ${`PFI${year}/${month}/%`}` &&
             eq(quotationsTable.isActive, true)
         )
         .orderBy(desc(quotationsTable.createdAt))
@@ -264,9 +312,7 @@ export const generateQuotationNumber = async (): Promise<string> => {
 
       const sequenceNumber = String(nextSequence).padStart(4, "0");
 
-      revalidatePath("/quotations/create-quotation");
-
-      return `QN${year}/${month}/${sequenceNumber}`;
+      return `PFI${year}/${month}/${sequenceNumber}`;
     });
 
     return result;
@@ -313,8 +359,11 @@ export const getQuotations = async (
           quantity: quotationItemsTable.quantity,
           unitPrice: quotationItemsTable.unitPrice,
           totalPrice: quotationItemsTable.totalPrice,
+          subTotal: quotationItemsTable.subTotal,
           taxAmount: quotationItemsTable.taxAmount,
           taxRate: quotationItemsTable.taxRate,
+          discountAmount: quotationItemsTable.discountAmount,
+          discountRate: quotationItemsTable.discountRate,
           productName: quotationItemsTable.productName,
           productID: quotationItemsTable.productID,
           productId: quotationItemsTable.productId,
@@ -335,8 +384,11 @@ export const getQuotations = async (
             quantity: item.quantity,
             unitPrice: item.unitPrice,
             totalPrice: item.totalPrice,
+            subTotal: item.subTotal,
             taxAmount: item.taxAmount,
             taxRate: item.taxRate,
+            discountAmount: item.discountAmount,
+            discountRate: item.discountRate,
             productName: item.productName,
             productID: item.productID,
             productId: item.productId,

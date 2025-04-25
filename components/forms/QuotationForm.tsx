@@ -5,12 +5,13 @@ import {
   CustomerFormValues,
   QuotationFormValidation,
   QuotationFormValues,
+  TaxFormValues,
 } from "@/lib/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useCallback, useEffect, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import toast from "react-hot-toast";
-import { Form } from "../ui/form";
+import { Form, FormControl } from "../ui/form";
 import CustomFormField, { FormFieldType } from "../CustomFormField";
 import { SelectItem } from "../ui/select";
 import { Button } from "../ui/button";
@@ -33,10 +34,17 @@ import {
   ProductWithRelations,
   QuotationStatus,
   QuotationWithRelations,
+  Tax,
 } from "@/types";
 import CustomerDialog from "../customers/CustomerDialog";
 import { useQuery } from "@tanstack/react-query";
 import { generateQuotationNumber } from "@/lib/actions/quotation.actions";
+import { RefreshCw } from "lucide-react";
+import { useTaxes } from "@/hooks/useTaxes";
+import TaxDialog from "../taxes/TaxDialog";
+import Loading from "../loading";
+import { useCompanySettings } from "@/hooks/useCompanySettings";
+import { FileUploader } from "../FileUploader";
 
 interface QuotationFormProps {
   mode: "create" | "edit";
@@ -44,10 +52,25 @@ interface QuotationFormProps {
 }
 
 const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
+  const [taxDialogOpen, setTaxDialogOpen] = useState(false);
 
-  const { products } = useProducts({ getAllProducts: true });
-  const { customers, addCustomer } = useCustomers({ getAllCustomers: true });
+  const { companySettings } = useCompanySettings();
+
+  const { products, isLoading: productsLoading } = useProducts({
+    getAllProducts: true,
+  });
+  const {
+    customers,
+    addCustomer,
+    isLoading: customersLoading,
+  } = useCustomers({ getAllCustomers: true });
+  const {
+    taxes,
+    isLoading: taxesLoading,
+    addTax,
+    isAddingTax,
+  } = useTaxes({ getAllTaxes: true });
   const {
     quotations,
     addQuotation,
@@ -59,20 +82,29 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
   });
 
   // Generate quotation number
-  const { data: generatedQuotationNumber, isLoading } = useQuery({
+  const {
+    data: generatedQuotationNumber,
+    isLoading,
+    refetch,
+    isRefetching,
+  } = useQuery({
     queryKey: ["quotation-number"],
     queryFn: async () => {
       if (mode !== "create") return null;
       const result = await generateQuotationNumber();
       return result;
     },
-    enabled: !!mode && mode === "create",
+    enabled: mode === "create",
   });
 
   const router = useRouter();
 
   const defaultValues = {
-    quotationNumber: "",
+    quotationNumber: generatedQuotationNumber || "",
+    rfqNumber: "",
+    taxRateId: "",
+    discountRate: 0,
+    discountAmount: 0,
     quotationDate: new Date(),
     products: [],
     customerId: "",
@@ -81,6 +113,9 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
     totalAmount: 0,
     totalTaxAmount: 0,
     convertedToSale: false,
+    attachment: [],
+    attachmentUrl: "",
+    attachmentId: "",
 
     selectedProductId: "",
   };
@@ -93,6 +128,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
         ? defaultValues
         : {
             quotationNumber: initialData?.quotation.quotationNumber,
+            rfqNumber: initialData?.quotation.rfqNumber,
             quotationDate: new Date(
               initialData?.quotation.quotationDate || Date.now()
             ),
@@ -104,16 +140,23 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                 totalPrice: product.totalPrice,
                 taxAmount: product.taxAmount,
                 taxRate: product.taxRate,
+                discountRate: product.discountRate,
+                discountAmount: product.discountAmount,
                 productID: product.productID,
                 productName: product.productName,
               })) || [],
 
             customerId: initialData?.quotation.customerId,
+            taxRateId: initialData?.quotation.taxRateId,
+            discountRate: initialData?.quotation.discountRate,
+            discountAmount: initialData?.quotation.discountAmount,
             status: initialData?.quotation.status as QuotationStatus,
             notes: initialData?.quotation.notes,
             totalAmount: initialData?.quotation.totalAmount,
             totalTaxAmount: initialData?.quotation.totalTaxAmount,
             convertedToSale: initialData?.quotation.convertedToSale,
+            attachmentId: initialData?.quotation.attachmentId || "",
+            attachmentUrl: initialData?.quotation.attachmentUrl || "",
 
             selectedProductId: "",
           },
@@ -125,10 +168,15 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
   });
 
   const selectedProductId = form.watch("selectedProductId");
+  const selectedTaxRateId = form.watch("taxRateId");
   const watchedFields = fields.map((_, index) => ({
     quantity: form.watch(`products.${index}.quantity`),
     unitPrice: form.watch(`products.${index}.unitPrice`),
   }));
+
+  const selectedTax: Tax = taxes?.find(
+    (tax: Tax) => tax.id === selectedTaxRateId
+  );
 
   // Set quotation number
   useEffect(() => {
@@ -136,6 +184,31 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
       form.setValue("quotationNumber", generatedQuotationNumber);
     }
   }, [generatedQuotationNumber, form, mode]);
+
+  // Update the refresh button handler
+  const handleRefreshQuotationNumber = async () => {
+    if (mode === "create") {
+      try {
+        await refetch();
+        if (generatedQuotationNumber) {
+          form.setValue("quotationNumber", generatedQuotationNumber);
+        }
+      } catch (error) {
+        console.error("Error refreshing quotation number:", error);
+        toast.error("Failed to refresh quotation number");
+      }
+    }
+  };
+
+  // Update the cancel button handler
+  const handleCancel = () => {
+    if (mode === "create") {
+      form.reset(defaultValues);
+      refetch();
+    } else {
+      form.reset();
+    }
+  };
 
   const handleAddProduct = () => {
     if (!selectedProductId) {
@@ -163,8 +236,11 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
       quantity: 0,
       unitPrice: selectedProduct.product.sellingPrice,
       totalPrice: 0,
+      subTotal: 0,
       taxAmount: 0,
-      taxRate: selectedProduct.taxRate.taxRate,
+      taxRate: selectedTax ? selectedTax.taxRate : 0,
+      discountRate: form.watch("discountRate") || 0,
+      discountAmount: 0,
       productID: selectedProduct.product.productID,
       productName: selectedProduct.product.name,
     });
@@ -177,7 +253,8 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
 
   // handle close dialog
   const closeDialog = () => {
-    setDialogOpen(false);
+    setCustomerDialogOpen(false);
+    setTaxDialogOpen(false);
 
     setTimeout(() => {
       const stuckSection = document.querySelector(".MuiBox-root.css-0");
@@ -200,13 +277,26 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
     });
   };
 
-  const validateQuotationNumber = (quotationNumber: string) => {
-    if (mode === "create") return true;
+  const handleAddTax = async (data: TaxFormValues): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      addTax(data, {
+        onSuccess: () => {
+          closeDialog();
+          resolve();
+        },
+        onError: (error) => {
+          reject(error);
+        },
+      });
+    });
+  };
 
+  const validateQuotationNumber = (quotationNumber: string) => {
     const existingQuotation = quotations?.find(
       (quotation: QuotationWithRelations) =>
         quotation.quotation.quotationNumber === quotationNumber
     );
+    if (mode === "create" && existingQuotation) return false;
 
     if (
       mode === "edit" &&
@@ -247,20 +337,48 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
         });
       }
       if (mode === "edit" && initialData) {
-        await editQuotation(
-          { id: initialData?.quotation.id, data: values },
-          {
-            onSuccess: () => {
-              toast.success("Quotation updated successfully!");
-              form.reset();
-              router.push("/quotations");
+        if (
+          values?.attachment &&
+          values?.attachment.length > 0 &&
+          initialData?.quotation.attachmentId
+        ) {
+          await editQuotation(
+            {
+              id: initialData?.quotation.id,
+              data: values,
+              prevAttachmentId: initialData?.quotation.attachmentId,
             },
-            onError: (error) => {
-              console.error("Update quotation error:", error);
-              toast.error("Failed to update quotation");
+            {
+              onSuccess: () => {
+                toast.success("Quotation updated successfully!");
+                form.reset();
+                router.push("/quotations");
+              },
+              onError: (error) => {
+                console.error("Update quotation error:", error);
+                toast.error("Failed to update quotation");
+              },
+            }
+          );
+        } else {
+          await editQuotation(
+            {
+              id: initialData?.quotation.id,
+              data: values,
             },
-          }
-        );
+            {
+              onSuccess: () => {
+                toast.success("Quotation updated successfully!");
+                form.reset();
+                router.push("/quotations");
+              },
+              onError: (error) => {
+                console.error("Update quotation error:", error);
+                toast.error("Failed to update quotation");
+              },
+            }
+          );
+        }
       }
     } catch (error) {
       console.error("Error submitting form:", error);
@@ -268,47 +386,40 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
     }
   };
 
-  const calculateSubTotal = useCallback(() => {
+  // Calculate raw subtotal (before any discounts)
+  const calculateRawSubTotal = useCallback(() => {
     let calculatedSubTotal = 0;
     fields.forEach((field, index) => {
       const quantity = form.watch(`products.${index}.quantity`) || 0;
       const unitPrice = form.watch(`products.${index}.unitPrice`) || 0;
-      const entrySubtotal = quantity * unitPrice;
-      calculatedSubTotal += entrySubtotal;
+      calculatedSubTotal += quantity * unitPrice;
     });
     return calculatedSubTotal;
   }, [fields, form]);
 
-  const calculateTotalAmount = useCallback(() => {
-    let calculatedTotal = 0;
-    fields.forEach((field, index) => {
-      const quantity = form.watch(`products.${index}.quantity`) || 0;
-      const unitPrice = form.watch(`products.${index}.unitPrice`) || 0;
-      const taxRate = field.taxRate || 0;
+  // Calculate discount amount
+  const calculateDiscountAmount = useCallback(() => {
+    const subTotal = calculateRawSubTotal();
+    const discountRate = form.watch("discountRate") || 0;
+    return subTotal * (discountRate / 100);
+  }, [calculateRawSubTotal, form]);
 
-      const entrySubtotal = quantity * unitPrice;
-      const entryTaxAmount = (entrySubtotal * taxRate) / 100;
-      const entryTotal = entrySubtotal + entryTaxAmount;
+  // Calculate taxable amount (subtotal - discount)
+  const calculateTaxableAmount = useCallback(() => {
+    return calculateRawSubTotal() - calculateDiscountAmount();
+  }, [calculateRawSubTotal, calculateDiscountAmount]);
 
-      calculatedTotal += entryTotal;
-    });
-    return calculatedTotal;
-  }, [fields, form]);
-
+  // Calculate tax amount (taxable amount * tax rate)
   const calculateTaxAmount = useCallback(() => {
-    let calculatedTaxTotal = 0;
-    fields.forEach((field, index) => {
-      const quantity = form.watch(`products.${index}.quantity`) || 0;
-      const unitPrice = form.watch(`products.${index}.unitPrice`) || 0;
-      const taxRate = field.taxRate || 0;
+    const taxableAmount = calculateTaxableAmount();
+    const taxRate = selectedTax?.taxRate || 0;
+    return (taxableAmount * taxRate) / 100;
+  }, [calculateTaxableAmount, selectedTax]);
 
-      const entrySubtotal = quantity * unitPrice;
-      const entryTaxAmount = (entrySubtotal * taxRate) / 100;
-
-      calculatedTaxTotal += entryTaxAmount;
-    });
-    return calculatedTaxTotal;
-  }, [fields, form]);
+  // Calculate grand total (taxable amount + tax)
+  const calculateTotalAmount = useCallback(() => {
+    return calculateTaxableAmount() + calculateTaxAmount();
+  }, [calculateTaxableAmount, calculateTaxAmount]);
 
   useEffect(() => {
     if (fields.length > 0) {
@@ -316,17 +427,37 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
         const quantity = watchedFields[index]?.quantity || 0;
         const unitPrice = watchedFields[index]?.unitPrice || 0;
         const entrySubtotal = quantity * unitPrice;
-        const entryTaxAmount = (entrySubtotal * field.taxRate) / 100;
-        const entryTotal = entrySubtotal + entryTaxAmount;
+        const taxRate = selectedTax?.taxRate || 0;
+        const entryTaxAmount = (entrySubtotal * taxRate) / 100;
+        const entryDiscountAmount =
+          (entrySubtotal * form.watch("discountRate")) / 100;
+        const entryTaxableAmount = entrySubtotal - entryDiscountAmount;
+        const entryTotal = entryTaxableAmount + entryTaxAmount;
 
+        form.setValue(`products.${index}.discountAmount`, entryDiscountAmount);
+        form.setValue(
+          `products.${index}.discountRate`,
+          form.watch("discountRate") || 0
+        );
+        form.setValue(`products.${index}.subTotal`, entryTaxableAmount);
+        form.setValue(`products.${index}.taxRate`, taxRate);
         form.setValue(`products.${index}.taxAmount`, entryTaxAmount);
         form.setValue(`products.${index}.totalPrice`, entryTotal);
       });
 
+      form.setValue("discountAmount", calculateDiscountAmount());
       form.setValue("totalAmount", calculateTotalAmount());
       form.setValue("totalTaxAmount", calculateTaxAmount());
     }
-  }, [watchedFields, fields, form, calculateTotalAmount, calculateTaxAmount]);
+  }, [
+    watchedFields,
+    fields,
+    form,
+    calculateTotalAmount,
+    calculateTaxAmount,
+    selectedTax,
+    calculateDiscountAmount,
+  ]);
 
   return (
     <>
@@ -335,17 +466,33 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
           onSubmit={form.handleSubmit(handleSubmit)}
           className="space-y-5 text-dark-500"
         >
-          <div className="flex flex-col md:flex-row gap-5">
-            <CustomFormField
-              fieldType={FormFieldType.INPUT}
-              control={form.control}
-              name="quotationNumber"
-              label="Quotation Number"
-              placeholder={
-                isLoading ? "Generating..." : "Enter quotation number"
-              }
-              disabled={true}
-            />
+          <div className="w-full flex flex-col md:flex-row gap-5">
+            <div className="flex flex-1 flex-row gap-2 items-center">
+              <CustomFormField
+                fieldType={FormFieldType.INPUT}
+                control={form.control}
+                name="quotationNumber"
+                label="Quotation Number"
+                placeholder={
+                  isLoading || isRefetching
+                    ? "Generating..."
+                    : "Enter quotation number"
+                }
+              />
+              <Button
+                type="button"
+                size={"icon"}
+                onClick={handleRefreshQuotationNumber}
+                className="self-end shad-primary-btn px-5"
+                disabled={isLoading || isRefetching}
+              >
+                <RefreshCw
+                  className={`h-5 w-5 ${
+                    isLoading || isRefetching ? "animate-spin" : ""
+                  }`}
+                />
+              </Button>
+            </div>
             <CustomFormField
               fieldType={FormFieldType.DATE_PICKER}
               control={form.control}
@@ -353,6 +500,8 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
               label="Quotation Date"
               dateFormat="MM/dd/yyyy"
             />
+          </div>
+          <div className="w-full flex flex-col sm:flex-row gap-5">
             <CustomFormField
               fieldType={FormFieldType.SELECT}
               control={form.control}
@@ -360,8 +509,13 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
               label="Customer"
               placeholder="Select customer"
               key={`customer-select-${form.watch("customerId") || ""}`}
-              onAddNew={() => setDialogOpen(true)}
+              onAddNew={() => setCustomerDialogOpen(true)}
             >
+              {customersLoading && (
+                <div className="py-4">
+                  <Loading />
+                </div>
+              )}
               {customers?.map((customer: Customer) => (
                 <SelectItem
                   key={customer.id}
@@ -369,6 +523,67 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                   className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
                 >
                   {customer.name}
+                </SelectItem>
+              ))}
+            </CustomFormField>
+
+            <CustomFormField
+              fieldType={FormFieldType.INPUT}
+              control={form.control}
+              name="rfqNumber"
+              label="Request for Quotation Number"
+              placeholder={"Request for quotation number"}
+            />
+          </div>
+
+          <div className="flex flex-col md:flex-row gap-5">
+            <CustomFormField
+              fieldType={FormFieldType.SELECT}
+              control={form.control}
+              name="taxRateId"
+              label="Tax Rate"
+              placeholder="Select tax rate"
+              onAddNew={() => setTaxDialogOpen(true)}
+              key={`tax-select-${form.watch("taxRateId") || ""}`}
+            >
+              {taxesLoading && (
+                <div className="py-4">
+                  <Loading />
+                </div>
+              )}
+              {taxes &&
+                taxes?.map((tax: Tax) => (
+                  <SelectItem
+                    key={tax.id}
+                    value={tax.id}
+                    className="text-14-medium text-blue-800 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+                  >
+                    {tax.code} - {`${tax.taxRate}%`}
+                  </SelectItem>
+                ))}
+            </CustomFormField>
+            <CustomFormField
+              fieldType={FormFieldType.NUMBER}
+              control={form.control}
+              name="discountRate"
+              label="Discount Rate(%)"
+              placeholder="Enter discount rate"
+            />
+            <CustomFormField
+              fieldType={FormFieldType.SELECT}
+              control={form.control}
+              name="status"
+              label="Status"
+              placeholder="Select status"
+              key={`status-select-${form.watch("status") || ""}`}
+            >
+              {Object.values(QuotationStatus).map((status) => (
+                <SelectItem
+                  key={status}
+                  value={status}
+                  className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
+                >
+                  {status}
                 </SelectItem>
               ))}
             </CustomFormField>
@@ -393,6 +608,11 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                     form.watch("selectedProductId") || ""
                   }`}
                 >
+                  {productsLoading && (
+                    <div className="py-4">
+                      <Loading />
+                    </div>
+                  )}
                   {products?.map((product: ProductWithRelations) => (
                     <SelectItem
                       key={product.product.id}
@@ -424,6 +644,8 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                   <TableHead>Unit Price</TableHead>
                   <TableHead>Tax Rate</TableHead>
                   <TableHead>Tax Amount</TableHead>
+                  <TableHead>Discount Rate</TableHead>
+                  <TableHead>Discount Amount</TableHead>
                   <TableHead>Sub-Total</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -431,7 +653,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
               <TableBody className="w-full bg-white text-blue-800">
                 {fields.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-4">
+                    <TableCell colSpan={11} className="text-center py-4">
                       No products added
                     </TableCell>
                   </TableRow>
@@ -464,15 +686,29 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                       />
                     </TableCell>
                     <TableCell>
-                      <p>{entry.taxRate}%</p>
+                      <p>{selectedTax?.taxRate || 0}%</p>
                     </TableCell>
                     <TableCell>
                       <FormatNumber
                         value={
                           (form.watch(`products.${index}.unitPrice`) *
                             form.watch(`products.${index}.quantity`) *
-                            entry.taxRate) /
-                          100
+                            selectedTax?.taxRate) /
+                            100 || 0
+                        }
+                      />
+                    </TableCell>
+
+                    <TableCell>
+                      <p>{form.watch("discountRate") || 0}%</p>
+                    </TableCell>
+                    <TableCell>
+                      <FormatNumber
+                        value={
+                          (form.watch(`products.${index}.quantity`) *
+                            form.watch(`products.${index}.unitPrice`) *
+                            form.watch("discountRate")) /
+                            100 || 0
                         }
                       />
                     </TableCell>
@@ -480,7 +716,11 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                       <FormatNumber
                         value={
                           form.watch(`products.${index}.quantity`) *
-                          form.watch(`products.${index}.unitPrice`)
+                            form.watch(`products.${index}.unitPrice`) -
+                          (form.watch(`products.${index}.quantity`) *
+                            form.watch(`products.${index}.unitPrice`) *
+                            form.watch("discountRate")) /
+                            100
                         }
                       />
                     </TableCell>
@@ -501,24 +741,38 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                   <>
                     <TableRow>
                       <TableCell
-                        colSpan={7}
+                        colSpan={9}
                         className="text-right font-medium text-blue-800 text-[17px] py-4"
                       >
-                        Sub Total:
+                        {`Sub-Total (${companySettings?.currencySymbol}):`}
                       </TableCell>
                       <TableCell
                         colSpan={2}
                         className="font-medium text-blue-800 text-[17px] py-4"
                       >
-                        <FormatNumber value={calculateSubTotal()} />
+                        <FormatNumber value={calculateTaxableAmount()} />
                       </TableCell>
                     </TableRow>
                     <TableRow>
                       <TableCell
-                        colSpan={7}
+                        colSpan={9}
                         className="text-right font-medium text-blue-800 text-[17px] py-4"
                       >
-                        Tax Amount:
+                        {`Discount (${form.watch("discountRate") || 0}%):`}
+                      </TableCell>
+                      <TableCell
+                        colSpan={2}
+                        className="font-medium text-blue-800 text-[17px] py-4"
+                      >
+                        <FormatNumber value={calculateDiscountAmount()} />
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell
+                        colSpan={9}
+                        className="text-right font-medium text-blue-800 text-[17px] py-4"
+                      >
+                        {`Tax (${selectedTax?.taxRate || 0}%):`}
                       </TableCell>
                       <TableCell
                         colSpan={2}
@@ -529,10 +783,10 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                     </TableRow>
                     <TableRow>
                       <TableCell
-                        colSpan={7}
+                        colSpan={9}
                         className="text-right font-semibold text-blue-800 text-[17px] py-4"
                       >
-                        Grand Total:
+                        {`Grand Total (${companySettings?.currencySymbol}):`}
                       </TableCell>
                       <TableCell
                         colSpan={2}
@@ -551,26 +805,6 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
               </p>
             )}
           </div>
-          <div className="w-full flex flex-col sm:flex-row gap-5 sm:w-1/2">
-            <CustomFormField
-              fieldType={FormFieldType.SELECT}
-              control={form.control}
-              name="status"
-              label="Status"
-              placeholder="Select status"
-              key={`status-select-${form.watch("status") || ""}`}
-            >
-              {Object.values(QuotationStatus).map((status) => (
-                <SelectItem
-                  key={status}
-                  value={status}
-                  className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
-                >
-                  {status}
-                </SelectItem>
-              ))}
-            </CustomFormField>
-          </div>
 
           <CustomFormField
             fieldType={FormFieldType.TEXTAREA}
@@ -580,10 +814,27 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
             placeholder="Enter quotation notes"
           />
 
+          <CustomFormField
+            fieldType={FormFieldType.SKELETON}
+            control={form.control}
+            name="attachment"
+            label="Attachment"
+            renderSkeleton={(field) => (
+              <FormControl>
+                <FileUploader
+                  files={field.value}
+                  onChange={field.onChange}
+                  mode={mode}
+                  currentImageUrl={initialData?.quotation.attachmentUrl}
+                />
+              </FormControl>
+            )}
+          />
+
           <div className="flex justify-end gap-4">
             <Button
               type="button"
-              onClick={() => form.reset()}
+              onClick={handleCancel}
               className="shad-danger-btn"
             >
               Cancel
@@ -600,8 +851,15 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
       <CustomerDialog
         mode="add"
         onSubmit={handleAddCustomer}
-        open={dialogOpen}
+        open={customerDialogOpen}
         onOpenChange={closeDialog}
+      />
+      <TaxDialog
+        mode="add"
+        onSubmit={handleAddTax}
+        open={taxDialogOpen}
+        onOpenChange={closeDialog}
+        isLoading={isAddingTax}
       />
     </>
   );

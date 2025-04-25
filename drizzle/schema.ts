@@ -436,15 +436,23 @@ export const quotationsTable = pgTable("quotations", {
     .primaryKey()
     .default(sql`gen_random_uuid()`),
   quotationNumber: text("quotation_number").notNull().unique(),
+  rfqNumber: text("rfq_number").default(""),
   quotationDate: timestamp("quotation_date").notNull(),
   customerId: uuid("customer_id")
     .notNull()
     .references(() => customersTable.id, { onDelete: "set null" }), // Foreign key to customers
+  taxRateId: uuid("tax_id")
+    .notNull()
+    .references(() => taxRatesTable.id, { onDelete: "set null" }), // Foreign key to customers
   totalAmount: numeric("total_amount").notNull(),
   totalTaxAmount: numeric("total_tax_amount").notNull(),
+  discountAmount: numeric("discount_amount").notNull(),
+  discountRate: numeric("discount_rate").default(0),
   status: quotationStatusEnum("status").notNull().default("pending"),
   convertedToSale: boolean("converted_to_sale").notNull().default(false), // Track if converted to sale
   notes: text("notes"),
+  attachmentId: text("image_id"),
+  attachmentUrl: text("image_url"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -464,8 +472,11 @@ export const quotationItemsTable = pgTable("quotation_items", {
   quantity: integer("quantity").notNull(),
   unitPrice: numeric("unit_price").notNull(),
   totalPrice: numeric("total_price").notNull(),
+  subTotal: numeric("sub_total").notNull(),
   taxAmount: numeric("tax_amount").notNull(),
   taxRate: numeric("tax_rate").default(0),
+  discountAmount: numeric("discount_amount").notNull(),
+  discountRate: numeric("discount_rate").default(0),
   productName: text("product_name"),
   productID: text("product_ID"),
   isActive: boolean("is_active").notNull().default(true),

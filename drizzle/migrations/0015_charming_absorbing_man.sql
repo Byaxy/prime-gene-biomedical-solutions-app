@@ -1,0 +1,1 @@
+ALTER TABLE "quotations" ALTER COLUMN "rfq_number" DROP NOT NULL;

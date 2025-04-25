@@ -132,6 +132,20 @@ export const quotationsColumns: ColumnDef<QuotationWithRelations>[] = [
   },
 
   {
+    id: "quotation.rfqNumber",
+    accessorKey: "quotation.rfqNumber",
+    header: "RFQ No.",
+    cell: ({ row }) => {
+      const quotation = row.original;
+      return (
+        <p className="text-14-medium ">
+          {quotation.quotation.rfqNumber || "-"}
+        </p>
+      );
+    },
+  },
+
+  {
     id: "customer.name",
     accessorKey: "customer.name",
     header: "Customer",

@@ -64,16 +64,19 @@ const ProductForm = ({ mode, initialData }: ProductFormProps) => {
     types,
     isLoading: typesLoading,
     addType,
+    isAddingType,
   } = useTypes({ getAllTypes: true });
   const {
     units,
     isLoading: unitsLoading,
     addUnit,
+    isAddingUnit,
   } = useUnits({ getAllUnits: true });
   const {
     brands,
     isLoading: brandsLoading,
     addBrand,
+    isAddingBrand,
   } = useBrands({
     getAllBrands: true,
   });
@@ -81,6 +84,7 @@ const ProductForm = ({ mode, initialData }: ProductFormProps) => {
     taxes,
     isLoading: taxesLoading,
     addTax,
+    isAddingTax,
   } = useTaxes({ getAllTaxes: true });
   const {
     products,
@@ -545,28 +549,28 @@ const ProductForm = ({ mode, initialData }: ProductFormProps) => {
         onSubmit={handleAddBrand}
         open={brandDialogOpen}
         onOpenChange={closeDialog}
-        isLoading={isAddingCategory}
+        isLoading={isAddingBrand}
       />
       <UnitsDialog
         mode="add"
         onSubmit={handleAddUnit}
         open={unitDialogOpen}
         onOpenChange={closeDialog}
-        isLoading={isAddingCategory}
+        isLoading={isAddingUnit}
       />
       <ProductTypeDialog
         mode="add"
         onSubmit={handleAddType}
         open={typeDialogOpen}
         onOpenChange={closeDialog}
-        isLoading={isAddingCategory}
+        isLoading={isAddingType}
       />
       <TaxDialog
         mode="add"
         onSubmit={handleAddTax}
         open={taxDialogOpen}
         onOpenChange={closeDialog}
-        isLoading={isAddingCategory}
+        isLoading={isAddingTax}
       />
     </>
   );
