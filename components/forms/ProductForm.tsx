@@ -20,7 +20,7 @@ import { SelectItem } from "../ui/select";
 import { useTypes } from "@/hooks/useTypes";
 import { useUnits } from "@/hooks/useUnits";
 import { FileUploader } from "../FileUploader";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useBrands } from "@/hooks/useBrands";
 import { getFlattenedCategories } from "./CategoriesForm";
 import Loading from "../loading";
@@ -45,8 +45,9 @@ import { useState } from "react";
 interface ProductFormProps {
   mode: "create" | "edit";
   initialData?: Product;
+  onCancel?: () => void;
 }
-const ProductForm = ({ mode, initialData }: ProductFormProps) => {
+const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
   const [brandDialogOpen, setBrandDialogOpen] = useState(false);
   const [unitDialogOpen, setUnitDialogOpen] = useState(false);
@@ -95,6 +96,9 @@ const ProductForm = ({ mode, initialData }: ProductFormProps) => {
   } = useProducts();
 
   const router = useRouter();
+  const pathname = usePathname();
+
+  console.log("pathname", pathname);
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(ProductFormValidation),
@@ -220,7 +224,10 @@ const ProductForm = ({ mode, initialData }: ProductFormProps) => {
           onSuccess: () => {
             toast.success("Inventory Added successfully!");
             form.reset();
-            router.push("/inventory");
+            onCancel?.();
+            if (pathname === "/inventory/add-inventory") {
+              router.push("/inventory");
+            }
           },
           onError: (error) => {
             console.error("Submission error:", error);
@@ -520,7 +527,10 @@ const ProductForm = ({ mode, initialData }: ProductFormProps) => {
           <div className="flex justify-end gap-4 py-5">
             <Button
               type="button"
-              onClick={() => form.reset()}
+              onClick={() => {
+                form.reset();
+                onCancel?.();
+              }}
               className="shad-danger-btn"
             >
               Cancel

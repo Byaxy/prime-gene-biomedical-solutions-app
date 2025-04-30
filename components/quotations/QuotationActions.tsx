@@ -12,6 +12,11 @@ import { Download } from "lucide-react";
 import { Eye } from "lucide-react";
 import toast from "react-hot-toast";
 import { Mail } from "lucide-react";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import QuotationPDF from "./QuotationPDF";
+import { useTaxes } from "@/hooks/useTaxes";
+import { useCompanySettings } from "@/hooks/useCompanySettings";
+import { useProducts } from "@/hooks/useProducts";
 
 const QuotationActions = ({
   quotation,
@@ -20,13 +25,18 @@ const QuotationActions = ({
 }) => {
   const [open, setOpen] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
-  const [mode, setMode] = useState<"add" | "edit" | "delete">("add");
+  const [mode, setMode] = useState<"add" | "edit" | "delete" | "view">("add");
+
+  const { taxes } = useTaxes({ getAllTaxes: true });
+  const { companySettings } = useCompanySettings();
+  const { products } = useProducts({ getAllProducts: true });
 
   const router = useRouter();
+  const supabase = createSupabaseBrowserClient();
 
   const { softDeleteQuotation, isSoftDeletingQuotation } = useQuotations();
 
-  const handleAction = async () => {
+  const handleDelete = async () => {
     try {
       if (mode === "delete") {
         await softDeleteQuotation(quotation.quotation.id, {
@@ -35,6 +45,127 @@ const QuotationActions = ({
       }
     } catch (error) {
       console.error("Error:", error);
+    }
+  };
+
+  const handleDownloadRFQ = async () => {
+    try {
+      if (
+        !quotation.quotation.attachments ||
+        quotation.quotation.attachments.length === 0
+      ) {
+        toast.error("No attachments found for this quotation");
+        return;
+      }
+
+      // Download attachments
+      await Promise.all(
+        quotation.quotation.attachments.map(async (attachment) => {
+          try {
+            // Get the file extension from the original filename
+            const fileExtension = attachment.name.split(".").pop();
+
+            const { data, error } = await supabase.storage
+              .from("images")
+              .download(attachment.id);
+
+            if (error) throw error;
+            if (!data) throw new Error("No data received");
+
+            const url = window.URL.createObjectURL(data);
+            const link = document.createElement("a");
+            link.href = url;
+
+            // Preserve the original filename and extension
+            link.download =
+              attachment.name ||
+              `attachment_${Date.now()}.${fileExtension || ""}`;
+
+            document.body.appendChild(link);
+            link.click();
+
+            // Clean up
+            setTimeout(() => {
+              document.body.removeChild(link);
+              window.URL.revokeObjectURL(url);
+            }, 100);
+
+            toast.success(`Downloading ${attachment.name}`);
+          } catch (error) {
+            console.error(`Error downloading ${attachment.name}:`, error);
+            toast.error(`Failed to download ${attachment.name}`);
+          }
+        })
+      );
+    } catch (error) {
+      console.error("Error downloading attachments:", error);
+      toast.error("Failed to download attachments");
+    }
+  };
+
+  const handleDownloadPDF = async () => {
+    try {
+      const { pdf } = await import("@react-pdf/renderer");
+      const blob = await pdf(
+        <QuotationPDF
+          quotation={quotation}
+          taxes={taxes || []}
+          currencySymbol={companySettings?.currencySymbol || "$"}
+          allProducts={products || []}
+        />
+      ).toBlob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Quotation_${
+        quotation.quotation.quotationNumber || Date.now()
+      }.pdf`;
+      document.body.appendChild(link);
+      link.click();
+
+      // Clean up
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 100);
+
+      toast.success("PDF downloaded successfully");
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast.error("Failed to generate PDF");
+    }
+  };
+
+  const handleEmailQuotation = async () => {
+    try {
+      if (!quotation.customer.email) {
+        toast.error("Customer email not found");
+        return;
+      }
+
+      const subject = `Quotation ${quotation.quotation.quotationNumber}`;
+      const body = `Dear ${
+        quotation.customer.name || "Customer"
+      },\n\nPlease find attached the quotation you requested.\n\nBest regards,\nYour Company \nSales Team`;
+
+      // First, download the PDF
+      await handleDownloadPDF();
+
+      const mailtoLink = `mailto:${
+        quotation.customer.email
+      }?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(
+        body
+      )}`;
+
+      window.open(mailtoLink);
+
+      toast.success(
+        "Email client opened. Please attach the downloaded PDF manually."
+      );
+      setOpen(false);
+    } catch (error) {
+      console.error("Error preparing email:", error);
+      toast.error("Failed to prepare email");
     }
   };
 
@@ -47,7 +178,9 @@ const QuotationActions = ({
         <PopoverContent className="w-72 flex flex-col mt-2 mr-12 gap-2 bg-white z-50">
           <p
             onClick={() => {
-              toast.success("Quotation Details");
+              setMode("view");
+              setOpenDialog(true);
+              setOpen(false);
             }}
             className="text-green-500 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
@@ -65,17 +198,13 @@ const QuotationActions = ({
             <FileText className="h-5 w-5" /> <span>Convert to Sale</span>
           </p>
           <p
-            onClick={() => {
-              toast.success("Download Quotation");
-            }}
+            onClick={handleDownloadPDF}
             className="text-dark-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
             <Download className="h-5 w-5" /> <span>Download Quotation</span>
           </p>
           <p
-            onClick={() => {
-              toast.success("Email Quotation");
-            }}
+            onClick={handleEmailQuotation}
             className="text-dark-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
             <Mail className="h-5 w-5" /> <span>Email Quotation</span>
@@ -102,7 +231,8 @@ const QuotationActions = ({
           </p>
           <p
             onClick={() => {
-              toast.success("Download RFQ");
+              handleDownloadRFQ();
+              setOpen(false);
             }}
             className="text-dark-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
@@ -112,11 +242,11 @@ const QuotationActions = ({
       </Popover>
 
       <QuotationDialog
-        mode="delete"
-        open={openDialog && mode === "delete"}
+        mode={mode}
+        open={openDialog}
         onOpenChange={setOpenDialog}
-        quotation={quotation.quotation}
-        onSubmit={handleAction}
+        quotation={quotation}
+        onSubmit={handleDelete}
         isLoading={isSoftDeletingQuotation}
       />
     </div>

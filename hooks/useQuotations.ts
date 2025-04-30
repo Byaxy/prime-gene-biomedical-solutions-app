@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import {
@@ -71,37 +72,49 @@ export const useQuotations = ({
     useMutation({
       mutationFn: async (data: QuotationFormValues) => {
         const supabase = createSupabaseBrowserClient();
-        let attachmentId = "";
-        let attachmentUrl = "";
+        const attachments: Array<{
+          id: string;
+          url: string;
+          name: string;
+          size: number;
+          type: string;
+        }> = [];
 
-        if (data.attachment && data.attachment.length > 0) {
+        if (data.attachments && data.attachments.length > 0) {
           try {
-            const file = data.attachment[0]; // Get the first file
-            attachmentId = `${Date.now()}-${file.name}`; // Generate a unique file name
+            // Upload all files
+            await Promise.all(
+              data.attachments.map(async (file: any) => {
+                const fileId = `${Date.now()}-${file.name}`;
+                const { error: uploadError } = await supabase.storage
+                  .from("images")
+                  .upload(fileId, file);
 
-            // Upload the file to Supabase Storage
-            const { error: uploadError } = await supabase.storage
-              .from("images")
-              .upload(attachmentId, file);
+                if (uploadError) throw uploadError;
 
-            if (uploadError) throw uploadError;
+                // Get the file URL
+                const { data: urlData } = supabase.storage
+                  .from("images")
+                  .getPublicUrl(fileId);
 
-            // Get the file URL
-            const { data: urlData } = supabase.storage
-              .from("images")
-              .getPublicUrl(attachmentId);
-
-            attachmentUrl = urlData.publicUrl;
+                attachments.push({
+                  id: fileId,
+                  url: urlData.publicUrl,
+                  name: file.name,
+                  size: file.size,
+                  type: file.type,
+                });
+              })
+            );
           } catch (error) {
-            console.error("Error uploading file:", error);
-            throw new Error("Failed to upload attachment");
+            console.error("Error uploading files:", error);
+            throw new Error("Failed to upload attachments");
           }
         }
 
         const dataWithAttachment = {
           ...data,
-          attachmentId,
-          attachmentUrl,
+          attachments,
         };
 
         return addQuotation(dataWithAttachment);
@@ -118,55 +131,70 @@ export const useQuotations = ({
       mutationFn: async ({
         id,
         data,
-        prevAttachmentId,
+        prevAttachmentIds,
       }: {
         id: string;
         data: QuotationFormValues;
-        prevAttachmentId?: string;
+        prevAttachmentIds?: string[];
       }) => {
         const supabase = createSupabaseBrowserClient();
-        let attachmentId = "";
-        let attachmentUrl = "";
+        const attachments: Array<{
+          id: string;
+          url: string;
+          name: string;
+          size: number;
+          type: string;
+        }> = [];
 
-        if (
-          prevAttachmentId &&
-          data?.attachment &&
-          data?.attachment.length > 0
-        ) {
+        // Delete previous attachments if needed
+        if (prevAttachmentIds && prevAttachmentIds.length > 0) {
           const { error: deleteError } = await supabase.storage
             .from("images")
-            .remove([prevAttachmentId]);
+            .remove(prevAttachmentIds);
 
-          if (deleteError)
-            console.warn("Failed to delete previous image:", deleteError);
+          if (deleteError) {
+            console.warn("Failed to delete previous attachments:", deleteError);
+          }
         }
 
-        // Upload the new
-        if (data.attachment && data.attachment.length > 0) {
-          const file = data.attachment[0];
-          attachmentId = `${Date.now()}-${file.name}`; // Generate a unique file name
+        // Upload new attachments
+        if (data.attachments && data.attachments.length > 0) {
+          try {
+            await Promise.all(
+              data.attachments.map(async (file: any) => {
+                const fileId = `${Date.now()}-${file.name}`;
+                const { error: uploadError } = await supabase.storage
+                  .from("images")
+                  .upload(fileId, file);
 
-          // Upload the file to Supabase Storage
-          const { error: uploadError } = await supabase.storage
-            .from("images")
-            .upload(attachmentId, file);
+                if (uploadError) throw uploadError;
 
-          if (uploadError) throw uploadError;
+                // Get the file URL
+                const { data: urlData } = supabase.storage
+                  .from("images")
+                  .getPublicUrl(fileId);
 
-          // Get the file URL
-          const { data: urlData } = supabase.storage
-            .from("images")
-            .getPublicUrl(attachmentId);
-
-          attachmentUrl = urlData.publicUrl;
+                attachments.push({
+                  id: fileId,
+                  url: urlData.publicUrl,
+                  name: file.name,
+                  size: file.size,
+                  type: file.type,
+                });
+              })
+            );
+          } catch (error) {
+            console.error("Error uploading files:", error);
+            throw new Error("Failed to upload attachments");
+          }
         }
-        const dataWithAttachment = {
+
+        const dataWithAttachments = {
           ...data,
-          attachmentId,
-          attachmentUrl,
+          attachments,
         };
 
-        return editQuotation(dataWithAttachment, id);
+        return editQuotation(dataWithAttachments, id);
       },
       onSuccess: () => {
         queryClient.invalidateQueries({

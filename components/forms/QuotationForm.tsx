@@ -30,6 +30,7 @@ import FormatNumber from "@/components/FormatNumber";
 import { useQuotations } from "@/hooks/useQuotations";
 import { useRouter } from "next/navigation";
 import {
+  Attachment,
   Customer,
   ProductWithRelations,
   QuotationStatus,
@@ -45,6 +46,7 @@ import TaxDialog from "../taxes/TaxDialog";
 import Loading from "../loading";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
 import { FileUploader } from "../FileUploader";
+import ProductSheet from "../products/ProductSheet";
 
 interface QuotationFormProps {
   mode: "create" | "edit";
@@ -54,6 +56,7 @@ interface QuotationFormProps {
 const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
   const [taxDialogOpen, setTaxDialogOpen] = useState(false);
+  const [productDialogOpen, setProductDialogOpen] = useState(false);
 
   const { companySettings } = useCompanySettings();
 
@@ -113,9 +116,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
     totalAmount: 0,
     totalTaxAmount: 0,
     convertedToSale: false,
-    attachment: [],
-    attachmentUrl: "",
-    attachmentId: "",
+    attachments: [],
 
     selectedProductId: "",
   };
@@ -155,8 +156,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
             totalAmount: initialData?.quotation.totalAmount,
             totalTaxAmount: initialData?.quotation.totalTaxAmount,
             convertedToSale: initialData?.quotation.convertedToSale,
-            attachmentId: initialData?.quotation.attachmentId || "",
-            attachmentUrl: initialData?.quotation.attachmentUrl || "",
+            attachments: initialData?.quotation.attachments,
 
             selectedProductId: "",
           },
@@ -255,6 +255,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
   const closeDialog = () => {
     setCustomerDialogOpen(false);
     setTaxDialogOpen(false);
+    setProductDialogOpen(false);
 
     setTimeout(() => {
       const stuckSection = document.querySelector(".MuiBox-root.css-0");
@@ -337,16 +338,15 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
         });
       }
       if (mode === "edit" && initialData) {
-        if (
-          values?.attachment &&
-          values?.attachment.length > 0 &&
-          initialData?.quotation.attachmentId
-        ) {
+        if (initialData?.quotation.attachments?.length > 0) {
+          const prevIds = initialData?.quotation.attachments.map(
+            (attachment: Attachment) => attachment.id
+          );
           await editQuotation(
             {
               id: initialData?.quotation.id,
               data: values,
-              prevAttachmentId: initialData?.quotation.attachmentId,
+              prevAttachmentIds: prevIds,
             },
             {
               onSuccess: () => {
@@ -603,7 +603,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                   name="selectedProductId"
                   label="Select Product"
                   placeholder="Select product"
-                  onAddNew={() => router.push("/inventory/add-inventory")}
+                  onAddNew={() => setProductDialogOpen(true)}
                   key={`product-select-${
                     form.watch("selectedProductId") || ""
                   }`}
@@ -817,7 +817,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
           <CustomFormField
             fieldType={FormFieldType.SKELETON}
             control={form.control}
-            name="attachment"
+            name="attachments"
             label="Attachment"
             renderSkeleton={(field) => (
               <FormControl>
@@ -825,7 +825,13 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                   files={field.value}
                   onChange={field.onChange}
                   mode={mode}
-                  currentImageUrl={initialData?.quotation.attachmentUrl}
+                  accept={{
+                    "application/pdf": [".pdf"],
+                    "application/msword": [".doc"],
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                      [".docx"],
+                  }}
+                  maxFiles={5}
                 />
               </FormControl>
             )}
@@ -860,6 +866,11 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
         open={taxDialogOpen}
         onOpenChange={closeDialog}
         isLoading={isAddingTax}
+      />
+      <ProductSheet
+        mode="add"
+        open={productDialogOpen}
+        onOpenChange={closeDialog}
       />
     </>
   );

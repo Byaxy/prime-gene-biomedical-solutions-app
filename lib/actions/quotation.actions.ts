@@ -32,8 +32,7 @@ export const addQuotation = async (quotation: QuotationFormValues) => {
           totalTaxAmount: quotation.totalTaxAmount,
           status: quotation.status as "pending" | "completed" | "cancelled",
           notes: quotation.notes,
-          attachmentId: quotation.attachmentId,
-          attachmentUrl: quotation.attachmentUrl,
+          attachments: quotation.attachments,
           convertedToSale: quotation.convertedToSale,
         })
         .returning();
@@ -81,41 +80,10 @@ export const editQuotation = async (
   try {
     const result = await db.transaction(async (tx) => {
       // Update main quotation record
-      let updatedQuotationData;
-
-      if (quotation.attachmentId && quotation.attachmentUrl) {
-        updatedQuotationData = {
-          quotationNumber: quotation.quotationNumber,
-          rfqNumber: quotation.rfqNumber,
-          quotationDate: quotation.quotationDate,
-          customerId: quotation.customerId,
-          taxRateId: quotation.taxRateId,
-          discountAmount: quotation.discountAmount,
-          discountRate: quotation.discountRate,
-          totalAmount: quotation.totalAmount,
-          totalTaxAmount: quotation.totalTaxAmount,
-          status: quotation.status as "pending" | "completed" | "cancelled",
-          notes: quotation.notes,
-          attachmentId: quotation.attachmentId,
-          attachmentUrl: quotation.attachmentUrl,
-          convertedToSale: quotation.convertedToSale,
-        };
-      } else {
-        updatedQuotationData = {
-          quotationNumber: quotation.quotationNumber,
-          rfqNumber: quotation.rfqNumber,
-          quotationDate: quotation.quotationDate,
-          customerId: quotation.customerId,
-          taxRateId: quotation.taxRateId,
-          discountAmount: quotation.discountAmount,
-          discountRate: quotation.discountRate,
-          totalAmount: quotation.totalAmount,
-          totalTaxAmount: quotation.totalTaxAmount,
-          status: quotation.status as "pending" | "completed" | "cancelled",
-          notes: quotation.notes,
-          convertedToSale: quotation.convertedToSale,
-        };
-      }
+      const updatedQuotationData = {
+        ...quotation,
+        status: quotation.status as "pending" | "completed" | "cancelled",
+      };
 
       const [updatedQuotation] = await tx
         .update(quotationsTable)

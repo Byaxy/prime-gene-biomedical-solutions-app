@@ -310,9 +310,7 @@ export const QuotationFormValidation = z.object({
       })
     )
     .min(1, "At least one product is required"),
-  attachment: z.any().optional(),
-  attachmentUrl: z.string().optional(),
-  attachmentId: z.string().optional(),
+  attachments: z.any().optional(),
 
   // Temporary fields for product selection
   selectedProductId: z.string().optional(),

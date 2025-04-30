@@ -7,13 +7,18 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 import { Button } from "../ui/button";
-import { Quotation } from "@/types";
+import { QuotationWithRelations } from "@/types";
+import { PDFViewer } from "@react-pdf/renderer";
+import QuotationPDF from "./QuotationPDF";
+import { useTaxes } from "@/hooks/useTaxes";
+import { useCompanySettings } from "@/hooks/useCompanySettings";
+import { useProducts } from "@/hooks/useProducts";
 interface QuotationDialogProps {
-  mode: "add" | "edit" | "delete";
+  mode: "add" | "edit" | "delete" | "view";
   open: boolean;
   onOpenChange: (open: boolean) => void;
   isLoading?: boolean;
-  quotation?: Quotation;
+  quotation?: QuotationWithRelations;
   onSubmit: (data: QuotationFormValues) => Promise<void>;
 }
 
@@ -25,12 +30,15 @@ const QuotationDialog = ({
   quotation,
   onSubmit,
 }: QuotationDialogProps) => {
+  const { taxes } = useTaxes({ getAllTaxes: true });
+  const { companySettings } = useCompanySettings();
+  const { products } = useProducts({ getAllProducts: true });
   const handleDelete = async () => {
     try {
-      if (quotation && quotation.id) {
+      if (quotation && quotation.quotation.id) {
         await onSubmit({
-          ...quotation,
-          products: [],
+          ...quotation.quotation,
+          products: quotation.products,
         });
       } else {
         throw new Error("Quotation is required.");
@@ -61,7 +69,7 @@ const QuotationDialog = ({
               <p className="text-sm text-red-500">
                 Quotation Number:{" "}
                 <span className="font-semibold">
-                  {quotation?.quotationNumber}
+                  {quotation?.quotation?.quotationNumber}
                 </span>
               </p>
               <div className="flex justify-end gap-4">
@@ -85,6 +93,27 @@ const QuotationDialog = ({
                 </Button>
               </div>
             </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {mode === "view" && (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <DialogContent className="max-w-[100rem] w-full h-[90vh] p-0 bg-light-200">
+            <DialogHeader className="hidden">
+              <DialogTitle></DialogTitle>
+              <DialogDescription></DialogDescription>
+            </DialogHeader>
+            <PDFViewer className="w-full h-full">
+              {quotation && (
+                <QuotationPDF
+                  quotation={quotation}
+                  taxes={taxes || []}
+                  currencySymbol={companySettings?.currencySymbol || "$"}
+                  allProducts={products || []}
+                />
+              )}
+            </PDFViewer>
           </DialogContent>
         </Dialog>
       )}

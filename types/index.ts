@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { inventoryTransactionsTable } from "@/drizzle/schema";
 
 export type SearchParamProps = {
@@ -243,8 +244,7 @@ export interface Quotation {
   convertedToSale: boolean;
   status: QuotationStatus;
   notes: string;
-  attachmentId: string;
-  attachmentUrl: string;
+  attachments: Attachment[];
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -264,6 +264,13 @@ export interface QuotationItem {
   discountAmount: number;
   productName: string;
   productID: string;
+}
+export interface Attachment {
+  id: string;
+  url: string;
+  name: string;
+  size: number;
+  type: string;
 }
 export interface QuotationWithRelations {
   quotation: Quotation;

@@ -8,6 +8,7 @@ import {
   integer,
   PgColumn,
   pgEnum,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { customType } from "drizzle-orm/pg-core";
 
@@ -451,8 +452,17 @@ export const quotationsTable = pgTable("quotations", {
   status: quotationStatusEnum("status").notNull().default("pending"),
   convertedToSale: boolean("converted_to_sale").notNull().default(false), // Track if converted to sale
   notes: text("notes"),
-  attachmentId: text("image_id"),
-  attachmentUrl: text("image_url"),
+  attachments: jsonb("attachments")
+    .$type<
+      Array<{
+        id: string;
+        url: string;
+        name: string;
+        size: number;
+        type: string;
+      }>
+    >()
+    .default([]),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
