@@ -9,7 +9,6 @@ import {
   categoriesTable,
   productsTable,
   productTypesTable,
-  taxRatesTable,
   unitsTable,
 } from "@/drizzle/schema";
 import { desc, eq, inArray, sql } from "drizzle-orm";
@@ -62,11 +61,6 @@ export const getProducts = async (
           name: unitsTable.name,
           code: unitsTable.code,
         },
-        taxRate: {
-          id: taxRatesTable.id,
-          name: taxRatesTable.name,
-          taxRate: taxRatesTable.taxRate,
-        },
       })
       .from(productsTable)
       .leftJoin(
@@ -79,7 +73,6 @@ export const getProducts = async (
         eq(productsTable.typeId, productTypesTable.id)
       )
       .leftJoin(unitsTable, eq(productsTable.unitId, unitsTable.id))
-      .leftJoin(taxRatesTable, eq(productsTable.taxRateId, taxRatesTable.id))
       .where(eq(productsTable.isActive, true))
       .orderBy(desc(productsTable.createdAt));
 
@@ -117,11 +110,6 @@ export const getProducts = async (
               name: unitsTable.name,
               code: unitsTable.code,
             },
-            taxRate: {
-              id: taxRatesTable.id,
-              name: taxRatesTable.name,
-              taxRate: taxRatesTable.taxRate,
-            },
           })
           .from(productsTable)
           .leftJoin(
@@ -134,10 +122,6 @@ export const getProducts = async (
             eq(productsTable.typeId, productTypesTable.id)
           )
           .leftJoin(unitsTable, eq(productsTable.unitId, unitsTable.id))
-          .leftJoin(
-            taxRatesTable,
-            eq(productsTable.taxRateId, taxRatesTable.id)
-          )
           .where(eq(productsTable.isActive, true))
           .orderBy(desc(productsTable.createdAt))
           .limit(batchSize)
@@ -199,11 +183,6 @@ export const getProductById = async (productId: string) => {
           name: unitsTable.name,
           code: unitsTable.code,
         },
-        taxRate: {
-          id: taxRatesTable.id,
-          name: taxRatesTable.name,
-          taxRate: taxRatesTable.taxRate,
-        },
       })
       .from(productsTable)
       .leftJoin(
@@ -216,7 +195,6 @@ export const getProductById = async (productId: string) => {
         eq(productsTable.typeId, productTypesTable.id)
       )
       .leftJoin(unitsTable, eq(productsTable.unitId, unitsTable.id))
-      .leftJoin(taxRatesTable, eq(productsTable.taxRateId, taxRatesTable.id))
       .where(eq(productsTable.id, productId))
       .then((res) => res[0]);
 
@@ -244,7 +222,6 @@ export const editProduct = async (
         quantity: productData.quantity,
         costPrice: productData.costPrice,
         sellingPrice: productData.sellingPrice,
-        taxRateId: productData.taxRateId,
         categoryId: productData.categoryId,
         brandId: productData.brandId,
         typeId: productData.typeId,
@@ -262,7 +239,6 @@ export const editProduct = async (
         quantity: productData.quantity,
         costPrice: productData.costPrice,
         sellingPrice: productData.sellingPrice,
-        taxRateId: productData.taxRateId,
         categoryId: productData.categoryId,
         brandId: productData.brandId,
         typeId: productData.typeId,
@@ -382,7 +358,6 @@ export const bulkAddProducts = async (
             productID: product.productID,
             name: product.name,
             description: product.description,
-            taxRateId: product.taxRateId,
             quantity: product.quantity,
             costPrice: product.costPrice,
             sellingPrice: product.sellingPrice,

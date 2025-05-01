@@ -138,8 +138,6 @@ export const transformProductsForExport = (
       typeId: product.typeId,
       Unit: item.unit.name,
       unitId: product.unitId,
-      "Tax Rate": `${item.taxRate.taxRate}%`,
-      taxRateId: product.taxRateId,
     };
   });
 };

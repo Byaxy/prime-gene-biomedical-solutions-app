@@ -14,7 +14,6 @@ import toast from "react-hot-toast";
 import { Mail } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import QuotationPDF from "./QuotationPDF";
-import { useTaxes } from "@/hooks/useTaxes";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
 import { useProducts } from "@/hooks/useProducts";
 
@@ -27,7 +26,6 @@ const QuotationActions = ({
   const [openDialog, setOpenDialog] = useState(false);
   const [mode, setMode] = useState<"add" | "edit" | "delete" | "view">("add");
 
-  const { taxes } = useTaxes({ getAllTaxes: true });
   const { companySettings } = useCompanySettings();
   const { products } = useProducts({ getAllProducts: true });
 
@@ -109,7 +107,6 @@ const QuotationActions = ({
       const blob = await pdf(
         <QuotationPDF
           quotation={quotation}
-          taxes={taxes || []}
           currencySymbol={companySettings?.currencySymbol || "$"}
           allProducts={products || []}
         />

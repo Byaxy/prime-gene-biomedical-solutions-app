@@ -109,7 +109,6 @@ export interface Product {
   id: string;
   productID: string;
   name: string;
-  taxRateId: string;
   costPrice: number;
   sellingPrice: number;
   description: string;
@@ -133,7 +132,6 @@ export interface ProductWithRelations {
   brand: { id: string; name: string };
   type: { id: string; name: string };
   unit: { id: string; name: string; code: string };
-  taxRate: { id: string; name: string; taxRate: number };
 }
 
 export interface Expense {
@@ -236,9 +234,8 @@ export interface Quotation {
   rfqNumber: string;
   quotationDate: Date;
   customerId: string;
-  taxRateId: string;
-  discountRate: number;
   discountAmount: number;
+  subTotal: number;
   totalAmount: number;
   totalTaxAmount: number;
   convertedToSale: boolean;
@@ -260,6 +257,7 @@ export interface QuotationItem {
   subTotal: number;
   taxAmount: number;
   taxRate: number;
+  taxRateId: string;
   discountRate: number;
   discountAmount: number;
   productName: string;

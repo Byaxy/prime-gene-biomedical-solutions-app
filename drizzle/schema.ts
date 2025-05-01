@@ -236,9 +236,6 @@ export const productsTable = pgTable("products", {
   costPrice: numeric("cost_price").notNull(),
   sellingPrice: numeric("selling_price").notNull(),
   quantity: integer("quantity").notNull(),
-  taxRateId: uuid("tax_rate_id")
-    .notNull()
-    .references(() => taxRatesTable.id, { onDelete: "set null" }), // Foreign key to taxt rates
   alertQuantity: integer("alert_quantity").default(1),
   maxAlertQuantity: integer("max_alert_quantity").default(5),
   categoryId: uuid("category_id")
@@ -442,13 +439,10 @@ export const quotationsTable = pgTable("quotations", {
   customerId: uuid("customer_id")
     .notNull()
     .references(() => customersTable.id, { onDelete: "set null" }), // Foreign key to customers
-  taxRateId: uuid("tax_id")
-    .notNull()
-    .references(() => taxRatesTable.id, { onDelete: "set null" }), // Foreign key to customers
+  subTotal: numeric("sub_total").notNull(),
   totalAmount: numeric("total_amount").notNull(),
   totalTaxAmount: numeric("total_tax_amount").notNull(),
   discountAmount: numeric("discount_amount").notNull(),
-  discountRate: numeric("discount_rate").default(0),
   status: quotationStatusEnum("status").notNull().default("pending"),
   convertedToSale: boolean("converted_to_sale").notNull().default(false), // Track if converted to sale
   notes: text("notes"),
@@ -479,6 +473,9 @@ export const quotationItemsTable = pgTable("quotation_items", {
   productId: uuid("product_id")
     .notNull()
     .references(() => productsTable.id, { onDelete: "cascade" }), // Foreign key to products
+  taxRateId: uuid("tax_id")
+    .notNull()
+    .references(() => taxRatesTable.id, { onDelete: "set null" }), // Foreign key to customers
   quantity: integer("quantity").notNull(),
   unitPrice: numeric("unit_price").notNull(),
   totalPrice: numeric("total_price").notNull(),

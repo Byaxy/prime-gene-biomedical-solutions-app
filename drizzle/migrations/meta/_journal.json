@@ -127,6 +127,20 @@
       "when": 1745923072181,
       "tag": "0017_brainy_wendigo",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1746126448799,
+      "tag": "0018_woozy_loa",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1746133643337,
+      "tag": "0019_goofy_hellfire_club",
+      "breakpoints": true
     }
   ]
 }

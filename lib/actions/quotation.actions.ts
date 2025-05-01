@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// quotation.actions.ts
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -25,9 +24,8 @@ export const addQuotation = async (quotation: QuotationFormValues) => {
           rfqNumber: quotation.rfqNumber,
           quotationDate: quotation.quotationDate,
           customerId: quotation.customerId,
-          taxRateId: quotation.taxRateId,
           discountAmount: quotation.discountAmount,
-          discountRate: quotation.discountRate,
+          subTotal: quotation.subTotal,
           totalAmount: quotation.totalAmount,
           totalTaxAmount: quotation.totalTaxAmount,
           status: quotation.status as "pending" | "completed" | "cancelled",
@@ -53,6 +51,7 @@ export const addQuotation = async (quotation: QuotationFormValues) => {
               discountAmount: product.discountAmount,
               discountRate: product.discountRate,
               taxRate: product.taxRate,
+              taxRateId: product.taxRateId,
               productName: product.productName,
               productID: product.productID,
             })
@@ -138,6 +137,7 @@ export const editQuotation = async (
                 subTotal: product.subTotal,
                 taxAmount: product.taxAmount,
                 taxRate: product.taxRate,
+                taxRateId: product.taxRateId,
                 discountAmount: product.discountAmount,
                 discountRate: product.discountRate,
               })
@@ -157,6 +157,7 @@ export const editQuotation = async (
                 subTotal: product.subTotal,
                 taxAmount: product.taxAmount,
                 taxRate: product.taxRate,
+                taxRateId: product.taxRateId,
                 discountAmount: product.discountAmount,
                 discountRate: product.discountRate,
                 productName: product.productName,
@@ -212,6 +213,7 @@ export const getQuotationById = async (quotationId: string) => {
           subTotal: quotationItemsTable.subTotal,
           taxAmount: quotationItemsTable.taxAmount,
           taxRate: quotationItemsTable.taxRate,
+          taxRateId: quotationItemsTable.taxRateId,
           discountAmount: quotationItemsTable.discountAmount,
           discountRate: quotationItemsTable.discountRate,
           productName: quotationItemsTable.productName,
@@ -232,6 +234,7 @@ export const getQuotationById = async (quotationId: string) => {
           subTotal: item.subTotal,
           taxAmount: item.taxAmount,
           taxRate: item.taxRate,
+          taxRateId: item.taxRateId,
           discountAmount: item.discountAmount,
           discountRate: item.discountRate,
           productName: item.productName,
@@ -330,6 +333,7 @@ export const getQuotations = async (
           subTotal: quotationItemsTable.subTotal,
           taxAmount: quotationItemsTable.taxAmount,
           taxRate: quotationItemsTable.taxRate,
+          taxRateId: quotationItemsTable.taxRateId,
           discountAmount: quotationItemsTable.discountAmount,
           discountRate: quotationItemsTable.discountRate,
           productName: quotationItemsTable.productName,
@@ -355,6 +359,7 @@ export const getQuotations = async (
             subTotal: item.subTotal,
             taxAmount: item.taxAmount,
             taxRate: item.taxRate,
+            taxRateId: item.taxRateId,
             discountAmount: item.discountAmount,
             discountRate: item.discountRate,
             productName: item.productName,

@@ -5,7 +5,6 @@ import {
   CategoryFormValues,
   ProductFormValidation,
   ProductFormValues,
-  TaxFormValues,
   TypeFormValues,
   UnitFormValues,
 } from "@/lib/validation";
@@ -29,17 +28,14 @@ import {
   Product,
   ProductType,
   ProductWithRelations,
-  Tax,
   Unit,
 } from "@/types";
-import { useTaxes } from "@/hooks/useTaxes";
 import { useProducts } from "@/hooks/useProducts";
 import toast from "react-hot-toast";
 import { CategoryDialog } from "../categories/CategoryDialog";
 import BrandDialog from "../brands/BrandDialog";
 import UnitsDialog from "../units/UnitsDialog";
 import ProductTypeDialog from "../productTypes/ProductTypeDialog";
-import TaxDialog from "../taxes/TaxDialog";
 import { useState } from "react";
 
 interface ProductFormProps {
@@ -52,7 +48,6 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
   const [brandDialogOpen, setBrandDialogOpen] = useState(false);
   const [unitDialogOpen, setUnitDialogOpen] = useState(false);
   const [typeDialogOpen, setTypeDialogOpen] = useState(false);
-  const [taxDialogOpen, setTaxDialogOpen] = useState(false);
   const {
     categories,
     isLoading: categoriesLoading,
@@ -82,12 +77,6 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
     getAllBrands: true,
   });
   const {
-    taxes,
-    isLoading: taxesLoading,
-    addTax,
-    isAddingTax,
-  } = useTaxes({ getAllTaxes: true });
-  const {
     products,
     addProduct,
     editProduct,
@@ -97,8 +86,6 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
 
   const router = useRouter();
   const pathname = usePathname();
-
-  console.log("pathname", pathname);
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(ProductFormValidation),
@@ -115,7 +102,6 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
       quantity: 0,
       costPrice: 0,
       sellingPrice: 0,
-      taxRateId: "",
       image: [],
     },
   });
@@ -126,7 +112,6 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
     setBrandDialogOpen(false);
     setUnitDialogOpen(false);
     setTypeDialogOpen(false);
-    setTaxDialogOpen(false);
 
     setTimeout(() => {
       const stuckSection = document.querySelector(".MuiBox-root.css-0");
@@ -182,20 +167,6 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
   const handleAddType = async (data: TypeFormValues): Promise<void> => {
     return new Promise((resolve, reject) => {
       addType(data, {
-        onSuccess: () => {
-          closeDialog();
-          resolve();
-        },
-        onError: (error) => {
-          reject(error);
-        },
-      });
-    });
-  };
-
-  const handleAddTax = async (data: TaxFormValues): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      addTax(data, {
         onSuccess: () => {
           closeDialog();
           resolve();
@@ -468,31 +439,6 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
 
           <div className="flex flex-col sm:flex-row gap-5">
             <CustomFormField
-              fieldType={FormFieldType.SELECT}
-              control={form.control}
-              name="taxRateId"
-              label="Tax Rate"
-              placeholder="Select tax rate"
-              onAddNew={() => setTaxDialogOpen(true)}
-              key={`tax-select-${form.watch("taxRateId") || ""}`}
-            >
-              {taxesLoading && (
-                <div className="py-4">
-                  <Loading />
-                </div>
-              )}
-              {taxes &&
-                taxes?.map((tax: Tax) => (
-                  <SelectItem
-                    key={tax.id}
-                    value={tax.id}
-                    className="text-14-medium text-blue-800 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
-                  >
-                    {tax.code} - {`${tax.taxRate}%`}
-                  </SelectItem>
-                ))}
-            </CustomFormField>
-            <CustomFormField
               fieldType={FormFieldType.NUMBER}
               control={form.control}
               name="alertQuantity"
@@ -574,13 +520,6 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
         open={typeDialogOpen}
         onOpenChange={closeDialog}
         isLoading={isAddingType}
-      />
-      <TaxDialog
-        mode="add"
-        onSubmit={handleAddTax}
-        open={taxDialogOpen}
-        onOpenChange={closeDialog}
-        isLoading={isAddingTax}
       />
     </>
   );

@@ -10,7 +10,6 @@ import { Button } from "../ui/button";
 import { QuotationWithRelations } from "@/types";
 import { PDFViewer } from "@react-pdf/renderer";
 import QuotationPDF from "./QuotationPDF";
-import { useTaxes } from "@/hooks/useTaxes";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
 import { useProducts } from "@/hooks/useProducts";
 interface QuotationDialogProps {
@@ -30,7 +29,6 @@ const QuotationDialog = ({
   quotation,
   onSubmit,
 }: QuotationDialogProps) => {
-  const { taxes } = useTaxes({ getAllTaxes: true });
   const { companySettings } = useCompanySettings();
   const { products } = useProducts({ getAllProducts: true });
   const handleDelete = async () => {
@@ -108,7 +106,6 @@ const QuotationDialog = ({
               {quotation && (
                 <QuotationPDF
                   quotation={quotation}
-                  taxes={taxes || []}
                   currencySymbol={companySettings?.currencySymbol || "$"}
                   allProducts={products || []}
                 />

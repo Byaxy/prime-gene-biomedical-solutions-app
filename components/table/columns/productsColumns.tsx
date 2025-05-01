@@ -162,19 +162,6 @@ export const productsColumns: ColumnDef<ProductWithRelations>[] = [
     },
   },
   {
-    accessorKey: "taxRate.taxRate",
-    header: "Tax",
-    cell: ({ row }) => {
-      const product = row.original;
-      return (
-        <>
-          <p className="text-14-medium">{product.taxRate.taxRate}%</p>
-        </>
-      );
-    },
-  },
-
-  {
     id: "actions",
     header: "Actions",
     cell: ({ row }) => {

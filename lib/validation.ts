@@ -83,7 +83,6 @@ export const ProductFormValidation = z.object({
     .nonempty("Name is required")
     .min(2, "Name must be at least 2 characters"),
   description: z.string().optional(),
-  taxRateId: z.string().nonempty("Tax rate is required"),
   quantity: z.number().int().min(0, "Quantity must be 0 or more"),
   costPrice: z.number().min(0, "Cost price must be positive"),
   sellingPrice: z.number().min(0, "Selling price must be positive"),
@@ -283,11 +282,10 @@ export const QuotationFormValidation = z.object({
     message: "Quotation date cannot be in the future",
   }),
   customerId: z.string().nonempty("Customer is required"),
-  taxRateId: z.string().nonempty("Tax is required"),
   totalAmount: z.number().min(0, "Total amount must be 0 or more"),
+  subTotal: z.number().min(0, "Sub total must be 0 or more"),
   totalTaxAmount: z.number().min(0, "Tax amount must be 0 or more"),
   discountAmount: z.number().min(0, "Discount amount must be 0 or more"),
-  discountRate: z.number().min(0, "Discount rate must be 0 or more"),
   status: z
     .enum(Object.values(QuotationStatus) as [string, ...string[]])
     .default(QuotationStatus.Pending),
@@ -303,6 +301,7 @@ export const QuotationFormValidation = z.object({
         subTotal: z.number().min(0, "Sub total must be 0 or more"),
         taxAmount: z.number().min(0, "Tax amount must be 0 or more"),
         taxRate: z.number().min(0, "Tax rate must be 0 or more"),
+        taxRateId: z.string().nonempty("Tax rate is required"),
         discountAmount: z.number().min(0, "Discount amount must be 0 or more"),
         discountRate: z.number().min(0, "Discount rate must be 0 or more"),
         productName: z.string(),

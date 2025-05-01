@@ -9,7 +9,7 @@ import {
   StyleSheet,
   Image,
 } from "@react-pdf/renderer";
-import { ProductWithRelations, QuotationWithRelations, Tax } from "@/types";
+import { ProductWithRelations, QuotationWithRelations } from "@/types";
 import { formatCurrency } from "@/lib/utils";
 
 // styles
@@ -19,7 +19,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     padding: 20,
     fontSize: 10,
-    color: "#002060",
+    color: "#072a69",
     fontFamily: "Times-Roman",
   },
   row: {
@@ -262,12 +262,10 @@ const SignatureAndBankSection = () => (
 
 const QuotationPDF = ({
   quotation,
-  taxes,
   currencySymbol,
   allProducts,
 }: {
   quotation: QuotationWithRelations;
-  taxes: Tax[];
   currencySymbol: string;
   allProducts: ProductWithRelations[];
 }) => {
@@ -347,7 +345,6 @@ const QuotationPDF = ({
             ></View>
           </View>
         </View>
-
         {/* Title */}
         <View
           style={{
@@ -401,7 +398,9 @@ const QuotationPDF = ({
               >
                 RFQ #:
               </Text>
-              <Text style={styles.companyInfo}>{quote.rfqNumber || "N/A"}</Text>
+              <Text style={{ ...styles.companyInfo, textAlign: "center" }}>
+                {quote.rfqNumber || "N/A"}
+              </Text>
             </View>
           </View>
 
@@ -430,7 +429,7 @@ const QuotationPDF = ({
               >
                 PFI #:
               </Text>
-              <Text style={styles.companyInfo}>
+              <Text style={{ ...styles.companyInfo, textAlign: "center" }}>
                 {quote.quotationNumber || "N/A"}
               </Text>
             </View>
@@ -451,7 +450,7 @@ const QuotationPDF = ({
               >
                 Date:
               </Text>
-              <Text style={styles.companyInfo}>
+              <Text style={{ ...styles.companyInfo, textAlign: "center" }}>
                 {new Date(quote.quotationDate).toLocaleDateString()}
               </Text>
             </View>
@@ -493,11 +492,9 @@ const QuotationPDF = ({
                 paddingTop: 2,
               }}
             >
+              <Text style={styles.companyInfo}>{customer.name}</Text>
               <Text style={styles.companyInfo}>
-                Rockville Valley, Johnson Compound, Haile Selassie Avenue,
-              </Text>
-              <Text style={styles.companyInfo}>
-                Capitol Bypass, Monrovia-Liberia
+                {customer.address || "N/A"}
               </Text>
             </View>
           </View>
@@ -568,7 +565,7 @@ const QuotationPDF = ({
                 }
               </Text>
               <Text style={styles.col6}>{product.unitPrice.toFixed(2)}</Text>
-              <Text style={styles.col7}>{product.totalPrice.toFixed(2)}</Text>
+              <Text style={styles.col7}>{product.subTotal.toFixed(2)}</Text>
             </View>
           ))}
           {/* Summary */}
@@ -577,13 +574,13 @@ const QuotationPDF = ({
               <Text>Sub-Total ({currencySymbol}):</Text>
               <Text>
                 {formatCurrency(
-                  String((quote.totalAmount - quote.totalTaxAmount).toFixed(2)),
+                  String(quote.subTotal.toFixed(2)),
                   currencySymbol
                 )}
               </Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text>Order Discount({quote.discountRate}%):</Text>
+              <Text>Total Discount:</Text>
               <Text>
                 {formatCurrency(
                   String(quote.discountAmount.toFixed(2)),
@@ -592,10 +589,7 @@ const QuotationPDF = ({
               </Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text>
-                Tax ({taxes?.find((tax) => tax.id === quote.taxRateId)?.taxRate}
-                %):
-              </Text>
+              <Text>Total Tax:</Text>
               <Text>
                 {formatCurrency(
                   String(quote.totalTaxAmount.toFixed(2)),

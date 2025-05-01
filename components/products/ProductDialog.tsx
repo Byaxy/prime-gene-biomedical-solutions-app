@@ -36,7 +36,6 @@ export function ProductDialog({
         await onSubmit({
           productID: product?.product?.id || "",
           name: product?.product?.name || "",
-          taxRateId: product?.product?.taxRateId || "",
           costPrice: product?.product?.costPrice || 0,
           sellingPrice: product?.product?.sellingPrice || 0,
           description: product?.product?.description || "",

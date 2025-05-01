@@ -44,7 +44,6 @@ import { RefreshCw } from "lucide-react";
 import { useTaxes } from "@/hooks/useTaxes";
 import TaxDialog from "../taxes/TaxDialog";
 import Loading from "../loading";
-import { useCompanySettings } from "@/hooks/useCompanySettings";
 import { FileUploader } from "../FileUploader";
 import ProductSheet from "../products/ProductSheet";
 
@@ -57,8 +56,6 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
   const [taxDialogOpen, setTaxDialogOpen] = useState(false);
   const [productDialogOpen, setProductDialogOpen] = useState(false);
-
-  const { companySettings } = useCompanySettings();
 
   const { products, isLoading: productsLoading } = useProducts({
     getAllProducts: true,
@@ -105,16 +102,15 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
   const defaultValues = {
     quotationNumber: generatedQuotationNumber || "",
     rfqNumber: "",
-    taxRateId: "",
-    discountRate: 0,
-    discountAmount: 0,
     quotationDate: new Date(),
     products: [],
     customerId: "",
     status: QuotationStatus.Pending as QuotationStatus,
     notes: "",
-    totalAmount: 0,
+    discountAmount: 0,
     totalTaxAmount: 0,
+    subTotal: 0,
+    totalAmount: 0,
     convertedToSale: false,
     attachments: [],
 
@@ -138,9 +134,11 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                 productId: product.productId,
                 quantity: product.quantity,
                 unitPrice: product.unitPrice,
+                subTotal: product.subTotal,
                 totalPrice: product.totalPrice,
                 taxAmount: product.taxAmount,
                 taxRate: product.taxRate,
+                taxRateId: product.taxRateId || "",
                 discountRate: product.discountRate,
                 discountAmount: product.discountAmount,
                 productID: product.productID,
@@ -148,13 +146,12 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
               })) || [],
 
             customerId: initialData?.quotation.customerId,
-            taxRateId: initialData?.quotation.taxRateId,
-            discountRate: initialData?.quotation.discountRate,
-            discountAmount: initialData?.quotation.discountAmount,
             status: initialData?.quotation.status as QuotationStatus,
             notes: initialData?.quotation.notes,
-            totalAmount: initialData?.quotation.totalAmount,
+            discountAmount: initialData?.quotation.discountAmount,
             totalTaxAmount: initialData?.quotation.totalTaxAmount,
+            subTotal: initialData?.quotation.subTotal,
+            totalAmount: initialData?.quotation.totalAmount,
             convertedToSale: initialData?.quotation.convertedToSale,
             attachments: initialData?.quotation.attachments,
 
@@ -168,15 +165,12 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
   });
 
   const selectedProductId = form.watch("selectedProductId");
-  const selectedTaxRateId = form.watch("taxRateId");
   const watchedFields = fields.map((_, index) => ({
     quantity: form.watch(`products.${index}.quantity`),
     unitPrice: form.watch(`products.${index}.unitPrice`),
+    taxRateId: form.watch(`products.${index}.taxRateId`),
+    discountRate: form.watch(`products.${index}.discountRate`),
   }));
-
-  const selectedTax: Tax = taxes?.find(
-    (tax: Tax) => tax.id === selectedTaxRateId
-  );
 
   // Set quotation number
   useEffect(() => {
@@ -238,8 +232,9 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
       totalPrice: 0,
       subTotal: 0,
       taxAmount: 0,
-      taxRate: selectedTax ? selectedTax.taxRate : 0,
-      discountRate: form.watch("discountRate") || 0,
+      taxRate: 0,
+      discountRate: 0,
+      taxRateId: "",
       discountAmount: 0,
       productID: selectedProduct.product.productID,
       productName: selectedProduct.product.name,
@@ -386,77 +381,131 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
     }
   };
 
-  // Calculate raw subtotal (before any discounts)
-  const calculateRawSubTotal = useCallback(() => {
-    let calculatedSubTotal = 0;
-    fields.forEach((field, index) => {
+  // Calculate raw subtotal per product entry (before any discounts)
+  const calculateEntryRawSubTotal = useCallback(
+    (index: number) => {
       const quantity = form.watch(`products.${index}.quantity`) || 0;
       const unitPrice = form.watch(`products.${index}.unitPrice`) || 0;
-      calculatedSubTotal += quantity * unitPrice;
+      return quantity * unitPrice;
+    },
+    [form]
+  );
+
+  // Calculate discount amount per product entry
+  const calculateEntryDiscountAmount = useCallback(
+    (index: number) => {
+      const entrySubTotal = calculateEntryRawSubTotal(index);
+      const discountRate = form.watch(`products.${index}.discountRate`) || 0;
+      return (entrySubTotal * discountRate) / 100;
+    },
+    [calculateEntryRawSubTotal, form]
+  );
+
+  // Calculate taxable amount per product entry (subtotal - discount)
+  const calculateEntryTaxableAmount = useCallback(
+    (index: number) => {
+      const entryRawSubTotal = calculateEntryRawSubTotal(index);
+      const entryDiscountAmount = calculateEntryDiscountAmount(index);
+      return entryRawSubTotal - entryDiscountAmount;
+    },
+    [calculateEntryRawSubTotal, calculateEntryDiscountAmount]
+  );
+
+  // Calculate tax amount per product entry
+  const calculateEntryTaxAmount = useCallback(
+    (index: number) => {
+      const entryTaxableAmount = calculateEntryTaxableAmount(index);
+      const taxRateId = form.watch(`products.${index}.taxRateId`) || "";
+      const selectedTax = taxes?.find((tax: Tax) => tax.id === taxRateId);
+      const taxRate = selectedTax?.taxRate || 0;
+      return (entryTaxableAmount * taxRate) / 100;
+    },
+    [calculateEntryTaxableAmount, form, taxes]
+  );
+
+  // Calculate total per product entry (taxable amount + tax)
+  const calculateEntryTotalAmount = useCallback(
+    (index: number) => {
+      const entryTaxableAmount = calculateEntryTaxableAmount(index);
+      const entryTaxAmount = calculateEntryTaxAmount(index);
+      return entryTaxableAmount + entryTaxAmount;
+    },
+    [calculateEntryTaxableAmount, calculateEntryTaxAmount]
+  );
+
+  // Calculate overall subtotal (sum of all entry taxable amounts)
+  const calculateSubTotal = useCallback(() => {
+    let total = 0;
+    fields.forEach((_, index) => {
+      total += calculateEntryTaxableAmount(index);
     });
-    return calculatedSubTotal;
-  }, [fields, form]);
+    return total;
+  }, [fields, calculateEntryTaxableAmount]);
 
-  // Calculate discount amount
-  const calculateDiscountAmount = useCallback(() => {
-    const subTotal = calculateRawSubTotal();
-    const discountRate = form.watch("discountRate") || 0;
-    return subTotal * (discountRate / 100);
-  }, [calculateRawSubTotal, form]);
+  // Calculate overall tax amount (sum of all entry tax amounts)
+  const calculateTotalTaxAmount = useCallback(() => {
+    let total = 0;
+    fields.forEach((_, index) => {
+      total += calculateEntryTaxAmount(index);
+    });
+    return total;
+  }, [fields, calculateEntryTaxAmount]);
 
-  // Calculate taxable amount (subtotal - discount)
-  const calculateTaxableAmount = useCallback(() => {
-    return calculateRawSubTotal() - calculateDiscountAmount();
-  }, [calculateRawSubTotal, calculateDiscountAmount]);
-
-  // Calculate tax amount (taxable amount * tax rate)
-  const calculateTaxAmount = useCallback(() => {
-    const taxableAmount = calculateTaxableAmount();
-    const taxRate = selectedTax?.taxRate || 0;
-    return (taxableAmount * taxRate) / 100;
-  }, [calculateTaxableAmount, selectedTax]);
-
-  // Calculate grand total (taxable amount + tax)
+  // Calculate grand total (subtotal + total tax)
   const calculateTotalAmount = useCallback(() => {
-    return calculateTaxableAmount() + calculateTaxAmount();
-  }, [calculateTaxableAmount, calculateTaxAmount]);
+    return calculateSubTotal() + calculateTotalTaxAmount();
+  }, [calculateSubTotal, calculateTotalTaxAmount]);
+
+  // Calculate total discount amount (sum of all entry discount amounts)
+  const calculateTotalDiscountAmount = useCallback(() => {
+    let total = 0;
+    fields.forEach((_, index) => {
+      total += calculateEntryDiscountAmount(index);
+    });
+    return total;
+  }, [fields, calculateEntryDiscountAmount]);
 
   useEffect(() => {
     if (fields.length > 0) {
       fields.forEach((field, index) => {
-        const quantity = watchedFields[index]?.quantity || 0;
-        const unitPrice = watchedFields[index]?.unitPrice || 0;
-        const entrySubtotal = quantity * unitPrice;
-        const taxRate = selectedTax?.taxRate || 0;
-        const entryTaxAmount = (entrySubtotal * taxRate) / 100;
-        const entryDiscountAmount =
-          (entrySubtotal * form.watch("discountRate")) / 100;
-        const entryTaxableAmount = entrySubtotal - entryDiscountAmount;
-        const entryTotal = entryTaxableAmount + entryTaxAmount;
+        const entryDiscountAmount = calculateEntryDiscountAmount(index);
+        const entryTaxableAmount = calculateEntryTaxableAmount(index);
+        const entryTaxAmount = calculateEntryTaxAmount(index);
+        const entryTotalAmount = calculateEntryTotalAmount(index);
 
+        // Set individual product entry values
         form.setValue(`products.${index}.discountAmount`, entryDiscountAmount);
-        form.setValue(
-          `products.${index}.discountRate`,
-          form.watch("discountRate") || 0
-        );
         form.setValue(`products.${index}.subTotal`, entryTaxableAmount);
+
+        const taxRateId = form.watch(`products.${index}.taxRateId`) || "";
+        const selectedTax = taxes?.find((tax: Tax) => tax.id === taxRateId);
+        const taxRate = selectedTax?.taxRate || 0;
         form.setValue(`products.${index}.taxRate`, taxRate);
+
         form.setValue(`products.${index}.taxAmount`, entryTaxAmount);
-        form.setValue(`products.${index}.totalPrice`, entryTotal);
+        form.setValue(`products.${index}.totalPrice`, entryTotalAmount);
       });
 
-      form.setValue("discountAmount", calculateDiscountAmount());
+      // Set overall quotation values
+      form.setValue("subTotal", calculateSubTotal());
+      form.setValue("discountAmount", calculateTotalDiscountAmount());
       form.setValue("totalAmount", calculateTotalAmount());
-      form.setValue("totalTaxAmount", calculateTaxAmount());
+      form.setValue("totalTaxAmount", calculateTotalTaxAmount());
     }
   }, [
     watchedFields,
     fields,
     form,
+    calculateSubTotal,
     calculateTotalAmount,
-    calculateTaxAmount,
-    selectedTax,
-    calculateDiscountAmount,
+    calculateTotalTaxAmount,
+    calculateEntryRawSubTotal,
+    calculateEntryDiscountAmount,
+    calculateEntryTaxableAmount,
+    calculateEntryTaxAmount,
+    calculateEntryTotalAmount,
+    calculateTotalDiscountAmount,
+    taxes,
   ]);
 
   return (
@@ -534,41 +583,6 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
               label="Request for Quotation Number"
               placeholder={"Request for quotation number"}
             />
-          </div>
-
-          <div className="flex flex-col md:flex-row gap-5">
-            <CustomFormField
-              fieldType={FormFieldType.SELECT}
-              control={form.control}
-              name="taxRateId"
-              label="Tax Rate"
-              placeholder="Select tax rate"
-              onAddNew={() => setTaxDialogOpen(true)}
-              key={`tax-select-${form.watch("taxRateId") || ""}`}
-            >
-              {taxesLoading && (
-                <div className="py-4">
-                  <Loading />
-                </div>
-              )}
-              {taxes &&
-                taxes?.map((tax: Tax) => (
-                  <SelectItem
-                    key={tax.id}
-                    value={tax.id}
-                    className="text-14-medium text-blue-800 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
-                  >
-                    {tax.code} - {`${tax.taxRate}%`}
-                  </SelectItem>
-                ))}
-            </CustomFormField>
-            <CustomFormField
-              fieldType={FormFieldType.NUMBER}
-              control={form.control}
-              name="discountRate"
-              label="Discount Rate(%)"
-              placeholder="Enter discount rate"
-            />
             <CustomFormField
               fieldType={FormFieldType.SELECT}
               control={form.control}
@@ -642,9 +656,9 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                   <TableHead>Product Description</TableHead>
                   <TableHead>Quantity</TableHead>
                   <TableHead>Unit Price</TableHead>
-                  <TableHead>Tax Rate</TableHead>
+                  <TableHead>Tax Rate(%)</TableHead>
                   <TableHead>Tax Amount</TableHead>
-                  <TableHead>Discount Rate</TableHead>
+                  <TableHead>Discount Rate(%)</TableHead>
                   <TableHead>Discount Amount</TableHead>
                   <TableHead>Sub-Total</TableHead>
                   <TableHead>Actions</TableHead>
@@ -686,42 +700,58 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                       />
                     </TableCell>
                     <TableCell>
-                      <p>{selectedTax?.taxRate || 0}%</p>
+                      <CustomFormField
+                        fieldType={FormFieldType.SELECT}
+                        control={form.control}
+                        name={`products.${index}.taxRateId`}
+                        label=""
+                        placeholder="Tax Rate"
+                        onAddNew={() => setTaxDialogOpen(true)}
+                        key={`tax-select-${
+                          form.watch(`products.${index}.taxRateId`) || ""
+                        }-${index}`}
+                      >
+                        {taxesLoading && (
+                          <div className="py-4">
+                            <Loading />
+                          </div>
+                        )}
+                        {taxes?.map((tax: Tax) => (
+                          <SelectItem
+                            key={tax.id}
+                            value={tax.id}
+                            className="text-14-medium text-blue-800 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+                          >
+                            {tax.code} - {`${tax.taxRate}%`}
+                          </SelectItem>
+                        ))}
+                      </CustomFormField>
                     </TableCell>
                     <TableCell>
-                      <FormatNumber
-                        value={
-                          (form.watch(`products.${index}.unitPrice`) *
-                            form.watch(`products.${index}.quantity`) *
-                            selectedTax?.taxRate) /
-                            100 || 0
-                        }
-                      />
+                      <div className="flex items-center text-14-medium text-blue-800 rounded-md border bg-white px-3 border-dark-700 h-11">
+                        <FormatNumber value={calculateEntryTaxAmount(index)} />
+                      </div>
                     </TableCell>
 
                     <TableCell>
-                      <p>{form.watch("discountRate") || 0}%</p>
-                    </TableCell>
-                    <TableCell>
-                      <FormatNumber
-                        value={
-                          (form.watch(`products.${index}.quantity`) *
-                            form.watch(`products.${index}.unitPrice`) *
-                            form.watch("discountRate")) /
-                            100 || 0
-                        }
+                      <CustomFormField
+                        fieldType={FormFieldType.NUMBER}
+                        control={form.control}
+                        name={`products.${index}.discountRate`}
+                        label=""
+                        placeholder="Discount %"
                       />
                     </TableCell>
                     <TableCell>
+                      <div className="flex items-center text-14-medium text-blue-800 rounded-md border bg-white px-3 border-dark-700 h-11">
+                        <FormatNumber
+                          value={calculateEntryDiscountAmount(index)}
+                        />
+                      </div>
+                    </TableCell>
+                    <TableCell>
                       <FormatNumber
-                        value={
-                          form.watch(`products.${index}.quantity`) *
-                            form.watch(`products.${index}.unitPrice`) -
-                          (form.watch(`products.${index}.quantity`) *
-                            form.watch(`products.${index}.unitPrice`) *
-                            form.watch("discountRate")) /
-                            100
-                        }
+                        value={calculateEntryTaxableAmount(index)}
                       />
                     </TableCell>
                     <TableCell>
@@ -744,13 +774,13 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                         colSpan={9}
                         className="text-right font-medium text-blue-800 text-[17px] py-4"
                       >
-                        {`Sub-Total (${companySettings?.currencySymbol}):`}
+                        {`Sub-Total:`}
                       </TableCell>
                       <TableCell
                         colSpan={2}
                         className="font-medium text-blue-800 text-[17px] py-4"
                       >
-                        <FormatNumber value={calculateTaxableAmount()} />
+                        <FormatNumber value={calculateSubTotal()} />
                       </TableCell>
                     </TableRow>
                     <TableRow>
@@ -758,13 +788,13 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                         colSpan={9}
                         className="text-right font-medium text-blue-800 text-[17px] py-4"
                       >
-                        {`Discount (${form.watch("discountRate") || 0}%):`}
+                        {`Total Discount:`}
                       </TableCell>
                       <TableCell
                         colSpan={2}
                         className="font-medium text-blue-800 text-[17px] py-4"
                       >
-                        <FormatNumber value={calculateDiscountAmount()} />
+                        <FormatNumber value={calculateTotalDiscountAmount()} />
                       </TableCell>
                     </TableRow>
                     <TableRow>
@@ -772,13 +802,13 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                         colSpan={9}
                         className="text-right font-medium text-blue-800 text-[17px] py-4"
                       >
-                        {`Tax (${selectedTax?.taxRate || 0}%):`}
+                        {`Total Tax:`}
                       </TableCell>
                       <TableCell
                         colSpan={2}
                         className="font-medium text-blue-800 text-[17px] py-4"
                       >
-                        <FormatNumber value={calculateTaxAmount()} />
+                        <FormatNumber value={calculateTotalTaxAmount()} />
                       </TableCell>
                     </TableRow>
                     <TableRow>
@@ -786,7 +816,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                         colSpan={9}
                         className="text-right font-semibold text-blue-800 text-[17px] py-4"
                       >
-                        {`Grand Total (${companySettings?.currencySymbol}):`}
+                        {`Grand Total:`}
                       </TableCell>
                       <TableCell
                         colSpan={2}
@@ -805,14 +835,6 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
               </p>
             )}
           </div>
-
-          <CustomFormField
-            fieldType={FormFieldType.TEXTAREA}
-            control={form.control}
-            name="notes"
-            label="Notes"
-            placeholder="Enter quotation notes"
-          />
 
           <CustomFormField
             fieldType={FormFieldType.SKELETON}
@@ -835,6 +857,14 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                 />
               </FormControl>
             )}
+          />
+
+          <CustomFormField
+            fieldType={FormFieldType.TEXTAREA}
+            control={form.control}
+            name="notes"
+            label="Notes"
+            placeholder="Enter quotation notes"
           />
 
           <div className="flex justify-end gap-4">
