@@ -17,7 +17,7 @@ interface QuotationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   isLoading?: boolean;
-  quotation?: QuotationWithRelations;
+  quotation: QuotationWithRelations;
   onSubmit: (data: QuotationFormValues) => Promise<void>;
 }
 
@@ -67,7 +67,7 @@ const QuotationDialog = ({
               <p className="text-sm text-red-500">
                 Quotation Number:{" "}
                 <span className="font-semibold">
-                  {quotation?.quotation?.quotationNumber}
+                  {quotation.quotation?.quotationNumber}
                 </span>
               </p>
               <div className="flex justify-end gap-4">
@@ -103,13 +103,13 @@ const QuotationDialog = ({
               <DialogDescription></DialogDescription>
             </DialogHeader>
             <PDFViewer className="w-full h-full">
-              {quotation && (
+              {
                 <QuotationPDF
                   quotation={quotation}
                   currencySymbol={companySettings?.currencySymbol || "$"}
                   allProducts={products || []}
                 />
-              )}
+              }
             </PDFViewer>
           </DialogContent>
         </Dialog>

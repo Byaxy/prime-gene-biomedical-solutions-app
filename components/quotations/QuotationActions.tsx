@@ -189,19 +189,26 @@ const QuotationActions = ({
               router.push(
                 `/sales/create-invoice/?sourceQuotation=${quotation.quotation.id}`
               );
+              setOpen(false);
             }}
             className="text-dark-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
             <FileText className="h-5 w-5" /> <span>Convert to Sale</span>
           </p>
           <p
-            onClick={handleDownloadPDF}
+            onClick={() => {
+              handleDownloadPDF();
+              setOpen(false);
+            }}
             className="text-dark-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
             <Download className="h-5 w-5" /> <span>Download Quotation</span>
           </p>
           <p
-            onClick={handleEmailQuotation}
+            onClick={() => {
+              handleEmailQuotation();
+              setOpen(false);
+            }}
             className="text-dark-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
             <Mail className="h-5 w-5" /> <span>Email Quotation</span>
@@ -212,6 +219,7 @@ const QuotationActions = ({
               router.push(
                 `/quotations/edit-quotation/${quotation.quotation.id}`
               );
+              setOpen(false);
             }}
             className="text-[#475BE8] p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
@@ -221,6 +229,7 @@ const QuotationActions = ({
             onClick={() => {
               setMode("delete");
               setOpenDialog(true);
+              setOpen(false);
             }}
             className="text-red-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
