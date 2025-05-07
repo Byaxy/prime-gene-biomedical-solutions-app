@@ -275,45 +275,106 @@ export type CompanySettingsFormValues = z.infer<
 >;
 
 // Quotations
-export const QuotationFormValidation = z.object({
-  quotationNumber: z.string().nonempty("Quotation number is required"),
-  rfqNumber: z.string().nonempty("Request for quotation number is required"),
-  quotationDate: z.date().refine((date) => date <= new Date(), {
-    message: "Quotation date cannot be in the future",
-  }),
-  customerId: z.string().nonempty("Customer is required"),
-  totalAmount: z.number().min(0, "Total amount must be 0 or more"),
-  subTotal: z.number().min(0, "Sub total must be 0 or more"),
-  totalTaxAmount: z.number().min(0, "Tax amount must be 0 or more"),
-  discountAmount: z.number().min(0, "Discount amount must be 0 or more"),
-  status: z
-    .enum(Object.values(QuotationStatus) as [string, ...string[]])
-    .default(QuotationStatus.Pending),
-  notes: z.string().optional(),
-  convertedToSale: z.boolean().default(false),
-  products: z
-    .array(
-      z.object({
-        productId: z.string().nonempty("Product is required"),
-        quantity: z.number().int().min(1, "Quantity must be 1 or more"),
-        unitPrice: z.number().min(0, "Unit price must be 0 or more"),
-        totalPrice: z.number().min(0, "Total price must be 0 or more"),
-        subTotal: z.number().min(0, "Sub total must be 0 or more"),
-        taxAmount: z.number().min(0, "Tax amount must be 0 or more"),
-        taxRate: z.number().min(0, "Tax rate must be 0 or more"),
-        taxRateId: z.string().nonempty("Tax rate is required"),
-        discountAmount: z.number().min(0, "Discount amount must be 0 or more"),
-        discountRate: z.number().min(0, "Discount rate must be 0 or more"),
-        productName: z.string(),
-        productID: z.string(),
+export const QuotationFormValidation = z
+  .object({
+    quotationNumber: z.string().nonempty("Quotation number is required"),
+    rfqNumber: z.string().nonempty("Request for quotation number is required"),
+    isDeliveryAddressAdded: z.boolean().default(false),
+    quotationDate: z.date().refine((date) => date <= new Date(), {
+      message: "Quotation date cannot be in the future",
+    }),
+    customerId: z.string().nonempty("Customer is required"),
+    totalAmount: z.number().min(0, "Total amount must be 0 or more"),
+    subTotal: z.number().min(0, "Sub total must be 0 or more"),
+    totalTaxAmount: z.number().min(0, "Tax amount must be 0 or more"),
+    discountAmount: z.number().min(0, "Discount amount must be 0 or more"),
+    status: z
+      .enum(Object.values(QuotationStatus) as [string, ...string[]])
+      .default(QuotationStatus.Pending),
+    notes: z.string().optional(),
+    convertedToSale: z.boolean().default(false),
+    products: z
+      .array(
+        z.object({
+          productId: z.string().nonempty("Product is required"),
+          quantity: z.number().int().min(1, "Quantity must be 1 or more"),
+          unitPrice: z.number().min(0, "Unit price must be 0 or more"),
+          totalPrice: z.number().min(0, "Total price must be 0 or more"),
+          subTotal: z.number().min(0, "Sub total must be 0 or more"),
+          taxAmount: z.number().min(0, "Tax amount must be 0 or more"),
+          taxRate: z.number().min(0, "Tax rate must be 0 or more"),
+          taxRateId: z.string().nonempty("Tax rate is required"),
+          discountAmount: z
+            .number()
+            .min(0, "Discount amount must be 0 or more"),
+          discountRate: z.number().min(0, "Discount rate must be 0 or more"),
+          productName: z.string(),
+          productID: z.string(),
+        })
+      )
+      .min(1, "At least one product is required"),
+    attachments: z.any().optional(),
+    deliveryAddress: z
+      .object({
+        addressName: z.string().optional(),
+        address: z.string().optional(),
+        city: z.string().optional(),
+        state: z.string().optional(),
+        country: z.string().optional(),
+        email: z.string().email("Invalid email").optional(),
+        phone: z.string().optional(),
       })
-    )
-    .min(1, "At least one product is required"),
-  attachments: z.any().optional(),
+      .optional(),
 
-  // Temporary fields for product selection
-  selectedProductId: z.string().optional(),
-});
+    // Temporary fields for product selection
+    selectedProductId: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.isDeliveryAddressAdded) {
+      if (!data.deliveryAddress?.addressName) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Address name is required",
+          path: ["deliveryAddress", "addressName"],
+        });
+      }
+      if (!data.deliveryAddress?.address) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Address is required",
+          path: ["deliveryAddress", "address"],
+        });
+      }
+      if (!data.deliveryAddress?.city) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "City is required",
+          path: ["deliveryAddress", "city"],
+        });
+      }
+      if (!data.deliveryAddress?.state) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "State is required",
+          path: ["deliveryAddress", "state"],
+        });
+      }
+      if (!data.deliveryAddress?.country) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Country is required",
+          path: ["deliveryAddress", "country"],
+        });
+      }
+      if (!data.deliveryAddress?.phone) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Phone is required",
+          path: ["deliveryAddress", "phone"],
+        });
+      }
+    }
+  });
 export type QuotationFormValues = z.infer<typeof QuotationFormValidation>;
 
 // Stores

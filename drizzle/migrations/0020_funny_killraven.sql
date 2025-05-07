@@ -1,0 +1,2 @@
+ALTER TABLE "quotations" ADD COLUMN "is_delivery_address_added" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "quotations" ADD COLUMN "delivery_address" jsonb DEFAULT '{"addressName":"","address":"","city":"","state":"","country":"","email":"","phone":""}'::jsonb;

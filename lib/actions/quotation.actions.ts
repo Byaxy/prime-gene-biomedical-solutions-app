@@ -31,7 +31,18 @@ export const addQuotation = async (quotation: QuotationFormValues) => {
           status: quotation.status as "pending" | "completed" | "cancelled",
           notes: quotation.notes,
           attachments: quotation.attachments,
-          convertedToSale: quotation.convertedToSale,
+          isDeliveryAddressAdded: quotation.isDeliveryAddressAdded,
+          deliveryAddress: quotation.deliveryAddress
+            ? {
+                addressName: quotation.deliveryAddress.addressName || "",
+                address: quotation.deliveryAddress.address || "",
+                city: quotation.deliveryAddress.city || "",
+                state: quotation.deliveryAddress.state || "",
+                country: quotation.deliveryAddress.country || "",
+                email: quotation.deliveryAddress.email || "",
+                phone: quotation.deliveryAddress.phone || "",
+              }
+            : null,
         })
         .returning();
 
@@ -79,14 +90,24 @@ export const editQuotation = async (
   try {
     const result = await db.transaction(async (tx) => {
       // Update main quotation record
-      const updatedQuotationData = {
-        ...quotation,
-        status: quotation.status as "pending" | "completed" | "cancelled",
-      };
 
       const [updatedQuotation] = await tx
         .update(quotationsTable)
-        .set(updatedQuotationData)
+        .set({
+          ...quotation,
+          status: quotation.status as "pending" | "completed" | "cancelled",
+          deliveryAddress: quotation.deliveryAddress
+            ? {
+                addressName: quotation.deliveryAddress.addressName || "",
+                address: quotation.deliveryAddress.address || "",
+                city: quotation.deliveryAddress.city || "",
+                state: quotation.deliveryAddress.state || "",
+                country: quotation.deliveryAddress.country || "",
+                email: quotation.deliveryAddress.email || "",
+                phone: quotation.deliveryAddress.phone || "",
+              }
+            : null,
+        })
         .where(eq(quotationsTable.id, quotationId))
         .returning();
 

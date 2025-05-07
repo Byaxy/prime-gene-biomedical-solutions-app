@@ -32,6 +32,7 @@ import {
   useState,
 } from "react";
 import { Search } from "lucide-react";
+import { Switch } from "./ui/switch";
 
 export enum FormFieldType {
   INPUT = "input",
@@ -45,6 +46,7 @@ export enum FormFieldType {
   SELECT = "select",
   SKELETON = "skeleton",
   COLOR_PICKER = "colorPicker",
+  SWITCH = "switch",
 }
 
 interface CustomProps {
@@ -242,6 +244,24 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
         </FormControl>
       );
 
+    case FormFieldType.SWITCH:
+      return (
+        <FormControl>
+          <div className="flex items-center gap-4">
+            <Switch
+              id={props.name}
+              checked={field.value}
+              onCheckedChange={field.onChange}
+              disabled={props.disabled}
+              className="custom-switch border data-[state=checked]:bg-blue-800 data-[state=checked]:border-blue-800 data-[state=unchecked]:bg-white data-[state=unchecked]:border-blue-800"
+            />
+            <label htmlFor={props.name} className="switch-label">
+              {props.label}
+            </label>
+          </div>
+        </FormControl>
+      );
+
     case FormFieldType.DATE_PICKER:
       return (
         <div className="flex items-center rounded-md border border-dark-700 bg-white">
@@ -364,9 +384,12 @@ const CustomFormField = (props: CustomProps) => {
       name={name}
       render={({ field }) => (
         <FormItem className="flex-1">
-          {props.fieldType !== FormFieldType.CHECKBOX && label && (
-            <FormLabel className="shad-input-label">{label}</FormLabel>
-          )}
+          {props.fieldType !== FormFieldType.CHECKBOX &&
+            props.fieldType !== FormFieldType.SWITCH &&
+            label && (
+              <FormLabel className="shad-input-label">{label}</FormLabel>
+            )}
+
           <RenderInput field={field} props={props} />
 
           <FormMessage className="shad-error" />

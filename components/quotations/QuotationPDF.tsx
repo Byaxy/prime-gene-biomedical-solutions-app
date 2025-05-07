@@ -517,19 +517,37 @@ const QuotationPDF = ({
                 Delivery Address:
               </Text>
             </View>
-            <View
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                paddingLeft: 20,
-                paddingTop: 2,
-              }}
-            >
-              <Text style={styles.companyInfo}>{customer.name}</Text>
-              <Text style={styles.companyInfo}>
-                {customer.address || "N/A"}
-              </Text>
-            </View>
+            {quote.isDeliveryAddressAdded ? (
+              <View
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  paddingLeft: 20,
+                  paddingTop: 2,
+                }}
+              >
+                <Text style={styles.companyInfo}>
+                  {quote.deliveryAddress.addressName}
+                </Text>
+                <Text style={styles.companyInfo}>
+                  {quote.deliveryAddress.address}
+                </Text>
+              </View>
+            ) : (
+              <View
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  paddingLeft: 20,
+                  paddingTop: 2,
+                }}
+              >
+                <Text style={styles.companyInfo}>{customer.name}</Text>
+                <Text style={styles.companyInfo}>
+                  {customer.address || "N/A"}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 

@@ -242,9 +242,20 @@ export interface Quotation {
   status: QuotationStatus;
   notes: string;
   attachments: Attachment[];
+  isDeliveryAddressAdded: boolean;
+  deliveryAddress: DeliveryAddress;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
+}
+export interface DeliveryAddress {
+  addressName: string;
+  address: string;
+  city: string;
+  state: string;
+  country: string;
+  email: string;
+  phone: string;
 }
 
 export interface QuotationItem {

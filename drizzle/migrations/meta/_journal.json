@@ -141,6 +141,13 @@
       "when": 1746133643337,
       "tag": "0019_goofy_hellfire_club",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1746191396957,
+      "tag": "0020_funny_killraven",
+      "breakpoints": true
     }
   ]
 }

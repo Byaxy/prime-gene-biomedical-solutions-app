@@ -46,6 +46,8 @@ import TaxDialog from "../taxes/TaxDialog";
 import Loading from "../loading";
 import { FileUploader } from "../FileUploader";
 import ProductSheet from "../products/ProductSheet";
+import { Country, State, City } from "country-state-city";
+import { IState, ICity } from "country-state-city";
 
 interface QuotationFormProps {
   mode: "create" | "edit";
@@ -56,6 +58,22 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
   const [taxDialogOpen, setTaxDialogOpen] = useState(false);
   const [productDialogOpen, setProductDialogOpen] = useState(false);
+
+  const [states, setStates] = useState<IState[]>(() =>
+    initialData?.quotation.deliveryAddress?.country
+      ? State.getStatesOfCountry(
+          initialData?.quotation.deliveryAddress?.country
+        )
+      : []
+  );
+  const [cities, setCities] = useState<ICity[]>(() =>
+    initialData?.quotation.deliveryAddress?.state
+      ? City.getCitiesOfState(
+          initialData?.quotation.deliveryAddress?.country || "",
+          initialData?.quotation.deliveryAddress?.state
+        )
+      : []
+  );
 
   const { products, isLoading: productsLoading } = useProducts({
     getAllProducts: true,
@@ -113,6 +131,16 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
     totalAmount: 0,
     convertedToSale: false,
     attachments: [],
+    isDeliveryAddressAdded: false,
+    deliveryAddress: {
+      addressName: "",
+      address: "",
+      city: "",
+      state: "",
+      country: "",
+      email: "",
+      phone: "",
+    },
 
     selectedProductId: "",
   };
@@ -124,13 +152,13 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
       mode === "create"
         ? defaultValues
         : {
-            quotationNumber: initialData?.quotation.quotationNumber,
-            rfqNumber: initialData?.quotation.rfqNumber,
-            quotationDate: new Date(
-              initialData?.quotation.quotationDate || Date.now()
-            ),
+            quotationNumber: initialData?.quotation.quotationNumber || "",
+            rfqNumber: initialData?.quotation.rfqNumber || "",
+            quotationDate: initialData?.quotation.quotationDate
+              ? new Date(initialData.quotation.quotationDate)
+              : new Date(),
             products:
-              initialData?.products.map((product) => ({
+              initialData?.products?.map((product) => ({
                 productId: product.productId,
                 quantity: product.quantity,
                 unitPrice: product.unitPrice,
@@ -144,17 +172,27 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                 productID: product.productID,
                 productName: product.productName,
               })) || [],
-
-            customerId: initialData?.quotation.customerId,
-            status: initialData?.quotation.status as QuotationStatus,
-            notes: initialData?.quotation.notes,
-            discountAmount: initialData?.quotation.discountAmount,
-            totalTaxAmount: initialData?.quotation.totalTaxAmount,
-            subTotal: initialData?.quotation.subTotal,
-            totalAmount: initialData?.quotation.totalAmount,
-            convertedToSale: initialData?.quotation.convertedToSale,
-            attachments: initialData?.quotation.attachments,
-
+            customerId: initialData?.quotation.customerId || "",
+            status: initialData?.quotation.status || QuotationStatus.Pending,
+            notes: initialData?.quotation.notes || "",
+            discountAmount: initialData?.quotation.discountAmount || 0,
+            totalTaxAmount: initialData?.quotation.totalTaxAmount || 0,
+            subTotal: initialData?.quotation.subTotal || 0,
+            totalAmount: initialData?.quotation.totalAmount || 0,
+            convertedToSale: initialData?.quotation.convertedToSale || false,
+            attachments: initialData?.quotation.attachments || [],
+            isDeliveryAddressAdded:
+              initialData?.quotation.isDeliveryAddressAdded || false,
+            deliveryAddress: {
+              addressName:
+                initialData?.quotation.deliveryAddress?.addressName || "",
+              address: initialData?.quotation.deliveryAddress?.address || "",
+              city: initialData?.quotation.deliveryAddress?.city || "",
+              state: initialData?.quotation.deliveryAddress?.state || "",
+              country: initialData?.quotation.deliveryAddress?.country || "",
+              email: initialData?.quotation.deliveryAddress?.email || "",
+              phone: initialData?.quotation.deliveryAddress?.phone || "",
+            },
             selectedProductId: "",
           },
   });
@@ -165,12 +203,122 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
   });
 
   const selectedProductId = form.watch("selectedProductId");
+  const isDeliveryAddressAdded = form.watch("isDeliveryAddressAdded");
+  const selectedCountry = form.watch("deliveryAddress.country");
+  const selectedState = form.watch("deliveryAddress.state");
+
   const watchedFields = fields.map((_, index) => ({
     quantity: form.watch(`products.${index}.quantity`),
     unitPrice: form.watch(`products.${index}.unitPrice`),
     taxRateId: form.watch(`products.${index}.taxRateId`),
     discountRate: form.watch(`products.${index}.discountRate`),
   }));
+
+  // Set initial values for the form
+  useEffect(() => {
+    if (initialData && mode === "edit") {
+      if (initialData.quotation.deliveryAddress?.country) {
+        const countryStates =
+          State.getStatesOfCountry(
+            initialData.quotation.deliveryAddress.country
+          ) || [];
+        setStates(countryStates);
+
+        if (initialData.quotation.deliveryAddress?.state) {
+          const stateCities =
+            City.getCitiesOfState(
+              initialData.quotation.deliveryAddress.country,
+              initialData.quotation.deliveryAddress.state
+            ) || [];
+          setCities(stateCities);
+        }
+      }
+
+      setTimeout(() => {
+        form.reset({
+          quotationNumber: initialData.quotation.quotationNumber,
+          rfqNumber: initialData.quotation.rfqNumber || "",
+          quotationDate: new Date(
+            initialData.quotation.quotationDate || Date.now()
+          ),
+          products:
+            initialData.products.map((product) => ({
+              productId: product.productId,
+              quantity: product.quantity,
+              unitPrice: product.unitPrice,
+              subTotal: product.subTotal,
+              totalPrice: product.totalPrice,
+              taxAmount: product.taxAmount,
+              taxRate: product.taxRate,
+              taxRateId: product.taxRateId || "",
+              discountRate: product.discountRate,
+              discountAmount: product.discountAmount,
+              productID: product.productID,
+              productName: product.productName,
+            })) || [],
+          customerId: initialData.quotation.customerId,
+          status: initialData.quotation.status,
+          notes: initialData.quotation.notes || "",
+          discountAmount: initialData.quotation.discountAmount || 0,
+          totalTaxAmount: initialData.quotation.totalTaxAmount || 0,
+          subTotal: initialData.quotation.subTotal || 0,
+          totalAmount: initialData.quotation.totalAmount || 0,
+          convertedToSale: initialData.quotation.convertedToSale || false,
+          attachments: initialData.quotation.attachments || [],
+          isDeliveryAddressAdded:
+            initialData.quotation.isDeliveryAddressAdded || false,
+          deliveryAddress: {
+            addressName:
+              initialData.quotation.deliveryAddress?.addressName || "",
+            address: initialData.quotation.deliveryAddress?.address || "",
+            city: initialData.quotation.deliveryAddress?.city || "",
+            state: initialData.quotation.deliveryAddress?.state || "",
+            country: initialData.quotation.deliveryAddress?.country || "",
+            email: initialData.quotation.deliveryAddress?.email || "",
+            phone: initialData.quotation.deliveryAddress?.phone || "",
+          },
+          selectedProductId: "",
+        });
+      }, 100);
+    }
+  }, [initialData, form, mode]);
+
+  useEffect(() => {
+    if (selectedCountry) {
+      setStates(State.getStatesOfCountry(selectedCountry) || []);
+      setCities([]);
+    }
+  }, [selectedCountry]);
+
+  useEffect(() => {
+    if (selectedState) {
+      setCities(
+        City.getCitiesOfState(selectedCountry ?? "", selectedState ?? "") || []
+      );
+    }
+  }, [selectedState, selectedCountry]);
+
+  // Handle country change
+  const handleCountryChange = (value: string) => {
+    const countryStates = State.getStatesOfCountry(value) || [];
+    setStates(countryStates);
+    setCities([]);
+
+    form.setValue("deliveryAddress.country", value);
+    form.setValue("deliveryAddress.state", "");
+    form.setValue("deliveryAddress.city", "");
+  };
+
+  // Handle state change
+  const handleStateChange = (value: string) => {
+    if (!selectedCountry) return;
+
+    const stateCities = City.getCitiesOfState(selectedCountry, value) || [];
+    setCities(stateCities);
+
+    form.setValue("deliveryAddress.state", value);
+    form.setValue("deliveryAddress.city", "");
+  };
 
   // Set quotation number
   useEffect(() => {
@@ -557,8 +705,8 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
               name="customerId"
               label="Customer"
               placeholder="Select customer"
-              key={`customer-select-${form.watch("customerId") || ""}`}
               onAddNew={() => setCustomerDialogOpen(true)}
+              key={`customer-select-${form.watch("customerId") || ""}`}
             >
               {customersLoading && (
                 <div className="py-4">
@@ -836,6 +984,115 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
             )}
           </div>
 
+          <div className="flex flex-col gap-5 pt-5">
+            <CustomFormField
+              fieldType={FormFieldType.SWITCH}
+              control={form.control}
+              name="isDeliveryAddressAdded"
+              label="Delivery address ?"
+            />
+            {isDeliveryAddressAdded && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-3">
+                <CustomFormField
+                  fieldType={FormFieldType.INPUT}
+                  control={form.control}
+                  name="deliveryAddress.addressName"
+                  label="Address Name"
+                  placeholder="Enter address name"
+                />
+                <CustomFormField
+                  fieldType={FormFieldType.INPUT}
+                  control={form.control}
+                  name="deliveryAddress.email"
+                  label="Email"
+                  placeholder="Enter address email"
+                />
+
+                <CustomFormField
+                  fieldType={FormFieldType.PHONE_INPUT}
+                  control={form.control}
+                  name="deliveryAddress.phone"
+                  label="Phone number"
+                />
+
+                <CustomFormField
+                  fieldType={FormFieldType.SELECT}
+                  control={form.control}
+                  name="deliveryAddress.country"
+                  label="Country"
+                  placeholder="Select a country"
+                  onValueChange={handleCountryChange}
+                >
+                  {Country.getAllCountries().map((country) => (
+                    <SelectItem
+                      key={country.isoCode}
+                      value={country.isoCode}
+                      className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+                    >
+                      {country.name}
+                    </SelectItem>
+                  ))}
+                </CustomFormField>
+
+                <CustomFormField
+                  fieldType={FormFieldType.SELECT}
+                  control={form.control}
+                  name="deliveryAddress.state"
+                  label="State"
+                  placeholder={
+                    selectedCountry
+                      ? "Select a state"
+                      : "Select a country first"
+                  }
+                  onValueChange={handleStateChange}
+                  disabled={!selectedCountry}
+                >
+                  {states.map((state) => (
+                    <SelectItem
+                      key={state.isoCode}
+                      value={state.isoCode}
+                      className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+                    >
+                      {state.name}
+                    </SelectItem>
+                  ))}
+                </CustomFormField>
+
+                <CustomFormField
+                  fieldType={FormFieldType.SELECT}
+                  control={form.control}
+                  name="deliveryAddress.city"
+                  label="City"
+                  placeholder={
+                    selectedState ? "Select a city" : "Select a state first"
+                  }
+                  onValueChange={(value) =>
+                    form.setValue("deliveryAddress.city", value)
+                  }
+                  disabled={!selectedState}
+                >
+                  {cities.map((city) => (
+                    <SelectItem
+                      key={city.name}
+                      value={city.name}
+                      className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+                    >
+                      {city.name}
+                    </SelectItem>
+                  ))}
+                </CustomFormField>
+
+                <CustomFormField
+                  fieldType={FormFieldType.INPUT}
+                  control={form.control}
+                  name="deliveryAddress.address"
+                  label="Address"
+                  placeholder="Enter physical address"
+                />
+              </div>
+            )}
+          </div>
+
           <CustomFormField
             fieldType={FormFieldType.SKELETON}
             control={form.control}
@@ -858,7 +1115,6 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
               </FormControl>
             )}
           />
-
           <CustomFormField
             fieldType={FormFieldType.TEXTAREA}
             control={form.control}

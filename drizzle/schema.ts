@@ -457,6 +457,28 @@ export const quotationsTable = pgTable("quotations", {
       }>
     >()
     .default([]),
+  isDeliveryAddressAdded: boolean("is_delivery_address_added")
+    .notNull()
+    .default(false),
+  deliveryAddress: jsonb("delivery_address")
+    .$type<{
+      addressName: string;
+      address: string;
+      city: string;
+      state: string;
+      country: string;
+      email: string;
+      phone: string;
+    }>()
+    .default({
+      addressName: "",
+      address: "",
+      city: "",
+      state: "",
+      country: "",
+      email: "",
+      phone: "",
+    }),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
