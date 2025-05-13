@@ -526,7 +526,10 @@ export const salesTable = pgTable("sales", {
   storeId: uuid("store_id")
     .notNull()
     .references(() => storesTable.id, { onDelete: "cascade" }), // Foreign key to stores
+  subTotal: numeric("sub_total").notNull(),
   totalAmount: numeric("total_amount").notNull(),
+  totalTaxAmount: numeric("total_tax_amount").notNull(),
+  discountAmount: numeric("discount_amount").notNull(),
   amountPaid: numeric("amount_paid").notNull(),
   status: saleStatusEnum("status").notNull().default("pending"),
   paymentMethod: paymentMethodEnum("payment_method").notNull().default("cash"),
@@ -534,9 +537,40 @@ export const salesTable = pgTable("sales", {
     .notNull()
     .default("pending"),
   notes: text("notes"),
-  quotationId: uuid("quotation_id").references(() => quotationsTable.id, {
-    onDelete: "set null",
-  }), // Foreign key to quotations
+  quotationId: text("quotation_id").default(""),
+  attachments: jsonb("attachments")
+    .$type<
+      Array<{
+        id: string;
+        url: string;
+        name: string;
+        size: number;
+        type: string;
+      }>
+    >()
+    .default([]),
+  isDeliveryAddressAdded: boolean("is_delivery_address_added")
+    .notNull()
+    .default(false),
+  deliveryAddress: jsonb("delivery_address")
+    .$type<{
+      addressName: string;
+      address: string;
+      city: string;
+      state: string;
+      country: string;
+      email: string;
+      phone: string;
+    }>()
+    .default({
+      addressName: "",
+      address: "",
+      city: "",
+      state: "",
+      country: "",
+      email: "",
+      phone: "",
+    }),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -547,6 +581,9 @@ export const saleItemsTable = pgTable("sale_items", {
   id: uuid("id")
     .primaryKey()
     .default(sql`gen_random_uuid()`),
+  inventoryStockId: uuid("inventory_stock_id")
+    .notNull()
+    .references(() => inventoryTable.id, { onDelete: "cascade" }), // Foreign key to inventory stocks
   saleId: uuid("sale_id")
     .notNull()
     .references(() => salesTable.id, { onDelete: "cascade" }), // Foreign key to sales
@@ -556,10 +593,21 @@ export const saleItemsTable = pgTable("sale_items", {
   storeId: uuid("store_id")
     .notNull()
     .references(() => storesTable.id, { onDelete: "cascade" }), // Foreign key to stores
+  taxRateId: uuid("tax_id")
+    .notNull()
+    .references(() => taxRatesTable.id, { onDelete: "set null" }), // Foreign key to customers
   lotNumber: text("lot_number").notNull(),
+  availableQuantity: integer("available_quantity").notNull(),
   quantity: integer("quantity").notNull(),
-  sellingPrice: numeric("selling_price").notNull(),
+  unitPrice: numeric("unit_price").notNull(),
   totalPrice: numeric("total_price").notNull(),
+  subTotal: numeric("sub_total").notNull(),
+  taxAmount: numeric("tax_amount").notNull(),
+  taxRate: numeric("tax_rate").default(0),
+  discountAmount: numeric("discount_amount").notNull(),
+  discountRate: numeric("discount_rate").default(0),
+  productName: text("product_name"),
+  productID: text("product_ID"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

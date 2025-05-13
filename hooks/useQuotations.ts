@@ -10,7 +10,7 @@ import {
 } from "@/lib/actions/quotation.actions";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { QuotationFormValues } from "@/lib/validation";
-import { QuotationWithRelations } from "@/types";
+import { Attachment, QuotationWithRelations } from "@/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -72,13 +72,7 @@ export const useQuotations = ({
     useMutation({
       mutationFn: async (data: QuotationFormValues) => {
         const supabase = createSupabaseBrowserClient();
-        const attachments: Array<{
-          id: string;
-          url: string;
-          name: string;
-          size: number;
-          type: string;
-        }> = [];
+        const attachments: Attachment[] = [];
 
         if (data.attachments && data.attachments.length > 0) {
           try {
@@ -138,13 +132,7 @@ export const useQuotations = ({
         prevAttachmentIds?: string[];
       }) => {
         const supabase = createSupabaseBrowserClient();
-        const attachments: Array<{
-          id: string;
-          url: string;
-          name: string;
-          size: number;
-          type: string;
-        }> = [];
+        const attachments: Attachment[] = [];
 
         // Delete previous attachments if needed
         if (prevAttachmentIds && prevAttachmentIds.length > 0) {

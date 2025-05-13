@@ -10,7 +10,7 @@ import {
   storesTable,
   usersTable,
 } from "@/drizzle/schema";
-import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lte, asc } from "drizzle-orm";
 import { ExistingStockAdjustmentFormValues } from "../validation";
 import { ExtendedStockAdjustmentFormValues } from "@/components/forms/NewStockForm";
 
@@ -302,17 +302,8 @@ export const getInventoryStock = async (
     let query = db
       .select({
         inventory: inventoryTable,
-        product: {
-          id: productsTable.id,
-          productID: productsTable.productID,
-          name: productsTable.name,
-          alertQuantity: productsTable.alertQuantity,
-        },
-        store: {
-          id: storesTable.id,
-          name: storesTable.name,
-          location: storesTable.location,
-        },
+        product: productsTable,
+        store: storesTable,
       })
       .from(inventoryTable)
       .leftJoin(productsTable, eq(inventoryTable.productId, productsTable.id))
@@ -411,17 +402,8 @@ export const getInventoryStock = async (
         const batch = await db
           .select({
             inventory: inventoryTable,
-            product: {
-              id: productsTable.id,
-              productID: productsTable.productID,
-              name: productsTable.name,
-              alertQuantity: productsTable.alertQuantity,
-            },
-            store: {
-              id: storesTable.id,
-              name: storesTable.name,
-              location: storesTable.location,
-            },
+            product: productsTable,
+            store: storesTable,
           })
           .from(inventoryTable)
           .leftJoin(
@@ -430,7 +412,7 @@ export const getInventoryStock = async (
           )
           .leftJoin(storesTable, eq(inventoryTable.storeId, storesTable.id))
           .where(eq(inventoryTable.isActive, true))
-          .orderBy(desc(inventoryTable.createdAt))
+          .orderBy(asc(inventoryTable.expiryDate))
           .limit(batchSize)
           .offset(offset);
 
@@ -469,17 +451,8 @@ export const getInventoryStockById = async (inventoryId: string) => {
     const inventoryStock = await db
       .select({
         inventory: inventoryTable,
-        product: {
-          id: productsTable.id,
-          name: productsTable.name,
-          productID: productsTable.productID,
-          description: productsTable.description,
-        },
-        store: {
-          id: storesTable.id,
-          name: storesTable.name,
-          location: storesTable.location,
-        },
+        product: productsTable,
+        store: storesTable,
       })
       .from(inventoryTable)
       .leftJoin(productsTable, eq(inventoryTable.productId, productsTable.id))
@@ -512,23 +485,10 @@ export const getInventoryTransactions = async (
     let query: any = db
       .select({
         transaction: inventoryTransactionsTable,
-        inventory: {
-          id: inventoryTable.id,
-          lotNumber: inventoryTable.lotNumber,
-        },
-        product: {
-          id: productsTable.id,
-          name: productsTable.name,
-        },
-        store: {
-          id: storesTable.id,
-          name: storesTable.name,
-          location: storesTable.location,
-        },
-        user: {
-          id: usersTable.id,
-          name: usersTable.name,
-        },
+        inventory: inventoryTable,
+        product: productsTable,
+        store: storesTable,
+        user: usersTable,
       })
       .from(inventoryTransactionsTable)
       .leftJoin(

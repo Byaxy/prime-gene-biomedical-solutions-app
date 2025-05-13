@@ -1,259 +1,612 @@
+/* eslint-disable jsx-a11y/alt-text */
 "use client";
 
-import type React from "react";
+import {
+  Page,
+  Text,
+  View,
+  Document,
+  StyleSheet,
+  Image,
+} from "@react-pdf/renderer";
+import { SaleWithRelations } from "@/types";
+import { formatCurrency } from "@/lib/utils";
 
-import { forwardRef } from "react";
-import type { Sale } from "@/types/appwrite.types";
-import { formatDateTime, cn } from "@/lib/utils";
-import FormatNumber from "@/components/FormatNumber";
-import Image from "next/image";
-import { useCompanySettings } from "@/hooks/useCompanySettings";
-import { ColumnDef } from "@tanstack/react-table";
-import { ItemsTable } from "../table/ItemsTables";
-
-interface SaleInvoiceProps {
-  sale: Sale;
-  componentRef?: React.RefObject<HTMLDivElement | null>;
-}
-
-interface SaleItems {
-  index: number;
-  product: {
-    name: string;
-    lotNumber: string;
-    unit: { code: string };
-  };
-  quantity: number;
-  unitPrice: number;
-  totalPrice: number;
-}
-
-const columns: ColumnDef<SaleItems>[] = [
-  {
-    header: "No.",
-    cell: ({ row }) => {
-      return <p className="text-14-medium pl-2">{row.index + 1}</p>;
-    },
+// styles
+const styles = StyleSheet.create({
+  page: {
+    flexDirection: "column",
+    backgroundColor: "#FFFFFF",
+    padding: 20,
+    fontSize: 10,
+    color: "#072a69",
+    fontFamily: "Times-Roman",
   },
-  {
-    header: "Product",
-    cell: ({ row }) => {
-      return (
-        <p className="text-14-medium pl-2">{row.original.product?.name}</p>
-      );
-    },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    fontSize: 8,
+    paddingVertical: 2,
   },
-  {
-    header: "Lot Number",
-    cell: ({ row }) => {
-      return (
-        <p className="text-14-medium pl-2">{row.original.product?.lotNumber}</p>
-      );
-    },
+  headerRow: {
+    flexDirection: "row",
+    backgroundColor: "#002060",
+    fontWeight: "bold",
+    color: "#00fdff",
+    fontSize: 9,
+    paddingVertical: 4,
   },
-  {
-    header: "Qty",
-    cell: ({ row }) => {
-      return (
-        <p className="text-14-medium pl-2">
-          {row.original.quantity}
-          {row.original.product?.unit?.code}
-        </p>
-      );
-    },
+  evenRow: {
+    backgroundColor: "#E8E9E9",
   },
-  {
-    header: "Unit Price",
-    cell: ({ row }) => {
-      return (
-        <p className="text-14-medium pl-2">
-          <FormatNumber value={row.original.unitPrice} />
-        </p>
-      );
-    },
+  col1: { width: "5%", paddingHorizontal: 5 },
+  col2: { width: "10%" },
+  col3: { width: "10%" },
+  col4: { width: "45%" },
+  col5: { width: "10%", paddingHorizontal: 5 },
+  col6: { width: "10%" },
+  col7: { width: "10%" },
+  title: {
+    fontSize: 20,
+    fontWeight: "bold",
   },
-  {
-    header: "Total",
-    cell: ({ row }) => {
-      return (
-        <p className="text-14-medium pl-2">
-          <FormatNumber value={row.original.totalPrice} />
-        </p>
-      );
-    },
+  companyInfo: {
+    fontSize: 9,
+    marginBottom: 2,
   },
-];
+  summary: {
+    marginTop: 20,
+    alignSelf: "flex-end",
+    width: "40%",
+  },
+  summaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 5,
+  },
+  signatureSection: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 2,
+    marginBottom: 20,
+    marginLeft: 50,
+  },
+  bankSection: {
+    display: "flex",
+    flexDirection: "row",
+    gap: 40,
+  },
+  bankInfo: {
+    fontSize: 8,
+    marginBottom: 2,
+  },
+  footer: {
+    display: "flex",
+    flexDirection: "row",
+    gap: 10,
+    justifyContent: "space-between",
+    backgroundColor: "#002060",
+    paddingVertical: 5,
+    paddingHorizontal: 5,
+    marginTop: 20,
+  },
+  footerColumn: { display: "flex", flexDirection: "column" },
+  footerColumnHeader: {
+    fontWeight: "bold",
+    marginBottom: 2,
+    color: "#FFFFFF",
+    fontSize: 9,
+  },
+  footerInfo: {
+    fontSize: 8,
+    marginBottom: 2,
+    color: "#00fdff",
+  },
+  tableContainer: {
+    flexGrow: 1,
+  },
+  pageBreakAvoidContainer: {
+    marginTop: "auto",
+  },
+});
 
-const SaleInvoice = forwardRef<HTMLDivElement, SaleInvoiceProps>(
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  ({ sale, componentRef }, ref) => {
-    const { companySettings } = useCompanySettings();
+const InvoiceFooter = () => (
+  <View style={styles.footer} fixed>
+    <View style={styles.footerColumn}>
+      <Text style={styles.footerColumnHeader}>Products Solutions:</Text>
+      <View style={{ paddingLeft: 20 }}>
+        <Text style={styles.footerInfo}>
+          Medical laboratory Equipment & Consumables
+        </Text>
+        <Text style={styles.footerInfo}>
+          Medical Imaging Equipment & Consumables
+        </Text>
+        <Text style={styles.footerInfo}>Medical Equipment & Consumables</Text>
+        <Text style={styles.footerInfo}>Dental Equipment & Consumables</Text>
+        <Text style={styles.footerInfo}>
+          Veterinary Equipment & Consumables
+        </Text>
+        <Text style={styles.footerInfo}>
+          Research & Teaching Equipment & Consumables
+        </Text>
+      </View>
+    </View>
 
-    // Calculate totals
-    const subtotal = sale.products.reduce(
-      (sum, product) => sum + product.quantity * product.unitPrice,
-      0
-    );
-    const balance = subtotal - (sale.amountPaid || 0);
+    <View style={styles.footerColumn}>
+      <Text style={styles.footerColumnHeader}>Service Solutions:</Text>
+      <View style={{ paddingLeft: 20 }}>
+        <Text style={styles.footerInfo}>Consultancy Services</Text>
+        <Text style={styles.footerInfo}>Training Services</Text>
+        <Text style={styles.footerInfo}>QC/QA Services</Text>
+        <Text style={styles.footerInfo}>OEM production</Text>
+        <Text style={styles.footerInfo}>Contract manufacturing</Text>
+      </View>
+    </View>
 
-    console.log(companySettings);
-    console.log("sale", sale);
-
-    return (
-      <div
-        ref={componentRef}
-        className="bg-white p-8 min-h-[842px] w-full max-w-4xl mx-auto shadow-md rounded-lg"
-      >
-        {/* Header */}
-        <div className="flex justify-between items-start mb-8 border-b pb-6">
-          <div className="flex flex-col">
-            <div className="mb-4">
-              <Image
-                src={"/assets/logos/Logo.png"}
-                alt="Company Logo"
-                width={300}
-                height={100}
-                className="mb-2"
-              />
-            </div>
-
-            <h1 className="text-xl font-bold text-blue-800">INVOICE</h1>
-          </div>
-          <div className="text-right">
-            <p className="text-lg font-semibold text-blue-800">
-              #{sale.invoiceNumber || "N/A"}
-            </p>
-            <p className="text-dark-600">
-              Date:{" "}
-              {sale.saleDate
-                ? formatDateTime(sale.saleDate).dateTime
-                : new Date().toLocaleDateString()}
-            </p>
-            <p className="text-dark-600 mt-2">
-              Due Date: {new Date().toLocaleDateString()}
-            </p>
-            <div className="mt-2">
-              <span className="text-dark-600 mr-2">Status:</span>
-              <span
-                className={cn(
-                  "text-sm font-medium px-3 py-1 rounded-full",
-                  sale.status === "pending" && "bg-orange-500 text-white",
-                  sale.status === "completed" && "bg-green-500 text-white",
-                  sale.status === "cancelled" && "bg-red-600 text-white"
-                )}
-              >
-                {sale.status || "pending"}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Invoice Details */}
-        <div className="grid grid-cols-2 gap-8 mb-8">
-          {/* From - Company Info */}
-          <div>
-            <h2 className="text-blue-800 font-semibold mb-2 text-sm uppercase tracking-wider">
-              From:
-            </h2>
-            <p className="font-medium text-dark-600 text-sm">
-              {companySettings?.name}
-            </p>
-            <p className="text-dark-600 text-sm">{companySettings?.email}</p>
-            <p className="text-dark-600 text-sm">{companySettings?.phone}</p>
-            <p className="text-dark-600 text-sm">
-              {companySettings?.address}, {companySettings?.city}
-            </p>
-          </div>
-
-          {/* To - Customer Info */}
-          <div className="text-right">
-            <h2 className="text-blue-800 font-semibold mb-2 text-sm uppercase tracking-wider">
-              Bill To:
-            </h2>
-            <p className="font-medium text-dark-600 text-sm">
-              {sale.customer?.name}
-            </p>
-            <p className="text-dark-600 text-sm">{sale.customer?.email}</p>
-            <p className="text-dark-600 text-sm">{sale.customer?.phone}</p>
-          </div>
-        </div>
-
-        {/* Products Table */}
-        <div className="mb-8 overflow-x-auto">
-          <ItemsTable columns={columns} data={sale.products} />
-        </div>
-
-        {/* Summary */}
-        <div className="flex justify-end mb-8">
-          <div className="w-64 text-blue-800 text-sm font-semibold">
-            <div className="flex justify-between mb-2">
-              <span>Subtotal:</span>
-              {typeof FormatNumber === "function" ? (
-                <FormatNumber value={subtotal} />
-              ) : (
-                `$${subtotal.toFixed(2)}`
-              )}
-            </div>
-
-            <div className="flex justify-between mb-2">
-              <span>Discount:</span>
-              <FormatNumber value={0.0} />
-            </div>
-
-            <div className="flex justify-between mb-2">
-              <span>Tax ({0}%):</span>
-              <FormatNumber value={0} />
-            </div>
-
-            <div className="flex justify-between mb-2 pt-2 border-t border-gray-200">
-              <span>Amount Paid:</span>
-              <FormatNumber value={sale.amountPaid || 0} />
-            </div>
-
-            <div className="flex justify-between pt-2 border-t border-gray-200">
-              <span>Balance:</span>
-              <FormatNumber value={balance} />
-            </div>
-          </div>
-        </div>
-
-        {/* Notes & Terms */}
-        <div className="grid grid-cols-2 gap-8 border-t border-gray-200 pt-4 text-sm">
-          {/* Notes */}
-          {sale.notes && (
-            <div>
-              <h3 className="font-medium mb-2 text-blue-800">Notes:</h3>
-              <p className="text-dark-600">{sale.notes}</p>
-            </div>
-          )}
-
-          {/* Payment Info */}
-          <div className={sale.notes ? "" : "col-span-2"}>
-            <h3 className="font-medium mb-2 text-blue-800">Payment Details:</h3>
-            <p className="text-dark-600">
-              Payment Method:{" "}
-              {sale.paymentMethod.toLocaleUpperCase().split("-").join(" ") ||
-                "N/A"}
-            </p>
-            {sale.paymentMethod === "check" && (
-              <>
-                <p className="text-dark-600">Bank: {"N/A"}</p>
-                <p className="text-dark-600">Account: {"N/A"}</p>
-                <p className="text-dark-600">Swift Code: {"UNAFLRLM"}</p>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="mt-12 pt-4 border-t text-center text-blue-800 text-sm">
-          <p>Thank you for doing business with us!</p>
-        </div>
-      </div>
-    );
-  }
+    <View style={styles.footerColumn}>
+      <Text style={styles.footerColumnHeader}>Support Solutions:</Text>
+      <View style={{ paddingLeft: 20 }}>
+        <Text style={styles.footerInfo}>Equipment Placement supports</Text>
+        <Text style={styles.footerInfo}>Partnership (PPP/PPP)</Text>
+        <Text style={styles.footerInfo}>Installations</Text>
+        <Text style={styles.footerInfo}>Maintenance Support</Text>
+      </View>
+    </View>
+  </View>
 );
 
-SaleInvoice.displayName = "SaleInvoice";
+const SignatureAndBankSection = () => (
+  <View wrap={false}>
+    {/* Signature */}
+    <View style={styles.signatureSection}>
+      <Text style={{ fontWeight: "bold" }}>Stamp & Signature:</Text>
+      <Image
+        src="/assets/images/signature.png"
+        style={{ width: 60, height: 25 }}
+      />
+      <Text style={{ fontWeight: "bold" }}>Sales Manager</Text>
+    </View>
+
+    {/* Bank Details - Terms & Conditions */}
+    <View style={styles.bankSection}>
+      <View
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <View
+          style={{
+            backgroundColor: "#E8E9E9",
+            paddingVertical: 2,
+            paddingHorizontal: 5,
+          }}
+        >
+          <Text style={{ fontWeight: "bold", fontSize: 9 }}>Bank Details</Text>
+        </View>
+        <View
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            paddingHorizontal: 5,
+            paddingTop: 2,
+            width: "100%",
+          }}
+        >
+          <View style={{ display: "flex", flexDirection: "row", gap: 10 }}>
+            <Text style={styles.bankInfo}>Bank Name:</Text>
+            <Text style={{ ...styles.bankInfo, flex: 1 }}>
+              Ecobank Liberia Limited.
+            </Text>
+          </View>
+          <View style={{ display: "flex", flexDirection: "row", gap: 10 }}>
+            <Text style={styles.bankInfo}>Address:</Text>
+            <Text style={{ ...styles.bankInfo, flex: 1 }}>
+              11th Street, Sinkor, Monrovia, Liberia
+            </Text>
+          </View>
+          <View style={{ display: "flex", flexDirection: "row", gap: 10 }}>
+            <Text style={styles.bankInfo}>Account #:</Text>
+            <Text style={{ ...styles.bankInfo, flex: 1 }}>6102122392</Text>
+          </View>
+          <View style={{ display: "flex", flexDirection: "row", gap: 10 }}>
+            <Text style={styles.bankInfo}>Swift Code:</Text>
+            <Text style={{ ...styles.bankInfo, flex: 1 }}>ECOCLRLMXXX</Text>
+          </View>
+        </View>
+      </View>
+
+      <View
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <View
+          style={{
+            backgroundColor: "#E8E9E9",
+            paddingVertical: 2,
+            paddingHorizontal: 5,
+          }}
+        >
+          <Text style={{ fontWeight: "bold", fontSize: 9 }}>
+            Terms & Conditions
+          </Text>
+        </View>
+        <View
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            paddingHorizontal: 5,
+            paddingTop: 2,
+          }}
+        >
+          <Text style={styles.bankInfo}>
+            Prices quoted here are valid for 6 months
+          </Text>
+          <Text style={styles.bankInfo}>Terms of payment is 30 days</Text>
+          <Text style={styles.bankInfo}>
+            This certifies that the Pro-Forma invoice is true and correct
+          </Text>
+          <Text style={styles.bankInfo}>
+            When a dispute arises over subtotal or total prices, individual unit
+            prices
+          </Text>
+        </View>
+      </View>
+    </View>
+  </View>
+);
+
+const SaleInvoice = ({
+  sale,
+  currencySymbol,
+}: {
+  sale: SaleWithRelations;
+  currencySymbol: string;
+}) => {
+  const { sale: sal, customer, products } = sale;
+
+  return (
+    <Document>
+      <Page size="A4" style={styles.page}>
+        {/* Header */}
+        <View
+          style={{
+            display: "flex",
+            flexDirection: "row",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            marginBottom: 20,
+            gap: 20,
+          }}
+          fixed
+        >
+          <View
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "flex-end",
+            }}
+          >
+            <Image
+              src="/assets/logos/logo2.png"
+              style={{ width: 100, height: 80 }}
+            />
+            <Text style={styles.companyInfo}>
+              Legacy of Quality Par Excellence
+            </Text>
+          </View>
+          <View
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              flex: 1,
+              width: "100%",
+            }}
+          >
+            <Text style={styles.title}>NORTHLAND BIOMEDICAL SOLUTIONS</Text>
+            <Text style={styles.companyInfo}>
+              Rockville Valley, Johnson Compound, Haile Selassie Avenue,
+            </Text>
+            <Text style={styles.companyInfo}>
+              Capitol Bypass, Monrovia-Liberia
+            </Text>
+            <Text style={styles.companyInfo}>
+              +231 775508118 / +233 244364439 (whatsapp)
+            </Text>
+            <Text style={styles.companyInfo}>
+              biomedicalsolutionsgh@gmail.com
+            </Text>
+            <Text style={styles.companyInfo}>
+              primegenebiomedicalsolutions.com
+            </Text>
+            <View
+              style={{ width: "100%", height: 3, backgroundColor: "#0fa345" }}
+            ></View>
+            <View
+              style={{ width: "100%", height: 3, backgroundColor: "#075323" }}
+            ></View>
+            <View
+              style={{
+                width: "100%",
+                height: 3,
+                backgroundColor: "#1a74e9",
+                borderColor: "#1a74e9",
+              }}
+            ></View>
+            <View
+              style={{ width: "100%", height: 3, backgroundColor: "#093c80" }}
+            ></View>
+          </View>
+        </View>
+        {/* Title */}
+        <View
+          style={{
+            width: "100%",
+            backgroundColor: "#002060",
+            paddingVertical: 4,
+          }}
+        >
+          <Text
+            style={{ ...styles.title, textAlign: "center", color: "#00fdff" }}
+          >
+            INVOICE
+          </Text>
+        </View>
+
+        {/* Invoice Info */}
+        <View
+          style={{
+            display: "flex",
+            flexDirection: "row",
+            marginVertical: 20,
+            gap: 40,
+          }}
+        >
+          <View
+            style={{
+              display: "flex",
+              flexDirection: "row",
+              flex: 1,
+              gap: 10,
+            }}
+          >
+            <Image
+              src="/assets/images/qrcode.png"
+              style={{ width: 50, height: 50 }}
+            />
+          </View>
+
+          <View
+            style={{
+              display: "flex",
+              flexDirection: "row",
+              flex: 1,
+              gap: 20,
+            }}
+          >
+            <View
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                flex: 1,
+              }}
+            >
+              <Text
+                style={{
+                  fontWeight: "bold",
+                  textAlign: "center",
+                  backgroundColor: "#E8E9E9",
+                  paddingVertical: 2,
+                }}
+              >
+                INV #:
+              </Text>
+              <Text style={{ ...styles.companyInfo, textAlign: "center" }}>
+                {sal.invoiceNumber || "N/A"}
+              </Text>
+            </View>
+            <View
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                flex: 1,
+              }}
+            >
+              <Text
+                style={{
+                  fontWeight: "bold",
+                  textAlign: "center",
+                  backgroundColor: "#E8E9E9",
+                  paddingVertical: 2,
+                }}
+              >
+                Date:
+              </Text>
+              <Text style={{ ...styles.companyInfo, textAlign: "center" }}>
+                {new Date(sal.saleDate).toLocaleDateString()}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Address Info */}
+        <View
+          style={{
+            display: "flex",
+            flexDirection: "row",
+            marginBottom: 20,
+            gap: 40,
+          }}
+        >
+          <View
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: "#E8E9E9",
+                paddingVertical: 2,
+                paddingHorizontal: 5,
+              }}
+            >
+              <Text style={{ fontWeight: "bold", fontSize: 10 }}>
+                Billing Address:
+              </Text>
+            </View>
+            <View
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                paddingLeft: 10,
+                paddingTop: 2,
+              }}
+            >
+              <Text style={styles.companyInfo}>{customer.name}</Text>
+              <Text style={styles.companyInfo}>
+                {customer.address || "N/A"}
+              </Text>
+            </View>
+          </View>
+
+          <View
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: "#E8E9E9",
+                paddingVertical: 2,
+                paddingHorizontal: 5,
+              }}
+            >
+              <Text style={{ fontWeight: "bold", fontSize: 10 }}>
+                Delivery Address:
+              </Text>
+            </View>
+            {sal.isDeliveryAddressAdded ? (
+              <View
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  paddingLeft: 10,
+                  paddingTop: 2,
+                }}
+              >
+                <Text style={styles.companyInfo}>
+                  {sal.deliveryAddress.addressName}
+                </Text>
+                <Text style={styles.companyInfo}>
+                  {sal.deliveryAddress.address}
+                </Text>
+              </View>
+            ) : (
+              <View
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  paddingLeft: 10,
+                  paddingTop: 2,
+                }}
+              >
+                <Text style={styles.companyInfo}>{customer.name}</Text>
+                <Text style={styles.companyInfo}>
+                  {customer.address || "N/A"}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Products Table */}
+        <View style={styles.tableContainer}>
+          {/* Table Header */}
+          <View style={styles.headerRow}>
+            <Text style={styles.col1}>S/N</Text>
+            <Text style={styles.col2}>Lot Number</Text>
+            <Text style={styles.col3}>PID</Text>
+            <Text style={styles.col4}>Product Description</Text>
+            <Text style={styles.col5}>Qnty</Text>
+            <Text style={styles.col6}>Unit Price</Text>
+            <Text style={styles.col7}>Sub-Total</Text>
+          </View>
+
+          {/* Table Rows */}
+          {products.map((product, index) => (
+            <View
+              key={product.id}
+              style={[styles.row, index % 2 === 1 ? styles.evenRow : {}]}
+            >
+              <Text style={styles.col1}>
+                {index < 9 ? `0${index + 1}` : index + 1}
+              </Text>
+              <Text style={styles.col2}>{product.lotNumber}</Text>
+              <Text style={styles.col3}>{product.productID}</Text>
+              <Text style={styles.col4}>{product.productName}</Text>
+              <Text style={styles.col5}>{product.quantity}</Text>
+              <Text style={styles.col6}>{product.unitPrice.toFixed(2)}</Text>
+              <Text style={styles.col7}>{product.subTotal.toFixed(2)}</Text>
+            </View>
+          ))}
+          {/* Summary */}
+          <View style={styles.summary} wrap={false}>
+            <View style={styles.summaryRow}>
+              <Text>Sub-Total ({currencySymbol}):</Text>
+              <Text>
+                {formatCurrency(
+                  String(sal.subTotal.toFixed(2)),
+                  currencySymbol
+                )}
+              </Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text>Total Discount:</Text>
+              <Text>
+                {formatCurrency(
+                  String(sal.discountAmount.toFixed(2)),
+                  currencySymbol
+                )}
+              </Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text>Total Tax:</Text>
+              <Text>
+                {formatCurrency(
+                  String(sal.totalTaxAmount.toFixed(2)),
+                  currencySymbol
+                )}
+              </Text>
+            </View>
+            <View style={{ ...styles.summaryRow, fontWeight: "bold" }}>
+              <Text>Grand Total ({currencySymbol}):</Text>
+              <Text>
+                {formatCurrency(
+                  String(sal.totalAmount.toFixed(2)),
+                  currencySymbol
+                )}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.pageBreakAvoidContainer}>
+          <SignatureAndBankSection />
+        </View>
+
+        <InvoiceFooter />
+      </Page>
+    </Document>
+  );
+};
 
 export default SaleInvoice;

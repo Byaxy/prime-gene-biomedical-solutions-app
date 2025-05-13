@@ -5,7 +5,7 @@ import {
   PurchaseStatus,
   QuotationStatus,
   SaleStatus,
-} from "@/types/appwrite.types";
+} from "@/types";
 import { z } from "zod";
 
 export const LoginFormValidation = z.object({
@@ -192,46 +192,119 @@ export const TaxFormValidation = z.object({
 export type TaxFormValues = z.infer<typeof TaxFormValidation>;
 
 // Sales
-export const SaleFormValidation = z.object({
-  invoiceNumber: z.string().nonempty("Invoice number is required"),
-  saleDate: z.date().refine((date) => date <= new Date(), {
-    message: "Sale date cannot be in the future",
-  }),
-  customer: z.string().nonempty("Customer is required"),
-  totalAmount: z.number().min(0, "Total amount must be 0 or more"),
-  amountPaid: z.number().min(0, "Amount paid must be 0 or more"),
-  status: z
-    .enum(Object.values(SaleStatus) as [string, ...string[]])
-    .default(SaleStatus.Pending),
-  paymentMethod: z
-    .enum(Object.values(PaymentMethod) as [string, ...string[]])
-    .default(PaymentMethod.Cash),
-  paymentStatus: z
-    .enum(Object.values(PaymentStatus) as [string, ...string[]])
-    .default(PaymentStatus.Pending),
-  deliveryStatus: z
-    .enum(Object.values(DeliveryStatus) as [string, ...string[]])
-    .default(DeliveryStatus.Pending),
-  notes: z.string().optional(),
-  products: z
-    .array(
-      z.object({
-        product: z.string().nonempty("Product is required"),
-        quantity: z.number().int().min(0, "Quantity must be 0 or more"),
-        unitPrice: z.number().min(0, "Unit price must be 0 or more"),
-        totalPrice: z.number().min(0, "Total price must be 0 or more"),
-        productName: z.string().optional(),
-        productLotNumber: z.string().optional(),
-        productUnit: z.string().optional(),
+export const SaleFormValidation = z
+  .object({
+    invoiceNumber: z.string().nonempty("Invoice number is required"),
+    saleDate: z.date().refine((date) => date <= new Date(), {
+      message: "Sale date cannot be in the future",
+    }),
+    customerId: z.string().nonempty("Customer is required"),
+    storeId: z.string().nonempty("Store is required"),
+    totalAmount: z.number().min(0, "Total amount must be 0 or more"),
+    subTotal: z.number().min(0, "Sub total must be 0 or more"),
+    totalTaxAmount: z.number().min(0, "Tax amount must be 0 or more"),
+    discountAmount: z.number().min(0, "Discount amount must be 0 or more"),
+    amountPaid: z.number().min(0, "Amount paid must be 0 or more"),
+    status: z
+      .enum(Object.values(SaleStatus) as [string, ...string[]])
+      .default(SaleStatus.Pending),
+    paymentMethod: z
+      .enum(Object.values(PaymentMethod) as [string, ...string[]])
+      .default(PaymentMethod.Cash),
+    paymentStatus: z
+      .enum(Object.values(PaymentStatus) as [string, ...string[]])
+      .default(PaymentStatus.Pending),
+    notes: z.string().optional(),
+    quotationId: z.string().optional(),
+    attachments: z.any().optional(),
+    isDeliveryAddressAdded: z.boolean().default(false),
+    deliveryAddress: z
+      .object({
+        addressName: z.string().optional(),
+        address: z.string().optional(),
+        city: z.string().optional(),
+        state: z.string().optional(),
+        country: z.string().optional(),
+        email: z.string().optional(),
+        phone: z.string().optional(),
       })
-    )
-    .min(1, "At least one product is required"),
+      .optional(),
+    products: z
+      .array(
+        z.object({
+          inventoryStockId: z.string().nonempty("Inventory stock is required"),
+          lotNumber: z.string().nonempty("Lot number is required"),
+          productId: z.string().nonempty("Product is required"),
+          availableQuantity: z
+            .number()
+            .int()
+            .min(0, "Available Quantity must be 0 or more"),
+          quantity: z.number().int().min(1, "Quantity must be 1 or more"),
+          unitPrice: z.number().min(0, "Unit price must be 0 or more"),
+          totalPrice: z.number().min(0, "Total price must be 0 or more"),
+          subTotal: z.number().min(0, "Sub total must be 0 or more"),
+          taxAmount: z.number().min(0, "Tax amount must be 0 or more"),
+          taxRate: z.number().min(0, "Tax rate must be 0 or more"),
+          taxRateId: z.string().nonempty("Tax rate is required"),
+          discountAmount: z
+            .number()
+            .min(0, "Discount amount must be 0 or more"),
+          discountRate: z.number().min(0, "Discount rate must be 0 or more"),
+          productName: z.string(),
+          productID: z.string(),
+        })
+      )
+      .min(1, "At least one product is required"),
 
-  // Temporary fields for product selection
-  selectedProduct: z.string().optional(),
-  tempQuantity: z.number().optional(),
-  tempPrice: z.number().optional(),
-});
+    // Temporary fields for product selection
+    selectedInventoryStockId: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.isDeliveryAddressAdded) {
+      if (!data.deliveryAddress?.addressName) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Address name is required",
+          path: ["deliveryAddress", "addressName"],
+        });
+      }
+      if (!data.deliveryAddress?.address) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Address is required",
+          path: ["deliveryAddress", "address"],
+        });
+      }
+      if (!data.deliveryAddress?.city) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "City is required",
+          path: ["deliveryAddress", "city"],
+        });
+      }
+      if (!data.deliveryAddress?.state) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "State is required",
+          path: ["deliveryAddress", "state"],
+        });
+      }
+      if (!data.deliveryAddress?.country) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Country is required",
+          path: ["deliveryAddress", "country"],
+        });
+      }
+      if (!data.deliveryAddress?.phone) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Phone is required",
+          path: ["deliveryAddress", "phone"],
+        });
+      }
+    }
+  });
 export type SaleFormValues = z.infer<typeof SaleFormValidation>;
 
 // Update Password

@@ -1,14 +1,14 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/table-core";
-import { Sale } from "@/types/appwrite.types";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import SaleActions from "@/components/sales/SaleActions";
 import { cn, formatDateTime } from "@/lib/utils";
 import FormatNumber from "@/components/FormatNumber";
+import { SaleWithRelations } from "@/types";
 
-export const salesColumns: ColumnDef<Sale>[] = [
+export const salesColumns: ColumnDef<SaleWithRelations>[] = [
   {
     id: "index",
     header: "#",
@@ -39,14 +39,14 @@ export const salesColumns: ColumnDef<Sale>[] = [
       const sale = row.original;
       return (
         <p className="text-14-medium ">
-          {formatDateTime(sale.saleDate).dateTime}
+          {formatDateTime(sale.sale.saleDate).dateTime}
         </p>
       );
     },
   },
   {
-    id: "invoiceNumber",
-    accessorKey: "invoiceNumber",
+    id: "sale.invoiceNumber",
+    accessorKey: "sale.invoiceNumber",
     header: ({ column }) => {
       return (
         <Button
@@ -61,24 +61,49 @@ export const salesColumns: ColumnDef<Sale>[] = [
     },
     cell: ({ row }) => {
       const sale = row.original;
-      return <p className="text-14-medium ">{sale.invoiceNumber || "-"}</p>;
+      return (
+        <p className="text-14-medium ">{sale.sale.invoiceNumber || "-"}</p>
+      );
     },
   },
   {
-    accessorKey: "quantity",
-    header: "Quantity",
+    id: "customer.name",
+    accessorKey: "customer.name",
+    header: "Customer",
     cell: ({ row }) => {
       const sale = row.original;
       return (
         <p className="text-14-medium ">
-          {sale.products.reduce(
-            (total, product) => total + product.quantity,
-            0
-          ) || 0}
+          {sale.customer ? sale.customer.name : "-"}
         </p>
       );
     },
   },
+  {
+    accessorKey: "status",
+    header: "Sale Status",
+    cell: ({ row }) => {
+      const sale = row.original;
+      return (
+        <p>
+          <span
+            className={cn(
+              "text-14-medium capitalize",
+              sale.sale.status === "pending" &&
+                "text-white bg-orange-500 px-3 py-1 rounded-xl",
+              sale.sale.status === "completed" &&
+                "bg-green-500 text-white px-3 py-1 rounded-xl",
+              sale.sale.status === "cancelled" &&
+                "bg-red-600 text-white px-3 py-1 rounded-xl"
+            )}
+          >
+            {sale.sale.status}
+          </span>
+        </p>
+      );
+    },
+  },
+
   {
     accessorKey: "totalAmount",
     header: ({ column }) => {
@@ -88,7 +113,7 @@ export const salesColumns: ColumnDef<Sale>[] = [
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           className="font-semibold px-0"
         >
-          Total
+          Grand Total
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       );
@@ -97,7 +122,7 @@ export const salesColumns: ColumnDef<Sale>[] = [
       const sale = row.original;
       return (
         <p className="text-14-medium ">
-          <FormatNumber value={sale.totalAmount} />
+          <FormatNumber value={sale.sale.totalAmount} />
         </p>
       );
     },
@@ -120,77 +145,47 @@ export const salesColumns: ColumnDef<Sale>[] = [
       const sale = row.original;
       return (
         <p className="text-14-medium ">
-          <FormatNumber value={sale.amountPaid} />
+          <FormatNumber value={sale.sale.amountPaid} />
         </p>
       );
     },
   },
-
   {
-    accessorKey: "status",
-    header: "Sale Status",
-    cell: ({ row }) => {
-      const sale = row.original;
-      return (
-        <p>
-          <span
-            className={cn(
-              "text-14-medium capitalize",
-              sale.status === "pending" &&
-                "text-white bg-orange-500 px-3 py-1 rounded-xl",
-              sale.status === "completed" &&
-                "bg-green-500 text-white px-3 py-1 rounded-xl",
-              sale.status === "cancelled" &&
-                "bg-red-600 text-white px-3 py-1 rounded-xl"
-            )}
-          >
-            {sale.status}
-          </span>
-        </p>
-      );
-    },
-  },
-
-  {
-    accessorKey: "customer",
-    header: "Customer",
+    header: "Balance",
     cell: ({ row }) => {
       const sale = row.original;
       return (
         <p className="text-14-medium ">
-          {sale.customer ? sale.customer.name : "-"}
+          <FormatNumber value={sale.sale.totalAmount - sale.sale.amountPaid} />
         </p>
       );
     },
   },
-
   {
-    accessorKey: "deliveryStatus",
-    header: "Delivery Status",
+    header: "Payment Status",
     cell: ({ row }) => {
-      const purchase = row.original;
+      const sale = row.original;
       return (
         <p>
           <span
             className={cn(
               "text-14-medium capitalize",
-              purchase.deliveryStatus === "pending" &&
+              sale.sale.paymentStatus === "pending" &&
                 "text-white bg-orange-500 px-3 py-1 rounded-xl",
-              purchase.deliveryStatus === "in-progress" &&
-                "bg-blue-600 text-white px-3 py-1 rounded-xl text-nowrap",
-              purchase.deliveryStatus === "delivered" &&
+              sale.sale.paymentStatus === "partial" &&
+                "bg-blue-600 text-white px-3 py-1 rounded-xl",
+              sale.sale.paymentStatus === "paid" &&
                 "bg-green-500 text-white px-3 py-1 rounded-xl",
-              purchase.deliveryStatus === "cancelled" &&
+              sale.sale.paymentStatus === "due" &&
                 "bg-red-600 text-white px-3 py-1 rounded-xl"
             )}
           >
-            {purchase.deliveryStatus ?? "-"}
+            {sale.sale.paymentStatus}
           </span>
         </p>
       );
     },
   },
-
   {
     id: "actions",
     header: "Actions",

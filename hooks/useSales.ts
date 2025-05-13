@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import {
@@ -5,8 +6,11 @@ import {
   deleteSale,
   editSale,
   getSales,
+  softDeleteSale,
 } from "@/lib/actions/sale.actions";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { SaleFormValues } from "@/lib/validation";
+import { Attachment, SaleWithRelations } from "@/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -60,36 +64,129 @@ export const useSales = ({
 
   const { mutate: addSaleMutation, status: addSaleStatus } = useMutation({
     mutationFn: async (data: SaleFormValues) => {
-      return addSale(data);
+      const supabase = createSupabaseBrowserClient();
+      const attachments: Attachment[] = [];
+
+      if (data.attachments && data.attachments.length > 0) {
+        try {
+          // Upload all files
+          await Promise.all(
+            data.attachments.map(async (file: any) => {
+              const fileId = `${Date.now()}-${file.name}`;
+              const { error: uploadError } = await supabase.storage
+                .from("images")
+                .upload(fileId, file);
+
+              if (uploadError) throw uploadError;
+
+              // Get the file URL
+              const { data: urlData } = supabase.storage
+                .from("images")
+                .getPublicUrl(fileId);
+
+              attachments.push({
+                id: fileId,
+                url: urlData.publicUrl,
+                name: file.name,
+                size: file.size,
+                type: file.type,
+              });
+            })
+          );
+        } catch (error) {
+          console.error("Error uploading files:", error);
+          throw new Error("Failed to upload attachments");
+        }
+      }
+
+      const dataWithAttachment = {
+        ...data,
+        attachments,
+      };
+      return addSale(dataWithAttachment);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sales"] });
-      toast.success("Sale created successfully");
-    },
-    onError: (error) => {
-      console.error("Error creating sale:", error);
-      toast.error("Failed to create sale");
     },
   });
 
   const { mutate: editSaleMutation, status: editSaleStatus } = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: SaleFormValues }) => {
-      return editSale(data, id);
+    mutationFn: async ({
+      id,
+      data,
+      prevAttachmentIds,
+    }: {
+      id: string;
+      data: SaleFormValues;
+      prevAttachmentIds?: string[];
+    }) => {
+      const supabase = createSupabaseBrowserClient();
+      const attachments: Array<{
+        id: string;
+        url: string;
+        name: string;
+        size: number;
+        type: string;
+      }> = [];
+
+      // Delete previous attachments if needed
+      if (prevAttachmentIds && prevAttachmentIds.length > 0) {
+        const { error: deleteError } = await supabase.storage
+          .from("images")
+          .remove(prevAttachmentIds);
+
+        if (deleteError) {
+          console.warn("Failed to delete previous attachments:", deleteError);
+        }
+      }
+
+      // Upload new attachments
+      if (data.attachments && data.attachments.length > 0) {
+        try {
+          await Promise.all(
+            data.attachments.map(async (file: any) => {
+              const fileId = `${Date.now()}-${file.name}`;
+              const { error: uploadError } = await supabase.storage
+                .from("images")
+                .upload(fileId, file);
+
+              if (uploadError) throw uploadError;
+
+              // Get the file URL
+              const { data: urlData } = supabase.storage
+                .from("images")
+                .getPublicUrl(fileId);
+
+              attachments.push({
+                id: fileId,
+                url: urlData.publicUrl,
+                name: file.name,
+                size: file.size,
+                type: file.type,
+              });
+            })
+          );
+        } catch (error) {
+          console.error("Error uploading files:", error);
+          throw new Error("Failed to upload attachments");
+        }
+      }
+
+      const dataWithAttachments = {
+        ...data,
+        attachments,
+      };
+      return editSale(dataWithAttachments, id);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sales"] });
-      toast.success("Sale updated successfully");
-    },
-    onError: (error) => {
-      console.error("Error updating sale:", error);
-      toast.error("Failed to update sale");
+      queryClient.invalidateQueries({ queryKey: ["sales", "paginatedSales"] });
     },
   });
 
   const { mutate: deleteSaleMutation, status: deleteSaleStatus } = useMutation({
     mutationFn: (id: string) => deleteSale(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sales"] });
+      queryClient.invalidateQueries({ queryKey: ["sales", "paginatedSales"] });
       toast.success("Sale deleted successfully");
     },
     onError: (error) => {
@@ -98,10 +195,20 @@ export const useSales = ({
     },
   });
 
+  const { mutate: softDeleteSaleMutation, status: softDeleteSaleStatus } =
+    useMutation({
+      mutationFn: (id: string) => softDeleteSale(id),
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: ["sales", "paginatedSales"],
+        });
+      },
+    });
+
   return {
     sales: getAllSales
       ? allSalesQuery.data
-      : paginatedSalesQuery.data?.documents || [],
+      : paginatedSalesQuery.data?.documents || ([] as SaleWithRelations[]),
     totalItems: paginatedSalesQuery.data?.total || 0,
     isLoading: getAllSales
       ? allSalesQuery.isLoading
@@ -117,5 +224,7 @@ export const useSales = ({
     isEditingSale: editSaleStatus === "pending",
     deleteSale: deleteSaleMutation,
     isDeletingSale: deleteSaleStatus === "pending",
+    softDeleteSale: softDeleteSaleMutation,
+    isSoftDeletingSale: softDeleteSaleStatus === "pending",
   };
 };

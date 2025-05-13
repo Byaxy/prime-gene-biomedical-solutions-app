@@ -17,24 +17,6 @@ export interface Purchase {
   $updatedAt: Date;
 }
 
-// Sales
-export interface Sale {
-  $id: string;
-  invoiceNumber: string;
-  saleDate: Date;
-  customer: any;
-  totalAmount: number;
-  amountPaid: number;
-  status: SaleStatus;
-  paymentMethod: PaymentMethod;
-  paymentStatus: PaymentStatus;
-  deliveryStatus: DeliveryStatus;
-  notes: string;
-  products: any[];
-  $createdAt: Date;
-  $updatedAt: Date;
-}
-
 // payment methods
 export enum PaymentMethod {
   Cash = "cash",

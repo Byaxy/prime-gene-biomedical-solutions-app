@@ -2,7 +2,6 @@
 
 import { useCompanySettings } from "@/hooks/useCompanySettings";
 import { formatCurrency } from "@/lib/utils";
-import { Sale } from "@/types/appwrite.types";
 import {
   startOfDay,
   parseISO,
@@ -46,6 +45,7 @@ import { useState } from "react";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import { DateRange } from "react-day-picker";
 import { Calendar } from "../ui/calendar";
+import { SaleWithRelations } from "@/types";
 
 interface ChartDataPoint {
   date: string;
@@ -67,7 +67,7 @@ const formatYAxis = (value: number): string => {
 };
 
 export function getSalesChartData(
-  sales: Sale[] | null,
+  sales: SaleWithRelations[] | null,
   createdAfter: Date | null = null,
   createdBefore: Date | null = new Date()
 ): ChartDataPoint[] {
@@ -76,7 +76,7 @@ export function getSalesChartData(
   // Get date range
   const startDate =
     createdAfter ||
-    startOfDay(parseISO(sales[sales.length - 1].saleDate.toString()));
+    startOfDay(parseISO(sales[sales.length - 1].sale.saleDate.toString()));
   const endDate = createdBefore || new Date();
 
   // Get array of all dates in range
@@ -93,19 +93,19 @@ export function getSalesChartData(
 
   // Process sales data
   sales.forEach((sale) => {
-    const saleDate = parseISO(sale.saleDate.toString());
+    const saleDate = parseISO(sale.sale.saleDate.toString());
     const formattedDate = format(saleDate);
 
     const entry = dayArray.find((day) => day.date === formattedDate);
 
     if (entry) {
-      if (sale.status === "cancelled") {
-        entry.amountPaid += sale.amountPaid;
-        entry.cancelledAmount += sale.totalAmount;
+      if (sale.sale.status === "cancelled") {
+        entry.amountPaid += sale.sale.amountPaid;
+        entry.cancelledAmount += sale.sale.totalAmount;
       } else {
-        entry.totalAmount += sale.totalAmount;
-        entry.amountPaid += sale.amountPaid;
-        entry.pendingAmount += sale.totalAmount - sale.amountPaid;
+        entry.totalAmount += sale.sale.totalAmount;
+        entry.amountPaid += sale.sale.amountPaid;
+        entry.pendingAmount += sale.sale.totalAmount - sale.sale.amountPaid;
       }
     }
   });

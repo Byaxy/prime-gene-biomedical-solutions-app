@@ -24,7 +24,7 @@ const Sales = () => {
         onPageChange={setPage}
         pageSize={pageSize}
         onPageSizeChange={setPageSize}
-        searchBy="invoiceNumber"
+        searchBy={["sale.invoiceNumber", "customer.name"]}
       />
     </PageWraper>
   );

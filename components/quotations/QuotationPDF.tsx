@@ -488,7 +488,7 @@ const QuotationPDF = ({
               style={{
                 display: "flex",
                 flexDirection: "column",
-                paddingLeft: 20,
+                paddingLeft: 10,
                 paddingTop: 2,
               }}
             >
@@ -522,7 +522,7 @@ const QuotationPDF = ({
                 style={{
                   display: "flex",
                   flexDirection: "column",
-                  paddingLeft: 20,
+                  paddingLeft: 10,
                   paddingTop: 2,
                 }}
               >
@@ -538,7 +538,7 @@ const QuotationPDF = ({
                 style={{
                   display: "flex",
                   flexDirection: "column",
-                  paddingLeft: 20,
+                  paddingLeft: 10,
                   paddingTop: 2,
                 }}
               >

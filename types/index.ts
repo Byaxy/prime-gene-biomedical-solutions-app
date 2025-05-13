@@ -193,38 +193,16 @@ export interface InventoryStock {
 
 export interface InventoryStockWithRelations {
   inventory: InventoryStock;
-  product: {
-    id: string;
-    name: string;
-    productID: string;
-    alertQuantity: number;
-  };
-  store: {
-    id: string;
-    name: string;
-    location: string;
-  };
+  product: Product;
+  store: Store;
 }
 
 export interface InventoryTransactionWithRelations {
   transaction: typeof inventoryTransactionsTable.$inferSelect;
-  inventory: {
-    id: string;
-    lotNumber: string;
-  };
-  product: {
-    id: string;
-    name: string;
-  };
-  store: {
-    id: string;
-    name: string;
-    location: string;
-  };
-  user: {
-    id: string;
-    name: string;
-  };
+  inventory: InventoryStock;
+  product: Product;
+  store: Store;
+  user: User;
 }
 
 // Quotations
@@ -285,6 +263,57 @@ export interface QuotationWithRelations {
   quotation: Quotation;
   customer: Customer;
   products: QuotationItem[];
+}
+
+// Sales
+export interface Sale {
+  id: string;
+  invoiceNumber: string;
+  saleDate: Date;
+  customerId: string;
+  storeId: string;
+  subTotal: number;
+  totalAmount: number;
+  totalTaxAmount: number;
+  discountAmount: number;
+  amountPaid: number;
+  status: SaleStatus;
+  paymentStatus: PaymentStatus;
+  paymentMethod: PaymentMethod;
+  notes: string;
+  quotationId: string;
+  attachments: Attachment[];
+  isDeliveryAddressAdded: boolean;
+  deliveryAddress: DeliveryAddress;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+export interface SaleItem {
+  id: string;
+  inventoryStockId: string;
+  saleId: string;
+  productId: string;
+  storeId: string;
+  taxRateId: string;
+  lotNumber: string;
+  availableQuantity: number;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  subTotal: number;
+  taxAmount: number;
+  taxRate: number;
+  discountRate: number;
+  discountAmount: number;
+  productName: string;
+  productID: string;
+}
+export interface SaleWithRelations {
+  sale: Sale;
+  products: SaleItem[];
+  customer: Customer;
+  store: Store;
 }
 
 // payment methods

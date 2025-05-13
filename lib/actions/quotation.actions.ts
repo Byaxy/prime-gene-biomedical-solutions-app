@@ -11,6 +11,7 @@ import {
 } from "@/drizzle/schema";
 import { eq, desc, sql, inArray } from "drizzle-orm";
 import { QuotationFormValues } from "../validation";
+import { QuotationStatus } from "@/types";
 
 // Add new quotation with transaction
 export const addQuotation = async (quotation: QuotationFormValues) => {
@@ -28,7 +29,7 @@ export const addQuotation = async (quotation: QuotationFormValues) => {
           subTotal: quotation.subTotal,
           totalAmount: quotation.totalAmount,
           totalTaxAmount: quotation.totalTaxAmount,
-          status: quotation.status as "pending" | "completed" | "cancelled",
+          status: quotation.status as QuotationStatus,
           notes: quotation.notes,
           attachments: quotation.attachments,
           isDeliveryAddressAdded: quotation.isDeliveryAddressAdded,
@@ -217,7 +218,10 @@ export const getQuotationById = async (quotationId: string) => {
           customersTable,
           eq(quotationsTable.customerId, customersTable.id)
         )
-        .where(eq(quotationsTable.id, quotationId))
+        .where(
+          eq(quotationsTable.id, quotationId) &&
+            eq(quotationsTable.isActive, true)
+        )
         .then((res) => res[0]);
 
       if (!quotation) {
@@ -242,7 +246,10 @@ export const getQuotationById = async (quotationId: string) => {
           productId: quotationItemsTable.productId,
         })
         .from(quotationItemsTable)
-        .where(eq(quotationItemsTable.quotationId, quotationId));
+        .where(
+          eq(quotationItemsTable.quotationId, quotationId) &&
+            eq(quotationItemsTable.isActive, true)
+        );
 
       // Combine the data
       const quotationWithItems = {

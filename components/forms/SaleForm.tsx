@@ -1,25 +1,20 @@
 "use client";
 
-import Loading from "@/components/loading";
-import { useProducts } from "@/hooks/useProducts";
-import { getProductById } from "@/lib/actions/product.actions";
-import { SaleFormValidation, SaleFormValues } from "@/lib/validation";
 import {
-  DeliveryStatus,
-  PaymentMethod,
-  PaymentStatus,
-  Sale,
-  SaleStatus,
-} from "@/types/appwrite.types";
+  CustomerFormValues,
+  SaleFormValidation,
+  SaleFormValues,
+  StoreFormValues,
+  TaxFormValues,
+} from "@/lib/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import toast from "react-hot-toast";
-import { Form } from "../ui/form";
+import { Form, FormControl } from "../ui/form";
 import CustomFormField, { FormFieldType } from "../CustomFormField";
 import { SelectItem } from "../ui/select";
 import { Button } from "../ui/button";
-import { X } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -28,616 +23,1391 @@ import {
   TableHeader,
   TableRow,
 } from "../ui/table";
-import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import SubmitButton from "../SubmitButton";
 import { useCustomers } from "@/hooks/useCustomers";
 import FormatNumber from "@/components/FormatNumber";
 import { useSales } from "@/hooks/useSales";
 import { useRouter } from "next/navigation";
-import { Customer, Product } from "@/types";
-
-interface ProductType extends Product {
-  id: string;
-  name: string;
-  lotNumber: string;
-  unit: {
-    name: string;
-    code: string;
-  };
-  quantity: number;
-  sellingPrice: number;
-}
-
-interface SaleProduct {
-  product: string | ProductType;
-  quantity: number;
-  unitPrice: number;
-  totalPrice: number;
-  productName?: string;
-  productLotNumber?: string;
-  productUnit?: string;
-}
+import {
+  Attachment,
+  Customer,
+  InventoryStockWithRelations,
+  PaymentMethod,
+  PaymentStatus,
+  SaleStatus,
+  SaleWithRelations,
+  Store,
+  Tax,
+} from "@/types";
+import CustomerDialog from "../customers/CustomerDialog";
+import { useQuery } from "@tanstack/react-query";
+import { generateInvoiceNumber } from "@/lib/actions/sale.actions";
+import { RefreshCw } from "lucide-react";
+import { useTaxes } from "@/hooks/useTaxes";
+import TaxDialog from "../taxes/TaxDialog";
+import Loading from "../loading";
+import { FileUploader } from "../FileUploader";
+import ProductSheet from "../products/ProductSheet";
+import { Country, State, City } from "country-state-city";
+import { IState, ICity } from "country-state-city";
+import { useInventoryStock } from "@/hooks/useInventoryStock";
+import { Check } from "lucide-react";
+import { formatDateTime } from "@/lib/utils";
+import { X } from "lucide-react";
+import { Input } from "../ui/input";
+import { Search } from "lucide-react";
+import { useStores } from "@/hooks/useStores";
+import StoreDialog from "../stores/StoreDialog";
 
 interface SaleFormProps {
   mode: "create" | "edit";
-  initialData?: Sale;
-  onSubmit: (data: SaleFormValues) => Promise<void>;
+  initialData?: SaleWithRelations;
 }
 
-type FormProduct = Omit<SaleProduct, "product"> & {
-  product: string;
-};
+const SaleForm = ({ mode, initialData }: SaleFormProps) => {
+  const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
+  const [taxDialogOpen, setTaxDialogOpen] = useState(false);
+  const [storeDialogOpen, setStoreDialogOpen] = useState(false);
+  const [productDialogOpen, setProductDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [prevSelectedInventoryStockId, setPrevSelectedInventoryStockId] =
+    useState<string | null>(null);
 
-type ExtendedSaleFormValues = Omit<SaleFormValues, "products"> & {
-  products: FormProduct[];
-};
+  const [states, setStates] = useState<IState[]>(() =>
+    initialData?.sale.deliveryAddress?.country
+      ? State.getStatesOfCountry(initialData?.sale.deliveryAddress?.country)
+      : []
+  );
+  const [cities, setCities] = useState<ICity[]>(() =>
+    initialData?.sale.deliveryAddress?.state
+      ? City.getCitiesOfState(
+          initialData?.sale.deliveryAddress?.country || "",
+          initialData?.sale.deliveryAddress?.state
+        )
+      : []
+  );
+  const { inventoryStock, isLoading: inventoryStockLoading } =
+    useInventoryStock({
+      getAllInventoryStocks: true,
+    });
+  const {
+    stores,
+    addStore,
+    isAddingStore,
+    isLoading: storesLoading,
+  } = useStores({
+    getAllStores: true,
+  });
+  const {
+    customers,
+    addCustomer,
+    isLoading: customersLoading,
+  } = useCustomers({ getAllCustomers: true });
+  const {
+    taxes,
+    isLoading: taxesLoading,
+    addTax,
+    isAddingTax,
+  } = useTaxes({ getAllTaxes: true });
+  const { sales, addSale, isAddingSale, editSale, isEditingSale } = useSales({
+    getAllSales: true,
+  });
 
-const SaleForm = ({ mode, initialData, onSubmit }: SaleFormProps) => {
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [selectedProductName, setSelectedProductName] = useState<string>("");
-  const [isLoadingEdit, setIsLoadingEdit] = useState(mode === "edit");
-  const [isLoading, setIsLoading] = useState(false);
-  const { products } = useProducts({ getAllProducts: true });
-  const { customers } = useCustomers({ getAllCustomers: true });
-  const { sales } = useSales({ getAllSales: true });
+  // Generate Sale invoice number
+  const {
+    data: generatedInvoiceNumber,
+    isLoading,
+    refetch,
+    isRefetching,
+  } = useQuery({
+    queryKey: ["invoice-number"],
+    queryFn: async () => {
+      if (mode !== "create") return null;
+      const result = await generateInvoiceNumber();
+      return result;
+    },
+    enabled: mode === "create",
+  });
 
   const router = useRouter();
 
   const defaultValues = {
-    invoiceNumber: "",
+    invoiceNumber: generatedInvoiceNumber || "",
     saleDate: new Date(),
-    products: [] as FormProduct[],
-    customer: "",
+    customerId: "",
+    storeId: "",
+    subTotal: 0,
+    totalAmount: 0,
+    discountAmount: 0,
+    totalTaxAmount: 0,
+    amountPaid: 0,
     status: SaleStatus.Pending as SaleStatus,
     paymentMethod: PaymentMethod.Cash as PaymentMethod,
     paymentStatus: PaymentStatus.Pending as PaymentStatus,
-    deliveryStatus: DeliveryStatus.Pending as DeliveryStatus,
     notes: "",
-    amountPaid: 0,
-    totalAmount: 0,
-    selectedProduct: "",
-    tempQuantity: 0,
-    tempPrice: 0,
+    products: [],
+    quotationId: "",
+    attachments: [],
+    isDeliveryAddressAdded: false,
+    deliveryAddress: {
+      addressName: "",
+      address: "",
+      city: "",
+      state: "",
+      country: "",
+      email: "",
+      phone: "",
+    },
+
+    selectedInventoryStockId: "",
   };
 
-  const form = useForm<ExtendedSaleFormValues>({
+  const form = useForm<SaleFormValues>({
     resolver: zodResolver(SaleFormValidation),
     mode: "all",
-    defaultValues:
-      mode === "create" ? defaultValues : { ...defaultValues, ...initialData },
+    defaultValues: initialData
+      ? {
+          invoiceNumber: initialData?.sale.invoiceNumber || "",
+          saleDate: initialData?.sale.saleDate
+            ? new Date(initialData.sale.saleDate)
+            : new Date(),
+          products:
+            initialData?.products?.map((product) => ({
+              inventoryStockId: product.inventoryStockId || "",
+              productId: product.productId,
+              saleId: product.saleId || "",
+              storeId: product.storeId || "",
+              lotNumber: product.lotNumber,
+              availableQuantity: product.availableQuantity,
+              quantity: product.quantity,
+              unitPrice: product.unitPrice,
+              subTotal: product.subTotal,
+              totalPrice: product.totalPrice,
+              taxAmount: product.taxAmount,
+              taxRate: product.taxRate,
+              taxRateId: product.taxRateId || "",
+              discountRate: product.discountRate,
+              discountAmount: product.discountAmount,
+              productID: product.productID,
+              productName: product.productName,
+            })) || [],
+          customerId: initialData?.sale.customerId || "",
+          storeId: initialData?.sale.storeId || "",
+          status: initialData?.sale.status || SaleStatus.Pending,
+          notes: initialData?.sale.notes || "",
+          amountPaid: initialData?.sale.amountPaid || 0,
+          discountAmount: initialData?.sale.discountAmount || 0,
+          totalTaxAmount: initialData?.sale.totalTaxAmount || 0,
+          subTotal: initialData?.sale.subTotal || 0,
+          totalAmount: initialData?.sale.totalAmount || 0,
+          attachments: initialData?.sale.attachments || [],
+          isDeliveryAddressAdded:
+            initialData?.sale.isDeliveryAddressAdded || false,
+          deliveryAddress: {
+            addressName: initialData?.sale.deliveryAddress?.addressName || "",
+            address: initialData?.sale.deliveryAddress?.address || "",
+            city: initialData?.sale.deliveryAddress?.city || "",
+            state: initialData?.sale.deliveryAddress?.state || "",
+            country: initialData?.sale.deliveryAddress?.country || "",
+            email: initialData?.sale.deliveryAddress?.email || "",
+            phone: initialData?.sale.deliveryAddress?.phone || "",
+          },
+          paymentMethod: initialData?.sale.paymentMethod || PaymentMethod.Cash,
+          paymentStatus:
+            initialData?.sale.paymentStatus || PaymentStatus.Pending,
+          quotationId: initialData?.sale.quotationId || "",
+          selectedInventoryStockId: "",
+        }
+      : defaultValues,
   });
 
-  const { fields, append, update, remove, replace } = useFieldArray({
+  const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "products",
   });
 
-  const selectedProductId = form.watch("selectedProduct");
+  const selectedStoreId = form.watch("storeId");
+  const selectedInventoryStockId = form.watch("selectedInventoryStockId");
+  const isDeliveryAddressAdded = form.watch("isDeliveryAddressAdded");
+  const selectedCountry = form.watch("deliveryAddress.country");
+  const selectedState = form.watch("deliveryAddress.state");
 
-  // Initialize edit mode data
+  const watchedFields = fields.map((_, index) => ({
+    quantity: form.watch(`products.${index}.quantity`),
+    unitPrice: form.watch(`products.${index}.unitPrice`),
+    taxRateId: form.watch(`products.${index}.taxRateId`),
+    discountRate: form.watch(`products.${index}.discountRate`),
+  }));
+
+  // Filter inventory stock based on selected store
+  const filteredInventoryStock = inventoryStock
+    ?.filter(
+      (stock: InventoryStockWithRelations) => stock.store.id === selectedStoreId
+    )
+    // Apply search filter if search query exists
+    .filter((stock: InventoryStockWithRelations) => {
+      if (!searchQuery.trim()) return true;
+
+      const query = searchQuery.toLowerCase().trim();
+      return (
+        stock.product.productID?.toLowerCase().includes(query) ||
+        stock.inventory.lotNumber?.toLowerCase().includes(query) ||
+        stock.product.name?.toLowerCase().includes(query)
+      );
+    });
+
+  // Set initial values for the form
   useEffect(() => {
-    const initializeEditMode = async () => {
-      if (
-        mode === "edit" &&
-        initialData &&
-        initialData?.products?.length > 0 &&
-        isLoadingEdit
-      ) {
-        try {
-          // Initialize form fields except products
-          Object.entries(initialData).forEach(([key, value]) => {
-            if (key !== "products") {
-              form.setValue(key as keyof SaleFormValues, value);
-            }
-          });
+    if (initialData) {
+      if (initialData.sale.deliveryAddress?.country) {
+        const countryStates =
+          State.getStatesOfCountry(initialData.sale.deliveryAddress.country) ||
+          [];
+        setStates(countryStates);
 
-          // Fetch and update product details
-          const updatedProducts = await Promise.all(
-            initialData.products.map(async (product: SaleProduct) => {
-              const productId =
-                typeof product.product === "object"
-                  ? product.product.id
-                  : product.product;
-
-              try {
-                const productDetails = await getProductById(productId);
-                return {
-                  ...product,
-                  product: productId,
-                  productName: productDetails.name,
-                  productLotNumber: productDetails.lotNumber,
-                  productUnit: productDetails.unit.code,
-                };
-              } catch (error) {
-                console.error(`Error fetching product ${productId}:`, error);
-                return product;
-              }
-            })
-          );
-
-          replace(updatedProducts as FormProduct[]);
-        } catch (error) {
-          console.error("Error initializing edit mode:", error);
-          toast.error("Error loading product details");
-        } finally {
-          setIsLoadingEdit(false);
+        if (initialData.sale.deliveryAddress?.state) {
+          const stateCities =
+            City.getCitiesOfState(
+              initialData.sale.deliveryAddress.country,
+              initialData.sale.deliveryAddress.state
+            ) || [];
+          setCities(stateCities);
         }
-      } else {
-        setIsLoadingEdit(false);
       }
-    };
 
-    initializeEditMode();
-  }, [mode, initialData, form, replace, isLoadingEdit]);
+      setTimeout(() => {
+        form.reset({
+          invoiceNumber: initialData.sale.invoiceNumber,
+          saleDate: new Date(initialData.sale.saleDate || Date.now()),
+          products:
+            initialData.products.map((product) => ({
+              inventoryStockId: product.inventoryStockId,
+              productId: product.productId,
+              saleId: product.saleId,
+              storeId: product.storeId,
+              lotNumber: product.lotNumber,
+              availableQuantity: product.availableQuantity,
+              quantity: product.quantity,
+              unitPrice: product.unitPrice,
+              subTotal: product.subTotal,
+              totalPrice: product.totalPrice,
+              taxAmount: product.taxAmount,
+              taxRate: product.taxRate,
+              taxRateId: product.taxRateId,
+              discountRate: product.discountRate,
+              discountAmount: product.discountAmount,
+              productID: product.productID,
+              productName: product.productName,
+            })) || [],
+          customerId: initialData.sale.customerId,
+          storeId: initialData?.sale.storeId || "",
+          status: initialData.sale.status,
+          notes: initialData.sale.notes || "",
+          amountPaid: initialData.sale.amountPaid,
+          discountAmount: initialData.sale.discountAmount || 0,
+          totalTaxAmount: initialData.sale.totalTaxAmount || 0,
+          subTotal: initialData.sale.subTotal || 0,
+          totalAmount: initialData.sale.totalAmount || 0,
+          attachments: initialData.sale.attachments || [],
+          isDeliveryAddressAdded:
+            initialData.sale.isDeliveryAddressAdded || false,
+          deliveryAddress: {
+            addressName: initialData.sale.deliveryAddress?.addressName || "",
+            address: initialData.sale.deliveryAddress?.address || "",
+            city: initialData.sale.deliveryAddress?.city || "",
+            state: initialData.sale.deliveryAddress?.state || "",
+            country: initialData.sale.deliveryAddress?.country || "",
+            email: initialData.sale.deliveryAddress?.email || "",
+            phone: initialData.sale.deliveryAddress?.phone || "",
+          },
+          paymentMethod: initialData?.sale.paymentMethod || PaymentMethod.Cash,
+          paymentStatus:
+            initialData?.sale.paymentStatus || PaymentStatus.Pending,
+          quotationId: initialData?.sale.quotationId || "",
+          selectedInventoryStockId: "",
+        });
+      }, 100);
+    }
+  }, [initialData, form]);
 
-  // Handle product selection
   useEffect(() => {
-    const updateSelectedProduct = async () => {
-      if (!selectedProductId || isLoadingEdit) return;
+    if (selectedCountry) {
+      setStates(State.getStatesOfCountry(selectedCountry) || []);
+      setCities([]);
+    }
+  }, [selectedCountry]);
 
+  useEffect(() => {
+    if (selectedState) {
+      setCities(
+        City.getCitiesOfState(selectedCountry ?? "", selectedState ?? "") || []
+      );
+    }
+  }, [selectedState, selectedCountry]);
+
+  // Handle country change
+  const handleCountryChange = (value: string) => {
+    const countryStates = State.getStatesOfCountry(value) || [];
+    setStates(countryStates);
+    setCities([]);
+
+    form.setValue("deliveryAddress.country", value);
+    form.setValue("deliveryAddress.state", "");
+    form.setValue("deliveryAddress.city", "");
+  };
+
+  // Handle state change
+  const handleStateChange = (value: string) => {
+    if (!selectedCountry) return;
+
+    const stateCities = City.getCitiesOfState(selectedCountry, value) || [];
+    setCities(stateCities);
+
+    form.setValue("deliveryAddress.state", value);
+    form.setValue("deliveryAddress.city", "");
+  };
+
+  // Set invoice number
+  useEffect(() => {
+    if (generatedInvoiceNumber && mode === "create") {
+      form.setValue("invoiceNumber", generatedInvoiceNumber);
+    }
+  }, [generatedInvoiceNumber, form, mode]);
+
+  // Update the refresh button handler
+  const handleRefreshInvoiceNumber = async () => {
+    if (mode === "create") {
       try {
-        const product = await getProductById(selectedProductId);
-        setSelectedProductName(product.name);
-
-        if (editingIndex === null) {
-          // Only set default values when adding new product
-          form.setValue("tempQuantity", product.quantity);
-          form.setValue("tempPrice", product.sellingPrice);
+        await refetch();
+        if (generatedInvoiceNumber) {
+          form.setValue("invoiceNumber", generatedInvoiceNumber);
         }
       } catch (error) {
-        console.error("Error fetching product:", error);
-        setSelectedProductName("");
-        form.setValue("tempQuantity", 0);
-        form.setValue("tempPrice", 0);
+        console.error("Error refreshing invoice number:", error);
+        toast.error("Failed to refresh invoice number");
       }
-    };
-
-    updateSelectedProduct();
-  }, [selectedProductId, editingIndex, form, isLoadingEdit]);
-
-  const handleAddProduct = async () => {
-    const currentProductId = form.getValues("selectedProduct");
-    if (!currentProductId) {
-      toast.error("Please select a product");
-      return;
-    }
-
-    // Check if the product is already in the list and is not being edited
-    const existingProduct = fields.find(
-      (product) => product.product === currentProductId
-    );
-    if (existingProduct && editingIndex === null) {
-      toast.error("Product already added");
-      return;
-    }
-
-    try {
-      const selectedProduct = (await getProductById(
-        currentProductId
-      )) as ProductType;
-      if (!selectedProduct) {
-        throw new Error("Product not found");
-      }
-
-      const quantity =
-        form.getValues("tempQuantity") || selectedProduct.quantity;
-      const unitPrice =
-        form.getValues("tempPrice") || selectedProduct.sellingPrice;
-
-      // Check if quantity exceeds available stock
-      if (quantity > selectedProduct.quantity) {
-        toast.error("Quantity exceeds available stock");
-        return;
-      }
-
-      const newProduct: FormProduct = {
-        product: selectedProduct.id,
-        quantity,
-        unitPrice,
-        totalPrice: unitPrice * quantity,
-        productName: selectedProduct.name,
-        productLotNumber: selectedProduct.lotNumber,
-        productUnit: selectedProduct.unit.code,
-      };
-
-      if (editingIndex !== null) {
-        update(editingIndex, newProduct);
-        setEditingIndex(null);
-      } else {
-        append(newProduct);
-      }
-
-      handleCancel();
-    } catch (error) {
-      console.error("Error adding product:", error);
-      toast.error("Error adding product");
     }
   };
 
-  const handleEditEntry = (index: number) => {
-    const entry = fields[index];
-    form.setValue("selectedProduct", entry.product as string);
-    form.setValue("tempQuantity", entry.quantity);
-    form.setValue("tempPrice", entry.unitPrice);
-    setSelectedProductName(entry.productName || "");
-    setEditingIndex(index);
+  // Update the cancel button handler
+  const handleCancel = () => {
+    if (mode === "create") {
+      form.reset(defaultValues);
+      refetch();
+    } else {
+      form.reset();
+    }
+  };
+
+  // Handle add product
+  const handleAddProduct = () => {
+    if (!selectedInventoryStockId || !selectedStoreId) {
+      toast.error("Please select a store and Inventory Stock");
+      return;
+    }
+
+    const selectedStock = inventoryStock?.find(
+      (stock: InventoryStockWithRelations) =>
+        stock.inventory.id === selectedInventoryStockId
+    );
+
+    if (!selectedStock) {
+      toast.error("Selected Inventory stock not found");
+      return;
+    }
+
+    if (
+      fields.some(
+        (entry) => entry.inventoryStockId === selectedInventoryStockId
+      )
+    ) {
+      toast.error("This inventory is already added");
+      return;
+    }
+
+    append({
+      productId: selectedStock.product.id,
+      inventoryStockId: selectedStock.inventory.id,
+      lotNumber: selectedStock.inventory.lotNumber,
+      availableQuantity: selectedStock.inventory.quantity,
+      quantity: 0,
+      unitPrice: selectedStock.inventory.sellingPrice,
+      totalPrice: 0,
+      subTotal: 0,
+      taxAmount: 0,
+      taxRate: 0,
+      discountRate: 0,
+      taxRateId: taxes?.[0]?.id || "",
+      discountAmount: 0,
+      productID: selectedStock.product.productID,
+      productName: selectedStock.product.name,
+    });
+    form.setValue("selectedInventoryStockId", "");
   };
 
   const handleDeleteEntry = (index: number) => {
     remove(index);
-    if (editingIndex === index) {
-      handleCancel();
-    }
   };
 
-  const handleCancel = () => {
-    form.setValue("selectedProduct", "");
-    form.setValue("tempQuantity", 0);
-    form.setValue("tempPrice", 0);
-    setEditingIndex(null);
-    setSelectedProductName("");
+  // handle close dialog
+  const closeDialog = () => {
+    setCustomerDialogOpen(false);
+    setTaxDialogOpen(false);
+    setProductDialogOpen(false);
+    setStoreDialogOpen(false);
+
+    setTimeout(() => {
+      const stuckSection = document.querySelector(".MuiBox-root.css-0");
+      if (stuckSection instanceof HTMLElement) {
+        stuckSection.style.pointerEvents = "auto";
+      }
+    }, 100);
   };
 
-  const calculateTotalAmount = () => {
-    return fields.reduce((sum, entry) => sum + entry.totalPrice, 0);
+  const handleAddCustomer = async (data: CustomerFormValues): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      addCustomer(data, {
+        onSuccess: () => {
+          resolve();
+        },
+        onError: (error) => {
+          reject(error);
+        },
+      });
+    });
   };
 
+  const handleAddTax = async (data: TaxFormValues): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      addTax(data, {
+        onSuccess: () => {
+          closeDialog();
+          resolve();
+        },
+        onError: (error) => {
+          reject(error);
+        },
+      });
+    });
+  };
+
+  const handleAddStore = async (data: StoreFormValues): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      addStore(data, {
+        onSuccess: () => {
+          closeDialog();
+          resolve();
+        },
+        onError: (error) => {
+          reject(error);
+        },
+      });
+    });
+  };
+
+  const validateInvoiceNumber = (invoiceNumber: string) => {
+    const existingSale = sales?.find(
+      (sale: SaleWithRelations) => sale.sale.invoiceNumber === invoiceNumber
+    );
+    if (mode === "create" && existingSale) return false;
+
+    if (
+      mode === "edit" &&
+      initialData?.sale.invoiceNumber !== invoiceNumber &&
+      existingSale
+    )
+      return false;
+    return true;
+  };
+
+  // Handle submit
   const handleSubmit = async () => {
     try {
-      setIsLoading(true);
       const values = form.getValues();
-      const totalAmount = calculateTotalAmount();
 
       if (fields.length === 0) {
         toast.error("At least one product is required");
         return;
       }
 
-      if (values.amountPaid > totalAmount) {
-        toast.error("Amount paid exceeds total amount");
-        return;
-      }
-
-      const existingSale = sales?.find(
-        (sale: Sale) => sale.invoiceNumber === values.invoiceNumber.trim()
-      );
-      if (existingSale && mode === "create") {
+      if (!validateInvoiceNumber(values.invoiceNumber)) {
         toast.error("A Sale with the same invoice number already exists.");
         return;
       }
 
-      if (
-        mode === "edit" &&
-        initialData?.invoiceNumber !== values.invoiceNumber
-      ) {
-        const existingSale = sales?.find(
-          (sale: Sale) => sale.invoiceNumber === values.invoiceNumber
-        );
-        if (existingSale) {
-          toast.error("A Sale with the same invoice number already exists.");
-          return;
-        }
-      }
-
-      await onSubmit({
-        ...values,
-        products: fields,
-        totalAmount,
-      });
-
       if (mode === "create") {
-        form.reset();
+        await addSale(values, {
+          onSuccess: () => {
+            toast.success("Sale created successfully!");
+            form.reset();
+            router.push("/sales");
+          },
+          onError: (error) => {
+            console.error("Create sale error:", error);
+            toast.error("Failed to create sale");
+          },
+        });
+      }
+      if (mode === "edit" && initialData) {
+        if (initialData?.sale.attachments?.length > 0) {
+          const prevIds = initialData?.sale.attachments.map(
+            (attachment: Attachment) => attachment.id
+          );
+          await editSale(
+            {
+              id: initialData?.sale.id,
+              data: values,
+              prevAttachmentIds: prevIds,
+            },
+            {
+              onSuccess: () => {
+                toast.success("Sale updated successfully!");
+                form.reset();
+                router.push("/sales");
+              },
+              onError: (error) => {
+                console.error("Update sale error:", error);
+                toast.error("Failed to update sale");
+              },
+            }
+          );
+        } else {
+          await editSale(
+            {
+              id: initialData?.sale.id,
+              data: values,
+            },
+            {
+              onSuccess: () => {
+                toast.success("Sale updated successfully!");
+                form.reset();
+                router.push("/sales");
+              },
+              onError: (error) => {
+                console.error("Update sale error:", error);
+                toast.error("Failed to update sale");
+              },
+            }
+          );
+        }
       }
     } catch (error) {
       console.error("Error submitting form:", error);
       toast.error("Error submitting form");
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  if (isLoadingEdit) {
-    return <Loading />;
-  }
+  // Calculate raw subtotal per product entry (before any discounts)
+  const calculateEntryRawSubTotal = useCallback(
+    (index: number) => {
+      const quantity = form.watch(`products.${index}.quantity`) || 0;
+      const unitPrice = form.watch(`products.${index}.unitPrice`) || 0;
+      return quantity * unitPrice;
+    },
+    [form]
+  );
+
+  // Calculate discount amount per product entry
+  const calculateEntryDiscountAmount = useCallback(
+    (index: number) => {
+      const entrySubTotal = calculateEntryRawSubTotal(index);
+      const discountRate = form.watch(`products.${index}.discountRate`) || 0;
+      return (entrySubTotal * discountRate) / 100;
+    },
+    [calculateEntryRawSubTotal, form]
+  );
+
+  // Calculate taxable amount per product entry (subtotal - discount)
+  const calculateEntryTaxableAmount = useCallback(
+    (index: number) => {
+      const entryRawSubTotal = calculateEntryRawSubTotal(index);
+      const entryDiscountAmount = calculateEntryDiscountAmount(index);
+      return entryRawSubTotal - entryDiscountAmount;
+    },
+    [calculateEntryRawSubTotal, calculateEntryDiscountAmount]
+  );
+
+  // Calculate tax amount per product entry
+  const calculateEntryTaxAmount = useCallback(
+    (index: number) => {
+      const entryTaxableAmount = calculateEntryTaxableAmount(index);
+      const taxRateId = form.watch(`products.${index}.taxRateId`) || "";
+      const selectedTax = taxes?.find((tax: Tax) => tax.id === taxRateId);
+      const taxRate = selectedTax?.taxRate || 0;
+      return (entryTaxableAmount * taxRate) / 100;
+    },
+    [calculateEntryTaxableAmount, form, taxes]
+  );
+
+  // Calculate total per product entry (taxable amount + tax)
+  const calculateEntryTotalAmount = useCallback(
+    (index: number) => {
+      const entryTaxableAmount = calculateEntryTaxableAmount(index);
+      const entryTaxAmount = calculateEntryTaxAmount(index);
+      return entryTaxableAmount + entryTaxAmount;
+    },
+    [calculateEntryTaxableAmount, calculateEntryTaxAmount]
+  );
+
+  // Calculate overall subtotal (sum of all entry taxable amounts)
+  const calculateSubTotal = useCallback(() => {
+    let total = 0;
+    fields.forEach((_, index) => {
+      total += calculateEntryTaxableAmount(index);
+    });
+    return total;
+  }, [fields, calculateEntryTaxableAmount]);
+
+  // Calculate overall tax amount (sum of all entry tax amounts)
+  const calculateTotalTaxAmount = useCallback(() => {
+    let total = 0;
+    fields.forEach((_, index) => {
+      total += calculateEntryTaxAmount(index);
+    });
+    return total;
+  }, [fields, calculateEntryTaxAmount]);
+
+  // Calculate grand total (subtotal + total tax)
+  const calculateTotalAmount = useCallback(() => {
+    return calculateSubTotal() + calculateTotalTaxAmount();
+  }, [calculateSubTotal, calculateTotalTaxAmount]);
+
+  // Calculate total discount amount (sum of all entry discount amounts)
+  const calculateTotalDiscountAmount = useCallback(() => {
+    let total = 0;
+    fields.forEach((_, index) => {
+      total += calculateEntryDiscountAmount(index);
+    });
+    return total;
+  }, [fields, calculateEntryDiscountAmount]);
+
+  // fields/entry calculations
+  useEffect(() => {
+    if (fields.length > 0) {
+      fields.forEach((field, index) => {
+        const entryDiscountAmount = calculateEntryDiscountAmount(index);
+        const entryTaxableAmount = calculateEntryTaxableAmount(index);
+        const entryTaxAmount = calculateEntryTaxAmount(index);
+        const entryTotalAmount = calculateEntryTotalAmount(index);
+
+        // Set individual product entry values
+        form.setValue(`products.${index}.discountAmount`, entryDiscountAmount);
+        form.setValue(`products.${index}.subTotal`, entryTaxableAmount);
+
+        const taxRateId = form.watch(`products.${index}.taxRateId`) || "";
+        const selectedTax = taxes?.find((tax: Tax) => tax.id === taxRateId);
+        const taxRate = selectedTax?.taxRate || 0;
+        form.setValue(`products.${index}.taxRate`, taxRate);
+
+        form.setValue(`products.${index}.taxAmount`, entryTaxAmount);
+        form.setValue(`products.${index}.totalPrice`, entryTotalAmount);
+      });
+
+      // Set overall sale values
+      form.setValue("subTotal", calculateSubTotal());
+      form.setValue("discountAmount", calculateTotalDiscountAmount());
+      form.setValue("totalAmount", calculateTotalAmount());
+      form.setValue("totalTaxAmount", calculateTotalTaxAmount());
+    }
+  }, [
+    watchedFields,
+    fields,
+    form,
+    calculateSubTotal,
+    calculateTotalAmount,
+    calculateTotalTaxAmount,
+    calculateEntryRawSubTotal,
+    calculateEntryDiscountAmount,
+    calculateEntryTaxableAmount,
+    calculateEntryTaxAmount,
+    calculateEntryTotalAmount,
+    calculateTotalDiscountAmount,
+    taxes,
+  ]);
 
   return (
-    <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(handleSubmit)}
-        className="space-y-5 text-dark-500"
-      >
-        <div className="flex flex-col sm:flex-row gap-5">
-          <CustomFormField
-            fieldType={FormFieldType.INPUT}
-            control={form.control}
-            name="invoiceNumber"
-            label="Invoice Number"
-            placeholder="Enter invoice number"
-          />
-
-          <CustomFormField
-            fieldType={FormFieldType.DATE_PICKER}
-            control={form.control}
-            name="saleDate"
-            label="Sale Date"
-            dateFormat="MM/dd/yyyy"
-          />
-        </div>
-
-        <div
-          className={`space-y-4 ${
-            form.formState.errors.products
-              ? "border-2 border-red-500 p-4 rounded-md"
-              : ""
-          }`}
+    <>
+      <Form {...form}>
+        <form
+          onSubmit={form.handleSubmit(handleSubmit)}
+          className="space-y-5 text-dark-500"
         >
-          <div className="w-full sm:w-1/2">
+          <div className="w-full flex flex-col md:flex-row gap-5">
+            <div className="flex flex-1 flex-row gap-2 items-center">
+              <CustomFormField
+                fieldType={FormFieldType.INPUT}
+                control={form.control}
+                name="invoiceNumber"
+                label="Invoice Number"
+                placeholder={
+                  isLoading || isRefetching
+                    ? "Generating..."
+                    : "Enter invoice number"
+                }
+              />
+              <Button
+                type="button"
+                size={"icon"}
+                onClick={handleRefreshInvoiceNumber}
+                className="self-end shad-primary-btn px-5"
+                disabled={isLoading || isRefetching}
+              >
+                <RefreshCw
+                  className={`h-5 w-5 ${
+                    isLoading || isRefetching ? "animate-spin" : ""
+                  }`}
+                />
+              </Button>
+            </div>
+            <CustomFormField
+              fieldType={FormFieldType.DATE_PICKER}
+              control={form.control}
+              name="saleDate"
+              label="Sale Date"
+              dateFormat="MM/dd/yyyy"
+            />
+          </div>
+          <div className="w-full flex flex-col sm:flex-row gap-5">
             <CustomFormField
               fieldType={FormFieldType.SELECT}
               control={form.control}
-              name="selectedProduct"
-              label="Select Product"
-              placeholder="Select product"
-              onAddNew={() => router.push("/inventory/add-inventory")}
-              key={`product-select-${form.watch("selectedProduct") || ""}`}
+              name="customerId"
+              label="Customer"
+              placeholder="Select customer"
+              onAddNew={() => setCustomerDialogOpen(true)}
+              key={`customer-select-${form.watch("customerId") || ""}`}
             >
-              {products?.map((product: Product) => (
+              {customersLoading && (
+                <div className="py-4">
+                  <Loading />
+                </div>
+              )}
+              {customers?.map((customer: Customer) => (
                 <SelectItem
-                  key={product.id}
-                  value={product.id}
-                  className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+                  key={customer.id}
+                  value={customer.id}
+                  className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
                 >
-                  {product.name}
+                  {customer.name}
+                </SelectItem>
+              ))}
+            </CustomFormField>
+
+            <CustomFormField
+              fieldType={FormFieldType.SELECT}
+              control={form.control}
+              name="storeId"
+              label="Store"
+              placeholder="Select store"
+              onAddNew={() => setStoreDialogOpen(true)}
+              key={`store-select-${form.watch("storeId") || ""}`}
+            >
+              {storesLoading && (
+                <div className="py-4">
+                  <Loading />
+                </div>
+              )}
+              {stores?.map((store: Store) => (
+                <SelectItem
+                  key={store.id}
+                  value={store.id}
+                  className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
+                >
+                  {store.name}
                 </SelectItem>
               ))}
             </CustomFormField>
           </div>
-          <div className="w-full flex flex-col justify-between sm:flex-row gap-4">
-            <div className="flex w-full flex-col sm:flex-row gap-5">
-              <div className="flex flex-1 flex-col gap-3">
-                <p className="text-14-medium text-blue-800">Product Name</p>
-                <p className="text-14-medium bg-white text-blue-800 border border-dark-700 h-[42px] rounded-md flex items-center px-3 w-full shadow-sm min-w-[200px]">
-                  {selectedProductName || "Select a product"}
-                </p>
+          <div
+            className={`space-y-5 ${
+              form.formState.errors.products
+                ? "border-2 border-red-500 p-4 rounded-md"
+                : ""
+            }`}
+          >
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="w-full sm:w-1/2">
+                <CustomFormField
+                  fieldType={FormFieldType.SELECT}
+                  control={form.control}
+                  name="selectedInventoryStockId"
+                  label="Select Inventory Stock"
+                  placeholder={
+                    selectedStoreId
+                      ? "Select inventory stock"
+                      : "Select store first"
+                  }
+                  disabled={!selectedStoreId}
+                  key={`inventory-select-${selectedInventoryStockId || ""}`}
+                >
+                  <div className="py-3">
+                    <div className="relative flex items-center rounded-md border border-dark-700 bg-white">
+                      <Search className="ml-2 h-4 w-4 opacity-50" />
+                      <Input
+                        type="text"
+                        placeholder="Search by Product ID, Lot Number, or Product Name"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
+                        disabled={!selectedStoreId || inventoryStockLoading}
+                      />
+                      {searchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchQuery("")}
+                          className="absolute right-3 top-3 text-dark-700 hover:text-dark-600"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {inventoryStockLoading ? (
+                    <div className="py-4">
+                      <Loading />
+                    </div>
+                  ) : filteredInventoryStock &&
+                    filteredInventoryStock.length > 0 ? (
+                    <>
+                      <Table className="shad-table border border-light-200 rounded-lg">
+                        <TableHeader>
+                          <TableRow className="w-full bg-blue-800 text-white px-2 font-semibold">
+                            <TableHead>Product ID</TableHead>
+                            <TableHead>Lot Number</TableHead>
+                            <TableHead>Product Name</TableHead>
+                            <TableHead>Qnty</TableHead>
+                            <TableHead>Expiry</TableHead>
+                            <TableHead></TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody className="w-full bg-white">
+                          {filteredInventoryStock.map(
+                            (stock: InventoryStockWithRelations) => (
+                              <TableRow
+                                key={stock.inventory.id}
+                                className="cursor-pointer hover:bg-blue-50"
+                                onClick={() => {
+                                  form.setValue(
+                                    "selectedInventoryStockId",
+                                    stock.inventory.id
+                                  );
+                                  setPrevSelectedInventoryStockId(
+                                    stock.inventory.id
+                                  );
+                                  setSearchQuery("");
+                                  // Find and click the hidden SelectItem with this value
+                                  const selectItem = document.querySelector(
+                                    `[data-value="${stock.inventory.id}"]`
+                                  ) as HTMLElement;
+                                  if (selectItem) {
+                                    selectItem.click();
+                                  }
+                                }}
+                              >
+                                <TableCell>{stock.product.productID}</TableCell>
+                                <TableCell>
+                                  {stock.inventory.lotNumber}
+                                </TableCell>
+                                <TableCell>{stock.product.name}</TableCell>
+                                <TableCell>
+                                  {stock.inventory.quantity}
+                                </TableCell>
+                                <TableCell>
+                                  {stock.inventory.expiryDate
+                                    ? formatDateTime(stock.inventory.expiryDate)
+                                        .dateOnly
+                                    : "N/A"}
+                                </TableCell>
+                                <TableCell className="w-10">
+                                  {prevSelectedInventoryStockId ===
+                                    stock.inventory.id && (
+                                    <span className="text-blue-800">
+                                      <Check className="h-5 w-5" />
+                                    </span>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            )
+                          )}
+                        </TableBody>
+                      </Table>
+                      {/* Hidden select options for form control */}
+                      <div className="hidden">
+                        {filteredInventoryStock.map(
+                          (stock: InventoryStockWithRelations) => (
+                            <SelectItem
+                              key={stock.inventory.id}
+                              value={stock.inventory.id}
+                              data-value={stock.inventory.id}
+                            >
+                              {stock.product.productID} -
+                              {stock.inventory.lotNumber} - {stock.product.name}
+                              {}
+                            </SelectItem>
+                          )
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <SelectItem value="null" disabled>
+                      {selectedStoreId ? (
+                        <div>No inventory found for this store</div>
+                      ) : (
+                        <div>Please select a store first</div>
+                      )}
+                    </SelectItem>
+                  )}
+                </CustomFormField>
               </div>
-              <CustomFormField
-                fieldType={FormFieldType.NUMBER}
-                control={form.control}
-                name="tempQuantity"
-                label="Quantity"
-                placeholder="Enter quantity"
-              />
-
-              <CustomFormField
-                fieldType={FormFieldType.AMOUNT}
-                control={form.control}
-                name="tempPrice"
-                label="Unit Price"
-                placeholder="Enter unit price"
-              />
-            </div>
-            <div className="flex flex-row gap-2 justify-end">
-              <Button
-                type="button"
-                size={"icon"}
-                onClick={handleCancel}
-                className="self-end mb-1 shad-danger-btn"
-              >
-                <X />
-              </Button>
-
               <Button
                 type="button"
                 onClick={handleAddProduct}
-                className="self-end mb-1 shad-primary-btn"
+                disabled={!selectedInventoryStockId}
+                className="self-end shad-primary-btn h-11"
               >
-                {editingIndex !== null ? "Update Product" : "Add Product"}
+                Add Inventory Stock
               </Button>
             </div>
+
+            <Table className="shad-table">
+              <TableHeader>
+                <TableRow className="w-full bg-blue-800 text-white px-2 font-semibold">
+                  <TableHead>#</TableHead>
+                  <TableHead>PID</TableHead>
+                  <TableHead>Lot Number</TableHead>
+                  <TableHead>Product Description</TableHead>
+                  <TableHead>Available Qnty</TableHead>
+                  <TableHead>Quantity</TableHead>
+                  <TableHead>Unit Price</TableHead>
+                  <TableHead>Tax Rate(%)</TableHead>
+                  <TableHead>Tax Amount</TableHead>
+                  <TableHead>Discount Rate(%)</TableHead>
+                  <TableHead>Discount Amount</TableHead>
+                  <TableHead>Sub-Total</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody className="w-full bg-white text-blue-800">
+                {fields.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={13} className="text-center py-4">
+                      No products added
+                    </TableCell>
+                  </TableRow>
+                )}
+                {fields.map((entry, index) => (
+                  <TableRow
+                    key={`${entry.productId}-${index}`}
+                    className={`w-full ${index % 2 === 1 ? "bg-blue-50" : ""}`}
+                  >
+                    <TableCell>{index + 1}</TableCell>
+                    <TableCell>{entry.productID}</TableCell>
+                    <TableCell>{entry.lotNumber}</TableCell>
+                    <TableCell>{entry.productName}</TableCell>
+                    <TableCell>{entry.availableQuantity}</TableCell>
+                    <TableCell>
+                      <CustomFormField
+                        fieldType={FormFieldType.NUMBER}
+                        control={form.control}
+                        name={`products.${index}.quantity`}
+                        label=""
+                        placeholder="Qty"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <CustomFormField
+                        fieldType={FormFieldType.AMOUNT}
+                        control={form.control}
+                        name={`products.${index}.unitPrice`}
+                        label=""
+                        placeholder="Unit price"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <CustomFormField
+                        fieldType={FormFieldType.SELECT}
+                        control={form.control}
+                        name={`products.${index}.taxRateId`}
+                        label=""
+                        placeholder="Tax Rate"
+                        onAddNew={() => setTaxDialogOpen(true)}
+                        key={`tax-select-${
+                          form.watch(`products.${index}.taxRateId`) || ""
+                        }-${index}`}
+                      >
+                        {taxesLoading && (
+                          <div className="py-4">
+                            <Loading />
+                          </div>
+                        )}
+                        {taxes?.map((tax: Tax) => (
+                          <SelectItem
+                            key={tax.id}
+                            value={tax.id}
+                            className="text-14-medium text-blue-800 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+                          >
+                            {tax.code} - {`${tax.taxRate}%`}
+                          </SelectItem>
+                        ))}
+                      </CustomFormField>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center text-14-medium text-blue-800 rounded-md border bg-white px-3 border-dark-700 h-11">
+                        <FormatNumber value={calculateEntryTaxAmount(index)} />
+                      </div>
+                    </TableCell>
+
+                    <TableCell>
+                      <CustomFormField
+                        fieldType={FormFieldType.NUMBER}
+                        control={form.control}
+                        name={`products.${index}.discountRate`}
+                        label=""
+                        placeholder="Discount %"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center text-14-medium text-blue-800 rounded-md border bg-white px-3 border-dark-700 h-11">
+                        <FormatNumber
+                          value={calculateEntryDiscountAmount(index)}
+                        />
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <FormatNumber
+                        value={calculateEntryTaxableAmount(index)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-row items-center">
+                        <span
+                          onClick={() => handleDeleteEntry(index)}
+                          className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
+                        >
+                          <DeleteIcon className="h-5 w-5" />
+                        </span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {/* Total amount row */}
+                {fields.length > 0 && (
+                  <>
+                    <TableRow>
+                      <TableCell
+                        colSpan={11}
+                        className="text-right font-medium text-blue-800 text-[17px] py-4"
+                      >
+                        {`Sub-Total:`}
+                      </TableCell>
+                      <TableCell
+                        colSpan={2}
+                        className="font-medium text-blue-800 text-[17px] py-4"
+                      >
+                        <FormatNumber value={calculateSubTotal()} />
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell
+                        colSpan={11}
+                        className="text-right font-medium text-blue-800 text-[17px] py-4"
+                      >
+                        {`Total Discount:`}
+                      </TableCell>
+                      <TableCell
+                        colSpan={2}
+                        className="font-medium text-blue-800 text-[17px] py-4"
+                      >
+                        <FormatNumber value={calculateTotalDiscountAmount()} />
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell
+                        colSpan={11}
+                        className="text-right font-medium text-blue-800 text-[17px] py-4"
+                      >
+                        {`Total Tax:`}
+                      </TableCell>
+                      <TableCell
+                        colSpan={2}
+                        className="font-medium text-blue-800 text-[17px] py-4"
+                      >
+                        <FormatNumber value={calculateTotalTaxAmount()} />
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell
+                        colSpan={11}
+                        className="text-right font-semibold text-blue-800 text-[17px] py-4"
+                      >
+                        {`Grand Total:`}
+                      </TableCell>
+                      <TableCell
+                        colSpan={2}
+                        className="font-semibold text-blue-800 text-[17px] py-4"
+                      >
+                        <FormatNumber value={calculateTotalAmount()} />
+                      </TableCell>
+                    </TableRow>
+                  </>
+                )}
+              </TableBody>
+            </Table>
+            {form.formState.errors.products && (
+              <p className="shad-error text-xs">
+                {form.formState.errors.products.message}
+              </p>
+            )}
           </div>
 
-          <Table className="shad-table">
-            <TableHeader>
-              <TableRow className="w-full bg-blue-800 text-white px-2 font-semibold">
-                <TableHead>#</TableHead>
-                <TableHead>Product</TableHead>
-                <TableHead>Lot Number</TableHead>
-                <TableHead>Quantity</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody className="w-full bg-white">
-              {fields.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-4">
-                    No products added
-                  </TableCell>
-                </TableRow>
-              )}
-              {fields.map((entry, index) => (
-                <TableRow key={`${entry.product}-${index}`}>
-                  <TableCell>{index + 1}</TableCell>
-                  <TableCell>{entry.productName}</TableCell>
-                  <TableCell>{entry.productLotNumber}</TableCell>
-                  <TableCell>
-                    {entry.quantity}
-                    {entry.productUnit}
-                  </TableCell>
-                  <TableCell>
-                    <FormatNumber value={entry.totalPrice} />
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-row items-center">
-                      <span
-                        onClick={() => handleEditEntry(index)}
-                        className="text-[#475BE8] p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
-                      >
-                        <EditIcon className="h-5 w-5" />
-                      </span>
-                      <span
-                        onClick={() => handleDeleteEntry(index)}
-                        className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
-                      >
-                        <DeleteIcon className="h-5 w-5" />
-                      </span>
-                    </div>
-                  </TableCell>
-                </TableRow>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-4 pt-5">
+            <CustomFormField
+              fieldType={FormFieldType.AMOUNT}
+              control={form.control}
+              name="amountPaid"
+              label="Amount Paid"
+              placeholder="Amount paid"
+            />
+            <CustomFormField
+              fieldType={FormFieldType.SELECT}
+              control={form.control}
+              name="paymentMethod"
+              label="Payment Method"
+              placeholder="Select payment method"
+              key={`payment-select-${form.watch("status") || ""}`}
+            >
+              {Object.values(PaymentMethod).map((method) => (
+                <SelectItem
+                  key={method}
+                  value={method}
+                  className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
+                >
+                  {method}
+                </SelectItem>
               ))}
-              {/* Total amount row */}
-              {fields.length > 0 && (
-                <TableRow>
-                  <TableCell
-                    colSpan={5}
-                    className="text-right font-semibold text-blue-800 text-[17px] py-4"
-                  >
-                    Total Amount:
-                  </TableCell>
-                  <TableCell className="font-semibold text-blue-800 text-[17px] py-4">
-                    <FormatNumber value={calculateTotalAmount()} />
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-          {form.formState.errors.products && (
-            <p className="shad-error text-xs">
-              {form.formState.errors.products.message}
-            </p>
-          )}
-        </div>
-        <div className="w-full flex flex-col sm:flex-row gap-5">
+            </CustomFormField>
+
+            <CustomFormField
+              fieldType={FormFieldType.SELECT}
+              control={form.control}
+              name="paymentStatus"
+              label="Payment Status"
+              placeholder="Select payment status"
+              key={`payment-status-${form.watch("status") || ""}`}
+            >
+              {Object.values(PaymentStatus).map((status) => (
+                <SelectItem
+                  key={status}
+                  value={status}
+                  className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
+                >
+                  {status}
+                </SelectItem>
+              ))}
+            </CustomFormField>
+            <CustomFormField
+              fieldType={FormFieldType.SELECT}
+              control={form.control}
+              name="status"
+              label="Sale Status"
+              placeholder="Select status"
+              key={`status-select-${form.watch("status") || ""}`}
+            >
+              {Object.values(SaleStatus).map((status) => (
+                <SelectItem
+                  key={status}
+                  value={status}
+                  className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
+                >
+                  {status}
+                </SelectItem>
+              ))}
+            </CustomFormField>
+          </div>
+
+          <div className="flex flex-col gap-5 ">
+            <CustomFormField
+              fieldType={FormFieldType.SWITCH}
+              control={form.control}
+              name="isDeliveryAddressAdded"
+              label="Delivery address ?"
+            />
+            {isDeliveryAddressAdded && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-4">
+                <CustomFormField
+                  fieldType={FormFieldType.INPUT}
+                  control={form.control}
+                  name="deliveryAddress.addressName"
+                  label="Address Name"
+                  placeholder="Enter address name"
+                />
+                <CustomFormField
+                  fieldType={FormFieldType.INPUT}
+                  control={form.control}
+                  name="deliveryAddress.email"
+                  label="Email"
+                  placeholder="Enter address email"
+                />
+
+                <CustomFormField
+                  fieldType={FormFieldType.PHONE_INPUT}
+                  control={form.control}
+                  name="deliveryAddress.phone"
+                  label="Phone number"
+                />
+
+                <CustomFormField
+                  fieldType={FormFieldType.SELECT}
+                  control={form.control}
+                  name="deliveryAddress.country"
+                  label="Country"
+                  placeholder="Select a country"
+                  onValueChange={handleCountryChange}
+                >
+                  {Country.getAllCountries().map((country) => (
+                    <SelectItem
+                      key={country.isoCode}
+                      value={country.isoCode}
+                      className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+                    >
+                      {country.name}
+                    </SelectItem>
+                  ))}
+                </CustomFormField>
+
+                <CustomFormField
+                  fieldType={FormFieldType.SELECT}
+                  control={form.control}
+                  name="deliveryAddress.state"
+                  label="State"
+                  placeholder={
+                    selectedCountry
+                      ? "Select a state"
+                      : "Select a country first"
+                  }
+                  onValueChange={handleStateChange}
+                  disabled={!selectedCountry}
+                >
+                  {states.map((state) => (
+                    <SelectItem
+                      key={state.isoCode}
+                      value={state.isoCode}
+                      className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+                    >
+                      {state.name}
+                    </SelectItem>
+                  ))}
+                </CustomFormField>
+
+                <CustomFormField
+                  fieldType={FormFieldType.SELECT}
+                  control={form.control}
+                  name="deliveryAddress.city"
+                  label="City"
+                  placeholder={
+                    selectedState ? "Select a city" : "Select a state first"
+                  }
+                  onValueChange={(value) =>
+                    form.setValue("deliveryAddress.city", value)
+                  }
+                  disabled={!selectedState}
+                >
+                  {cities.map((city) => (
+                    <SelectItem
+                      key={city.name}
+                      value={city.name}
+                      className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+                    >
+                      {city.name}
+                    </SelectItem>
+                  ))}
+                </CustomFormField>
+
+                <CustomFormField
+                  fieldType={FormFieldType.INPUT}
+                  control={form.control}
+                  name="deliveryAddress.address"
+                  label="Address"
+                  placeholder="Enter physical address"
+                />
+              </div>
+            )}
+          </div>
+
           <CustomFormField
-            fieldType={FormFieldType.AMOUNT}
+            fieldType={FormFieldType.SKELETON}
             control={form.control}
-            name="amountPaid"
-            label="Amount Paid"
-            placeholder="Enter amount paid"
+            name="attachments"
+            label="Attachment"
+            renderSkeleton={(field) => (
+              <FormControl>
+                <FileUploader
+                  files={field.value}
+                  onChange={field.onChange}
+                  mode={mode}
+                  accept={{
+                    "application/pdf": [".pdf"],
+                    "application/msword": [".doc"],
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                      [".docx"],
+                  }}
+                  maxFiles={5}
+                />
+              </FormControl>
+            )}
+          />
+          <CustomFormField
+            fieldType={FormFieldType.TEXTAREA}
+            control={form.control}
+            name="notes"
+            label="Notes"
+            placeholder="Enter sale notes"
           />
 
-          <CustomFormField
-            fieldType={FormFieldType.SELECT}
-            control={form.control}
-            name="customer"
-            label="Customer"
-            placeholder="Select customer"
-            key={`customer-select-${form.watch("customer") || ""}`}
-          >
-            {customers?.map((customer: Customer) => (
-              <SelectItem
-                key={customer.id}
-                value={customer.id}
-                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
-              >
-                {customer.name}
-              </SelectItem>
-            ))}
-          </CustomFormField>
-        </div>
-
-        <div className="w-full flex flex-col sm:flex-row gap-5">
-          <CustomFormField
-            fieldType={FormFieldType.SELECT}
-            control={form.control}
-            name="status"
-            label="Sale Status"
-            placeholder="Select status"
-            key={`status-select-${form.watch("status") || ""}`}
-          >
-            {Object.values(SaleStatus).map((status) => (
-              <SelectItem
-                key={status}
-                value={status}
-                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
-              >
-                {status}
-              </SelectItem>
-            ))}
-          </CustomFormField>
-
-          <CustomFormField
-            fieldType={FormFieldType.SELECT}
-            control={form.control}
-            name="deliveryStatus"
-            label="Delivery Status"
-            placeholder="Select delivery status"
-            key={`delivery-select-${form.watch("deliveryStatus") || ""}`}
-          >
-            {Object.values(DeliveryStatus).map((status) => (
-              <SelectItem
-                key={status}
-                value={status}
-                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
-              >
-                {status}
-              </SelectItem>
-            ))}
-          </CustomFormField>
-        </div>
-
-        <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-5">
-          <CustomFormField
-            fieldType={FormFieldType.SELECT}
-            control={form.control}
-            name="paymentMethod"
-            label="Payment Method"
-            placeholder="Select payment method"
-            key={`payment-select-${form.watch("paymentMethod") || ""}`}
-          >
-            {Object.values(PaymentMethod).map((method) => (
-              <SelectItem
-                key={method}
-                value={method}
-                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
-              >
-                {method}
-              </SelectItem>
-            ))}
-          </CustomFormField>
-          <CustomFormField
-            fieldType={FormFieldType.SELECT}
-            control={form.control}
-            name="paymentStatus"
-            label="Payment Status"
-            placeholder="Select payment status"
-            key={`payment-status-select-${form.watch("paymentStatus") || ""}`}
-          >
-            {Object.values(PaymentStatus).map((status) => (
-              <SelectItem
-                key={status}
-                value={status}
-                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
-              >
-                {status}
-              </SelectItem>
-            ))}
-          </CustomFormField>
-        </div>
-
-        <CustomFormField
-          fieldType={FormFieldType.TEXTAREA}
-          control={form.control}
-          name="notes"
-          label="Notes"
-          placeholder="Enter sale notes"
-        />
-
-        <div className="flex justify-end gap-4">
-          <Button
-            type="button"
-            onClick={() => form.reset()}
-            className="shad-danger-btn"
-          >
-            Cancel
-          </Button>
-          <SubmitButton isLoading={isLoading} className="shad-primary-btn">
-            {mode === "create" ? "Create Sale" : "Update Sale"}
-          </SubmitButton>
-        </div>
-      </form>
-    </Form>
+          <div className="flex justify-end gap-4">
+            <Button
+              type="button"
+              onClick={handleCancel}
+              className="shad-danger-btn"
+            >
+              Cancel
+            </Button>
+            <SubmitButton
+              isLoading={isAddingSale || isEditingSale}
+              className="shad-primary-btn"
+            >
+              {mode === "create" ? "Create Sale" : "Update Sale"}
+            </SubmitButton>
+          </div>
+        </form>
+      </Form>
+      <CustomerDialog
+        mode="add"
+        onSubmit={handleAddCustomer}
+        open={customerDialogOpen}
+        onOpenChange={closeDialog}
+      />
+      <TaxDialog
+        mode="add"
+        onSubmit={handleAddTax}
+        open={taxDialogOpen}
+        onOpenChange={closeDialog}
+        isLoading={isAddingTax}
+      />
+      <ProductSheet
+        mode="add"
+        open={productDialogOpen}
+        onOpenChange={closeDialog}
+      />
+      <StoreDialog
+        mode="add"
+        onSubmit={handleAddStore}
+        open={storeDialogOpen}
+        onOpenChange={closeDialog}
+        isLoading={isAddingStore}
+      />
+    </>
   );
 };
 

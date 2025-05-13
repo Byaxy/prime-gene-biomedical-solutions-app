@@ -6,8 +6,9 @@ import PageWraper from "@/components/PageWraper";
 import { getSaleById } from "@/lib/actions/sale.actions";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
+import React from "react";
 
-const EditInvoice = () => {
+const DuplicateInvoice = () => {
   const { id } = useParams();
 
   const { data: sale, isLoading } = useQuery({
@@ -22,14 +23,13 @@ const EditInvoice = () => {
   if (isLoading) {
     return <Loading />;
   }
-
   return (
-    <PageWraper title="Edit Invoice">
+    <PageWraper title="Duplicate Invoice">
       <section className="space-y-6">
-        <SaleForm mode={"edit"} initialData={sale ? sale : undefined} />
+        <SaleForm mode={"create"} initialData={sale ? sale : undefined} />
       </section>
     </PageWraper>
   );
 };
 
-export default EditInvoice;
+export default DuplicateInvoice;
