@@ -8,7 +8,7 @@ import {
   TaxFormValues,
 } from "@/lib/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import toast from "react-hot-toast";
 import { Form, FormControl } from "../ui/form";
@@ -35,6 +35,7 @@ import {
   InventoryStockWithRelations,
   PaymentMethod,
   PaymentStatus,
+  QuotationWithRelations,
   SaleStatus,
   SaleWithRelations,
   Store,
@@ -59,13 +60,15 @@ import { Input } from "../ui/input";
 import { Search } from "lucide-react";
 import { useStores } from "@/hooks/useStores";
 import StoreDialog from "../stores/StoreDialog";
+import { useAuth } from "@/hooks/useAuth";
 
 interface SaleFormProps {
   mode: "create" | "edit";
   initialData?: SaleWithRelations;
+  sourceQuotation?: QuotationWithRelations;
 }
 
-const SaleForm = ({ mode, initialData }: SaleFormProps) => {
+const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
   const [taxDialogOpen, setTaxDialogOpen] = useState(false);
   const [storeDialogOpen, setStoreDialogOpen] = useState(false);
@@ -73,6 +76,8 @@ const SaleForm = ({ mode, initialData }: SaleFormProps) => {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [prevSelectedInventoryStockId, setPrevSelectedInventoryStockId] =
     useState<string | null>(null);
+
+  const { user } = useAuth();
 
   const [states, setStates] = useState<IState[]>(() =>
     initialData?.sale.deliveryAddress?.country
@@ -132,36 +137,41 @@ const SaleForm = ({ mode, initialData }: SaleFormProps) => {
 
   const router = useRouter();
 
-  const defaultValues = {
-    invoiceNumber: generatedInvoiceNumber || "",
-    saleDate: new Date(),
-    customerId: "",
-    storeId: "",
-    subTotal: 0,
-    totalAmount: 0,
-    discountAmount: 0,
-    totalTaxAmount: 0,
-    amountPaid: 0,
-    status: SaleStatus.Pending as SaleStatus,
-    paymentMethod: PaymentMethod.Cash as PaymentMethod,
-    paymentStatus: PaymentStatus.Pending as PaymentStatus,
-    notes: "",
-    products: [],
-    quotationId: "",
-    attachments: [],
-    isDeliveryAddressAdded: false,
-    deliveryAddress: {
-      addressName: "",
-      address: "",
-      city: "",
-      state: "",
-      country: "",
-      email: "",
-      phone: "",
-    },
-
-    selectedInventoryStockId: "",
-  };
+  // Default values
+  const defaultValues = useMemo(
+    () => ({
+      invoiceNumber: generatedInvoiceNumber || "",
+      saleDate: new Date(),
+      customerId: sourceQuotation?.quotation.customerId || "",
+      storeId: "",
+      subTotal: 0,
+      totalAmount: 0,
+      discountAmount: 0,
+      totalTaxAmount: 0,
+      amountPaid: 0,
+      status: SaleStatus.Pending as SaleStatus,
+      paymentMethod: PaymentMethod.Cash as PaymentMethod,
+      paymentStatus: PaymentStatus.Pending as PaymentStatus,
+      notes: sourceQuotation?.quotation.notes || "",
+      products: [],
+      quotationId: sourceQuotation?.quotation.id || "",
+      attachments: [],
+      isDeliveryAddressAdded:
+        sourceQuotation?.quotation.isDeliveryAddressAdded || false,
+      deliveryAddress: {
+        addressName:
+          sourceQuotation?.quotation.deliveryAddress?.addressName || "",
+        address: sourceQuotation?.quotation.deliveryAddress?.address || "",
+        city: sourceQuotation?.quotation.deliveryAddress?.city || "",
+        state: sourceQuotation?.quotation.deliveryAddress?.state || "",
+        country: sourceQuotation?.quotation.deliveryAddress?.country || "",
+        email: sourceQuotation?.quotation.deliveryAddress?.email || "",
+        phone: sourceQuotation?.quotation.deliveryAddress?.phone || "",
+      },
+      selectedInventoryStockId: "",
+    }),
+    [generatedInvoiceNumber, sourceQuotation]
+  );
 
   const form = useForm<SaleFormValues>({
     resolver: zodResolver(SaleFormValidation),
@@ -245,7 +255,6 @@ const SaleForm = ({ mode, initialData }: SaleFormProps) => {
     ?.filter(
       (stock: InventoryStockWithRelations) => stock.store.id === selectedStoreId
     )
-    // Apply search filter if search query exists
     .filter((stock: InventoryStockWithRelations) => {
       if (!searchQuery.trim()) return true;
 
@@ -259,6 +268,7 @@ const SaleForm = ({ mode, initialData }: SaleFormProps) => {
 
   // Set initial values for the form
   useEffect(() => {
+    // Editing an existing sale
     if (initialData) {
       if (initialData.sale.deliveryAddress?.country) {
         const countryStates =
@@ -329,7 +339,221 @@ const SaleForm = ({ mode, initialData }: SaleFormProps) => {
         });
       }, 100);
     }
-  }, [initialData, form]);
+    // Creating from a quotation
+    else if (sourceQuotation && stores && stores.length > 0) {
+      // Set the first store by default
+      const firstStoreId = stores[0].id;
+      form.setValue("storeId", firstStoreId);
+      form.setValue("quotationId", sourceQuotation.quotation.id);
+      form.setValue("customerId", sourceQuotation.quotation.customerId);
+      form.setValue("notes", sourceQuotation.quotation.notes);
+      form.setValue("attachments", sourceQuotation.quotation.attachments || []);
+      form.setValue(
+        "isDeliveryAddressAdded",
+        sourceQuotation.quotation.isDeliveryAddressAdded
+      );
+
+      if (sourceQuotation.quotation.deliveryAddress) {
+        form.setValue("deliveryAddress", {
+          addressName:
+            sourceQuotation.quotation.deliveryAddress.addressName || "",
+          address: sourceQuotation.quotation.deliveryAddress.address || "",
+          city: sourceQuotation.quotation.deliveryAddress.city || "",
+          state: sourceQuotation.quotation.deliveryAddress.state || "",
+          country: sourceQuotation.quotation.deliveryAddress.country || "",
+          email: sourceQuotation.quotation.deliveryAddress.email || "",
+          phone: sourceQuotation.quotation.deliveryAddress.phone || "",
+        });
+
+        // Set states and cities if country/state is provided
+        if (sourceQuotation.quotation.deliveryAddress.country) {
+          const countryStates =
+            State.getStatesOfCountry(
+              sourceQuotation.quotation.deliveryAddress.country
+            ) || [];
+          setStates(countryStates);
+
+          if (sourceQuotation.quotation.deliveryAddress.state) {
+            const stateCities =
+              City.getCitiesOfState(
+                sourceQuotation.quotation.deliveryAddress.country,
+                sourceQuotation.quotation.deliveryAddress.state
+              ) || [];
+            setCities(stateCities);
+          }
+        }
+      }
+
+      const handleAutoPopulateProducts = async () => {
+        if (!inventoryStock || !sourceQuotation) return;
+
+        remove();
+
+        // Arrays to collect warning and error messages
+        const insufficientStockWarnings: string[] = [];
+        const noInventoryWarnings: string[] = [];
+        const productNotFoundErrors: string[] = [];
+
+        for (const quotationProduct of sourceQuotation.products) {
+          // Find all inventory stocks for this product in the selected store
+          const productStocks: InventoryStockWithRelations[] = inventoryStock
+            .filter(
+              (stock: InventoryStockWithRelations) =>
+                stock.store.id === firstStoreId &&
+                stock.product.id === quotationProduct.productId
+            )
+            // Sort by expiry date (soonest first)
+            .sort(
+              (
+                a: InventoryStockWithRelations,
+                b: InventoryStockWithRelations
+              ) => {
+                const aExpiry: number = a.inventory.expiryDate
+                  ? new Date(a.inventory.expiryDate).getTime()
+                  : Infinity;
+                const bExpiry: number = b.inventory.expiryDate
+                  ? new Date(b.inventory.expiryDate).getTime()
+                  : Infinity;
+                return aExpiry - bExpiry;
+              }
+            );
+
+          let remainingQuantity = quotationProduct.quantity;
+
+          // We have inventory stocks for this product
+          if (productStocks.length > 0) {
+            for (const stock of productStocks) {
+              if (remainingQuantity <= 0) break;
+              if (stock.inventory.quantity <= 0) continue;
+
+              const availableQuantity = stock.inventory.quantity;
+              const quantityToTake = Math.min(
+                availableQuantity,
+                remainingQuantity
+              );
+
+              append({
+                productId: stock.product.id,
+                inventoryStockId: stock.inventory.id,
+                lotNumber: stock.inventory.lotNumber,
+                availableQuantity: stock.inventory.quantity,
+                quantity: quantityToTake,
+                unitPrice: quotationProduct.unitPrice,
+                totalPrice: 0,
+                subTotal: 0,
+                taxAmount: 0,
+                taxRate: quotationProduct.taxRate,
+                discountRate: quotationProduct.discountRate,
+                taxRateId: quotationProduct.taxRateId,
+                discountAmount: 0,
+                productID: stock.product.productID,
+                productName: stock.product.name,
+              });
+
+              remainingQuantity -= quantityToTake;
+            }
+
+            // If we still have remaining quantity after going through all stocks,
+            // use the first stock to record the negative inventory
+            if (remainingQuantity > 0) {
+              const firstStock = productStocks[0];
+
+              append({
+                productId: firstStock.product.id,
+                inventoryStockId: firstStock.inventory.id,
+                lotNumber: firstStock.inventory.lotNumber,
+                availableQuantity: firstStock.inventory.quantity,
+                quantity: remainingQuantity,
+                unitPrice: quotationProduct.unitPrice,
+                totalPrice: 0,
+                subTotal: 0,
+                taxAmount: 0,
+                taxRate: quotationProduct.taxRate,
+                discountRate: quotationProduct.discountRate,
+                taxRateId: quotationProduct.taxRateId,
+                discountAmount: 0,
+                productID: firstStock.product.productID,
+                productName: firstStock.product.name,
+              });
+
+              insufficientStockWarnings.push(
+                `${quotationProduct.productName} (${remainingQuantity} units)`
+              );
+            }
+          }
+          // No inventory stocks found for this product at all
+          else {
+            // Find the product in all inventory stock
+            const productFromCatalog = inventoryStock?.find(
+              (stock: InventoryStockWithRelations) =>
+                stock.product.id === quotationProduct.productId
+            );
+
+            if (productFromCatalog) {
+              append({
+                productId: productFromCatalog.product.id,
+                inventoryStockId: "",
+                lotNumber: "N/A",
+                availableQuantity: 0,
+                quantity: quotationProduct.quantity,
+                unitPrice: quotationProduct.unitPrice,
+                totalPrice: 0,
+                subTotal: 0,
+                taxAmount: 0,
+                taxRate: quotationProduct.taxRate,
+                discountRate: quotationProduct.discountRate,
+                taxRateId: quotationProduct.taxRateId,
+                discountAmount: 0,
+                productID: productFromCatalog.product.productID,
+                productName: productFromCatalog.product.name,
+              });
+
+              noInventoryWarnings.push(
+                `${quotationProduct.productName} (${quotationProduct.quantity} units)`
+              );
+            } else {
+              // If we can't even find the product in all inventory, add it anyway
+              append({
+                productId: quotationProduct.productId,
+                inventoryStockId: "",
+                lotNumber: "N/A",
+                availableQuantity: 0,
+                quantity: quotationProduct.quantity,
+                unitPrice: quotationProduct.unitPrice,
+                totalPrice: 0,
+                subTotal: 0,
+                taxAmount: 0,
+                taxRate: quotationProduct.taxRate,
+                discountRate: quotationProduct.discountRate,
+                taxRateId: quotationProduct.taxRateId,
+                discountAmount: 0,
+                productID: quotationProduct.productID,
+                productName: quotationProduct.productName,
+              });
+              productNotFoundErrors.push(quotationProduct.productName);
+            }
+          }
+        }
+
+        // Show warnings and errors
+      };
+
+      handleAutoPopulateProducts();
+    }
+    // Creating a new sale (no initial data or source quotation)
+    else {
+      form.reset(defaultValues);
+    }
+  }, [
+    initialData,
+    form,
+    sourceQuotation,
+    stores,
+    inventoryStock,
+    remove,
+    append,
+    defaultValues,
+  ]);
 
   useEffect(() => {
     if (selectedCountry) {
@@ -438,7 +662,7 @@ const SaleForm = ({ mode, initialData }: SaleFormProps) => {
       taxAmount: 0,
       taxRate: 0,
       discountRate: 0,
-      taxRateId: taxes?.[0]?.id || "",
+      taxRateId: "",
       discountAmount: 0,
       productID: selectedStock.product.productID,
       productName: selectedStock.product.name,
@@ -525,6 +749,7 @@ const SaleForm = ({ mode, initialData }: SaleFormProps) => {
   const handleSubmit = async () => {
     try {
       const values = form.getValues();
+      if (!user) return;
 
       if (fields.length === 0) {
         toast.error("At least one product is required");
@@ -537,17 +762,20 @@ const SaleForm = ({ mode, initialData }: SaleFormProps) => {
       }
 
       if (mode === "create") {
-        await addSale(values, {
-          onSuccess: () => {
-            toast.success("Sale created successfully!");
-            form.reset();
-            router.push("/sales");
-          },
-          onError: (error) => {
-            console.error("Create sale error:", error);
-            toast.error("Failed to create sale");
-          },
-        });
+        await addSale(
+          { data: values, userId: user.id },
+          {
+            onSuccess: () => {
+              toast.success("Sale created successfully!");
+              form.reset();
+              router.push("/sales");
+            },
+            onError: (error) => {
+              console.error("Create sale error:", error);
+              toast.error("Failed to create sale");
+            },
+          }
+        );
       }
       if (mode === "edit" && initialData) {
         if (initialData?.sale.attachments?.length > 0) {
@@ -777,6 +1005,7 @@ const SaleForm = ({ mode, initialData }: SaleFormProps) => {
               placeholder="Select customer"
               onAddNew={() => setCustomerDialogOpen(true)}
               key={`customer-select-${form.watch("customerId") || ""}`}
+              disabled={!!sourceQuotation?.customer}
             >
               {customersLoading && (
                 <div className="py-4">
@@ -838,7 +1067,7 @@ const SaleForm = ({ mode, initialData }: SaleFormProps) => {
                       ? "Select inventory stock"
                       : "Select store first"
                   }
-                  disabled={!selectedStoreId}
+                  disabled={!selectedStoreId || !!sourceQuotation?.quotation}
                   key={`inventory-select-${selectedInventoryStockId || ""}`}
                 >
                   <div className="py-3">
@@ -1232,8 +1461,9 @@ const SaleForm = ({ mode, initialData }: SaleFormProps) => {
               control={form.control}
               name="isDeliveryAddressAdded"
               label="Delivery address ?"
+              disabled={!!sourceQuotation?.quotation}
             />
-            {isDeliveryAddressAdded && (
+            {isDeliveryAddressAdded && !sourceQuotation && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-4">
                 <CustomFormField
                   fieldType={FormFieldType.INPUT}

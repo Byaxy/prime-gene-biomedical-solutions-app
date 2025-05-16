@@ -11,12 +11,13 @@ const EditInvoice = () => {
   const { id } = useParams();
 
   const { data: sale, isLoading } = useQuery({
-    queryKey: [id],
+    queryKey: ["sales"],
     queryFn: async () => {
       if (!id) return null;
       return await getSaleById(id as string);
     },
     enabled: !!id,
+    staleTime: 0,
   });
 
   if (isLoading) {

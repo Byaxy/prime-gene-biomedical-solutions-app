@@ -19,6 +19,7 @@ const EditInventory = () => {
       return result;
     },
     enabled: !!id,
+    staleTime: 0,
   });
 
   if (isLoading) {

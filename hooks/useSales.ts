@@ -63,7 +63,13 @@ export const useSales = ({
   }, [page, pageSize, paginatedSalesQuery.data, queryClient, getAllSales]);
 
   const { mutate: addSaleMutation, status: addSaleStatus } = useMutation({
-    mutationFn: async (data: SaleFormValues) => {
+    mutationFn: async ({
+      data,
+      userId,
+    }: {
+      data: SaleFormValues;
+      userId: string;
+    }) => {
       const supabase = createSupabaseBrowserClient();
       const attachments: Attachment[] = [];
 
@@ -103,7 +109,7 @@ export const useSales = ({
         ...data,
         attachments,
       };
-      return addSale(dataWithAttachment);
+      return addSale(dataWithAttachment, userId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sales"] });

@@ -20,6 +20,7 @@ const EditUser = () => {
       return await getUserById(id as string);
     },
     enabled: !!id,
+    staleTime: 0,
   });
 
   const handleEditUser = async (data: EditUserFormValues): Promise<void> => {

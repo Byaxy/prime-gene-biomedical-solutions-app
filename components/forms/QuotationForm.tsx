@@ -374,7 +374,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
     }
 
     append({
-      productId: selectedProductId,
+      productId: selectedProduct.product.id,
       quantity: 0,
       unitPrice: selectedProduct.product.sellingPrice,
       totalPrice: 0,

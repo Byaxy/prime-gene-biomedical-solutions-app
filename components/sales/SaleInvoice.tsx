@@ -40,12 +40,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#E8E9E9",
   },
   col1: { width: "5%", paddingHorizontal: 5 },
-  col2: { width: "10%" },
-  col3: { width: "10%" },
-  col4: { width: "45%" },
+  col2: { width: "15%" },
+  col3: { width: "50%" },
+  col4: { width: "10%" },
   col5: { width: "10%", paddingHorizontal: 5 },
   col6: { width: "10%" },
-  col7: { width: "10%" },
   title: {
     fontSize: 20,
     fontWeight: "bold",
@@ -533,12 +532,11 @@ const SaleInvoice = ({
           {/* Table Header */}
           <View style={styles.headerRow}>
             <Text style={styles.col1}>S/N</Text>
-            <Text style={styles.col2}>Lot Number</Text>
-            <Text style={styles.col3}>PID</Text>
-            <Text style={styles.col4}>Product Description</Text>
-            <Text style={styles.col5}>Qnty</Text>
-            <Text style={styles.col6}>Unit Price</Text>
-            <Text style={styles.col7}>Sub-Total</Text>
+            <Text style={styles.col2}>PID</Text>
+            <Text style={styles.col3}>Product Description</Text>
+            <Text style={styles.col4}>Qnty</Text>
+            <Text style={styles.col5}>Unit Price</Text>
+            <Text style={styles.col6}>Sub-Total</Text>
           </View>
 
           {/* Table Rows */}
@@ -550,12 +548,11 @@ const SaleInvoice = ({
               <Text style={styles.col1}>
                 {index < 9 ? `0${index + 1}` : index + 1}
               </Text>
-              <Text style={styles.col2}>{product.lotNumber}</Text>
-              <Text style={styles.col3}>{product.productID}</Text>
-              <Text style={styles.col4}>{product.productName}</Text>
-              <Text style={styles.col5}>{product.quantity}</Text>
-              <Text style={styles.col6}>{product.unitPrice.toFixed(2)}</Text>
-              <Text style={styles.col7}>{product.subTotal.toFixed(2)}</Text>
+              <Text style={styles.col2}>{product.productID}</Text>
+              <Text style={styles.col3}>{product.productName}</Text>
+              <Text style={styles.col4}>{product.quantity}</Text>
+              <Text style={styles.col5}>{product.unitPrice.toFixed(2)}</Text>
+              <Text style={styles.col6}>{product.subTotal.toFixed(2)}</Text>
             </View>
           ))}
           {/* Summary */}

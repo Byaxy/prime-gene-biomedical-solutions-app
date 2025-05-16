@@ -20,6 +20,7 @@ const EditCustomer = () => {
       return await getCustomerById(id as string);
     },
     enabled: !!id,
+    staleTime: 0,
   });
 
   if (isLoading) {

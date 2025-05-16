@@ -232,7 +232,7 @@ export const SaleFormValidation = z
     products: z
       .array(
         z.object({
-          inventoryStockId: z.string().nonempty("Inventory stock is required"),
+          inventoryStockId: z.string().optional(),
           lotNumber: z.string().nonempty("Lot number is required"),
           productId: z.string().nonempty("Product is required"),
           availableQuantity: z
@@ -394,7 +394,7 @@ export const QuotationFormValidation = z
         city: z.string().optional(),
         state: z.string().optional(),
         country: z.string().optional(),
-        email: z.string().email("Invalid email").optional(),
+        email: z.string().optional(),
         phone: z.string().optional(),
       })
       .optional(),

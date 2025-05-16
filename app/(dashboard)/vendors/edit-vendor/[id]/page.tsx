@@ -20,6 +20,7 @@ const EditVendor = () => {
       return await getVendorById(id as string);
     },
     enabled: !!id,
+    staleTime: 0,
   });
 
   const handleEditVendor = async (data: VendorFormValues): Promise<void> => {

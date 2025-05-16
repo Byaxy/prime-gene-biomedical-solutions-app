@@ -1,5 +1,4 @@
 "use server";
-"use server";
 
 import { revalidatePath } from "next/cache";
 import { parseStringify } from "../utils";
@@ -8,81 +7,240 @@ import { db } from "@/drizzle/db";
 import { SaleFormValues } from "../validation";
 import {
   customersTable,
+  inventoryTable,
+  inventoryTransactionsTable,
+  productsTable,
+  quotationsTable,
   saleItemsTable,
   salesTable,
   storesTable,
 } from "@/drizzle/schema";
 import { PaymentMethod, PaymentStatus, SaleStatus } from "@/types";
-import { desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 // Add a new sale
-export const addSale = async (sale: SaleFormValues) => {
+export const addSale = async (sale: SaleFormValues, userId: string) => {
   try {
-    const result = await db.transaction(async (tx) => {
-      // Create main sale record
-      const [newSale] = await tx
-        .insert(salesTable)
-        .values({
-          invoiceNumber: sale.invoiceNumber,
-          saleDate: sale.saleDate,
-          customerId: sale.customerId,
-          storeId: sale.storeId,
-          subTotal: sale.subTotal,
-          totalAmount: sale.totalAmount,
-          discountAmount: sale.discountAmount,
-          totalTaxAmount: sale.totalTaxAmount,
-          amountPaid: sale.amountPaid,
-          status: sale.status as SaleStatus,
-          paymentMethod: sale.paymentMethod as PaymentMethod,
-          paymentStatus: sale.paymentStatus as PaymentStatus,
-          notes: sale.notes,
-          quotationId: sale.quotationId,
-          attachments: sale.attachments,
-          isDeliveryAddressAdded: sale.isDeliveryAddressAdded,
-          deliveryAddress: sale.deliveryAddress
-            ? {
-                addressName: sale.deliveryAddress.addressName || "",
-                address: sale.deliveryAddress.address || "",
-                city: sale.deliveryAddress.city || "",
-                state: sale.deliveryAddress.state || "",
-                country: sale.deliveryAddress.country || "",
-                email: sale.deliveryAddress.email || "",
-                phone: sale.deliveryAddress.phone || "",
-              }
-            : null,
-        })
-        .returning();
+    // Verify that all products exist in the database before proceeding
+    const productIds = sale.products.map((product) => product.productId);
+    const existingProducts = await db
+      .select({ id: productsTable.id })
+      .from(productsTable)
+      .where(inArray(productsTable.id, productIds));
 
-      // Create sale items
-      const saleItems = await Promise.all(
-        sale.products.map(async (product) => {
-          const [newItem] = await tx
-            .insert(saleItemsTable)
-            .values({
-              saleId: newSale.id,
-              storeId: newSale.storeId,
-              lotNumber: product.lotNumber,
-              inventoryStockId: product.inventoryStockId,
-              productId: product.productId,
-              availableQuantity: product.availableQuantity,
-              quantity: product.quantity,
-              unitPrice: product.unitPrice,
-              totalPrice: product.totalPrice,
-              subTotal: product.subTotal,
-              taxAmount: product.taxAmount,
-              discountAmount: product.discountAmount,
-              discountRate: product.discountRate,
-              taxRate: product.taxRate,
-              taxRateId: product.taxRateId,
-              productName: product.productName,
-              productID: product.productID,
-            })
-            .returning();
-          return newItem;
-        })
+    const existingProductIds = new Set(existingProducts.map((p) => p.id));
+    const missingProducts = sale.products.filter(
+      (p) => !existingProductIds.has(p.productId)
+    );
+
+    if (missingProducts.length > 0) {
+      throw new Error(
+        `Some products do not exist in the database: ${missingProducts
+          .map((p) => p.productName || p.productId)
+          .join(", ")}`
       );
+    }
+    const result = await db.transaction(async (tx) => {
+      try {
+        // Create main sale record
+        const [newSale] = await tx
+          .insert(salesTable)
+          .values({
+            invoiceNumber: sale.invoiceNumber,
+            saleDate: sale.saleDate,
+            customerId: sale.customerId,
+            storeId: sale.storeId,
+            subTotal: sale.subTotal,
+            totalAmount: sale.totalAmount,
+            discountAmount: sale.discountAmount,
+            totalTaxAmount: sale.totalTaxAmount,
+            amountPaid: sale.amountPaid,
+            status: sale.status as SaleStatus,
+            paymentMethod: sale.paymentMethod as PaymentMethod,
+            paymentStatus: sale.paymentStatus as PaymentStatus,
+            notes: sale.notes,
+            quotationId: sale.quotationId,
+            attachments: sale.attachments,
+            isDeliveryAddressAdded: sale.isDeliveryAddressAdded,
+            deliveryAddress: sale.deliveryAddress
+              ? {
+                  addressName: sale.deliveryAddress.addressName || "",
+                  address: sale.deliveryAddress.address || "",
+                  city: sale.deliveryAddress.city || "",
+                  state: sale.deliveryAddress.state || "",
+                  country: sale.deliveryAddress.country || "",
+                  email: sale.deliveryAddress.email || "",
+                  phone: sale.deliveryAddress.phone || "",
+                }
+              : null,
+          })
+          .returning();
 
-      return { sale: newSale, items: saleItems };
+        // Process each product in the sale
+        const saleItems = [];
+        for (const product of sale.products) {
+          let newItem;
+
+          if (!product.inventoryStockId) {
+            const [newInventory] = await tx
+              .insert(inventoryTable)
+              .values({
+                productId: product.productId,
+                storeId: sale.storeId,
+                lotNumber: `BACKORDER-${Date.now()}`,
+                quantity: 0,
+                costPrice: 0,
+                sellingPrice: product.unitPrice,
+                manufactureDate: null,
+                expiryDate: null,
+                receivedDate: new Date(),
+              })
+              .returning();
+
+            // Log initial inventory transaction
+            await tx.insert(inventoryTransactionsTable).values({
+              inventoryId: newInventory.id,
+              productId: product.productId,
+              storeId: sale.storeId,
+              userId: userId,
+              transactionType: "sale",
+              quantityBefore: 0,
+              quantityAfter: 0,
+              transactionDate: new Date(),
+              notes: `Backorder stock created`,
+            });
+
+            // Create sale item
+            const [createdItem] = await tx
+              .insert(saleItemsTable)
+              .values({
+                saleId: newSale.id,
+                storeId: newSale.storeId,
+                lotNumber: newInventory.lotNumber,
+                inventoryStockId: newInventory.id,
+                productId: product.productId,
+                availableQuantity: 0,
+                quantity: product.quantity,
+                unitPrice: product.unitPrice,
+                totalPrice: product.totalPrice,
+                subTotal: product.subTotal,
+                taxAmount: product.taxAmount,
+                discountAmount: product.discountAmount,
+                discountRate: product.discountRate,
+                taxRate: product.taxRate,
+                taxRateId: product.taxRateId,
+                productName: product.productName,
+                productID: product.productID,
+              })
+              .returning();
+
+            newItem = createdItem;
+
+            // Update inventory to reflect negative quantity (backorder)
+            await tx
+              .update(inventoryTable)
+              .set({
+                quantity: -product.quantity,
+              })
+              .where(eq(inventoryTable.id, newInventory.id));
+
+            // Log the inventory transaction
+            await tx.insert(inventoryTransactionsTable).values({
+              inventoryId: newInventory.id,
+              productId: product.productId,
+              storeId: sale.storeId,
+              userId: userId,
+              transactionType: "sale",
+              quantityBefore: 0,
+              quantityAfter: -product.quantity,
+              transactionDate: new Date(),
+              notes: `Backorder quantity updated`,
+            });
+
+            // Update product total quantity
+            await tx
+              .update(productsTable)
+              .set({
+                quantity: sql`${productsTable.quantity} - ${product.quantity}`,
+              })
+              .where(eq(productsTable.id, product.productId));
+          }
+          // Handle existing inventory stock
+          else {
+            // Create sale item
+            const [createdItem] = await tx
+              .insert(saleItemsTable)
+              .values({
+                saleId: newSale.id,
+                storeId: newSale.storeId,
+                lotNumber: product.lotNumber,
+                inventoryStockId: product.inventoryStockId,
+                productId: product.productId,
+                availableQuantity: product.availableQuantity,
+                quantity: product.quantity,
+                unitPrice: product.unitPrice,
+                totalPrice: product.totalPrice,
+                subTotal: product.subTotal,
+                taxAmount: product.taxAmount,
+                discountAmount: product.discountAmount,
+                discountRate: product.discountRate,
+                taxRate: product.taxRate,
+                taxRateId: product.taxRateId,
+                productName: product.productName,
+                productID: product.productID,
+              })
+              .returning();
+
+            newItem = createdItem;
+
+            // Update inventory quantity
+            await tx
+              .update(inventoryTable)
+              .set({
+                quantity: sql`${inventoryTable.quantity} - ${product.quantity}`,
+              })
+              .where(eq(inventoryTable.id, product.inventoryStockId));
+
+            // Log the inventory transaction
+            await tx.insert(inventoryTransactionsTable).values({
+              inventoryId: product.inventoryStockId,
+              productId: product.productId,
+              storeId: sale.storeId,
+              userId: userId,
+              transactionType: "sale",
+              quantityBefore: product.availableQuantity,
+              quantityAfter: product.availableQuantity - product.quantity,
+              transactionDate: new Date(),
+              notes: `Stock reduced for sale`,
+            });
+
+            // Update product total quantity
+            await tx
+              .update(productsTable)
+              .set({
+                quantity: sql`${productsTable.quantity} - ${product.quantity}`,
+              })
+              .where(eq(productsTable.id, product.productId));
+          }
+
+          saleItems.push(newItem);
+        }
+
+        // Mark quotation as converted to sale if creating from quotation
+        if (sale.quotationId) {
+          await tx
+            .update(quotationsTable)
+            .set({
+              convertedToSale: true,
+            })
+            .where(eq(quotationsTable.id, sale.quotationId));
+        }
+
+        return { sale: newSale, items: saleItems };
+      } catch (error) {
+        console.error("Transaction error:", error);
+        throw error;
+      }
     });
 
     revalidatePath("/sales");
@@ -201,7 +359,7 @@ export const getSaleById = async (saleId: string) => {
         .from(salesTable)
         .leftJoin(customersTable, eq(salesTable.customerId, customersTable.id))
         .leftJoin(storesTable, eq(salesTable.storeId, storesTable.id))
-        .where(eq(salesTable.id, saleId) && eq(salesTable.isActive, true))
+        .where(and(eq(salesTable.id, saleId), eq(salesTable.isActive, true)))
         .then((res) => res[0]);
 
       if (!sale) {
@@ -213,7 +371,10 @@ export const getSaleById = async (saleId: string) => {
         .select()
         .from(saleItemsTable)
         .where(
-          eq(saleItemsTable.saleId, saleId) && eq(saleItemsTable.isActive, true)
+          and(
+            eq(saleItemsTable.saleId, saleId),
+            eq(saleItemsTable.isActive, true)
+          )
         );
 
       const saleWithItems = {
@@ -283,8 +444,10 @@ export const getSales = async (
         .select()
         .from(saleItemsTable)
         .where(
-          inArray(saleItemsTable.saleId, saleIds) &&
+          and(
+            inArray(saleItemsTable.saleId, saleIds),
             eq(saleItemsTable.isActive, true)
+          )
         );
 
       // Combine the data
@@ -349,10 +512,7 @@ export const generateInvoiceNumber = async (): Promise<string> => {
       const lastSale = await tx
         .select({ invoiceNumber: salesTable.invoiceNumber })
         .from(salesTable)
-        .where(
-          sql`invoice_number LIKE ${`INV.${year}/${month}/%`}` &&
-            eq(salesTable.isActive, true)
-        )
+        .where(sql`invoice_number LIKE ${`INV.${year}/${month}/%`}`)
         .orderBy(desc(salesTable.createdAt))
         .limit(1);
 

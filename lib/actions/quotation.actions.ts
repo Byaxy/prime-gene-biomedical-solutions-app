@@ -9,7 +9,7 @@ import {
   quotationItemsTable,
   customersTable,
 } from "@/drizzle/schema";
-import { eq, desc, sql, inArray } from "drizzle-orm";
+import { eq, desc, sql, inArray, and } from "drizzle-orm";
 import { QuotationFormValues } from "../validation";
 import { QuotationStatus } from "@/types";
 
@@ -219,8 +219,10 @@ export const getQuotationById = async (quotationId: string) => {
           eq(quotationsTable.customerId, customersTable.id)
         )
         .where(
-          eq(quotationsTable.id, quotationId) &&
+          and(
+            eq(quotationsTable.id, quotationId),
             eq(quotationsTable.isActive, true)
+          )
         )
         .then((res) => res[0]);
 
@@ -247,8 +249,10 @@ export const getQuotationById = async (quotationId: string) => {
         })
         .from(quotationItemsTable)
         .where(
-          eq(quotationItemsTable.quotationId, quotationId) &&
+          and(
+            eq(quotationItemsTable.quotationId, quotationId),
             eq(quotationItemsTable.isActive, true)
+          )
         );
 
       // Combine the data
@@ -292,10 +296,7 @@ export const generateQuotationNumber = async (): Promise<string> => {
       const lastQuotation = await tx
         .select({ quotationNumber: quotationsTable.quotationNumber })
         .from(quotationsTable)
-        .where(
-          sql`quotation_number LIKE ${`PFI${year}/${month}/%`}` &&
-            eq(quotationsTable.isActive, true)
-        )
+        .where(sql`quotation_number LIKE ${`PFI${year}/${month}/%`}`)
         .orderBy(desc(quotationsTable.createdAt))
         .limit(1);
 
@@ -370,8 +371,10 @@ export const getQuotations = async (
         })
         .from(quotationItemsTable)
         .where(
-          inArray(quotationItemsTable.quotationId, quotationIds) &&
+          and(
+            inArray(quotationItemsTable.quotationId, quotationIds),
             eq(quotationItemsTable.isActive, true)
+          )
         );
 
       // Combine the data

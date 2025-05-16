@@ -17,6 +17,7 @@ const EditQuotation = () => {
       return await getQuotationById(id as string);
     },
     enabled: !!id,
+    staleTime: 0,
   });
 
   if (isLoading) {

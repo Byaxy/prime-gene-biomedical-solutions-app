@@ -186,10 +186,18 @@ const QuotationActions = ({
           </p>
           <p
             onClick={() => {
-              router.push(
-                `/sales/create-invoice/?sourceQuotation=${quotation.quotation.id}`
-              );
-              setOpen(false);
+              if (quotation.quotation.convertedToSale) {
+                toast.success(
+                  "This quotation has already been converted to a sale."
+                );
+                setOpen(false);
+                return;
+              } else {
+                router.push(
+                  `/sales/create-invoice/from-quotation/${quotation.quotation.id}`
+                );
+                setOpen(false);
+              }
             }}
             className="text-dark-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >

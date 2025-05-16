@@ -581,9 +581,10 @@ export const saleItemsTable = pgTable("sale_items", {
   id: uuid("id")
     .primaryKey()
     .default(sql`gen_random_uuid()`),
-  inventoryStockId: uuid("inventory_stock_id")
-    .notNull()
-    .references(() => inventoryTable.id, { onDelete: "cascade" }), // Foreign key to inventory stocks
+  inventoryStockId: uuid("inventory_stock_id").references(
+    () => inventoryTable.id,
+    { onDelete: "cascade" }
+  ), // Foreign key to inventory stocks
   saleId: uuid("sale_id")
     .notNull()
     .references(() => salesTable.id, { onDelete: "cascade" }), // Foreign key to sales
