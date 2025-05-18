@@ -13,6 +13,7 @@ import {
 import { eq, and, desc, sql, gte, lte, asc } from "drizzle-orm";
 import { ExistingStockAdjustmentFormValues } from "../validation";
 import { ExtendedStockAdjustmentFormValues } from "@/components/forms/NewStockForm";
+import { InventoryStockFilters } from "@/hooks/useInventoryStock";
 
 // Add new inventory stock
 export const addInventoryStock = async (
@@ -284,19 +285,7 @@ export const getInventoryStock = async (
   page: number = 0,
   limit: number = 10,
   getAllInventoryStock: boolean = false,
-  filters?: {
-    quantity_min?: number;
-    quantity_max?: number;
-    costPrice_min?: number;
-    costPrice_max?: number;
-    sellingPrice_min?: number;
-    sellingPrice_max?: number;
-    expiryDate_start?: string;
-    expiryDate_end?: string;
-    manufactureDate_start?: string;
-    manufactureDate_end?: string;
-    store?: string;
-  }
+  filters?: InventoryStockFilters
 ) => {
   try {
     let query = db

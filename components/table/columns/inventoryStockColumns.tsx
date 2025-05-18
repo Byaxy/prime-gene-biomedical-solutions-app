@@ -3,7 +3,7 @@
 import { ColumnDef } from "@tanstack/table-core";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { formatDateTime } from "@/lib/utils";
+import { cn, formatDateTime } from "@/lib/utils";
 import { InventoryStockWithRelations } from "@/types";
 import FormatNumber from "@/components/FormatNumber";
 
@@ -79,7 +79,17 @@ export const inventoryStockColumns: ColumnDef<InventoryStockWithRelations>[] = [
     cell: ({ row }) => {
       const inventoryStock = row.original;
       return (
-        <p className="text-14-medium ">{inventoryStock.inventory.quantity}</p>
+        <span
+          className={cn(
+            "text-14-medium",
+            inventoryStock.inventory.quantity <= 0 &&
+              "bg-red-600 text-white px-3 py-1 rounded-xl",
+            inventoryStock.inventory.quantity > 0 &&
+              "bg-green-500 text-white px-3 py-1 rounded-xl"
+          )}
+        >
+          {inventoryStock.inventory.quantity}
+        </span>
       );
     },
   },

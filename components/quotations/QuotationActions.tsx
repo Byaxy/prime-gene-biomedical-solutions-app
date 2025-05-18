@@ -1,7 +1,6 @@
 import { useState } from "react";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { useQuotations } from "@/hooks/useQuotations";
 import QuotationDialog from "./QuotationsDialog";
 import { useRouter } from "next/navigation";
 import { QuotationWithRelations } from "@/types";
@@ -31,20 +30,6 @@ const QuotationActions = ({
 
   const router = useRouter();
   const supabase = createSupabaseBrowserClient();
-
-  const { softDeleteQuotation, isSoftDeletingQuotation } = useQuotations();
-
-  const handleDelete = async () => {
-    try {
-      if (mode === "delete") {
-        await softDeleteQuotation(quotation.quotation.id, {
-          onSuccess: () => setOpen(false),
-        });
-      }
-    } catch (error) {
-      console.error("Error:", error);
-    }
-  };
 
   const handleDownloadRFQ = async () => {
     try {
@@ -260,8 +245,6 @@ const QuotationActions = ({
         open={openDialog}
         onOpenChange={setOpenDialog}
         quotation={quotation}
-        onSubmit={handleDelete}
-        isLoading={isSoftDeletingQuotation}
       />
     </div>
   );

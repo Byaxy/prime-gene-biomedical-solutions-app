@@ -2,7 +2,7 @@ import React from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatNumber } from "@/lib/utils";
 import Loading from "../loading";
 
 interface OverviewCardProps {
@@ -66,7 +66,9 @@ const OverviewCard = ({
                 </Pie>
                 <Tooltip
                   formatter={(value) =>
-                    formatCurrency(String(value), currencySymbol)
+                    isNumber
+                      ? formatNumber(String(value))
+                      : formatCurrency(String(value), currencySymbol)
                   }
                   wrapperClassName="rounded-md shadow-sm border-dark-700"
                   filterNull={true}

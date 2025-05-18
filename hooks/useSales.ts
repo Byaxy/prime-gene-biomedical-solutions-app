@@ -20,6 +20,28 @@ interface UseSalesOptions {
   initialPageSize?: number;
 }
 
+export interface SaleFilters {
+  totalAmount_min?: number;
+  totalAmount_max?: number;
+  amountPaid_min?: number;
+  amountPaid_max?: number;
+  saleDate_start?: string;
+  saleDate_end?: string;
+  status?: string;
+  paymentStatus?: string;
+}
+
+export const defaultSaleFilters: SaleFilters = {
+  totalAmount_min: undefined,
+  totalAmount_max: undefined,
+  amountPaid_min: undefined,
+  amountPaid_max: undefined,
+  saleDate_start: undefined,
+  saleDate_end: undefined,
+  status: undefined,
+  paymentStatus: undefined,
+};
+
 export const useSales = ({
   getAllSales = false,
   initialPageSize = 10,
@@ -27,12 +49,13 @@ export const useSales = ({
   const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(initialPageSize);
+  const [filters, setFilters] = useState<SaleFilters>(defaultSaleFilters);
 
   // Query for all Sales
   const allSalesQuery = useQuery({
-    queryKey: ["sales", "allSales"],
+    queryKey: ["sales", "allSales", filters],
     queryFn: async () => {
-      const result = await getSales(0, 0, true);
+      const result = await getSales(0, 0, true, filters);
       return result.documents;
     },
     enabled: getAllSales,
@@ -40,9 +63,9 @@ export const useSales = ({
 
   // Query for paginated Sales
   const paginatedSalesQuery = useQuery({
-    queryKey: ["sales", "paginatedSales", page, pageSize],
+    queryKey: ["sales", "paginatedSales", page, pageSize, filters],
     queryFn: async () => {
-      const result = await getSales(page, pageSize, false);
+      const result = await getSales(page, pageSize, false, filters);
       return result;
     },
     enabled: !getAllSales,
@@ -56,11 +79,24 @@ export const useSales = ({
       page * pageSize < paginatedSalesQuery.data.total - pageSize
     ) {
       queryClient.prefetchQuery({
-        queryKey: ["sales", "paginatedSales", page + 1, pageSize],
-        queryFn: () => getSales(page + 1, pageSize, false),
+        queryKey: ["sales", "paginatedSales", page + 1, pageSize, filters],
+        queryFn: () => getSales(page + 1, pageSize, false, filters),
       });
     }
-  }, [page, pageSize, paginatedSalesQuery.data, queryClient, getAllSales]);
+  }, [
+    page,
+    pageSize,
+    paginatedSalesQuery.data,
+    queryClient,
+    getAllSales,
+    filters,
+  ]);
+
+  // Handle filter changes
+  const handleFilterChange = (newFilters: SaleFilters) => {
+    setFilters(newFilters);
+    setPage(0);
+  };
 
   const { mutate: addSaleMutation, status: addSaleStatus } = useMutation({
     mutationFn: async ({
@@ -224,6 +260,9 @@ export const useSales = ({
     setPage,
     pageSize,
     setPageSize,
+    filters,
+    onFilterChange: handleFilterChange,
+    defaultFilterValues: defaultSaleFilters,
     addSale: addSaleMutation,
     isAddingSale: addSaleStatus === "pending",
     editSale: editSaleMutation,

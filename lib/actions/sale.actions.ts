@@ -15,8 +15,14 @@ import {
   salesTable,
   storesTable,
 } from "@/drizzle/schema";
-import { PaymentMethod, PaymentStatus, SaleStatus } from "@/types";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import {
+  PaymentMethod,
+  PaymentStatus,
+  QuotationStatus,
+  SaleStatus,
+} from "@/types";
+import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { SaleFilters } from "@/hooks/useSales";
 
 // Add a new sale
 export const addSale = async (sale: SaleFormValues, userId: string) => {
@@ -232,6 +238,7 @@ export const addSale = async (sale: SaleFormValues, userId: string) => {
             .update(quotationsTable)
             .set({
               convertedToSale: true,
+              status: QuotationStatus.Completed,
             })
             .where(eq(quotationsTable.id, sale.quotationId));
         }
@@ -415,12 +422,13 @@ export const getSaleById = async (saleId: string) => {
 export const getSales = async (
   page: number = 0,
   limit: number = 10,
-  getAllSales: boolean = false
+  getAllSales: boolean = false,
+  filters?: SaleFilters
 ) => {
   try {
     const result = await db.transaction(async (tx) => {
       // Get the main sales (all or paginated)
-      const salesQuery = tx
+      let salesQuery = tx
         .select({
           sale: salesTable,
           customer: customersTable,
@@ -429,8 +437,59 @@ export const getSales = async (
         .from(salesTable)
         .leftJoin(customersTable, eq(salesTable.customerId, customersTable.id))
         .leftJoin(storesTable, eq(salesTable.storeId, storesTable.id))
-        .where(eq(salesTable.isActive, true))
-        .orderBy(desc(salesTable.createdAt));
+        .$dynamic();
+
+      // Create conditions array
+      const conditions = [eq(salesTable.isActive, true)];
+
+      // Apply filters if provided
+      if (filters) {
+        // Total Amount range
+        if (filters.totalAmount_min !== undefined) {
+          conditions.push(gte(salesTable.totalAmount, filters.totalAmount_min));
+        }
+        if (filters.totalAmount_max !== undefined) {
+          conditions.push(lte(salesTable.totalAmount, filters.totalAmount_max));
+        }
+
+        // Amount paid range
+        if (filters.amountPaid_min !== undefined) {
+          conditions.push(gte(salesTable.amountPaid, filters.amountPaid_min));
+        }
+        if (filters.amountPaid_max !== undefined) {
+          conditions.push(lte(salesTable.amountPaid, filters.amountPaid_max));
+        }
+
+        // Sale date range
+        if (filters.saleDate_start) {
+          conditions.push(
+            gte(salesTable.saleDate, new Date(filters.saleDate_start))
+          );
+        }
+        if (filters.saleDate_end) {
+          conditions.push(
+            lte(salesTable.saleDate, new Date(filters.saleDate_end))
+          );
+        }
+
+        // Status filter
+        if (filters.status) {
+          conditions.push(eq(salesTable.status, filters.status as SaleStatus));
+        }
+
+        // Payment Status filter
+        if (filters.paymentStatus) {
+          conditions.push(
+            eq(salesTable.paymentStatus, filters.paymentStatus as PaymentStatus)
+          );
+        }
+      }
+
+      // Apply where conditions
+      salesQuery = salesQuery.where(and(...conditions));
+
+      // Apply order by
+      salesQuery = salesQuery.orderBy(desc(salesTable.createdAt));
 
       if (!getAllSales) {
         salesQuery.limit(limit).offset(page * limit);

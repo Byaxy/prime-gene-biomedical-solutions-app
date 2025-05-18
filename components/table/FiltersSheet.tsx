@@ -20,11 +20,12 @@ import {
   SelectValue,
 } from "../ui/select";
 import DatePicker from "react-datepicker";
+import { Switch } from "../ui/switch";
 
 interface FilterSheetProps {
   filters: {
     [key: string]: {
-      type: "text" | "number" | "date" | "select";
+      type: "text" | "number" | "date" | "select" | "boolean";
       label: string;
       options?: { value: string; label: string }[];
     };
@@ -88,7 +89,10 @@ const FiltersSheet = ({
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="outline" className="border-blue-800/60 text-blue-800">
+        <Button
+          variant="outline"
+          className="border-blue-800/60 text-blue-800 bg-blue-50"
+        >
           Filters
         </Button>
       </SheetTrigger>
@@ -101,6 +105,18 @@ const FiltersSheet = ({
           <div className="grid grid-cols-1 gap-5">
             {Object.entries(filters).map(([key, filter]) => {
               switch (filter.type) {
+                case "boolean":
+                  return (
+                    <div key={key} className="flex items-center gap-4">
+                      <Switch
+                        id={key}
+                        checked={localFilters[key] || undefined}
+                        onCheckedChange={(e) => handleLocalFilterChange(key, e)}
+                        className="custom-switch border data-[state=checked]:bg-blue-800 data-[state=checked]:border-blue-800 data-[state=unchecked]:bg-white data-[state=unchecked]:border-blue-800"
+                      />
+                      <label className="shad-input-label">{filter.label}</label>
+                    </div>
+                  );
                 case "text":
                   return (
                     <div key={key} className="space-y-2">

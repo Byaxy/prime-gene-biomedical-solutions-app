@@ -20,6 +20,24 @@ interface UseQuotationsOptions {
   initialPageSize?: number;
 }
 
+export interface QuotationFilters {
+  totalAmount_min?: number;
+  totalAmount_max?: number;
+  quotationDate_start?: string;
+  quotationDate_end?: string;
+  status?: string;
+  convertedToSale?: boolean;
+}
+
+export const defaultQuotationFilters: QuotationFilters = {
+  totalAmount_min: undefined,
+  totalAmount_max: undefined,
+  quotationDate_start: undefined,
+  quotationDate_end: undefined,
+  status: undefined,
+  convertedToSale: undefined,
+};
+
 export const useQuotations = ({
   getAllQuotations = false,
   initialPageSize = 10,
@@ -27,12 +45,15 @@ export const useQuotations = ({
   const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(initialPageSize);
+  const [filters, setFilters] = useState<QuotationFilters>(
+    defaultQuotationFilters
+  );
 
   // Query for all Quotations
   const allQuotationsQuery = useQuery({
-    queryKey: ["quotations", "allQuotations"],
+    queryKey: ["quotations", "allQuotations", filters],
     queryFn: async () => {
-      const result = await getQuotations(0, 0, true);
+      const result = await getQuotations(0, 0, true, filters);
       return result.documents;
     },
     enabled: getAllQuotations,
@@ -40,9 +61,9 @@ export const useQuotations = ({
 
   // Query for paginated Quotations
   const paginatedQuotationsQuery = useQuery({
-    queryKey: ["quotations", "paginatedQuotations", page, pageSize],
+    queryKey: ["quotations", "paginatedQuotations", page, pageSize, filters],
     queryFn: async () => {
-      const result = await getQuotations(page, pageSize, false);
+      const result = await getQuotations(page, pageSize, false, filters);
       return result;
     },
     enabled: !getAllQuotations,
@@ -56,8 +77,14 @@ export const useQuotations = ({
       page * pageSize < paginatedQuotationsQuery.data.total - pageSize
     ) {
       queryClient.prefetchQuery({
-        queryKey: ["quotations", "paginatedQuotations", page + 1, pageSize],
-        queryFn: () => getQuotations(page + 1, pageSize, false),
+        queryKey: [
+          "quotations",
+          "paginatedQuotations",
+          page + 1,
+          pageSize,
+          filters,
+        ],
+        queryFn: () => getQuotations(page + 1, pageSize, false, filters),
       });
     }
   }, [
@@ -66,7 +93,14 @@ export const useQuotations = ({
     paginatedQuotationsQuery.data,
     queryClient,
     getAllQuotations,
+    filters,
   ]);
+
+  // Handle filter changes
+  const handleFilterChange = (newFilters: QuotationFilters) => {
+    setFilters(newFilters);
+    setPage(0);
+  };
 
   const { mutate: addQuotationMutation, status: addQuotationStatus } =
     useMutation({
@@ -198,11 +232,6 @@ export const useQuotations = ({
     mutationFn: (id: string) => softDeleteQuotation(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["quotations"] });
-      toast.success("Quotation deleted successfully");
-    },
-    onError: (error) => {
-      console.error("Error deleting quotation:", error);
-      toast.error("Failed to delete quotation");
     },
   });
 
@@ -235,6 +264,9 @@ export const useQuotations = ({
     setPage,
     pageSize,
     setPageSize,
+    filters,
+    onFilterChange: handleFilterChange,
+    defaultFilterValues: defaultQuotationFilters,
     addQuotation: addQuotationMutation,
     isAddingQuotation: addQuotationStatus === "pending",
     editQuotation: editQuotationMutation,

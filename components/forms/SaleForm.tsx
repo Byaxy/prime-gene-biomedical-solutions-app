@@ -1005,7 +1005,6 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
               placeholder="Select customer"
               onAddNew={() => setCustomerDialogOpen(true)}
               key={`customer-select-${form.watch("customerId") || ""}`}
-              disabled={!!sourceQuotation?.customer}
             >
               {customersLoading && (
                 <div className="py-4">
@@ -1067,7 +1066,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                       ? "Select inventory stock"
                       : "Select store first"
                   }
-                  disabled={!selectedStoreId || !!sourceQuotation?.quotation}
+                  disabled={!selectedStoreId}
                   key={`inventory-select-${selectedInventoryStockId || ""}`}
                 >
                   <div className="py-3">
@@ -1461,7 +1460,6 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
               control={form.control}
               name="isDeliveryAddressAdded"
               label="Delivery address ?"
-              disabled={!!sourceQuotation?.quotation}
             />
             {isDeliveryAddressAdded && !sourceQuotation && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-4">

@@ -9,9 +9,10 @@ import {
   quotationItemsTable,
   customersTable,
 } from "@/drizzle/schema";
-import { eq, desc, sql, inArray, and } from "drizzle-orm";
+import { eq, desc, sql, inArray, and, gte, lte } from "drizzle-orm";
 import { QuotationFormValues } from "../validation";
 import { QuotationStatus } from "@/types";
+import { QuotationFilters } from "@/hooks/useQuotations";
 
 // Add new quotation with transaction
 export const addQuotation = async (quotation: QuotationFormValues) => {
@@ -326,12 +327,13 @@ export const generateQuotationNumber = async (): Promise<string> => {
 export const getQuotations = async (
   page: number = 0,
   limit: number = 10,
-  getAllQuotations: boolean = false
+  getAllQuotations: boolean = false,
+  filters?: QuotationFilters
 ) => {
   try {
     const result = await db.transaction(async (tx) => {
       // Get the main quotations (all or paginated)
-      const quotationsQuery = tx
+      let quotationsQuery = tx
         .select({
           quotation: quotationsTable,
           customer: customersTable,
@@ -341,8 +343,65 @@ export const getQuotations = async (
           customersTable,
           eq(quotationsTable.customerId, customersTable.id)
         )
-        .where(eq(quotationsTable.isActive, true))
-        .orderBy(desc(quotationsTable.createdAt));
+        .$dynamic();
+
+      // Create conditions array
+      const conditions = [eq(quotationsTable.isActive, true)];
+
+      // Apply filters if provided
+      if (filters) {
+        // Total Amount range
+        if (filters.totalAmount_min !== undefined) {
+          conditions.push(
+            gte(quotationsTable.totalAmount, filters.totalAmount_min)
+          );
+        }
+        if (filters.totalAmount_max !== undefined) {
+          conditions.push(
+            lte(quotationsTable.totalAmount, filters.totalAmount_max)
+          );
+        }
+
+        // Quotation date range
+        if (filters.quotationDate_start) {
+          conditions.push(
+            gte(
+              quotationsTable.quotationDate,
+              new Date(filters.quotationDate_start)
+            )
+          );
+        }
+        if (filters.quotationDate_end) {
+          conditions.push(
+            lte(
+              quotationsTable.quotationDate,
+              new Date(filters.quotationDate_end)
+            )
+          );
+        }
+
+        // Status filter
+        if (filters.status) {
+          conditions.push(
+            eq(quotationsTable.status, filters.status as QuotationStatus)
+          );
+        }
+
+        // Converted to sale filter
+        if (filters.convertedToSale !== undefined) {
+          conditions.push(
+            eq(quotationsTable.convertedToSale, filters.convertedToSale)
+          );
+        }
+      }
+
+      // Apply where conditions
+      quotationsQuery = quotationsQuery.where(and(...conditions));
+
+      // Apply order by
+      quotationsQuery = quotationsQuery.orderBy(
+        desc(quotationsTable.createdAt)
+      );
 
       if (!getAllQuotations) {
         quotationsQuery.limit(limit).offset(page * limit);

@@ -156,12 +156,46 @@ export const quotationsColumns: ColumnDef<QuotationWithRelations>[] = [
       );
     },
   },
+  {
+    accessorKey: "quotation.convertedToSale",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="font-semibold px-0"
+        >
+          Converted To Sale
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      );
+    },
+    cell: ({ row }) => {
+      const quotation = row.original;
+      return (
+        <span
+          className={cn(
+            "text-14-medium",
+            quotation.quotation.convertedToSale &&
+              "bg-green-500 text-white px-3 py-1 rounded-xl",
+            !quotation.quotation.convertedToSale &&
+              "bg-red-600 text-white px-3 py-1 rounded-xl"
+          )}
+        >
+          {quotation.quotation.convertedToSale ? "Yes" : "No"}
+        </span>
+      );
+    },
+  },
 
   {
     id: "actions",
     header: "Actions",
     cell: ({ row }) => {
       return <QuotationActions quotation={row.original} />;
+    },
+    meta: {
+      skipRowClick: true,
     },
   },
 ];

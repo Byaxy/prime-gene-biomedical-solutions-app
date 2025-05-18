@@ -38,6 +38,14 @@ import { DownloadIcon } from "lucide-react";
 import Image from "next/image";
 import { Search } from "lucide-react";
 import FiltersSheet from "./FiltersSheet";
+import { cn } from "@/lib/utils";
+
+declare module "@tanstack/react-table" {
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-constraint, @typescript-eslint/no-unused-vars
+  interface ColumnMeta<TData extends unknown, TValue> {
+    skipRowClick?: boolean;
+  }
+}
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -57,7 +65,7 @@ interface DataTableProps<TData, TValue> {
   onDownloadSelected?: (items: TData[]) => void;
   filters?: {
     [key: string]: {
-      type: "text" | "number" | "date" | "select";
+      type: "text" | "number" | "date" | "select" | "boolean";
       label: string;
       options?: { value: string; label: string }[]; // For select type
     };
@@ -65,6 +73,7 @@ interface DataTableProps<TData, TValue> {
   filterValues?: Record<string, any>;
   onFilterChange?: (filters: Record<string, any>) => void;
   defaultFilterValues?: Record<string, any> | null;
+  onRowClick?: (rowData: TData) => void;
 }
 
 export function DataTable<TData, TValue>({
@@ -87,6 +96,7 @@ export function DataTable<TData, TValue>({
   filterValues = {},
   onFilterChange,
   defaultFilterValues,
+  onRowClick,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
@@ -135,6 +145,12 @@ export function DataTable<TData, TValue>({
     manualPagination: true,
   });
 
+  const handleRowClick = (rowData: TData) => {
+    if (onRowClick) {
+      onRowClick(rowData);
+    }
+  };
+
   return (
     <div>
       <div className="w-full flex flex-col sm:flex-row sm:items-center justify-between gap-x-4 pb-5 sm:pb-0">
@@ -157,7 +173,7 @@ export function DataTable<TData, TValue>({
           <div className="flex flex-row gap-4">
             <Button
               variant="outline"
-              className="border-blue-800/60 text-dark-500"
+              className="border-blue-800/60 text-dark-500 bg-blue-50"
               onClick={() => onFilterChange?.(defaultFilterValues || {})}
               disabled={
                 !Object.values(filterValues).some(
@@ -278,16 +294,34 @@ export function DataTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  className="shad-table-row"
+                  className={cn(
+                    "shad-table-row",
+                    onRowClick && "cursor-pointer"
+                  )}
                 >
-                  {row.getVisibleCells().map((cell: any) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </TableCell>
-                  ))}
+                  {row.getVisibleCells().map((cell: any) => {
+                    const skipRowClick =
+                      cell.column.columnDef.meta?.skipRowClick;
+
+                    return (
+                      <TableCell
+                        key={cell.id}
+                        onClick={(e) => {
+                          if (skipRowClick) {
+                            e.stopPropagation();
+                          } else if (onRowClick) {
+                            handleRowClick(row.original);
+                          }
+                        }}
+                        className={skipRowClick ? "relative" : ""}
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </TableCell>
+                    );
+                  })}
                 </TableRow>
               ))
             ) : (
@@ -313,7 +347,6 @@ export function DataTable<TData, TValue>({
               onValueChange={(value) => {
                 const newPageSize = Number(value);
                 onPageSizeChange?.(newPageSize);
-                // Reset to first page when changing page size
                 onPageChange?.(0);
               }}
             >

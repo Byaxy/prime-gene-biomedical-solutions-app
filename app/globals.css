@@ -160,15 +160,15 @@
 
   /* =====  SHADCN OVERRIDES */
   .shad-primary-btn {
-    @apply bg-blue-800 text-white !important;
+    @apply bg-blue-800 text-white border-0 !important;
   }
 
   .shad-danger-btn {
-    @apply bg-red-600 text-white !important;
+    @apply bg-red-600 text-white border-0 !important;
   }
 
   .shad-gray-btn {
-    @apply border cursor-pointer bg-gray-400 text-blue-800 !important;
+    @apply border-0 cursor-pointer bg-gray-400 text-blue-800 !important;
   }
 
   .shad-input-label {

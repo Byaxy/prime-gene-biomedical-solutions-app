@@ -1,7 +1,6 @@
 import { useState } from "react";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { FileText } from "lucide-react";
 import SaleDialog from "./SaleDialog";
 import { useRouter } from "next/navigation";
 import { SaleWithRelations } from "@/types";
@@ -15,6 +14,7 @@ import { ShoppingCart } from "lucide-react";
 import { Truck } from "lucide-react";
 import SaleInvoice from "./SaleInvoice";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
+import { Eye } from "lucide-react";
 
 const SaleActions = ({ sale }: { sale: SaleWithRelations }) => {
   const [open, setOpen] = useState(false);
@@ -102,7 +102,7 @@ const SaleActions = ({ sale }: { sale: SaleWithRelations }) => {
             }}
             className="text-green-500 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
-            <FileText className="h-5 w-5" />
+            <Eye className="h-5 w-5" />
             <span>Sale Details</span>
           </p>
           <p
@@ -116,16 +116,20 @@ const SaleActions = ({ sale }: { sale: SaleWithRelations }) => {
           </p>
           <p
             onClick={() => {
-              toast.success("Hanlde Parking list");
+              router.push(
+                `/promissory-notes/create-promissory-note/from-sale/${sale.sale.id}`
+              );
               setOpen(false);
             }}
             className="text-dark-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
-            <ShoppingCart className="h-5 w-5" /> <span>Parking List</span>
+            <ShoppingCart className="h-5 w-5" /> <span>Promissory Note</span>
           </p>
           <p
             onClick={() => {
-              router.push("/deliveries/create-delivery");
+              router.push(
+                `/deliveries/create-delivery/from-sale/${sale.sale.id}`
+              );
               setOpen(false);
             }}
             className="text-dark-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"

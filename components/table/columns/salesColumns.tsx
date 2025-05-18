@@ -192,5 +192,8 @@ export const salesColumns: ColumnDef<SaleWithRelations>[] = [
     cell: ({ row }) => {
       return <SaleActions sale={row.original} />;
     },
+    meta: {
+      skipRowClick: true,
+    },
   },
 ];

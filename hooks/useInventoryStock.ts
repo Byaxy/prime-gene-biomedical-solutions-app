@@ -16,7 +16,7 @@ interface UseInventoryStockOptions {
   getAllInventoryStocks?: boolean;
   initialPageSize?: number;
 }
-interface InventoryStockFilters {
+export interface InventoryStockFilters {
   quantity_min?: number;
   quantity_max?: number;
   costPrice_min?: number;
