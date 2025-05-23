@@ -297,7 +297,6 @@ export interface SaleItem {
   storeId: string;
   taxRateId: string;
   lotNumber: string;
-  availableQuantity: number;
   quantity: number;
   unitPrice: number;
   totalPrice: number;

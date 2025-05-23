@@ -169,6 +169,13 @@
       "when": 1747409987974,
       "tag": "0023_remarkable_scream",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1747918220775,
+      "tag": "0024_narrow_quicksilver",
+      "breakpoints": true
     }
   ]
 }

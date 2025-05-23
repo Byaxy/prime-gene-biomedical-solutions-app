@@ -79,6 +79,7 @@ export const quotationItemStatusEnum = pgEnum("quotation_item_status", [
 export const inventoryTransactionTypeEnum = pgEnum("transaction_type", [
   "purchase", // Items received from a vendor
   "sale", // Items sold to a customer
+  "sale_reversal", // Reversal/edit of a sale
   "transfer", // Items transferred between stores
   "adjustment", // Manual adjustment to inventory
 ]);
@@ -597,8 +598,7 @@ export const saleItemsTable = pgTable("sale_items", {
   taxRateId: uuid("tax_id")
     .notNull()
     .references(() => taxRatesTable.id, { onDelete: "set null" }), // Foreign key to customers
-  lotNumber: text("lot_number").notNull(),
-  availableQuantity: integer("available_quantity").notNull(),
+  lotNumber: text("lot_number"),
   quantity: integer("quantity").notNull(),
   unitPrice: numeric("unit_price").notNull(),
   totalPrice: numeric("total_price").notNull(),

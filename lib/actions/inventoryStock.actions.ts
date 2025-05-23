@@ -10,7 +10,7 @@ import {
   storesTable,
   usersTable,
 } from "@/drizzle/schema";
-import { eq, and, desc, sql, gte, lte, asc } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lte, asc, ne } from "drizzle-orm";
 import { ExistingStockAdjustmentFormValues } from "../validation";
 import { ExtendedStockAdjustmentFormValues } from "@/components/forms/NewStockForm";
 import { InventoryStockFilters } from "@/hooks/useInventoryStock";
@@ -300,7 +300,10 @@ export const getInventoryStock = async (
       .$dynamic();
 
     // Create conditions array
-    const conditions = [eq(inventoryTable.isActive, true)];
+    const conditions = [
+      eq(inventoryTable.isActive, true),
+      ne(inventoryTable.quantity, 0),
+    ];
 
     // Apply filters if provided
     if (filters) {

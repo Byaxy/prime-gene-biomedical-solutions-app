@@ -233,12 +233,9 @@ export const SaleFormValidation = z
       .array(
         z.object({
           inventoryStockId: z.string().optional(),
-          lotNumber: z.string().nonempty("Lot number is required"),
+          lotNumber: z.string().optional(),
           productId: z.string().nonempty("Product is required"),
-          availableQuantity: z
-            .number()
-            .int()
-            .min(0, "Available Quantity must be 0 or more"),
+          availableQuantity: z.number().int().optional(),
           quantity: z.number().int().min(1, "Quantity must be 1 or more"),
           unitPrice: z.number().min(0, "Unit price must be 0 or more"),
           totalPrice: z.number().min(0, "Total price must be 0 or more"),
@@ -257,7 +254,7 @@ export const SaleFormValidation = z
       .min(1, "At least one product is required"),
 
     // Temporary fields for product selection
-    selectedInventoryStockId: z.string().optional(),
+    selectedProductId: z.string().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.isDeliveryAddressAdded) {

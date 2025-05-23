@@ -41,9 +41,9 @@ const styles = StyleSheet.create({
   },
   col1: { width: "5%", paddingHorizontal: 5 },
   col2: { width: "10%" },
-  col3: { width: "45%" },
-  col4: { width: "10%", paddingHorizontal: 5 },
-  col5: { width: "10%" },
+  col3: { width: "50%" },
+  col4: { width: "8%", paddingHorizontal: 10 },
+  col5: { width: "7%" },
   col6: { width: "10%" },
   col7: { width: "10%" },
   title: {

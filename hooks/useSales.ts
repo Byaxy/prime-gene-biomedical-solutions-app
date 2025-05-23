@@ -157,10 +157,12 @@ export const useSales = ({
       id,
       data,
       prevAttachmentIds,
+      userId,
     }: {
       id: string;
       data: SaleFormValues;
       prevAttachmentIds?: string[];
+      userId: string;
     }) => {
       const supabase = createSupabaseBrowserClient();
       const attachments: Array<{
@@ -218,7 +220,7 @@ export const useSales = ({
         ...data,
         attachments,
       };
-      return editSale(dataWithAttachments, id);
+      return editSale(dataWithAttachments, id, userId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sales", "paginatedSales"] });

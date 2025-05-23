@@ -35,6 +35,7 @@ import {
   InventoryStockWithRelations,
   PaymentMethod,
   PaymentStatus,
+  ProductWithRelations,
   QuotationWithRelations,
   SaleStatus,
   SaleWithRelations,
@@ -54,13 +55,14 @@ import { Country, State, City } from "country-state-city";
 import { IState, ICity } from "country-state-city";
 import { useInventoryStock } from "@/hooks/useInventoryStock";
 import { Check } from "lucide-react";
-import { formatDateTime } from "@/lib/utils";
 import { X } from "lucide-react";
 import { Input } from "../ui/input";
 import { Search } from "lucide-react";
 import { useStores } from "@/hooks/useStores";
 import StoreDialog from "../stores/StoreDialog";
 import { useAuth } from "@/hooks/useAuth";
+import { useProducts } from "@/hooks/useProducts";
+import { formatDateTime, formatNumber } from "@/lib/utils";
 
 interface SaleFormProps {
   mode: "create" | "edit";
@@ -74,8 +76,9 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
   const [storeDialogOpen, setStoreDialogOpen] = useState(false);
   const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [prevSelectedInventoryStockId, setPrevSelectedInventoryStockId] =
-    useState<string | null>(null);
+  const [prevSelectedProductId, setPrevSelectedProductId] = useState<
+    string | null
+  >(null);
 
   const { user } = useAuth();
 
@@ -92,6 +95,10 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
         )
       : []
   );
+
+  const { products, isLoading: productsLoading } = useProducts({
+    getAllProducts: true,
+  });
   const { inventoryStock, isLoading: inventoryStockLoading } =
     useInventoryStock({
       getAllInventoryStocks: true,
@@ -168,7 +175,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
         email: sourceQuotation?.quotation.deliveryAddress?.email || "",
         phone: sourceQuotation?.quotation.deliveryAddress?.phone || "",
       },
-      selectedInventoryStockId: "",
+      selectedProductId: "",
     }),
     [generatedInvoiceNumber, sourceQuotation]
   );
@@ -183,25 +190,32 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
             ? new Date(initialData.sale.saleDate)
             : new Date(),
           products:
-            initialData?.products?.map((product) => ({
-              inventoryStockId: product.inventoryStockId || "",
-              productId: product.productId,
-              saleId: product.saleId || "",
-              storeId: product.storeId || "",
-              lotNumber: product.lotNumber,
-              availableQuantity: product.availableQuantity,
-              quantity: product.quantity,
-              unitPrice: product.unitPrice,
-              subTotal: product.subTotal,
-              totalPrice: product.totalPrice,
-              taxAmount: product.taxAmount,
-              taxRate: product.taxRate,
-              taxRateId: product.taxRateId || "",
-              discountRate: product.discountRate,
-              discountAmount: product.discountAmount,
-              productID: product.productID,
-              productName: product.productName,
-            })) || [],
+            initialData?.products?.map((product) => {
+              const productInventoryStock = inventoryStock?.find(
+                (stock: InventoryStockWithRelations) =>
+                  stock.inventory.id === product.inventoryStockId &&
+                  stock.inventory.lotNumber === product.lotNumber
+              );
+              return {
+                inventoryStockId: product.inventoryStockId || "",
+                productId: product.productId,
+                saleId: product.saleId || "",
+                storeId: product.storeId || "",
+                lotNumber: product.lotNumber,
+                quantity: product.quantity,
+                availableQuantity: productInventoryStock?.quantity || 0,
+                unitPrice: product.unitPrice,
+                subTotal: product.subTotal,
+                totalPrice: product.totalPrice,
+                taxAmount: product.taxAmount,
+                taxRate: product.taxRate,
+                taxRateId: product.taxRateId || "",
+                discountRate: product.discountRate,
+                discountAmount: product.discountAmount,
+                productID: product.productID,
+                productName: product.productName,
+              };
+            }) || [],
           customerId: initialData?.sale.customerId || "",
           storeId: initialData?.sale.storeId || "",
           status: initialData?.sale.status || SaleStatus.Pending,
@@ -227,7 +241,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
           paymentStatus:
             initialData?.sale.paymentStatus || PaymentStatus.Pending,
           quotationId: initialData?.sale.quotationId || "",
-          selectedInventoryStockId: "",
+          selectedProductId: "",
         }
       : defaultValues,
   });
@@ -238,7 +252,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
   });
 
   const selectedStoreId = form.watch("storeId");
-  const selectedInventoryStockId = form.watch("selectedInventoryStockId");
+  const selectedProductId = form.watch("selectedProductId");
   const isDeliveryAddressAdded = form.watch("isDeliveryAddressAdded");
   const selectedCountry = form.watch("deliveryAddress.country");
   const selectedState = form.watch("deliveryAddress.state");
@@ -248,28 +262,24 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
     unitPrice: form.watch(`products.${index}.unitPrice`),
     taxRateId: form.watch(`products.${index}.taxRateId`),
     discountRate: form.watch(`products.${index}.discountRate`),
+    lotNumber: form.watch(`products.${index}.lotNumber`),
+    availableQuantity: form.watch(`products.${index}.availableQuantity`),
   }));
 
-  // Filter inventory stock based on selected store
-  const filteredInventoryStock = inventoryStock
-    ?.filter(
-      (stock: InventoryStockWithRelations) => stock.store.id === selectedStoreId
-    )
-    .filter((stock: InventoryStockWithRelations) => {
-      if (!searchQuery.trim()) return true;
+  const filteredProducts = products?.filter((product: ProductWithRelations) => {
+    if (!searchQuery.trim()) return true;
 
-      const query = searchQuery.toLowerCase().trim();
-      return (
-        stock.product.productID?.toLowerCase().includes(query) ||
-        stock.inventory.lotNumber?.toLowerCase().includes(query) ||
-        stock.product.name?.toLowerCase().includes(query)
-      );
-    });
+    const query = searchQuery.toLowerCase().trim();
+    return (
+      product.product.productID?.toLowerCase().includes(query) ||
+      product.product.name?.toLowerCase().includes(query)
+    );
+  });
 
   // Set initial values for the form
   useEffect(() => {
     // Editing an existing sale
-    if (initialData) {
+    if (initialData && inventoryStock) {
       if (initialData.sale.deliveryAddress?.country) {
         const countryStates =
           State.getStatesOfCountry(initialData.sale.deliveryAddress.country) ||
@@ -287,17 +297,28 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
       }
 
       setTimeout(() => {
-        form.reset({
-          invoiceNumber: initialData.sale.invoiceNumber,
-          saleDate: new Date(initialData.sale.saleDate || Date.now()),
-          products:
-            initialData.products.map((product) => ({
+        const productsWithCurrentAvailableQty = initialData.products.map(
+          (product) => {
+            let currentAvailableQuantity = 0;
+
+            if (product.inventoryStockId) {
+              const currentStock = inventoryStock.find(
+                (stock: InventoryStockWithRelations) =>
+                  stock.inventory.id === product.inventoryStockId
+              );
+
+              if (currentStock) {
+                currentAvailableQuantity = currentStock.inventory.quantity;
+              }
+            }
+
+            return {
               inventoryStockId: product.inventoryStockId,
               productId: product.productId,
               saleId: product.saleId,
               storeId: product.storeId,
               lotNumber: product.lotNumber,
-              availableQuantity: product.availableQuantity,
+              availableQuantity: currentAvailableQuantity,
               quantity: product.quantity,
               unitPrice: product.unitPrice,
               subTotal: product.subTotal,
@@ -309,7 +330,14 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
               discountAmount: product.discountAmount,
               productID: product.productID,
               productName: product.productName,
-            })) || [],
+            };
+          }
+        );
+
+        form.reset({
+          invoiceNumber: initialData.sale.invoiceNumber,
+          saleDate: new Date(initialData.sale.saleDate || Date.now()),
+          products: productsWithCurrentAvailableQty,
           customerId: initialData.sale.customerId,
           storeId: initialData?.sale.storeId || "",
           status: initialData.sale.status,
@@ -335,7 +363,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
           paymentStatus:
             initialData?.sale.paymentStatus || PaymentStatus.Pending,
           quotationId: initialData?.sale.quotationId || "",
-          selectedInventoryStockId: "",
+          selectedProductId: "",
         });
       }, 100);
     }
@@ -454,15 +482,12 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
             }
 
             // If we still have remaining quantity after going through all stocks,
-            // use the first stock to record the negative inventory
             if (remainingQuantity > 0) {
-              const firstStock = productStocks[0];
-
               append({
-                productId: firstStock.product.id,
-                inventoryStockId: firstStock.inventory.id,
-                lotNumber: firstStock.inventory.lotNumber,
-                availableQuantity: firstStock.inventory.quantity,
+                productId: quotationProduct.productId,
+                inventoryStockId: "",
+                lotNumber: "",
+                availableQuantity: 0,
                 quantity: remainingQuantity,
                 unitPrice: quotationProduct.unitPrice,
                 totalPrice: 0,
@@ -472,8 +497,8 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                 discountRate: quotationProduct.discountRate,
                 taxRateId: quotationProduct.taxRateId,
                 discountAmount: 0,
-                productID: firstStock.product.productID,
-                productName: firstStock.product.name,
+                productID: quotationProduct.productID,
+                productName: quotationProduct.productName,
               });
 
               insufficientStockWarnings.push(
@@ -493,7 +518,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
               append({
                 productId: productFromCatalog.product.id,
                 inventoryStockId: "",
-                lotNumber: "N/A",
+                lotNumber: "",
                 availableQuantity: 0,
                 quantity: quotationProduct.quantity,
                 unitPrice: quotationProduct.unitPrice,
@@ -516,7 +541,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
               append({
                 productId: quotationProduct.productId,
                 inventoryStockId: "",
-                lotNumber: "N/A",
+                lotNumber: "",
                 availableQuantity: 0,
                 quantity: quotationProduct.quantity,
                 unitPrice: quotationProduct.unitPrice,
@@ -539,10 +564,6 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
       };
 
       handleAutoPopulateProducts();
-    }
-    // Creating a new sale (no initial data or source quotation)
-    else {
-      form.reset(defaultValues);
     }
   }, [
     initialData,
@@ -626,37 +647,28 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
 
   // Handle add product
   const handleAddProduct = () => {
-    if (!selectedInventoryStockId || !selectedStoreId) {
-      toast.error("Please select a store and Inventory Stock");
+    if (!selectedProductId || !selectedStoreId) {
+      toast.error("Please select a store and Inventory");
       return;
     }
 
-    const selectedStock = inventoryStock?.find(
-      (stock: InventoryStockWithRelations) =>
-        stock.inventory.id === selectedInventoryStockId
+    const selectedProduct = products?.find(
+      (product: ProductWithRelations) =>
+        product.product.id === selectedProductId
     );
 
-    if (!selectedStock) {
-      toast.error("Selected Inventory stock not found");
-      return;
-    }
-
-    if (
-      fields.some(
-        (entry) => entry.inventoryStockId === selectedInventoryStockId
-      )
-    ) {
-      toast.error("This inventory is already added");
+    if (!selectedProduct) {
+      toast.error("Selected product not found");
       return;
     }
 
     append({
-      productId: selectedStock.product.id,
-      inventoryStockId: selectedStock.inventory.id,
-      lotNumber: selectedStock.inventory.lotNumber,
-      availableQuantity: selectedStock.inventory.quantity,
+      productId: selectedProduct.product.id,
+      inventoryStockId: "",
+      lotNumber: "",
+      availableQuantity: 0,
       quantity: 0,
-      unitPrice: selectedStock.inventory.sellingPrice,
+      unitPrice: selectedProduct.product.sellingPrice,
       totalPrice: 0,
       subTotal: 0,
       taxAmount: 0,
@@ -664,10 +676,10 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
       discountRate: 0,
       taxRateId: "",
       discountAmount: 0,
-      productID: selectedStock.product.productID,
-      productName: selectedStock.product.name,
+      productID: selectedProduct.product.productID,
+      productName: selectedProduct.product.name,
     });
-    form.setValue("selectedInventoryStockId", "");
+    form.setValue("selectedProductId", "");
   };
 
   const handleDeleteEntry = (index: number) => {
@@ -787,6 +799,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
               id: initialData?.sale.id,
               data: values,
               prevAttachmentIds: prevIds,
+              userId: user.id,
             },
             {
               onSuccess: () => {
@@ -805,6 +818,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
             {
               id: initialData?.sale.id,
               data: values,
+              userId: user.id,
             },
             {
               onSuccess: () => {
@@ -825,6 +839,20 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
       toast.error("Error submitting form");
     }
   };
+
+  // Get Raw Inventory stocks for entry product
+  const getEntryInventoryStocks = useCallback(
+    (productId: string) => {
+      return inventoryStock?.filter((stock: InventoryStockWithRelations) => {
+        if (!selectedStoreId) return false;
+        if (stock.inventory.quantity === 0) return false;
+        return (
+          stock.product.id === productId && stock.store.id === selectedStoreId
+        );
+      });
+    },
+    [inventoryStock, selectedStoreId]
+  );
 
   // Calculate raw subtotal per product entry (before any discounts)
   const calculateEntryRawSubTotal = useCallback(
@@ -1059,26 +1087,24 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                 <CustomFormField
                   fieldType={FormFieldType.SELECT}
                   control={form.control}
-                  name="selectedInventoryStockId"
-                  label="Select Inventory Stock"
+                  name="selectedProductId"
+                  label="Select Inventory"
                   placeholder={
-                    selectedStoreId
-                      ? "Select inventory stock"
-                      : "Select store first"
+                    selectedStoreId ? "Select inventory" : "Select store first"
                   }
                   disabled={!selectedStoreId}
-                  key={`inventory-select-${selectedInventoryStockId || ""}`}
+                  key={`inventory-select-${selectedProductId || ""}`}
                 >
                   <div className="py-3">
                     <div className="relative flex items-center rounded-md border border-dark-700 bg-white">
                       <Search className="ml-2 h-4 w-4 opacity-50" />
                       <Input
                         type="text"
-                        placeholder="Search by Product ID, Lot Number, or Product Name"
+                        placeholder="Search by Product ID, Product Name"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
-                        disabled={!selectedStoreId || inventoryStockLoading}
+                        disabled={!selectedStoreId || productsLoading}
                       />
                       {searchQuery && (
                         <button
@@ -1091,65 +1117,53 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                       )}
                     </div>
                   </div>
-                  {inventoryStockLoading ? (
+                  {productsLoading ? (
                     <div className="py-4">
                       <Loading />
                     </div>
-                  ) : filteredInventoryStock &&
-                    filteredInventoryStock.length > 0 ? (
+                  ) : filteredProducts && filteredProducts.length > 0 ? (
                     <>
                       <Table className="shad-table border border-light-200 rounded-lg">
                         <TableHeader>
                           <TableRow className="w-full bg-blue-800 text-white px-2 font-semibold">
                             <TableHead>Product ID</TableHead>
-                            <TableHead>Lot Number</TableHead>
                             <TableHead>Product Name</TableHead>
                             <TableHead>Qnty</TableHead>
-                            <TableHead>Expiry</TableHead>
                             <TableHead></TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody className="w-full bg-white">
-                          {filteredInventoryStock.map(
-                            (stock: InventoryStockWithRelations) => (
+                          {filteredProducts.map(
+                            (product: ProductWithRelations) => (
                               <TableRow
-                                key={stock.inventory.id}
+                                key={product.product.id}
                                 className="cursor-pointer hover:bg-blue-50"
                                 onClick={() => {
                                   form.setValue(
-                                    "selectedInventoryStockId",
-                                    stock.inventory.id
+                                    "selectedProductId",
+                                    product.product.id
                                   );
-                                  setPrevSelectedInventoryStockId(
-                                    stock.inventory.id
-                                  );
+                                  setPrevSelectedProductId(product.product.id);
                                   setSearchQuery("");
                                   // Find and click the hidden SelectItem with this value
                                   const selectItem = document.querySelector(
-                                    `[data-value="${stock.inventory.id}"]`
+                                    `[data-value="${product.product.id}"]`
                                   ) as HTMLElement;
                                   if (selectItem) {
                                     selectItem.click();
                                   }
                                 }}
                               >
-                                <TableCell>{stock.product.productID}</TableCell>
                                 <TableCell>
-                                  {stock.inventory.lotNumber}
+                                  {product.product.productID}
                                 </TableCell>
-                                <TableCell>{stock.product.name}</TableCell>
+                                <TableCell>{product.product.name}</TableCell>
                                 <TableCell>
-                                  {stock.inventory.quantity}
-                                </TableCell>
-                                <TableCell>
-                                  {stock.inventory.expiryDate
-                                    ? formatDateTime(stock.inventory.expiryDate)
-                                        .dateOnly
-                                    : "N/A"}
+                                  {product.product.quantity}
                                 </TableCell>
                                 <TableCell className="w-10">
-                                  {prevSelectedInventoryStockId ===
-                                    stock.inventory.id && (
+                                  {prevSelectedProductId ===
+                                    product.product.id && (
                                     <span className="text-blue-800">
                                       <Check className="h-5 w-5" />
                                     </span>
@@ -1162,15 +1176,15 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                       </Table>
                       {/* Hidden select options for form control */}
                       <div className="hidden">
-                        {filteredInventoryStock.map(
-                          (stock: InventoryStockWithRelations) => (
+                        {filteredProducts.map(
+                          (product: ProductWithRelations) => (
                             <SelectItem
-                              key={stock.inventory.id}
-                              value={stock.inventory.id}
-                              data-value={stock.inventory.id}
+                              key={product.product.id}
+                              value={product.product.id}
+                              data-value={product.product.id}
                             >
-                              {stock.product.productID} -
-                              {stock.inventory.lotNumber} - {stock.product.name}
+                              {product.product.productID} -
+                              {product.product.name}
                               {}
                             </SelectItem>
                           )
@@ -1191,10 +1205,10 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
               <Button
                 type="button"
                 onClick={handleAddProduct}
-                disabled={!selectedInventoryStockId}
+                disabled={!selectedProductId}
                 className="self-end shad-primary-btn h-11"
               >
-                Add Inventory Stock
+                Add Inventory
               </Button>
             </div>
 
@@ -1203,8 +1217,8 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                 <TableRow className="w-full bg-blue-800 text-white px-2 font-semibold">
                   <TableHead>#</TableHead>
                   <TableHead>PID</TableHead>
-                  <TableHead>Lot Number</TableHead>
                   <TableHead>Product Description</TableHead>
+                  <TableHead className="!max-w-60">Lot Number</TableHead>
                   <TableHead>Available Qnty</TableHead>
                   <TableHead>Quantity</TableHead>
                   <TableHead>Unit Price</TableHead>
@@ -1231,9 +1245,134 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                   >
                     <TableCell>{index + 1}</TableCell>
                     <TableCell>{entry.productID}</TableCell>
-                    <TableCell>{entry.lotNumber}</TableCell>
                     <TableCell>{entry.productName}</TableCell>
-                    <TableCell>{entry.availableQuantity}</TableCell>
+                    <TableCell>
+                      <CustomFormField
+                        fieldType={FormFieldType.SELECT}
+                        control={form.control}
+                        name={`products.${index}.lotNumber`}
+                        label=""
+                        placeholder="Lot Number"
+                        key={`lotNumber-select-${
+                          form.watch(`products.${index}.lotNumber`) || ""
+                        }-${index}`}
+                      >
+                        {inventoryStockLoading ? (
+                          <div className="py-4">
+                            <Loading />
+                          </div>
+                        ) : getEntryInventoryStocks(entry.productId)?.length >
+                          0 ? (
+                          <>
+                            <Table className="shad-table border border-light-200 rounded-lg">
+                              <TableHeader>
+                                <TableRow className="w-full bg-blue-800 text-white px-2 font-semibold">
+                                  <TableHead>Lot Number</TableHead>
+                                  <TableHead>Qnty</TableHead>
+                                  <TableHead>Expiry Date</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody className="w-full bg-white">
+                                {getEntryInventoryStocks(entry.productId).map(
+                                  (stock: InventoryStockWithRelations) => (
+                                    <TableRow
+                                      key={stock.inventory.id}
+                                      className="cursor-pointer hover:bg-blue-50"
+                                      onClick={() => {
+                                        form.setValue(
+                                          `products.${index}.inventoryStockId`,
+                                          stock.inventory.id
+                                        );
+                                        form.setValue(
+                                          `products.${index}.lotNumber`,
+                                          stock.inventory.lotNumber
+                                        );
+                                        form.setValue(
+                                          `products.${index}.availableQuantity`,
+                                          stock.inventory.quantity
+                                        );
+                                        form.setValue(
+                                          `products.${index}.unitPrice`,
+                                          stock.inventory.sellingPrice
+                                        );
+
+                                        // Find and click the hidden SelectItem with this value
+                                        const selectItem =
+                                          document.querySelector(
+                                            `[data-value="${stock.inventory.id}"]`
+                                          ) as HTMLElement;
+                                        if (selectItem) {
+                                          selectItem.click();
+                                        }
+                                      }}
+                                    >
+                                      <TableCell>
+                                        {stock.inventory.lotNumber}
+                                      </TableCell>
+                                      <TableCell>
+                                        {stock.inventory.quantity}
+                                      </TableCell>
+                                      <TableCell>
+                                        {stock.inventory.expiryDate
+                                          ? formatDateTime(
+                                              stock.inventory.expiryDate
+                                            ).dateTime
+                                          : "N/A"}
+                                      </TableCell>
+                                    </TableRow>
+                                  )
+                                )}
+                              </TableBody>
+                            </Table>
+                            {/* Hidden select options for form control */}
+                            <div className="hidden">
+                              {getEntryInventoryStocks(entry.productId).map(
+                                (stock: InventoryStockWithRelations) => (
+                                  <SelectItem
+                                    key={stock.inventory.id}
+                                    value={stock.inventory.lotNumber}
+                                    className="text-14-medium text-blue-800 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+                                    data-value={stock.inventory.id}
+                                    onClick={() => {
+                                      form.setValue(
+                                        `products.${index}.inventoryStockId`,
+                                        stock.inventory.id
+                                      );
+                                      form.setValue(
+                                        `products.${index}.lotNumber`,
+                                        stock.inventory.lotNumber
+                                      );
+                                      form.setValue(
+                                        `products.${index}.availableQuantity`,
+                                        stock.inventory.quantity
+                                      );
+                                      form.setValue(
+                                        `products.${index}.unitPrice`,
+                                        stock.inventory.sellingPrice
+                                      );
+                                    }}
+                                  >
+                                    {stock.inventory.lotNumber}
+                                  </SelectItem>
+                                )
+                              )}
+                            </div>
+                          </>
+                        ) : (
+                          <SelectItem value="null" disabled>
+                            No lot number available
+                          </SelectItem>
+                        )}
+                      </CustomFormField>
+                    </TableCell>
+
+                    <TableCell>
+                      {formatNumber(
+                        String(
+                          form.watch(`products.${index}.availableQuantity`)
+                        )
+                      )}
+                    </TableCell>
                     <TableCell>
                       <CustomFormField
                         fieldType={FormFieldType.NUMBER}

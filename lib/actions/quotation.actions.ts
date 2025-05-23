@@ -92,7 +92,6 @@ export const editQuotation = async (
   try {
     const result = await db.transaction(async (tx) => {
       // Update main quotation record
-
       const [updatedQuotation] = await tx
         .update(quotationsTable)
         .set({
