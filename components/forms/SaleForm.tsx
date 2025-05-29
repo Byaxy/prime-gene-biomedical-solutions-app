@@ -746,26 +746,31 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
   // get entry inventory stocks based on selected product and store
   const getEntryInventoryStocks = useCallback(
     (productId: string) => {
-      return inventoryStock
-        ?.filter((stock: InventoryStockWithRelations) => {
-          if (!selectedStoreId) return false;
-          return (
-            stock.product.id === productId &&
-            stock.store.id === selectedStoreId &&
-            stock.inventory.quantity > 0
-          );
-        })
-        .sort(
-          (a: InventoryStockWithRelations, b: InventoryStockWithRelations) => {
-            const aExpiry: number = a.inventory.expiryDate
-              ? new Date(a.inventory.expiryDate).getTime()
-              : Infinity;
-            const bExpiry: number = b.inventory.expiryDate
-              ? new Date(b.inventory.expiryDate).getTime()
-              : Infinity;
-            return aExpiry - bExpiry;
-          }
-        );
+      return (
+        inventoryStock
+          ?.filter((stock: InventoryStockWithRelations) => {
+            if (!selectedStoreId) return false;
+            return (
+              stock.product.id === productId &&
+              stock.store.id === selectedStoreId &&
+              stock.inventory.quantity > 0
+            );
+          })
+          .sort(
+            (
+              a: InventoryStockWithRelations,
+              b: InventoryStockWithRelations
+            ) => {
+              const aExpiry: number = a.inventory.expiryDate
+                ? new Date(a.inventory.expiryDate).getTime()
+                : Infinity;
+              const bExpiry: number = b.inventory.expiryDate
+                ? new Date(b.inventory.expiryDate).getTime()
+                : Infinity;
+              return aExpiry - bExpiry;
+            }
+          ) || []
+      );
     },
     [inventoryStock, selectedStoreId]
   );
