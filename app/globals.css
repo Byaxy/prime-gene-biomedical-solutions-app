@@ -175,6 +175,10 @@
     @apply text-14-medium text-blue-800 font-bold !important;
   }
 
+  .shad-switch {
+    @apply border data-[state=checked]:bg-blue-800 data-[state=checked]:border-blue-800 data-[state=unchecked]:bg-white data-[state=unchecked]:border-blue-800 !important;
+  }
+
   .shad-input {
     @apply bg-white text-blue-800 placeholder:text-dark-600 border-light-200 h-11 focus-visible:ring-0 focus-visible:ring-offset-0 !important;
   }

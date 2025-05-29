@@ -1,0 +1,1 @@
+ALTER TABLE "sale_item_inventory" ADD COLUMN "is_active" boolean DEFAULT true NOT NULL;

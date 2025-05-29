@@ -12,6 +12,7 @@ import {
   inventoryTransactionsTable,
   productsTable,
   quotationsTable,
+  saleItemInventoryTable,
   saleItemsTable,
   salesTable,
   storesTable,
@@ -43,7 +44,7 @@ export const addSale = async (sale: SaleFormValues, userId: string) => {
     if (missingProducts.length > 0) {
       throw new Error(
         `Some products do not exist in the database: ${missingProducts
-          .map((p) => p.productName || p.productId)
+          .map((p) => p.productID || p.productName)
           .join(", ")}`
       );
     }
@@ -86,152 +87,137 @@ export const addSale = async (sale: SaleFormValues, userId: string) => {
         // Process each product in the sale
         const saleItems = [];
         for (const product of sale.products) {
-          let newItem;
+          // Create sale item
+          const [saleItem] = await tx
+            .insert(saleItemsTable)
+            .values({
+              saleId: newSale.id,
+              storeId: newSale.storeId,
+              productId: product.productId,
+              quantity: product.quantity,
+              unitPrice: product.unitPrice,
+              totalPrice: product.totalPrice,
+              subTotal: product.subTotal,
+              taxAmount: product.taxAmount,
+              discountAmount: product.discountAmount,
+              discountRate: product.discountRate,
+              taxRate: product.taxRate,
+              taxRateId: product.taxRateId,
+              productName: product.productName,
+              productID: product.productID,
+            })
+            .returning();
 
-          if (!product.inventoryStockId) {
-            const [newInventory] = await tx
-              .insert(inventoryTable)
-              .values({
+          // Handle sale item inventory stock
+          for (const inventory of product.inventoryStock) {
+            if (!inventory.inventoryStockId) {
+              const [newInventory] = await tx
+                .insert(inventoryTable)
+                .values({
+                  productId: product.productId,
+                  storeId: sale.storeId,
+                  lotNumber: `BackOrder-${Date.now()}`,
+                  quantity: 0,
+                  costPrice: 0,
+                  sellingPrice: product.unitPrice,
+                  manufactureDate: null,
+                  expiryDate: null,
+                  receivedDate: new Date(),
+                })
+                .returning();
+
+              // Log initial inventory transaction
+              await tx.insert(inventoryTransactionsTable).values({
+                inventoryId: newInventory.id,
                 productId: product.productId,
                 storeId: sale.storeId,
-                lotNumber: `BackOrder-${Date.now()}`,
-                quantity: 0,
-                costPrice: 0,
-                sellingPrice: product.unitPrice,
-                manufactureDate: null,
-                expiryDate: null,
-                receivedDate: new Date(),
-              })
-              .returning();
+                userId: userId,
+                transactionType: "sale",
+                quantityBefore: 0,
+                quantityAfter: 0,
+                transactionDate: new Date(),
+                notes: `Backorder stock created from sale`,
+              });
 
-            // Log initial inventory transaction
-            await tx.insert(inventoryTransactionsTable).values({
-              inventoryId: newInventory.id,
-              productId: product.productId,
-              storeId: sale.storeId,
-              userId: userId,
-              transactionType: "sale",
-              quantityBefore: 0,
-              quantityAfter: 0,
-              transactionDate: new Date(),
-              notes: `Backorder stock created from sale`,
-            });
-
-            // Create sale item
-            const [createdItem] = await tx
-              .insert(saleItemsTable)
-              .values({
-                saleId: newSale.id,
-                storeId: newSale.storeId,
-                lotNumber: newInventory.lotNumber,
+              // create sale item invetory
+              await tx.insert(saleItemInventoryTable).values({
+                saleItemId: saleItem.id,
                 inventoryStockId: newInventory.id,
+                lotNumber: newInventory.lotNumber,
+                quantityToTake: inventory.quantityToTake,
+              });
+
+              // Update inventory to reflect negative quantity (backorder)
+              await tx
+                .update(inventoryTable)
+                .set({
+                  quantity: -inventory.quantityToTake,
+                })
+                .where(eq(inventoryTable.id, newInventory.id));
+
+              // Log the inventory transaction
+              await tx.insert(inventoryTransactionsTable).values({
+                inventoryId: newInventory.id,
                 productId: product.productId,
-                quantity: product.quantity,
-                unitPrice: product.unitPrice,
-                totalPrice: product.totalPrice,
-                subTotal: product.subTotal,
-                taxAmount: product.taxAmount,
-                discountAmount: product.discountAmount,
-                discountRate: product.discountRate,
-                taxRate: product.taxRate,
-                taxRateId: product.taxRateId,
-                productName: product.productName,
-                productID: product.productID,
-              })
-              .returning();
+                storeId: sale.storeId,
+                userId: userId,
+                transactionType: "sale",
+                quantityBefore: 0,
+                quantityAfter: -inventory.quantityToTake,
+                transactionDate: new Date(),
+                notes: `Backorder quantity updated`,
+              });
 
-            newItem = createdItem;
+              // Update product total quantity
+              await tx
+                .update(productsTable)
+                .set({
+                  quantity: sql`${productsTable.quantity} - ${inventory.quantityToTake}`,
+                })
+                .where(eq(productsTable.id, product.productId));
+            } else {
+              // create sale item invetory
+              await tx.insert(saleItemInventoryTable).values({
+                saleItemId: saleItem.id,
+                inventoryStockId: inventory.inventoryStockId,
+                lotNumber: inventory.lotNumber,
+                quantityToTake: inventory.quantityToTake,
+              });
+              // Update inventory quantity
+              const [updatedInventory] = await tx
+                .update(inventoryTable)
+                .set({
+                  quantity: sql`${inventoryTable.quantity} - ${inventory.quantityToTake}`,
+                })
+                .where(eq(inventoryTable.id, inventory.inventoryStockId))
+                .returning();
 
-            // Update inventory to reflect negative quantity (backorder)
-            await tx
-              .update(inventoryTable)
-              .set({
-                quantity: -product.quantity,
-              })
-              .where(eq(inventoryTable.id, newInventory.id));
-
-            // Log the inventory transaction
-            await tx.insert(inventoryTransactionsTable).values({
-              inventoryId: newInventory.id,
-              productId: product.productId,
-              storeId: sale.storeId,
-              userId: userId,
-              transactionType: "sale",
-              quantityBefore: 0,
-              quantityAfter: -product.quantity,
-              transactionDate: new Date(),
-              notes: `Backorder quantity updated`,
-            });
-
-            // Update product total quantity
-            await tx
-              .update(productsTable)
-              .set({
-                quantity: sql`${productsTable.quantity} - ${product.quantity}`,
-              })
-              .where(eq(productsTable.id, product.productId));
-          }
-          // Handle existing inventory stock
-          else {
-            // Create sale item
-            const [createdItem] = await tx
-              .insert(saleItemsTable)
-              .values({
-                saleId: newSale.id,
-                storeId: newSale.storeId,
-                lotNumber: product.lotNumber,
-                inventoryStockId: product.inventoryStockId,
+              // Log the inventory transaction
+              await tx.insert(inventoryTransactionsTable).values({
+                inventoryId: inventory.inventoryStockId,
                 productId: product.productId,
-                quantity: product.quantity,
-                unitPrice: product.unitPrice,
-                totalPrice: product.totalPrice,
-                subTotal: product.subTotal,
-                taxAmount: product.taxAmount,
-                discountAmount: product.discountAmount,
-                discountRate: product.discountRate,
-                taxRate: product.taxRate,
-                taxRateId: product.taxRateId,
-                productName: product.productName,
-                productID: product.productID,
-              })
-              .returning();
+                storeId: sale.storeId,
+                userId: userId,
+                transactionType: "sale",
+                quantityBefore:
+                  updatedInventory.quantity - inventory.quantityToTake,
+                quantityAfter: updatedInventory.quantity,
+                transactionDate: new Date(),
+                notes: `Stock reduced for sale`,
+              });
 
-            newItem = createdItem;
-
-            // Update inventory quantity
-            await tx
-              .update(inventoryTable)
-              .set({
-                quantity: sql`${inventoryTable.quantity} - ${product.quantity}`,
-              })
-              .where(eq(inventoryTable.id, product.inventoryStockId));
-
-            // Log the inventory transaction
-            await tx.insert(inventoryTransactionsTable).values({
-              inventoryId: product.inventoryStockId,
-              productId: product.productId,
-              storeId: sale.storeId,
-              userId: userId,
-              transactionType: "sale",
-              quantityBefore: product.availableQuantity ?? 0,
-              quantityAfter:
-                (product.availableQuantity ?? 0) - product.quantity,
-              transactionDate: new Date(),
-              notes: `Stock reduced for sale`,
-            });
-
-            // Update product total quantity
-            await tx
-              .update(productsTable)
-              .set({
-                quantity: sql`${productsTable.quantity} - ${product.quantity}`,
-              })
-              .where(eq(productsTable.id, product.productId));
+              // Update product total quantity
+              await tx
+                .update(productsTable)
+                .set({
+                  quantity: sql`${productsTable.quantity} - ${inventory.quantityToTake}`,
+                })
+                .where(eq(productsTable.id, product.productId));
+            }
           }
 
-          saleItems.push(newItem);
+          saleItems.push(saleItem);
         }
-
         // Mark quotation as converted to sale if creating from quotation
         if (sale.quotationId) {
           await tx
@@ -280,380 +266,502 @@ export const editSale = async (
     if (missingProducts.length > 0) {
       throw new Error(
         `Some products do not exist in the database: ${missingProducts
-          .map((p) => p.productName || p.productId)
+          .map((p) => p.productID || p.productId)
           .join(", ")}`
       );
     }
 
     const result = await db.transaction(async (tx) => {
-      // Update main sale record
-      const [updatedSale] = await tx
-        .update(salesTable)
-        .set({
-          invoiceNumber: sale.invoiceNumber,
-          saleDate: sale.saleDate,
-          customerId: sale.customerId,
-          storeId: sale.storeId,
-          subTotal: sale.subTotal,
-          totalAmount: sale.totalAmount,
-          discountAmount: sale.discountAmount,
-          totalTaxAmount: sale.totalTaxAmount,
-          amountPaid: sale.amountPaid,
-          status: sale.status as SaleStatus,
-          paymentMethod: sale.paymentMethod as PaymentMethod,
-          paymentStatus: sale.paymentStatus as PaymentStatus,
-          notes: sale.notes,
-          quotationId: sale.quotationId,
-          attachments: sale.attachments,
-          isDeliveryAddressAdded: sale.isDeliveryAddressAdded,
-          deliveryAddress: sale.deliveryAddress
-            ? {
-                addressName: sale.deliveryAddress.addressName || "",
-                address: sale.deliveryAddress.address || "",
-                city: sale.deliveryAddress.city || "",
-                state: sale.deliveryAddress.state || "",
-                country: sale.deliveryAddress.country || "",
-                email: sale.deliveryAddress.email || "",
-                phone: sale.deliveryAddress.phone || "",
-              }
-            : null,
-        })
-        .where(eq(salesTable.id, saleId))
-        .returning();
+      try {
+        // Update main sale record
+        const [updatedSale] = await tx
+          .update(salesTable)
+          .set({
+            invoiceNumber: sale.invoiceNumber,
+            saleDate: sale.saleDate,
+            customerId: sale.customerId,
+            storeId: sale.storeId,
+            subTotal: sale.subTotal,
+            totalAmount: sale.totalAmount,
+            discountAmount: sale.discountAmount,
+            totalTaxAmount: sale.totalTaxAmount,
+            amountPaid: sale.amountPaid,
+            status: sale.status as SaleStatus,
+            paymentMethod: sale.paymentMethod as PaymentMethod,
+            paymentStatus: sale.paymentStatus as PaymentStatus,
+            notes: sale.notes,
+            quotationId: sale.quotationId,
+            attachments: sale.attachments,
+            isDeliveryAddressAdded: sale.isDeliveryAddressAdded,
+            deliveryAddress: sale.deliveryAddress
+              ? {
+                  addressName: sale.deliveryAddress.addressName || "",
+                  address: sale.deliveryAddress.address || "",
+                  city: sale.deliveryAddress.city || "",
+                  state: sale.deliveryAddress.state || "",
+                  country: sale.deliveryAddress.country || "",
+                  email: sale.deliveryAddress.email || "",
+                  phone: sale.deliveryAddress.phone || "",
+                }
+              : null,
+          })
+          .where(eq(salesTable.id, saleId))
+          .returning();
 
-      // Get existing sale items
-      const existingSaleItems = await tx
-        .select()
-        .from(saleItemsTable)
-        .where(eq(saleItemsTable.saleId, saleId));
+        // Get existing sale items with their inventory relationships
+        const existingSaleItems = await tx
+          .select({
+            id: saleItemsTable.id,
+            productId: saleItemsTable.productId,
+            quantity: saleItemsTable.quantity,
+            unitPrice: saleItemsTable.unitPrice,
+            totalPrice: saleItemsTable.totalPrice,
+            subTotal: saleItemsTable.subTotal,
+            taxAmount: saleItemsTable.taxAmount,
+            discountAmount: saleItemsTable.discountAmount,
+            discountRate: saleItemsTable.discountRate,
+            taxRate: saleItemsTable.taxRate,
+            taxRateId: saleItemsTable.taxRateId,
+            productName: saleItemsTable.productName,
+            productID: saleItemsTable.productID,
+          })
+          .from(saleItemsTable)
+          .where(eq(saleItemsTable.saleId, saleId));
 
-      // Create a more sophisticated matching system
-      // We'll match items based on: productId + inventoryStockId combination
-      // For items without stock (empty inventoryStockId), we'll match by order within the same product
+        // Get existing sale item inventory relationships
+        const existingSaleItemInventory = await tx
+          .select()
+          .from(saleItemInventoryTable)
+          .where(
+            inArray(
+              saleItemInventoryTable.saleItemId,
+              existingSaleItems.map((item) => item.id)
+            )
+          );
 
-      // Group new products by productId to handle multiple entries of same product
-      const newProductsByProductId = new Map();
-      sale.products.forEach((product, index) => {
-        if (!newProductsByProductId.has(product.productId)) {
-          newProductsByProductId.set(product.productId, []);
-        }
-        newProductsByProductId
-          .get(product.productId)
-          .push({ ...product, originalIndex: index });
-      });
-
-      // Group existing items by productId
-      const existingItemsByProductId = new Map();
-      existingSaleItems.forEach((item) => {
-        if (!existingItemsByProductId.has(item.productId)) {
-          existingItemsByProductId.set(item.productId, []);
-        }
-        existingItemsByProductId.get(item.productId).push(item);
-      });
-
-      // Track which existing items are matched and which new items are matched
-      const matchedExistingItems = new Set();
-      const matchedNewItems = new Set();
-      const itemsToUpdate = [];
-      const itemsToCreate: any = [];
-
-      // Process each product group
-      for (const [productId, newProductItems] of newProductsByProductId) {
-        const existingItemsForProduct =
-          existingItemsByProductId.get(productId) || [];
-
-        // First pass: match items with specific inventoryStockId
-        newProductItems.forEach((newItem: any) => {
-          if (newItem.inventoryStockId && newItem.inventoryStockId !== "") {
-            const matchingExistingItem = existingItemsForProduct.find(
-              (existingItem: any) =>
-                existingItem.inventoryStockId === newItem.inventoryStockId &&
-                !matchedExistingItems.has(existingItem.id)
-            );
-
-            if (matchingExistingItem) {
-              matchedExistingItems.add(matchingExistingItem.id);
-              matchedNewItems.add(newItem.originalIndex);
-              itemsToUpdate.push({
-                existing: matchingExistingItem,
-                new: newItem,
-              });
-            }
+        // Create lookup maps for easier processing
+        const saleItemInventoryMap = new Map();
+        existingSaleItemInventory.forEach((inv) => {
+          if (!saleItemInventoryMap.has(inv.saleItemId)) {
+            saleItemInventoryMap.set(inv.saleItemId, []);
           }
+          saleItemInventoryMap.get(inv.saleItemId).push(inv);
         });
 
-        // Second pass: match remaining items without specific inventory (empty inventoryStockId)
-        // Match by order within the same product
-        const remainingNewItems = newProductItems.filter(
-          (item: any) => !matchedNewItems.has(item.originalIndex)
-        );
-        const remainingExistingItems = existingItemsForProduct.filter(
-          (item: any) => !matchedExistingItems.has(item.id)
-        );
+        // Match existing items with new items
+        // We'll use a combination of productId and order for matching
+        const itemsToDelete: any = [];
+        const itemsToUpdate: any = [];
+        const itemsToCreate: any = [];
 
-        // Match remaining items by order
-        const maxMatches = Math.min(
-          remainingNewItems.length,
-          remainingExistingItems.length
-        );
-        for (let i = 0; i < maxMatches; i++) {
-          const newItem = remainingNewItems[i];
-          const existingItem = remainingExistingItems[i];
-
-          matchedExistingItems.add(existingItem.id);
-          matchedNewItems.add(newItem.originalIndex);
-          itemsToUpdate.push({
-            existing: existingItem,
-            new: newItem,
-          });
-        }
-
-        // Any remaining new items should be created
-        remainingNewItems.slice(maxMatches).forEach((newItem: any) => {
-          itemsToCreate.push(newItem);
-        });
-      }
-
-      // Any remaining existing items should be deleted
-      const itemsToDelete = existingSaleItems.filter(
-        (item) => !matchedExistingItems.has(item.id)
-      );
-
-      // Handle deletion and inventory reversal for removed items
-      if (itemsToDelete.length > 0) {
-        for (const item of itemsToDelete) {
-          // Reverse inventory changes for deleted items
-          if (item.inventoryStockId) {
-            const [updatedInventory] = await tx
-              .update(inventoryTable)
-              .set({
-                quantity: sql`${inventoryTable.quantity} + ${item.quantity}`,
-              })
-              .where(eq(inventoryTable.id, item.inventoryStockId))
-              .returning();
-
-            // Log the inventory reversal transaction
-            await tx.insert(inventoryTransactionsTable).values({
-              inventoryId: item.inventoryStockId,
-              productId: item.productId,
-              storeId: updatedSale.storeId,
-              userId: userId,
-              transactionType: "sale_reversal",
-              quantityBefore: updatedInventory.quantity - item.quantity,
-              quantityAfter: updatedInventory.quantity,
-              transactionDate: new Date(),
-              notes: `Stock restored from sale edit - item removed`,
+        // Create a simple matching system based on product order
+        const newProductsFlattened: any = [];
+        sale.products.forEach((product) => {
+          product.inventoryStock.forEach((inventory) => {
+            newProductsFlattened.push({
+              ...product,
+              inventory,
             });
+          });
+        });
 
-            // Update product total quantity
-            await tx
-              .update(productsTable)
-              .set({
-                quantity: sql`${productsTable.quantity} + ${item.quantity}`,
-              })
-              .where(eq(productsTable.id, item.productId));
+        // Match existing items with new items by order and productId
+        const matchedExistingItems = new Set();
+        const matchedNewItems = new Set();
+
+        // First pass: match by productId and order
+        for (
+          let i = 0;
+          i < Math.min(existingSaleItems.length, newProductsFlattened.length);
+          i++
+        ) {
+          const existingItem = existingSaleItems[i];
+          const newItem = newProductsFlattened[i];
+
+          if (existingItem.productId === newItem.productId) {
+            itemsToUpdate.push({
+              existing: existingItem,
+              new: newItem,
+              existingInventory:
+                saleItemInventoryMap.get(existingItem.id) || [],
+            });
+            matchedExistingItems.add(i);
+            matchedNewItems.add(i);
           }
+        }
+
+        // Second pass: handle unmatched items
+        existingSaleItems.forEach((item, index) => {
+          if (!matchedExistingItems.has(index)) {
+            itemsToDelete.push({
+              item,
+              inventory: saleItemInventoryMap.get(item.id) || [],
+            });
+          }
+        });
+
+        newProductsFlattened.forEach((item: any, index: number) => {
+          if (!matchedNewItems.has(index)) {
+            itemsToCreate.push(item);
+          }
+        });
+
+        // Process deletions first
+        for (const { item, inventory } of itemsToDelete) {
+          // Reverse inventory changes for each inventory record
+          for (const invRecord of inventory) {
+            if (invRecord.inventoryStockId) {
+              // Get current inventory before reversal
+              const [currentInventory] = await tx
+                .select()
+                .from(inventoryTable)
+                .where(eq(inventoryTable.id, invRecord.inventoryStockId));
+
+              if (currentInventory) {
+                // Update inventory quantity (add back the quantity)
+                const [updatedInventory] = await tx
+                  .update(inventoryTable)
+                  .set({
+                    quantity: sql`${inventoryTable.quantity} + ${invRecord.quantityToTake}`,
+                  })
+                  .where(eq(inventoryTable.id, invRecord.inventoryStockId))
+                  .returning();
+
+                // Log the inventory reversal transaction
+                await tx.insert(inventoryTransactionsTable).values({
+                  inventoryId: invRecord.inventoryStockId,
+                  productId: item.productId,
+                  storeId: updatedSale.storeId,
+                  userId: userId,
+                  transactionType: "sale_reversal",
+                  quantityBefore:
+                    updatedInventory.quantity - invRecord.quantityToTake,
+                  quantityAfter: updatedInventory.quantity,
+                  transactionDate: new Date(),
+                  referenceId: updatedSale.id,
+                  notes: `Stock restored from sale edit - item removed`,
+                });
+              }
+            }
+
+            // Delete sale item inventory record
+            await tx
+              .delete(saleItemInventoryTable)
+              .where(eq(saleItemInventoryTable.id, invRecord.id));
+          }
+
+          // Update product total quantity
+          await tx
+            .update(productsTable)
+            .set({
+              quantity: sql`${productsTable.quantity} + ${item.quantity}`,
+            })
+            .where(eq(productsTable.id, item.productId));
 
           // Delete the sale item
           await tx.delete(saleItemsTable).where(eq(saleItemsTable.id, item.id));
         }
-      }
 
-      // Process updates
-      const updatedItems = [];
-      for (const { existing: existingItem, new: product } of itemsToUpdate) {
-        // Handle quantity changes for existing items
-        const quantityDifference = product.quantity - existingItem.quantity;
-
-        if (quantityDifference !== 0 && existingItem.inventoryStockId) {
-          // Update inventory quantity based on the difference
-          const [updatedInventory] = await tx
-            .update(inventoryTable)
+        // Process updates
+        const updatedItems = [];
+        for (const {
+          existing: existingItem,
+          new: newProduct,
+          existingInventory,
+        } of itemsToUpdate) {
+          // Update the sale item
+          const [updatedItem] = await tx
+            .update(saleItemsTable)
             .set({
-              quantity: sql`${inventoryTable.quantity} - ${quantityDifference}`,
+              quantity: newProduct.quantity,
+              unitPrice: newProduct.unitPrice,
+              totalPrice: newProduct.totalPrice,
+              subTotal: newProduct.subTotal,
+              taxAmount: newProduct.taxAmount,
+              discountAmount: newProduct.discountAmount,
+              discountRate: newProduct.discountRate,
+              taxRate: newProduct.taxRate,
+              taxRateId: newProduct.taxRateId,
+              productName: newProduct.productName,
+              productID: newProduct.productID,
             })
-            .where(eq(inventoryTable.id, existingItem.inventoryStockId))
+            .where(eq(saleItemsTable.id, existingItem.id))
             .returning();
 
-          // Log the inventory transaction
-          await tx.insert(inventoryTransactionsTable).values({
-            inventoryId: existingItem.inventoryStockId,
-            productId: product.productId,
-            storeId: updatedSale.storeId,
-            userId: userId,
-            transactionType: quantityDifference > 0 ? "sale" : "sale_reversal",
-            quantityBefore: updatedInventory.quantity + quantityDifference,
-            quantityAfter: updatedInventory.quantity,
-            transactionDate: new Date(),
-            notes: `Stock updated from sale edit - quantity changed`,
-          });
+          // Handle inventory changes
+          const oldQuantity = existingItem.quantity;
+          const newQuantity = newProduct.quantity;
+          const quantityDifference = newQuantity - oldQuantity;
 
-          // Update product total quantity
+          // Delete existing sale item inventory records
+          for (const invRecord of existingInventory) {
+            if (invRecord.inventoryStockId) {
+              // Reverse the old inventory transaction
+              const [currentInventory] = await tx
+                .select()
+                .from(inventoryTable)
+                .where(eq(inventoryTable.id, invRecord.inventoryStockId));
+
+              if (currentInventory) {
+                const [updatedInventory] = await tx
+                  .update(inventoryTable)
+                  .set({
+                    quantity: sql`${inventoryTable.quantity} + ${invRecord.quantityToTake}`,
+                  })
+                  .where(eq(inventoryTable.id, invRecord.inventoryStockId))
+                  .returning();
+
+                // Log the reversal transaction
+                await tx.insert(inventoryTransactionsTable).values({
+                  inventoryId: invRecord.inventoryStockId,
+                  productId: newProduct.productId,
+                  storeId: updatedSale.storeId,
+                  userId: userId,
+                  transactionType: "sale_reversal",
+                  quantityBefore:
+                    updatedInventory.quantity - invRecord.quantityToTake,
+                  quantityAfter: updatedInventory.quantity,
+                  transactionDate: new Date(),
+                  referenceId: updatedSale.id,
+                  notes: `Stock restored from sale edit - before update`,
+                });
+              }
+            }
+
+            // Delete the old sale item inventory record
+            await tx
+              .delete(saleItemInventoryTable)
+              .where(eq(saleItemInventoryTable.id, invRecord.id));
+          }
+
+          // Create new sale item inventory records
+          if (!newProduct.inventory.inventoryStockId) {
+            // Create backorder inventory
+            const [newInventory] = await tx
+              .insert(inventoryTable)
+              .values({
+                productId: newProduct.productId,
+                storeId: updatedSale.storeId,
+                lotNumber: `BackOrder-${Date.now()}`,
+                quantity: 0,
+                costPrice: 0,
+                sellingPrice: newProduct.unitPrice,
+                manufactureDate: null,
+                expiryDate: null,
+                receivedDate: new Date(),
+              })
+              .returning();
+
+            // Log initial inventory transaction
+            await tx.insert(inventoryTransactionsTable).values({
+              inventoryId: newInventory.id,
+              productId: newProduct.productId,
+              storeId: updatedSale.storeId,
+              userId: userId,
+              transactionType: "sale",
+              quantityBefore: 0,
+              quantityAfter: 0,
+              transactionDate: new Date(),
+              referenceId: updatedSale.id,
+              notes: `Backorder stock created from sale edit`,
+            });
+
+            // Create sale item inventory record
+            await tx.insert(saleItemInventoryTable).values({
+              saleItemId: updatedItem.id,
+              inventoryStockId: newInventory.id,
+              lotNumber: newInventory.lotNumber,
+              quantityToTake: newProduct.inventory.quantityToTake,
+            });
+
+            // Update inventory to reflect negative quantity (backorder)
+            await tx
+              .update(inventoryTable)
+              .set({
+                quantity: -newProduct.inventory.quantityToTake,
+              })
+              .where(eq(inventoryTable.id, newInventory.id));
+
+            // Log the backorder transaction
+            await tx.insert(inventoryTransactionsTable).values({
+              inventoryId: newInventory.id,
+              productId: newProduct.productId,
+              storeId: updatedSale.storeId,
+              userId: userId,
+              transactionType: "sale",
+              quantityBefore: 0,
+              quantityAfter: -newProduct.inventory.quantityToTake,
+              transactionDate: new Date(),
+              referenceId: updatedSale.id,
+              notes: `Backorder quantity updated from sale edit`,
+            });
+          } else {
+            // Handle existing inventory stock
+            // Create sale item inventory record
+            await tx.insert(saleItemInventoryTable).values({
+              saleItemId: updatedItem.id,
+              inventoryStockId: newProduct.inventory.inventoryStockId,
+              lotNumber: newProduct.inventory.lotNumber,
+              quantityToTake: newProduct.inventory.quantityToTake,
+            });
+
+            // Update inventory quantity
+            const [updatedInventory] = await tx
+              .update(inventoryTable)
+              .set({
+                quantity: sql`${inventoryTable.quantity} - ${newProduct.inventory.quantityToTake}`,
+              })
+              .where(
+                eq(inventoryTable.id, newProduct.inventory.inventoryStockId)
+              )
+              .returning();
+
+            // Log the inventory transaction
+            await tx.insert(inventoryTransactionsTable).values({
+              inventoryId: newProduct.inventory.inventoryStockId,
+              productId: newProduct.productId,
+              storeId: updatedSale.storeId,
+              userId: userId,
+              transactionType: "sale",
+              quantityBefore:
+                updatedInventory.quantity + newProduct.inventory.quantityToTake,
+              quantityAfter: updatedInventory.quantity,
+              transactionDate: new Date(),
+              referenceId: updatedSale.id,
+              notes: `Stock reduced for sale edit - item updated`,
+            });
+          }
+
+          // Update product total quantity with the difference
           await tx
             .update(productsTable)
             .set({
               quantity: sql`${productsTable.quantity} - ${quantityDifference}`,
             })
-            .where(eq(productsTable.id, product.productId));
+            .where(eq(productsTable.id, newProduct.productId));
+
+          updatedItems.push(updatedItem);
         }
 
-        // Update existing item
-        const [updatedItem] = await tx
-          .update(saleItemsTable)
-          .set({
-            lotNumber: product.lotNumber,
-            inventoryStockId: product.inventoryStockId,
-            quantity: product.quantity,
-            unitPrice: product.unitPrice,
-            totalPrice: product.totalPrice,
-            subTotal: product.subTotal,
-            taxAmount: product.taxAmount,
-            discountAmount: product.discountAmount,
-            discountRate: product.discountRate,
-            taxRate: product.taxRate,
-            taxRateId: product.taxRateId,
-          })
-          .where(eq(saleItemsTable.id, existingItem.id))
-          .returning();
-
-        updatedItems.push(updatedItem);
-      }
-
-      // Process new items
-      const createdItems = [];
-      for (const product of itemsToCreate) {
-        let newItem;
-
-        if (!product.inventoryStockId || product.inventoryStockId === "") {
-          // Create backorder inventory for products without stock
-          const [newInventory] = await tx
-            .insert(inventoryTable)
-            .values({
-              productId: product.productId,
-              storeId: updatedSale.storeId,
-              lotNumber: `BackOrder-${Date.now()}`,
-              quantity: 0,
-              costPrice: 0,
-              sellingPrice: product.unitPrice,
-              manufactureDate: null,
-              expiryDate: null,
-              receivedDate: new Date(),
-            })
-            .returning();
-
-          // Log initial inventory transaction
-          await tx.insert(inventoryTransactionsTable).values({
-            inventoryId: newInventory.id,
-            productId: product.productId,
-            storeId: updatedSale.storeId,
-            userId: userId,
-            transactionType: "sale",
-            quantityBefore: 0,
-            quantityAfter: 0,
-            transactionDate: new Date(),
-            notes: `Backorder stock created from sale edit`,
-          });
-
+        // Process new items
+        const createdItems = [];
+        for (const product of itemsToCreate) {
           // Create sale item
-          const [createdItem] = await tx
+          const [saleItem] = await tx
             .insert(saleItemsTable)
             .values({
               saleId: updatedSale.id,
               storeId: updatedSale.storeId,
-              lotNumber: newInventory.lotNumber,
+              productId: product.productId,
+              quantity: product.quantity,
+              unitPrice: product.unitPrice,
+              totalPrice: product.totalPrice,
+              subTotal: product.subTotal,
+              taxAmount: product.taxAmount,
+              discountAmount: product.discountAmount,
+              discountRate: product.discountRate,
+              taxRate: product.taxRate,
+              taxRateId: product.taxRateId,
+              productName: product.productName,
+              productID: product.productID,
+            })
+            .returning();
+
+          // Handle inventory stock
+          if (!product.inventory.inventoryStockId) {
+            // Create backorder inventory
+            const [newInventory] = await tx
+              .insert(inventoryTable)
+              .values({
+                productId: product.productId,
+                storeId: updatedSale.storeId,
+                lotNumber: `BackOrder-${Date.now()}`,
+                quantity: 0,
+                costPrice: 0,
+                sellingPrice: product.unitPrice,
+                manufactureDate: null,
+                expiryDate: null,
+                receivedDate: new Date(),
+              })
+              .returning();
+
+            // Log initial inventory transaction
+            await tx.insert(inventoryTransactionsTable).values({
+              inventoryId: newInventory.id,
+              productId: product.productId,
+              storeId: updatedSale.storeId,
+              userId: userId,
+              transactionType: "sale",
+              quantityBefore: 0,
+              quantityAfter: 0,
+              transactionDate: new Date(),
+              referenceId: updatedSale.id,
+              notes: `Backorder stock created from sale edit - new item`,
+            });
+
+            // Create sale item inventory record
+            await tx.insert(saleItemInventoryTable).values({
+              saleItemId: saleItem.id,
               inventoryStockId: newInventory.id,
+              lotNumber: newInventory.lotNumber,
+              quantityToTake: product.inventory.quantityToTake,
+            });
+
+            // Update inventory to reflect negative quantity (backorder)
+            await tx
+              .update(inventoryTable)
+              .set({
+                quantity: -product.inventory.quantityToTake,
+              })
+              .where(eq(inventoryTable.id, newInventory.id));
+
+            // Log the backorder transaction
+            await tx.insert(inventoryTransactionsTable).values({
+              inventoryId: newInventory.id,
               productId: product.productId,
-              quantity: product.quantity,
-              unitPrice: product.unitPrice,
-              totalPrice: product.totalPrice,
-              subTotal: product.subTotal,
-              taxAmount: product.taxAmount,
-              discountAmount: product.discountAmount,
-              discountRate: product.discountRate,
-              taxRate: product.taxRate,
-              taxRateId: product.taxRateId,
-              productName: product.productName,
-              productID: product.productID,
-            })
-            .returning();
-
-          newItem = createdItem;
-
-          // Update inventory to reflect negative quantity (backorder)
-          await tx
-            .update(inventoryTable)
-            .set({
-              quantity: -product.quantity,
-            })
-            .where(eq(inventoryTable.id, newInventory.id));
-
-          // Log the inventory transaction
-          await tx.insert(inventoryTransactionsTable).values({
-            inventoryId: newInventory.id,
-            productId: product.productId,
-            storeId: updatedSale.storeId,
-            userId: userId,
-            transactionType: "sale",
-            quantityBefore: 0,
-            quantityAfter: -product.quantity,
-            transactionDate: new Date(),
-            notes: `Backorder quantity updated from sale edit`,
-          });
-
-          // Update product total quantity
-          await tx
-            .update(productsTable)
-            .set({
-              quantity: sql`${productsTable.quantity} - ${product.quantity}`,
-            })
-            .where(eq(productsTable.id, product.productId));
-        } else {
-          // Handle existing inventory stock
-          const [createdItem] = await tx
-            .insert(saleItemsTable)
-            .values({
-              saleId: updatedSale.id,
               storeId: updatedSale.storeId,
-              lotNumber: product.lotNumber,
-              inventoryStockId: product.inventoryStockId,
+              userId: userId,
+              transactionType: "sale",
+              quantityBefore: 0,
+              quantityAfter: -product.inventory.quantityToTake,
+              transactionDate: new Date(),
+              referenceId: updatedSale.id,
+              notes: `Backorder quantity updated from sale edit - new item`,
+            });
+          } else {
+            // Handle existing inventory stock
+            // Create sale item inventory record
+            await tx.insert(saleItemInventoryTable).values({
+              saleItemId: saleItem.id,
+              inventoryStockId: product.inventory.inventoryStockId,
+              lotNumber: product.inventory.lotNumber,
+              quantityToTake: product.inventory.quantityToTake,
+            });
+
+            // Update inventory quantity
+            const [updatedInventory] = await tx
+              .update(inventoryTable)
+              .set({
+                quantity: sql`${inventoryTable.quantity} - ${product.inventory.quantityToTake}`,
+              })
+              .where(eq(inventoryTable.id, product.inventory.inventoryStockId))
+              .returning();
+
+            // Log the inventory transaction
+            await tx.insert(inventoryTransactionsTable).values({
+              inventoryId: product.inventory.inventoryStockId,
               productId: product.productId,
-              quantity: product.quantity,
-              unitPrice: product.unitPrice,
-              totalPrice: product.totalPrice,
-              subTotal: product.subTotal,
-              taxAmount: product.taxAmount,
-              discountAmount: product.discountAmount,
-              discountRate: product.discountRate,
-              taxRate: product.taxRate,
-              taxRateId: product.taxRateId,
-              productName: product.productName,
-              productID: product.productID,
-            })
-            .returning();
-
-          newItem = createdItem;
-
-          // Update inventory quantity
-          const [updatedInventory] = await tx
-            .update(inventoryTable)
-            .set({
-              quantity: sql`${inventoryTable.quantity} - ${product.quantity}`,
-            })
-            .where(eq(inventoryTable.id, product.inventoryStockId))
-            .returning();
-
-          // Log the inventory transaction
-          await tx.insert(inventoryTransactionsTable).values({
-            inventoryId: product.inventoryStockId,
-            productId: product.productId,
-            storeId: updatedSale.storeId,
-            userId: userId,
-            transactionType: "sale",
-            quantityBefore: updatedInventory.quantity + product.quantity,
-            quantityAfter: updatedInventory.quantity,
-            transactionDate: new Date(),
-            notes: `Stock reduced for sale edit - new item`,
-          });
+              storeId: updatedSale.storeId,
+              userId: userId,
+              transactionType: "sale",
+              quantityBefore:
+                updatedInventory.quantity + product.inventory.quantityToTake,
+              quantityAfter: updatedInventory.quantity,
+              transactionDate: new Date(),
+              referenceId: updatedSale.id,
+              notes: `Stock reduced for sale edit - new item`,
+            });
+          }
 
           // Update product total quantity
           await tx
@@ -662,15 +770,29 @@ export const editSale = async (
               quantity: sql`${productsTable.quantity} - ${product.quantity}`,
             })
             .where(eq(productsTable.id, product.productId));
+
+          createdItems.push(saleItem);
         }
 
-        createdItems.push(newItem);
-      }
+        // Mark quotation as converted to sale if creating from quotation
+        if (sale.quotationId) {
+          await tx
+            .update(quotationsTable)
+            .set({
+              convertedToSale: true,
+              status: QuotationStatus.Completed,
+            })
+            .where(eq(quotationsTable.id, sale.quotationId));
+        }
 
-      return {
-        sale: updatedSale,
-        items: [...updatedItems, ...createdItems],
-      };
+        return {
+          sale: updatedSale,
+          items: [...updatedItems, ...createdItems],
+        };
+      } catch (error) {
+        console.error("Transaction error:", error);
+        throw error;
+      }
     });
 
     revalidatePath("/sales");
@@ -714,12 +836,43 @@ export const getSaleById = async (saleId: string) => {
           )
         );
 
+      // Get all inventory records for these sale items
+      const saleItemIds = items.map((item) => item.id);
+      const inventoryRecords =
+        saleItemIds.length > 0
+          ? await tx
+              .select({
+                saleItemInventory: saleItemInventoryTable,
+                inventory: inventoryTable,
+              })
+              .from(saleItemInventoryTable)
+              .leftJoin(
+                inventoryTable,
+                eq(saleItemInventoryTable.inventoryStockId, inventoryTable.id)
+              )
+              .where(inArray(saleItemInventoryTable.saleItemId, saleItemIds))
+          : [];
+
+      // Create a map of sale item ID to its inventory records
+      const inventoryMap = new Map();
+      inventoryRecords.forEach((record) => {
+        const saleItemId = record.saleItemInventory.saleItemId;
+        if (!inventoryMap.has(saleItemId)) {
+          inventoryMap.set(saleItemId, []);
+        }
+        inventoryMap.get(saleItemId).push({
+          inventoryStockId: record.saleItemInventory.inventoryStockId,
+          lotNumber: record.saleItemInventory.lotNumber,
+          quantityToTake: record.saleItemInventory.quantityToTake,
+          inventory: record.inventory,
+        });
+      });
+
       const saleWithItems = {
         ...sale,
         products: items.map((item) => ({
           id: item.id,
-          lotNumber: item.lotNumber,
-          inventoryStockId: item.inventoryStockId,
+          inventoryStock: inventoryMap.get(item.id) || [],
           productId: item.productId,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
@@ -821,22 +974,57 @@ export const getSales = async (
       salesQuery = salesQuery.orderBy(desc(salesTable.createdAt));
 
       if (!getAllSales) {
-        salesQuery.limit(limit).offset(page * limit);
+        salesQuery = salesQuery.limit(limit).offset(page * limit);
       }
 
       const sales = await salesQuery;
 
       // Get all items for these sales in a single query
       const saleIds = sales.map((s) => s.sale.id);
-      const items = await tx
-        .select()
-        .from(saleItemsTable)
-        .where(
-          and(
-            inArray(saleItemsTable.saleId, saleIds),
-            eq(saleItemsTable.isActive, true)
-          )
-        );
+      const items =
+        saleIds.length > 0
+          ? await tx
+              .select()
+              .from(saleItemsTable)
+              .where(
+                and(
+                  inArray(saleItemsTable.saleId, saleIds),
+                  eq(saleItemsTable.isActive, true)
+                )
+              )
+          : [];
+
+      // Get all inventory records for these sale items
+      const saleItemIds = items.map((item) => item.id);
+      const inventoryRecords =
+        saleItemIds.length > 0
+          ? await tx
+              .select({
+                saleItemInventory: saleItemInventoryTable,
+                inventory: inventoryTable,
+              })
+              .from(saleItemInventoryTable)
+              .leftJoin(
+                inventoryTable,
+                eq(saleItemInventoryTable.inventoryStockId, inventoryTable.id)
+              )
+              .where(inArray(saleItemInventoryTable.saleItemId, saleItemIds))
+          : [];
+
+      // Create a map of sale item ID to its inventory records
+      const inventoryMap = new Map();
+      inventoryRecords.forEach((record) => {
+        const saleItemId = record.saleItemInventory.saleItemId;
+        if (!inventoryMap.has(saleItemId)) {
+          inventoryMap.set(saleItemId, []);
+        }
+        inventoryMap.get(saleItemId).push({
+          inventoryStockId: record.saleItemInventory.inventoryStockId,
+          lotNumber: record.saleItemInventory.lotNumber,
+          quantityToTake: record.saleItemInventory.quantityToTake,
+          inventory: record.inventory,
+        });
+      });
 
       // Combine the data
       const salesWithItems = sales.map((sale) => ({
@@ -845,8 +1033,7 @@ export const getSales = async (
           .filter((item) => item.saleId === sale.sale.id)
           .map((item) => ({
             id: item.id,
-            lotNumber: item.lotNumber,
-            inventoryStockId: item.inventoryStockId,
+            inventoryStock: inventoryMap.get(item.id) || [],
             productId: item.productId,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
@@ -870,6 +1057,7 @@ export const getSales = async (
         : await tx
             .select({ count: sql<number>`count(*)` })
             .from(salesTable)
+            .where(and(...conditions))
             .then((res) => res[0]?.count || 0);
 
       return {
@@ -953,10 +1141,16 @@ export const deleteSale = async (saleId: string) => {
 export const softDeleteSale = async (saleId: string) => {
   try {
     const result = await db.transaction(async (tx) => {
-      await tx
+      const [updatedSaleItem] = await tx
         .update(saleItemsTable)
         .set({ isActive: false })
-        .where(eq(saleItemsTable.saleId, saleId));
+        .where(eq(saleItemsTable.saleId, saleId))
+        .returning();
+
+      await tx
+        .update(saleItemInventoryTable)
+        .set({ isActive: false })
+        .where(eq(saleItemInventoryTable.saleItemId, updatedSaleItem.id));
 
       const [updatedSale] = await tx
         .update(salesTable)

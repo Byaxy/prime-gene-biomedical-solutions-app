@@ -291,12 +291,11 @@ export interface Sale {
 }
 export interface SaleItem {
   id: string;
-  inventoryStockId: string;
   saleId: string;
   productId: string;
   storeId: string;
+  inventoryStock: SelectedInventoryStock[];
   taxRateId: string;
-  lotNumber: string;
   quantity: number;
   unitPrice: number;
   totalPrice: number;
@@ -307,6 +306,12 @@ export interface SaleItem {
   discountAmount: number;
   productName: string;
   productID: string;
+}
+
+export interface SelectedInventoryStock {
+  inventoryStockId: string;
+  lotNumber: string;
+  quantityToTake: number;
 }
 export interface SaleWithRelations {
   sale: Sale;

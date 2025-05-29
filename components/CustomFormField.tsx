@@ -253,7 +253,7 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
               checked={field.value}
               onCheckedChange={field.onChange}
               disabled={props.disabled}
-              className="custom-switch border data-[state=checked]:bg-blue-800 data-[state=checked]:border-blue-800 data-[state=unchecked]:bg-white data-[state=unchecked]:border-blue-800"
+              className="custom-switch shad-switch"
             />
             <label htmlFor={props.name} className="switch-label">
               {props.label}

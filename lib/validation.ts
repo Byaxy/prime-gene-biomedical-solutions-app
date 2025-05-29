@@ -232,10 +232,18 @@ export const SaleFormValidation = z
     products: z
       .array(
         z.object({
-          inventoryStockId: z.string().optional(),
-          lotNumber: z.string().optional(),
+          inventoryStock: z
+            .array(
+              z.object({
+                inventoryStockId: z.string().default(""),
+                lotNumber: z.string().default(""),
+                quantityToTake: z
+                  .number()
+                  .min(1, "Quantity must be at least 1"),
+              })
+            )
+            .min(1, "At least one stock allocation is required"),
           productId: z.string().nonempty("Product is required"),
-          availableQuantity: z.number().int().optional(),
           quantity: z.number().int().min(1, "Quantity must be 1 or more"),
           unitPrice: z.number().min(0, "Unit price must be 0 or more"),
           totalPrice: z.number().min(0, "Total price must be 0 or more"),
@@ -301,8 +309,103 @@ export const SaleFormValidation = z
         });
       }
     }
+
+    // Validate that the every product inventoryStock total quantity is equal to the requested quantity
+    if (data.products.length > 0) {
+      data.products.forEach((product, index) => {
+        const totalInventoryStockQuantity = (
+          product.inventoryStock ?? []
+        ).reduce((total, stock) => total + (stock.quantityToTake || 0), 0);
+
+        if (totalInventoryStockQuantity !== product.quantity) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Total allocated quantity must match requested quantity",
+            path: ["products", index, "inventoryStock"],
+          });
+        }
+      });
+    }
   });
 export type SaleFormValues = z.infer<typeof SaleFormValidation>;
+
+export const InventoryStockAllocationValidation = z
+  .object({
+    inventoryStock: z
+      .array(
+        z.object({
+          inventoryStockId: z.string().min(1, "Stock ID is required"),
+          lotNumber: z.string().default(""),
+          quantityToTake: z.number().min(1, "Quantity must be at least 1"),
+        })
+      )
+      .min(1, "At least one stock allocation is required")
+      .superRefine((items, ctx) => {
+        // Check for duplicate inventory stock IDs (excluding backorders)
+        const stockIds = items
+          .filter((item) => item.inventoryStockId !== "BACKORDER")
+          .map((item) => item.inventoryStockId);
+
+        const duplicates = stockIds.filter(
+          (id, index) => stockIds.indexOf(id) !== index
+        );
+
+        if (duplicates.length > 0) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Duplicate stock allocations are not allowed",
+            path: [],
+          });
+        }
+      }),
+    includeBackorder: z.boolean().default(true),
+    searchQuery: z.string().default(""),
+    // Additional validation fields for business logic
+    requiredQuantity: z
+      .number()
+      .min(1, "Required quantity must be at least 1")
+      .optional(),
+    totalAvailable: z
+      .number()
+      .min(0, "Total available must be 0 or more")
+      .optional(),
+  })
+  .superRefine((data, ctx) => {
+    // Validate total allocation doesn't exceed required quantity
+    if (data.requiredQuantity) {
+      const totalAllocated = data.inventoryStock.reduce(
+        (sum, item) => sum + item.quantityToTake,
+        0
+      );
+
+      if (totalAllocated > data.requiredQuantity) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Total allocation (${totalAllocated}) exceeds required quantity (${data.requiredQuantity})`,
+          path: ["inventoryStock"],
+        });
+      }
+
+      // Warn if allocation is less than required and no backorder
+      if (totalAllocated < data.requiredQuantity && !data.includeBackorder) {
+        const hasBackorder = data.inventoryStock.some(
+          (item) => item.inventoryStockId === "BACKORDER"
+        );
+
+        if (!hasBackorder) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Allocation (${totalAllocated}) is less than required (${data.requiredQuantity}). Enable backorder or increase allocation.`,
+            path: ["inventoryStock"],
+          });
+        }
+      }
+    }
+  });
+
+export type InventoryStockAllocationFormValues = z.infer<
+  typeof InventoryStockAllocationValidation
+>;
 
 // Update Password
 export const UpdatePasswordFormValidation = z

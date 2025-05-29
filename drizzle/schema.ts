@@ -9,6 +9,7 @@ import {
   PgColumn,
   pgEnum,
   jsonb,
+  unique,
 } from "drizzle-orm/pg-core";
 import { customType } from "drizzle-orm/pg-core";
 
@@ -582,10 +583,6 @@ export const saleItemsTable = pgTable("sale_items", {
   id: uuid("id")
     .primaryKey()
     .default(sql`gen_random_uuid()`),
-  inventoryStockId: uuid("inventory_stock_id").references(
-    () => inventoryTable.id,
-    { onDelete: "cascade" }
-  ), // Foreign key to inventory stocks
   saleId: uuid("sale_id")
     .notNull()
     .references(() => salesTable.id, { onDelete: "cascade" }), // Foreign key to sales
@@ -598,7 +595,6 @@ export const saleItemsTable = pgTable("sale_items", {
   taxRateId: uuid("tax_id")
     .notNull()
     .references(() => taxRatesTable.id, { onDelete: "set null" }), // Foreign key to customers
-  lotNumber: text("lot_number"),
   quantity: integer("quantity").notNull(),
   unitPrice: numeric("unit_price").notNull(),
   totalPrice: numeric("total_price").notNull(),
@@ -613,6 +609,34 @@ export const saleItemsTable = pgTable("sale_items", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+// Junction table for sale items and inventory stock
+export const saleItemInventoryTable = pgTable(
+  "sale_item_inventory",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    saleItemId: uuid("sale_item_id")
+      .notNull()
+      .references(() => saleItemsTable.id, { onDelete: "cascade" }),
+    inventoryStockId: uuid("inventory_stock_id")
+      .notNull()
+      .references(() => inventoryTable.id, { onDelete: "cascade" }),
+    lotNumber: text("lot_number").notNull(),
+    quantityToTake: integer("quantity_to_take").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    // Composite unique constraint
+    saleItemInventoryUnique: unique().on(
+      table.saleItemId,
+      table.inventoryStockId
+    ),
+  })
+);
 
 // Deliveries Table
 export const deliveriesTable = pgTable("deliveries", {
