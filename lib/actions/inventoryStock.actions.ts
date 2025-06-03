@@ -1,19 +1,147 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use server";
 
 import { revalidatePath } from "next/cache";
 import { parseStringify } from "../utils";
 import { db } from "@/drizzle/db";
 import {
+  backorderFulfillmentsTable,
+  backordersTable,
   inventoryTable,
   inventoryTransactionsTable,
   productsTable,
+  saleItemInventoryTable,
+  saleItemsTable,
   storesTable,
   usersTable,
 } from "@/drizzle/schema";
-import { eq, and, desc, sql, gte, lte, asc, ne } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lte, asc, gt } from "drizzle-orm";
 import { ExistingStockAdjustmentFormValues } from "../validation";
 import { ExtendedStockAdjustmentFormValues } from "@/components/forms/NewStockForm";
 import { InventoryStockFilters } from "@/hooks/useInventoryStock";
+import { InventoryStock } from "@/types";
+
+// fulfill Backorders
+const fulfillBackorders = async (
+  productId: string,
+  storeId: string,
+  newInventoryId: string,
+  userId: string,
+  tx: any
+) => {
+  try {
+    const pendingBackorders = await tx
+      .select()
+      .from(backordersTable)
+      .where(
+        and(
+          eq(backordersTable.productId, productId),
+          eq(backordersTable.storeId, storeId),
+          eq(backordersTable.isActive, true),
+          gt(backordersTable.pendingQuantity, 0)
+        )
+      )
+      .orderBy(asc(backordersTable.createdAt));
+
+    if (pendingBackorders.length === 0) {
+      throw new Error("No pending backorders found");
+    }
+
+    const newInventory: InventoryStock = await tx
+      .select()
+      .from(inventoryTable)
+      .where(eq(inventoryTable.id, newInventoryId))
+      .then((res: InventoryStock[]) => res[0]);
+
+    if (!newInventory) {
+      throw new Error("New inventory not found");
+    }
+
+    let remainingQty = newInventory.quantity;
+
+    for (const backorder of pendingBackorders) {
+      if (remainingQty <= 0) {
+        throw new Error("No remaining quantity to fulfill backorders");
+      }
+
+      const fulfillQty = Math.min(remainingQty, backorder.pendingQuantity);
+
+      // Create fulfillment record
+      await tx.insert(backorderFulfillmentsTable).values({
+        backorderId: backorder.id,
+        inventoryId: newInventoryId,
+        fulfilledQuantity: fulfillQty,
+      });
+
+      // Update sale item with actual inventory
+      await tx.insert(saleItemInventoryTable).values({
+        saleItemId: backorder.saleItemId,
+        inventoryStockId: newInventoryId,
+        lotNumber: newInventory.lotNumber,
+        quantityToTake: fulfillQty,
+      });
+
+      // Update backorder status
+      const newPending = backorder.pendingQuantity - fulfillQty;
+      if (newPending > 0) {
+        await tx
+          .update(backordersTable)
+          .set({
+            pendingQuantity: newPending,
+          })
+          .where(eq(backordersTable.id, backorder.id));
+
+        await tx
+          .update(saleItemsTable)
+          .set({
+            backorderQuantity: sql`${saleItemsTable.backorderQuantity} - ${fulfillQty}`,
+          })
+          .where(eq(saleItemsTable.id, backorder.saleItemId));
+      } else {
+        await tx
+          .update(saleItemsTable)
+          .set({
+            backorderQuantity: 0,
+            hasBackorder: false,
+          })
+          .where(eq(saleItemsTable.id, backorder.saleItemId));
+
+        await tx
+          .update(backordersTable)
+          .set({
+            isActive: false,
+          })
+          .where(eq(backordersTable.id, backorder.id));
+      }
+
+      // Update inventory quantity
+      remainingQty -= fulfillQty;
+      await tx
+        .update(inventoryTable)
+        .set({
+          quantity: remainingQty,
+        })
+        .where(eq(inventoryTable.id, newInventoryId));
+
+      // Log transaction for backorder fulfillment
+      await tx.insert(inventoryTransactionsTable).values({
+        inventoryId: newInventoryId,
+        productId: productId,
+        storeId: storeId,
+        userId: userId,
+        transactionType: "backorder_fulfillment",
+        quantityBefore: newInventory.quantity,
+        quantityAfter: remainingQty,
+        transactionDate: new Date(),
+        referenceId: backorder.saleItemId,
+        notes: `Fulfilled backorder for sale item ${backorder.saleItemId}`,
+      });
+    }
+  } catch (error) {
+    console.error("Error in fulfillBackorders:", error);
+    throw error;
+  }
+};
 
 // Add new inventory stock
 export const addInventoryStock = async (
@@ -46,7 +174,7 @@ export const addInventoryStock = async (
 
         if (existingInventory) {
           // Update existing inventory
-          const updatedInventory = await tx
+          const [updatedInventory] = await tx
             .update(inventoryTable)
             .set({
               quantity: existingInventory.quantity + product.quantity,
@@ -59,7 +187,7 @@ export const addInventoryStock = async (
             .where(eq(inventoryTable.id, existingInventory.id))
             .returning();
 
-          inventoryItems.push(updatedInventory[0]);
+          inventoryItems.push(updatedInventory);
 
           // Log transaction (update)
           const transaction = await tx
@@ -79,20 +207,15 @@ export const addInventoryStock = async (
 
           transactions.push(transaction[0]);
 
-          // Get the product
-          const currentProduct = await tx
-            .select()
-            .from(productsTable)
-            .where(eq(productsTable.id, product.productId))
-            .then((res) => res[0]);
-
           await tx
             .update(productsTable)
-            .set({ quantity: currentProduct.quantity + product.quantity })
+            .set({
+              quantity: sql`${productsTable.quantity} + ${product.quantity}`,
+            })
             .where(eq(productsTable.id, product.productId));
         } else {
           // Create new inventory record
-          const newInventory = await tx
+          const [newInventory] = await tx
             .insert(inventoryTable)
             .values({
               productId: product.productId,
@@ -107,13 +230,13 @@ export const addInventoryStock = async (
             })
             .returning();
 
-          inventoryItems.push(newInventory[0]);
+          inventoryItems.push(newInventory);
 
           // Log transaction (new)
           const transaction = await tx
             .insert(inventoryTransactionsTable)
             .values({
-              inventoryId: newInventory[0].id,
+              inventoryId: newInventory.id,
               productId: product.productId,
               storeId,
               userId: userId,
@@ -127,17 +250,21 @@ export const addInventoryStock = async (
 
           transactions.push(transaction[0]);
 
-          // Get the product
-          const currentProduct = await tx
-            .select()
-            .from(productsTable)
-            .where(eq(productsTable.id, product.productId))
-            .then((res) => res[0]);
-
           await tx
             .update(productsTable)
-            .set({ quantity: currentProduct.quantity + product.quantity })
+            .set({
+              quantity: sql`${productsTable.quantity} + ${product.quantity}`,
+            })
             .where(eq(productsTable.id, product.productId));
+
+          // Fulfill Backorders for new inventory
+          await fulfillBackorders(
+            newInventory.productId,
+            newInventory.storeId,
+            newInventory.id,
+            userId,
+            tx
+          );
         }
       }
 
@@ -302,7 +429,7 @@ export const getInventoryStock = async (
     // Create conditions array
     const conditions = [
       eq(inventoryTable.isActive, true),
-      ne(inventoryTable.quantity, 0),
+      gt(inventoryTable.quantity, 0),
     ];
 
     // Apply filters if provided
@@ -384,13 +511,81 @@ export const getInventoryStock = async (
 
     const inventoryStock = await query;
 
-    // For getAllInventoryStock, fetch all in batches
+    // For getAllInventoryStock
     if (getAllInventoryStock) {
       let allInventoryStock: typeof inventoryStock = [];
       let offset = 0;
       const batchSize = 100;
 
       while (true) {
+        const batchConditions = [
+          eq(inventoryTable.isActive, true),
+          gt(inventoryTable.quantity, 0),
+        ];
+
+        // Apply the same filters to batch query
+        if (filters) {
+          if (filters.quantity_min !== undefined) {
+            batchConditions.push(
+              gte(inventoryTable.quantity, filters.quantity_min)
+            );
+          }
+          if (filters.quantity_max !== undefined) {
+            batchConditions.push(
+              lte(inventoryTable.quantity, filters.quantity_max)
+            );
+          }
+          if (filters.costPrice_min !== undefined) {
+            batchConditions.push(
+              gte(inventoryTable.costPrice, filters.costPrice_min)
+            );
+          }
+          if (filters.costPrice_max !== undefined) {
+            batchConditions.push(
+              lte(inventoryTable.costPrice, filters.costPrice_max)
+            );
+          }
+          if (filters.sellingPrice_min !== undefined) {
+            batchConditions.push(
+              gte(inventoryTable.sellingPrice, filters.sellingPrice_min)
+            );
+          }
+          if (filters.sellingPrice_max !== undefined) {
+            batchConditions.push(
+              lte(inventoryTable.sellingPrice, filters.sellingPrice_max)
+            );
+          }
+          if (filters.expiryDate_start) {
+            batchConditions.push(
+              gte(inventoryTable.expiryDate, new Date(filters.expiryDate_start))
+            );
+          }
+          if (filters.expiryDate_end) {
+            batchConditions.push(
+              lte(inventoryTable.expiryDate, new Date(filters.expiryDate_end))
+            );
+          }
+          if (filters.manufactureDate_start) {
+            batchConditions.push(
+              gte(
+                inventoryTable.manufactureDate,
+                new Date(filters.manufactureDate_start)
+              )
+            );
+          }
+          if (filters.manufactureDate_end) {
+            batchConditions.push(
+              lte(
+                inventoryTable.manufactureDate,
+                new Date(filters.manufactureDate_end)
+              )
+            );
+          }
+          if (filters.store) {
+            batchConditions.push(eq(storesTable.id, filters.store));
+          }
+        }
+
         const batch = await db
           .select({
             inventory: inventoryTable,
@@ -403,7 +598,7 @@ export const getInventoryStock = async (
             eq(inventoryTable.productId, productsTable.id)
           )
           .leftJoin(storesTable, eq(inventoryTable.storeId, storesTable.id))
-          .where(eq(inventoryTable.isActive, true))
+          .where(and(...batchConditions))
           .orderBy(asc(inventoryTable.expiryDate))
           .limit(batchSize)
           .offset(offset);
@@ -424,7 +619,9 @@ export const getInventoryStock = async (
     const total = await db
       .select({ count: sql<number>`count(*)` })
       .from(inventoryTable)
-      .where(eq(inventoryTable.isActive, true))
+      .leftJoin(productsTable, eq(inventoryTable.productId, productsTable.id))
+      .leftJoin(storesTable, eq(inventoryTable.storeId, storesTable.id))
+      .where(and(...conditions))
       .then((res) => res[0]?.count || 0);
 
     return {
@@ -432,7 +629,7 @@ export const getInventoryStock = async (
       total,
     };
   } catch (error) {
-    console.error("Error getting expenses:", error);
+    console.error("Error getting inventory stock:", error);
     throw error;
   }
 };

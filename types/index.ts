@@ -295,6 +295,7 @@ export interface SaleItem {
   productId: string;
   storeId: string;
   inventoryStock: SelectedInventoryStock[];
+  backorders: SelectedBackorder[];
   taxRateId: string;
   quantity: number;
   unitPrice: number;
@@ -306,6 +307,8 @@ export interface SaleItem {
   discountAmount: number;
   productName: string;
   productID: string;
+  hasBackorder: boolean;
+  backorderQuantity: number;
 }
 
 export interface SelectedInventoryStock {
@@ -313,6 +316,17 @@ export interface SelectedInventoryStock {
   lotNumber: string;
   quantityToTake: number;
 }
+export interface SelectedBackorder {
+  id: string;
+  productId: string;
+  storeId: string;
+  saleItemId: string;
+  pendingQuantity: number;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface SaleWithRelations {
   sale: Sale;
   products: SaleItem[];

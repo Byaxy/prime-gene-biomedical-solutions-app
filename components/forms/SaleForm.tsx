@@ -275,7 +275,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
         form.reset({
           invoiceNumber: initialData.sale.invoiceNumber,
           saleDate: new Date(initialData.sale.saleDate || Date.now()),
-          products: initialData.products || [],
+          products: initialData?.products || [],
           customerId: initialData.sale.customerId,
           storeId: initialData?.sale.storeId || "",
           status: initialData.sale.status,
@@ -355,87 +355,13 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
 
         remove();
 
-        const insufficientStockWarnings: string[] = [];
-        const noInventoryWarnings: string[] = [];
-
         for (const quotationProduct of sourceQuotation.products) {
-          // Find and sort inventory stocks for this product in the selected store
-          const productStocks: InventoryStockWithRelations[] = inventoryStock
-            .filter(
-              (stock: InventoryStockWithRelations) =>
-                stock.store.id === firstStoreId &&
-                stock.product.id === quotationProduct.productId
-            )
-            .sort(
-              (
-                a: InventoryStockWithRelations,
-                b: InventoryStockWithRelations
-              ) => {
-                const aExpiry: number = a.inventory.expiryDate
-                  ? new Date(a.inventory.expiryDate).getTime()
-                  : Infinity;
-                const bExpiry: number = b.inventory.expiryDate
-                  ? new Date(b.inventory.expiryDate).getTime()
-                  : Infinity;
-                return aExpiry - bExpiry;
-              }
-            );
-
-          let remainingQuantity = quotationProduct.quantity;
-          const inventoryStocksForProduct: {
-            inventoryStockId: string;
-            lotNumber: string;
-            quantityToTake: number;
-          }[] = [];
-
-          // Process available inventory stocks
-          if (productStocks.length > 0) {
-            for (const stock of productStocks) {
-              if (remainingQuantity <= 0) break;
-              if (stock.inventory.quantity <= 0) continue;
-
-              const quantityToTake = Math.min(
-                stock.inventory.quantity,
-                remainingQuantity
-              );
-
-              inventoryStocksForProduct.push({
-                inventoryStockId: stock.inventory.id,
-                lotNumber: stock.inventory.lotNumber,
-                quantityToTake: quantityToTake,
-              });
-
-              remainingQuantity -= quantityToTake;
-            }
-
-            // Add backorder for remaining quantity
-            if (remainingQuantity > 0) {
-              inventoryStocksForProduct.push({
-                inventoryStockId: "",
-                lotNumber: "",
-                quantityToTake: remainingQuantity,
-              });
-              insufficientStockWarnings.push(
-                `${quotationProduct.productID} (${remainingQuantity} units)`
-              );
-            }
-          }
-          // No inventory found - full quantity as backorder
-          else {
-            inventoryStocksForProduct.push({
-              inventoryStockId: "",
-              lotNumber: "",
-              quantityToTake: quotationProduct.quantity,
-            });
-            noInventoryWarnings.push(
-              `${quotationProduct.productID} (${quotationProduct.quantity} units)`
-            );
-          }
-
           // Append single product entry
           append({
             productId: quotationProduct.productId,
-            inventoryStock: inventoryStocksForProduct,
+            inventoryStock: [],
+            hasBackorder: false,
+            backorderQuantity: 0,
             quantity: quotationProduct.quantity,
             unitPrice: quotationProduct.unitPrice,
             totalPrice: 0,
@@ -448,18 +374,6 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
             productID: quotationProduct.productID,
             productName: quotationProduct.productName,
           });
-        }
-
-        // Show consolidated warnings
-        if (insufficientStockWarnings.length > 0) {
-          toast.error(
-            `Insufficient stock for: ${insufficientStockWarnings.join(", ")}`
-          );
-        }
-        if (noInventoryWarnings.length > 0) {
-          toast.error(
-            `No inventory found for: ${noInventoryWarnings.join(", ")}`
-          );
         }
       };
 
@@ -570,7 +484,9 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
     append({
       productId: selectedProduct.product.id,
       inventoryStock: [],
-      quantity: 1,
+      hasBackorder: false,
+      backorderQuantity: 0,
+      quantity: 0,
       unitPrice: selectedProduct.product.sellingPrice,
       totalPrice: 0,
       subTotal: 0,
@@ -665,6 +581,8 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
     try {
       const values = form.getValues();
       if (!user) return;
+
+      console.log("Form values: ", values);
 
       if (fields.length === 0) {
         toast.error("At least one product is required");
@@ -826,7 +744,6 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
     },
     [calculateEntryTaxableAmount, calculateEntryTaxAmount]
   );
-
   // Calculate overall subtotal (sum of all entry taxable amounts)
   const calculateSubTotal = useCallback(() => {
     let total = 0;
@@ -1172,9 +1089,12 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                         onClick={() => setSelectedProductIndex(index)}
                         disabled={form.watch(`products.${index}.quantity`) <= 0}
                         type="button"
-                        className="bg-blue-100"
+                        className="bg-gray-200"
+                        title="Manage Lot Numbers / Inventory stock"
                       >
-                        Manage Lots
+                        {form.watch(`products.${index}.quantity`) <= 0
+                          ? "Add Qnty first"
+                          : "Manage Lots"}
                       </Button>
                       <InventoryStockSelectDialog
                         open={selectedProductIndex === index}
@@ -1189,10 +1109,24 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                           entry.productId
                         )}
                         selectedInventoryStock={entry.inventoryStock}
-                        onSave={(stock) => {
+                        hasBackorder={entry.hasBackorder}
+                        backorderQuantity={entry.backorderQuantity ?? 0}
+                        onSave={(
+                          stock,
+                          includeBackorder,
+                          backorderQuantity
+                        ) => {
                           form.setValue(
                             `products.${index}.inventoryStock`,
                             stock
+                          );
+                          form.setValue(
+                            `products.${index}.hasBackorder`,
+                            includeBackorder
+                          );
+                          form.setValue(
+                            `products.${index}.backorderQuantity`,
+                            backorderQuantity
                           );
                           form.trigger(`products.${index}.inventoryStock`);
                         }}

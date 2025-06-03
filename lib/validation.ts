@@ -232,17 +232,17 @@ export const SaleFormValidation = z
     products: z
       .array(
         z.object({
-          inventoryStock: z
-            .array(
-              z.object({
-                inventoryStockId: z.string().default(""),
-                lotNumber: z.string().default(""),
-                quantityToTake: z
-                  .number()
-                  .min(1, "Quantity must be at least 1"),
-              })
-            )
-            .min(1, "At least one stock allocation is required"),
+          inventoryStock: z.array(
+            z.object({
+              inventoryStockId: z
+                .string()
+                .nonempty("Inventory Stock is required"),
+              lotNumber: z.string().nonempty("Lot number is required"),
+              quantityToTake: z.number().min(1, "Quantity must be at least 1"),
+            })
+          ),
+          hasBackorder: z.boolean().default(false),
+          backorderQuantity: z.number().int().optional(),
           productId: z.string().nonempty("Product is required"),
           quantity: z.number().int().min(1, "Quantity must be 1 or more"),
           unitPrice: z.number().min(0, "Unit price must be 0 or more"),
@@ -317,10 +317,24 @@ export const SaleFormValidation = z
           product.inventoryStock ?? []
         ).reduce((total, stock) => total + (stock.quantityToTake || 0), 0);
 
-        if (totalInventoryStockQuantity !== product.quantity) {
+        if (
+          totalInventoryStockQuantity + (product.backorderQuantity ?? 0) !==
+          product.quantity
+        ) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             message: "Total allocated quantity must match requested quantity",
+            path: ["products", index, "inventoryStock"],
+          });
+        }
+        if (
+          product.hasBackorder &&
+          (product.backorderQuantity === undefined ||
+            product.backorderQuantity <= 0)
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Backorder quantity must be more than zero",
             path: ["products", index, "inventoryStock"],
           });
         }

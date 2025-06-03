@@ -78,11 +78,12 @@ export const quotationItemStatusEnum = pgEnum("quotation_item_status", [
 ]);
 
 export const inventoryTransactionTypeEnum = pgEnum("transaction_type", [
-  "purchase", // Items received from a vendor
-  "sale", // Items sold to a customer
-  "sale_reversal", // Reversal/edit of a sale
-  "transfer", // Items transferred between stores
-  "adjustment", // Manual adjustment to inventory
+  "purchase",
+  "sale",
+  "sale_reversal",
+  "transfer",
+  "adjustment",
+  "backorder_fulfillment",
 ]);
 
 export const promissoryNoteStatusEnum = pgEnum("promissory_note_status", [
@@ -605,6 +606,9 @@ export const saleItemsTable = pgTable("sale_items", {
   discountRate: numeric("discount_rate").default(0),
   productName: text("product_name"),
   productID: text("product_ID"),
+  hasBackorder: boolean("has_backorder").notNull().default(false),
+  backorderQuantity: integer("backorder_quantity").notNull().default(0),
+  fulfilledQuantity: integer("fulfilled_quantity").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -637,6 +641,47 @@ export const saleItemInventoryTable = pgTable(
     ),
   })
 );
+
+// Backorder tracking per product-store
+export const backordersTable = pgTable(
+  "backorders",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => productsTable.id, { onDelete: "cascade" }),
+    storeId: uuid("store_id")
+      .notNull()
+      .references(() => storesTable.id, { onDelete: "cascade" }),
+    saleItemId: uuid("sale_item_id")
+      .notNull()
+      .references(() => saleItemsTable.id, { onDelete: "cascade" }),
+    pendingQuantity: integer("pending_quantity").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    unq: unique().on(table.productId, table.storeId, table.saleItemId),
+  })
+);
+
+// Tracks fulfillment of backorders
+export const backorderFulfillmentsTable = pgTable("backorder_fulfillments", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  backorderId: uuid("backorder_id")
+    .notNull()
+    .references(() => backordersTable.id, { onDelete: "cascade" }),
+  inventoryId: uuid("inventory_id")
+    .notNull()
+    .references(() => inventoryTable.id, { onDelete: "cascade" }),
+  fulfilledQuantity: integer("fulfilled_quantity").notNull(),
+  fulfillmentDate: timestamp("fulfillment_date").defaultNow().notNull(),
+});
 
 // Deliveries Table
 export const deliveriesTable = pgTable("deliveries", {

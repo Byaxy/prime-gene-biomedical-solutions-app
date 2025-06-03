@@ -34,6 +34,9 @@ import { useInventoryStock } from "@/hooks/useInventoryStock";
 import { useAuth } from "@/hooks/useAuth";
 import Loading from "../loading";
 import StoreDialog from "../stores/StoreDialog";
+import { Check } from "lucide-react";
+import { Input } from "../ui/input";
+import { Search } from "lucide-react";
 
 interface FormProduct {
   productId: string;
@@ -58,6 +61,10 @@ const NewStockForm = () => {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [selectedProductName, setSelectedProductName] = useState<string>("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [prevSelectedProductId, setPrevSelectedProductId] = useState<
+    string | null
+  >(null);
   const { products, isLoading: productsLoading } = useProducts({
     getAllProducts: true,
   });
@@ -101,6 +108,16 @@ const NewStockForm = () => {
   });
 
   const selectedProductId = form.watch("selectedProduct");
+
+  const filteredProducts = products?.filter((product: ProductWithRelations) => {
+    if (!searchQuery.trim()) return true;
+
+    const query = searchQuery.toLowerCase().trim();
+    return (
+      product.product.productID?.toLowerCase().includes(query) ||
+      product.product.name?.toLowerCase().includes(query)
+    );
+  });
 
   // Handle product selection
   useEffect(() => {
@@ -359,30 +376,108 @@ const NewStockForm = () => {
               <CustomFormField
                 fieldType={FormFieldType.SELECT}
                 control={form.control}
-                name="selectedProduct"
-                label="Select Product"
-                placeholder="Select product"
-                onAddNew={() => router.push("/inventory/add-inventory")}
-                key={`product-select-${selectedProductId || ""}`}
+                name="selectedProductId"
+                label="Select Inventory"
+                placeholder={"Select inventory"}
+                key={`inventory-select-${selectedProductId || ""}`}
               >
-                {productsLoading && (
+                <div className="py-3">
+                  <div className="relative flex items-center rounded-md border border-dark-700 bg-white">
+                    <Search className="ml-2 h-4 w-4 opacity-50" />
+                    <Input
+                      type="text"
+                      placeholder="Search by Product ID, Product Name"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
+                      disabled={productsLoading}
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery("")}
+                        className="absolute right-3 top-3 text-dark-700 hover:text-dark-600"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {productsLoading ? (
                   <div className="py-4">
                     <Loading />
                   </div>
+                ) : filteredProducts && filteredProducts.length > 0 ? (
+                  <>
+                    <Table className="shad-table border border-light-200 rounded-lg">
+                      <TableHeader>
+                        <TableRow className="w-full bg-blue-800 text-white px-2 font-semibold">
+                          <TableHead>Product ID</TableHead>
+                          <TableHead>Product Name</TableHead>
+                          <TableHead>Qnty</TableHead>
+                          <TableHead></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody className="w-full bg-white">
+                        {filteredProducts.map(
+                          (product: ProductWithRelations) => (
+                            <TableRow
+                              key={product.product.id}
+                              className="cursor-pointer hover:bg-blue-50"
+                              onClick={() => {
+                                form.setValue(
+                                  "selectedProduct",
+                                  product.product.id
+                                );
+                                setPrevSelectedProductId(product.product.id);
+                                setSearchQuery("");
+                                // Find and click the hidden SelectItem with this value
+                                const selectItem = document.querySelector(
+                                  `[data-value="${product.product.id}"]`
+                                ) as HTMLElement;
+                                if (selectItem) {
+                                  selectItem.click();
+                                }
+                              }}
+                            >
+                              <TableCell>{product.product.productID}</TableCell>
+                              <TableCell>{product.product.name}</TableCell>
+                              <TableCell>{product.product.quantity}</TableCell>
+                              <TableCell className="w-10">
+                                {prevSelectedProductId ===
+                                  product.product.id && (
+                                  <span className="text-blue-800">
+                                    <Check className="h-5 w-5" />
+                                  </span>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          )
+                        )}
+                      </TableBody>
+                    </Table>
+                    {/* Hidden select options for form control */}
+                    <div className="hidden">
+                      {filteredProducts.map((product: ProductWithRelations) => (
+                        <SelectItem
+                          key={product.product.id}
+                          value={product.product.id}
+                          data-value={product.product.id}
+                        >
+                          {product.product.productID} -{product.product.name}
+                          {}
+                        </SelectItem>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <SelectItem value="null" disabled>
+                    <div>No inventory found for this store</div>
+                  </SelectItem>
                 )}
-                {products &&
-                  products?.map((product: ProductWithRelations) => (
-                    <SelectItem
-                      key={product.product.id}
-                      value={product.product.id}
-                      className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
-                    >
-                      {product.product.productID} - {product.product.name}
-                    </SelectItem>
-                  ))}
               </CustomFormField>
             </div>
-            <div className="w-full flex flex-col justify-between sm:flex-row gap-4">
+            <div className="w-full flex flex-col justify-between sm:flex-row gap-4 bg-blue-50 rounded-md p-4">
               <div className="flex w-full flex-col gap-5">
                 <div className="flex w-full flex-col sm:flex-row gap-5">
                   <div className="flex flex-1 flex-col gap-3">
