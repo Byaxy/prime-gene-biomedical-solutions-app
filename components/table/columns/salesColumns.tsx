@@ -90,7 +90,7 @@ export const salesColumns: ColumnDef<SaleWithRelations>[] = [
             className={cn(
               "text-14-medium capitalize",
               sale.sale.status === "pending" &&
-                "text-white bg-orange-500 px-3 py-1 rounded-xl",
+                "text-white bg-[#f59e0b] px-3 py-1 rounded-xl",
               sale.sale.status === "completed" &&
                 "bg-green-500 text-white px-3 py-1 rounded-xl",
               sale.sale.status === "cancelled" &&
@@ -171,7 +171,7 @@ export const salesColumns: ColumnDef<SaleWithRelations>[] = [
             className={cn(
               "text-14-medium capitalize",
               sale.sale.paymentStatus === "pending" &&
-                "text-white bg-orange-500 px-3 py-1 rounded-xl",
+                "text-white bg-[#f59e0b] px-3 py-1 rounded-xl",
               sale.sale.paymentStatus === "partial" &&
                 "bg-blue-600 text-white px-3 py-1 rounded-xl",
               sale.sale.paymentStatus === "paid" &&

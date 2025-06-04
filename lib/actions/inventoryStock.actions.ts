@@ -44,7 +44,10 @@ const fulfillBackorders = async (
       .orderBy(asc(backordersTable.createdAt));
 
     if (pendingBackorders.length === 0) {
-      throw new Error("No pending backorders found");
+      console.log(
+        `No pending backorders found for product ${productId} in store ${storeId}`
+      );
+      return;
     }
 
     const newInventory: InventoryStock = await tx
@@ -61,7 +64,8 @@ const fulfillBackorders = async (
 
     for (const backorder of pendingBackorders) {
       if (remainingQty <= 0) {
-        throw new Error("No remaining quantity to fulfill backorders");
+        console.log("No remaining quantity to fulfill additional backorders");
+        break;
       }
 
       const fulfillQty = Math.min(remainingQty, backorder.pendingQuantity);

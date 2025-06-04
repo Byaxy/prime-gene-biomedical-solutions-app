@@ -7,6 +7,7 @@ import { salesColumns } from "@/components/table/columns/salesColumns";
 import SaleDialog from "@/components/sales/SaleDialog";
 import { useState } from "react";
 import { PaymentStatus, SaleStatus, SaleWithRelations } from "@/types";
+import SalesOverview from "@/components/sales/SalesOverview";
 
 const Sales = () => {
   const [openDialog, setOpenDialog] = useState(false);
@@ -67,6 +68,8 @@ const Sales = () => {
       buttonPath="/sales/create-invoice"
     >
       <>
+        <SalesOverview sales={sales || []} isLoading={isLoading} />
+
         <DataTable
           columns={salesColumns}
           data={sales || []}

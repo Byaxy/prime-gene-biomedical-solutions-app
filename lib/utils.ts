@@ -87,6 +87,8 @@ export const formatCurrency = (value: string, currency: string) => {
     thousandsGroupStyle: "thousand",
     type: "text",
     prefix: currency,
+    decimalScale: 2,
+    fixedDecimalScale: false,
   });
 };
 
@@ -97,6 +99,8 @@ export const formatNumber = (value: string) => {
     displayType: "text",
     thousandsGroupStyle: "thousand",
     type: "text",
+    decimalScale: 2,
+    fixedDecimalScale: false,
   });
 };
 

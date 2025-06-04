@@ -691,7 +691,9 @@ export const deliveriesTable = pgTable("deliveries", {
   deliveryDate: timestamp("delivery_date").notNull(),
   deliveryRefNumber: text("delivery_ref_number").notNull().unique(),
   status: deliveryStatusEnum("status").notNull().default("pending"),
-  deliveryAddress: text("address").notNull(),
+
+  deliveredBy: text("delivered_by").notNull(),
+  receivedBy: text("received_by").notNull(),
   customerId: uuid("customer_id")
     .notNull()
     .references(() => customersTable.id, { onDelete: "set null" }), // Foreign key to customers
@@ -701,10 +703,26 @@ export const deliveriesTable = pgTable("deliveries", {
   saleId: uuid("sale_id").references(() => salesTable.id, {
     onDelete: "set null",
   }), // Foreign key to sales
-  quotationId: uuid("quotation_id").references(() => quotationsTable.id, {
-    onDelete: "set null",
-  }), // Foreign key to quotations
   notes: text("notes"),
+  deliveryAddress: jsonb("delivery_address")
+    .$type<{
+      addressName: string;
+      address: string;
+      city: string;
+      state: string;
+      country: string;
+      email: string;
+      phone: string;
+    }>()
+    .default({
+      addressName: "",
+      address: "",
+      city: "",
+      state: "",
+      country: "",
+      email: "",
+      phone: "",
+    }),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -724,6 +742,26 @@ export const deliveryItemsTable = pgTable("delivery_items", {
   quantityRequested: integer("quantity_requested").notNull(),
   quantitySupplied: integer("quantity_supplied").notNull(),
   balanceLeft: integer("balance_left").notNull(),
+  productName: text("product_name"),
+  productID: text("product_ID"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Delivery Items Inventory stock
+export const deliveryItemInventoryTable = pgTable("delivery_item_inventory", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  deliveryItemId: uuid("delivery_item_id")
+    .notNull()
+    .references(() => deliveryItemsTable.id, { onDelete: "cascade" }),
+  inventoryStockId: uuid("inventory_stock_id")
+    .notNull()
+    .references(() => inventoryTable.id, { onDelete: "cascade" }),
+  lotNumber: text("lot_number").notNull(),
+  quantityTaken: integer("quantity_taken").notNull(),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

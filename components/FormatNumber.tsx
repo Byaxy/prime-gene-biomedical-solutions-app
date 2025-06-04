@@ -12,6 +12,7 @@ const FormatNumber = ({ value }: { value: number | string }) => {
       thousandsGroupStyle="thousand"
       type="text"
       prefix={(companySettings && companySettings?.currencySymbol) || "$"}
+      decimalScale={2}
     />
   );
 };

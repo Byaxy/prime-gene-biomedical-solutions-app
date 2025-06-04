@@ -117,7 +117,7 @@ export const quotationsColumns: ColumnDef<QuotationWithRelations>[] = [
             className={cn(
               "text-14-medium capitalize",
               quotation.quotation.status === "pending" &&
-                "text-white bg-orange-500 px-3 py-1 rounded-xl",
+                "text-white bg-[#f59e0b] px-3 py-1 rounded-xl",
               quotation.quotation.status === "completed" &&
                 "bg-green-500 text-white px-3 py-1 rounded-xl",
               quotation.quotation.status === "cancelled" &&

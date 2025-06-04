@@ -1,5 +1,11 @@
+import PageWraper from "@/components/PageWraper";
+
 const CreateWaybill = () => {
-  return <div>Create Waybill</div>;
+  return (
+    <PageWraper title="Create Waybill">
+      <div></div>
+    </PageWraper>
+  );
 };
 
 export default CreateWaybill;

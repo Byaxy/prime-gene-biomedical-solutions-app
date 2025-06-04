@@ -138,7 +138,7 @@ export const purchasesColumns: ColumnDef<Purchase>[] = [
             className={cn(
               "text-14-medium capitalize",
               purchase.status === "pending" &&
-                "text-white bg-orange-500 px-3 py-1 rounded-xl",
+                "text-white bg-[#f59e0b] px-3 py-1 rounded-xl",
               purchase.status === "completed" &&
                 "bg-green-500 text-white px-3 py-1 rounded-xl",
               purchase.status === "cancelled" &&
@@ -175,7 +175,7 @@ export const purchasesColumns: ColumnDef<Purchase>[] = [
             className={cn(
               "text-14-medium capitalize",
               purchase.deliveryStatus === "pending" &&
-                "text-white bg-orange-500 px-3 py-1 rounded-xl",
+                "text-white bg-[#f59e0b] px-3 py-1 rounded-xl",
               purchase.deliveryStatus === "in-progress" &&
                 "bg-blue-600 text-white px-3 py-1 rounded-xl text-nowrap",
               purchase.deliveryStatus === "delivered" &&

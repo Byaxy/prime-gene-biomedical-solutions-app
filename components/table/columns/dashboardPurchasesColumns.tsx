@@ -76,7 +76,7 @@ export const dashboardPurchasesColumns: ColumnDef<Purchase>[] = [
             className={cn(
               "text-14-medium capitalize",
               purchase.status === "pending" &&
-                "text-white bg-orange-500 px-3 py-1 rounded-xl",
+                "text-white bg-[#f59e0b] px-3 py-1 rounded-xl",
               purchase.status === "completed" &&
                 "bg-green-500 text-white px-3 py-1 rounded-xl",
               purchase.status === "cancelled" &&

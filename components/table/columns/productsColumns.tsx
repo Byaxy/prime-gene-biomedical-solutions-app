@@ -137,7 +137,7 @@ export const productsColumns: ColumnDef<ProductWithRelations>[] = [
             product.product.quantity <= product.product.alertQuantity
               ? "bg-red-600"
               : product.product.quantity <= product.product.maxAlertQuantity
-              ? "bg-yellow-500"
+              ? "bg-[#f59e0b]"
               : "bg-green-500"
           }`}
         >
