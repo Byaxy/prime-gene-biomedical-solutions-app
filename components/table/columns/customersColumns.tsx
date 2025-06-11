@@ -70,7 +70,6 @@ export const customersColumns: ColumnDef<Customer>[] = [
         Country.getCountryByCode(customer.address.country)?.name ?? "";
       return (
         <p className="text-14-medium ">
-          {addressName ? `${addressName}, ` : ""}
           {address ? `${address}, ` : ""}
           {city ? `${city}, ` : ""}
           {country}

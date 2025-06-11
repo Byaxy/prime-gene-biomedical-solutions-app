@@ -171,7 +171,7 @@ export const CustomerFormValidation = z.object({
   email: z.string().optional(),
   phone: z.string().nonempty("Phone number is required"),
   address: z.object({
-    addressName: z.string().optional(),
+    addressName: z.string().nonempty("Address Name is required"),
     address: z.string().nonempty("Address is required"),
     city: z.string().nonempty("City is required"),
     state: z.string().nonempty("State is required"),
