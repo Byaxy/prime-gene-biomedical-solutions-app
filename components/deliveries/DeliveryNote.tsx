@@ -15,7 +15,6 @@ import PDFFooter from "../pdf-template/PDFFooter";
 import Address from "../pdf-template/Address";
 import PDFHeader from "../pdf-template/PDFHeader";
 import PDFTittle from "../pdf-template/PDFTittle";
-import { Country } from "country-state-city";
 import { formatDateTime } from "@/lib/utils";
 
 // styles
@@ -180,24 +179,20 @@ const DeliveryNote = ({ delivery }: { delivery: DeliveryWithRelations }) => {
             addressTitle="Billing Address:"
             name={customer.name}
             address={customer.address.address}
-            addressName={customer.address.addressName}
             phone={customer.phone}
             email={customer.email}
             city={customer.address.city}
-            country={Country.getCountryByCode(customer.address.country)?.name}
+            country={customer.address.country}
           />
 
           <Address
             addressTitle="Delivery Address:"
             name={del.deliveryAddress.addressName}
             address={del.deliveryAddress.address}
-            addressName={del.deliveryAddress.addressName}
             phone={del.deliveryAddress.phone}
             email={del.deliveryAddress.email}
             city={del.deliveryAddress.city}
-            country={
-              Country.getCountryByCode(del.deliveryAddress.country)?.name
-            }
+            country={del.deliveryAddress.country}
           />
         </View>
 

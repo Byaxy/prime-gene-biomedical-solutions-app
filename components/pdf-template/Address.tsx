@@ -1,10 +1,10 @@
 import { Text, View, StyleSheet } from "@react-pdf/renderer";
+import { Country } from "country-state-city";
 
 interface AddressProps {
   addressTitle?: string;
   name?: string;
   address?: string;
-  addressName?: string;
   phone?: string;
   email?: string;
   city?: string;
@@ -21,7 +21,6 @@ const Address = ({
   addressTitle,
   name,
   address,
-  addressName,
   phone,
   email,
   city,
@@ -56,11 +55,10 @@ const Address = ({
       >
         <Text style={styles.addressInfo}>{name}</Text>
         <Text style={styles.addressInfo}>
-          {city ? `${city} -` : null} {country ? country : null}
+          {city ? `${city} -` : null}{" "}
+          {country ? Country.getCountryByCode(country)?.name : null}
         </Text>
-        <Text style={styles.addressInfo}>
-          {addressName ? `${addressName}, ` : null} {address ? address : null}
-        </Text>
+        <Text style={styles.addressInfo}>{address ? address : null}</Text>
         <Text style={styles.addressInfo}>{phone ? phone : null}</Text>
         <Text style={styles.addressInfo}>{email ? email : null}</Text>
       </View>

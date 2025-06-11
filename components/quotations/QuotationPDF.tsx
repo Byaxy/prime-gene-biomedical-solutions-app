@@ -12,7 +12,6 @@ import {
 import { ProductWithRelations, QuotationWithRelations } from "@/types";
 import { formatCurrency } from "@/lib/utils";
 import Address from "../pdf-template/Address";
-import { Country } from "country-state-city";
 import PDFFooter from "../pdf-template/PDFFooter";
 import SignatureAndBankSection from "../pdf-template/SignatureAndBankSection";
 import PDFHeader from "../pdf-template/PDFHeader";
@@ -203,11 +202,10 @@ const QuotationPDF = ({
             addressTitle="Billing Address:"
             name={customer.name}
             address={customer.address.address}
-            addressName={customer.address.addressName}
             phone={customer.phone}
             email={customer.email}
             city={customer.address.city}
-            country={Country.getCountryByCode(customer.address.country)?.name}
+            country={customer.address.country}
           />
 
           {quote.isDeliveryAddressAdded ? (
@@ -215,24 +213,20 @@ const QuotationPDF = ({
               addressTitle="Delivery Address:"
               name={quote.deliveryAddress.addressName}
               address={quote.deliveryAddress.address}
-              addressName={quote.deliveryAddress.addressName}
               phone={quote.deliveryAddress.phone}
               email={quote.deliveryAddress.email}
               city={quote.deliveryAddress.city}
-              country={
-                Country.getCountryByCode(quote.deliveryAddress.country)?.name
-              }
+              country={quote.deliveryAddress.country}
             />
           ) : (
             <Address
               addressTitle="Delivery Address:"
               name={customer.name}
               address={customer.address.address || ""}
-              addressName={customer.address.addressName || ""}
               phone={customer.phone || ""}
               email={customer.email || ""}
               city={customer.address.city || ""}
-              country={Country.getCountryByCode(customer.address.country)?.name}
+              country={customer.address.country}
             />
           )}
         </View>

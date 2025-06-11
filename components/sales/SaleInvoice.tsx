@@ -16,7 +16,6 @@ import PDFFooter from "../pdf-template/PDFFooter";
 import PDFTittle from "../pdf-template/PDFTittle";
 import PDFHeader from "../pdf-template/PDFHeader";
 import Address from "../pdf-template/Address";
-import { Country } from "country-state-city";
 
 // styles
 const styles = StyleSheet.create({
@@ -183,11 +182,10 @@ const SaleInvoice = ({
             addressTitle="Billing Address:"
             name={customer.name}
             address={customer.address.address}
-            addressName={customer.address.addressName}
             phone={customer.phone}
             email={customer.email}
             city={customer.address.city}
-            country={Country.getCountryByCode(customer.address.country)?.name}
+            country={customer.address.country}
           />
 
           {sal.isDeliveryAddressAdded ? (
@@ -195,24 +193,20 @@ const SaleInvoice = ({
               addressTitle="Delivery Address:"
               name={sal.deliveryAddress.addressName}
               address={sal.deliveryAddress.address}
-              addressName={sal.deliveryAddress.addressName}
               phone={sal.deliveryAddress.phone}
               email={sal.deliveryAddress.email}
               city={sal.deliveryAddress.city}
-              country={
-                Country.getCountryByCode(sal.deliveryAddress.country)?.name
-              }
+              country={sal.deliveryAddress.country}
             />
           ) : (
             <Address
               addressTitle="Delivery Address:"
               name={customer.name}
               address={customer.address.address || ""}
-              addressName={customer.address.addressName || ""}
               phone={customer.phone || ""}
               email={customer.email || ""}
               city={customer.address.city || ""}
-              country={Country.getCountryByCode(customer.address.country)?.name}
+              country={customer.address.country}
             />
           )}
         </View>
