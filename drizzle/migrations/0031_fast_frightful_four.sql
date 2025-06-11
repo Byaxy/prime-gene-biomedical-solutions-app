@@ -1,0 +1,2 @@
+ALTER TABLE "customers" ALTER COLUMN "address" SET DATA TYPE jsonb;--> statement-breakpoint
+ALTER TABLE "customers" ALTER COLUMN "address" SET DEFAULT '{"addressName":"","address":"","city":"","state":"","country":""}'::jsonb;

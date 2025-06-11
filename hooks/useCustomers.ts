@@ -71,11 +71,6 @@ export const useCustomers = ({
       mutationFn: (data: CustomerFormValues) => addCustomer(data),
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["customers"] });
-        toast.success("Customer added successfully");
-      },
-      onError: (error) => {
-        console.error("Error adding customer:", error);
-        toast.error("Failed to add customer");
       },
     });
 
@@ -86,11 +81,6 @@ export const useCustomers = ({
         editCustomer(data, id),
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["customers"] });
-        toast.success("Customer updated successfully");
-      },
-      onError: (error) => {
-        console.error("Error updating customer:", error);
-        toast.error("Failed to update customer");
       },
     });
 

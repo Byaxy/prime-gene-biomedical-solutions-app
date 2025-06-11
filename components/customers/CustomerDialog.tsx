@@ -33,7 +33,13 @@ const CustomerDialog = ({
         name: customer?.name || "",
         email: customer?.email || "",
         phone: customer?.phone || "",
-        address: customer?.address || "",
+        address: {
+          addressName: customer?.address?.addressName,
+          address: customer?.address?.address || "",
+          city: customer?.address?.city || "",
+          state: customer?.address?.state || "",
+          country: customer?.address?.country || "",
+        },
       });
       onOpenChange(false);
     } catch (error) {
@@ -85,11 +91,7 @@ const CustomerDialog = ({
 
         {mode === "add" && (
           <div className="flex flex-col gap-4">
-            <CustomerForm
-              onSubmit={onSubmit}
-              mode="create"
-              onCancel={() => onOpenChange(false)}
-            />
+            <CustomerForm mode="create" onCancel={() => onOpenChange(false)} />
           </div>
         )}
       </DialogContent>

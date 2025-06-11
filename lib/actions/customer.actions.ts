@@ -96,7 +96,18 @@ export const addCustomer = async (customerData: CustomerFormValues) => {
   try {
     const insertedCustomer = await db
       .insert(customersTable)
-      .values(customerData)
+      .values({
+        ...customerData,
+        address: customerData.address
+          ? {
+              addressName: customerData.address.addressName ?? "",
+              address: customerData.address.address ?? "",
+              city: customerData.address.city ?? "",
+              state: customerData.address.state ?? "",
+              country: customerData.address.country ?? "",
+            }
+          : undefined,
+      })
       .returning();
 
     revalidatePath("/customers");
@@ -115,7 +126,18 @@ export const editCustomer = async (
   try {
     const updatedCustomer = await db
       .update(customersTable)
-      .set(customerData)
+      .set({
+        ...customerData,
+        address: customerData.address
+          ? {
+              addressName: customerData.address.addressName ?? "",
+              address: customerData.address.address ?? "",
+              city: customerData.address.city ?? "",
+              state: customerData.address.state ?? "",
+              country: customerData.address.country ?? "",
+            }
+          : undefined,
+      })
       .where(eq(customersTable.id, customerId))
       .returning();
 

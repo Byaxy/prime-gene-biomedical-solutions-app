@@ -11,6 +11,12 @@ import {
 } from "@react-pdf/renderer";
 import { ProductWithRelations, QuotationWithRelations } from "@/types";
 import { formatCurrency } from "@/lib/utils";
+import Address from "../pdf-template/Address";
+import { Country } from "country-state-city";
+import PDFFooter from "../pdf-template/PDFFooter";
+import SignatureAndBankSection from "../pdf-template/SignatureAndBankSection";
+import PDFHeader from "../pdf-template/PDFHeader";
+import PDFTittle from "../pdf-template/PDFTittle";
 
 // styles
 const styles = StyleSheet.create({
@@ -46,10 +52,6 @@ const styles = StyleSheet.create({
   col5: { width: "7%" },
   col6: { width: "10%" },
   col7: { width: "10%" },
-  title: {
-    fontSize: 20,
-    fontWeight: "bold",
-  },
   companyInfo: {
     fontSize: 9,
     marginBottom: 2,
@@ -64,44 +66,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 5,
   },
-  signatureSection: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 2,
-    marginBottom: 20,
-    marginLeft: 50,
-  },
-  bankSection: {
-    display: "flex",
-    flexDirection: "row",
-    gap: 40,
-  },
-  bankInfo: {
-    fontSize: 8,
-    marginBottom: 2,
-  },
-  footer: {
-    display: "flex",
-    flexDirection: "row",
-    gap: 10,
-    justifyContent: "space-between",
-    backgroundColor: "#002060",
-    paddingVertical: 5,
-    paddingHorizontal: 5,
-    marginTop: 20,
-  },
-  footerColumn: { display: "flex", flexDirection: "column" },
-  footerColumnHeader: {
-    fontWeight: "bold",
-    marginBottom: 2,
-    color: "#FFFFFF",
-    fontSize: 9,
-  },
-  footerInfo: {
-    fontSize: 8,
-    marginBottom: 2,
-    color: "#00fdff",
-  },
   tableContainer: {
     flexGrow: 1,
   },
@@ -109,156 +73,6 @@ const styles = StyleSheet.create({
     marginTop: "auto",
   },
 });
-
-const QuotationFooter = () => (
-  <View style={styles.footer} fixed>
-    <View style={styles.footerColumn}>
-      <Text style={styles.footerColumnHeader}>Products Solutions:</Text>
-      <View style={{ paddingLeft: 20 }}>
-        <Text style={styles.footerInfo}>
-          Medical laboratory Equipment & Consumables
-        </Text>
-        <Text style={styles.footerInfo}>
-          Medical Imaging Equipment & Consumables
-        </Text>
-        <Text style={styles.footerInfo}>Medical Equipment & Consumables</Text>
-        <Text style={styles.footerInfo}>Dental Equipment & Consumables</Text>
-        <Text style={styles.footerInfo}>
-          Veterinary Equipment & Consumables
-        </Text>
-        <Text style={styles.footerInfo}>
-          Research & Teaching Equipment & Consumables
-        </Text>
-      </View>
-    </View>
-
-    <View style={styles.footerColumn}>
-      <Text style={styles.footerColumnHeader}>Service Solutions:</Text>
-      <View style={{ paddingLeft: 20 }}>
-        <Text style={styles.footerInfo}>Consultancy Services</Text>
-        <Text style={styles.footerInfo}>Training Services</Text>
-        <Text style={styles.footerInfo}>QC/QA Services</Text>
-        <Text style={styles.footerInfo}>OEM production</Text>
-        <Text style={styles.footerInfo}>Contract manufacturing</Text>
-      </View>
-    </View>
-
-    <View style={styles.footerColumn}>
-      <Text style={styles.footerColumnHeader}>Support Solutions:</Text>
-      <View style={{ paddingLeft: 20 }}>
-        <Text style={styles.footerInfo}>Equipment Placement supports</Text>
-        <Text style={styles.footerInfo}>Partnership (PPP/PPP)</Text>
-        <Text style={styles.footerInfo}>Installations</Text>
-        <Text style={styles.footerInfo}>Maintenance Support</Text>
-      </View>
-    </View>
-  </View>
-);
-
-const SignatureAndBankSection = () => (
-  <View wrap={false}>
-    {/* Signature */}
-    <View style={styles.signatureSection}>
-      <Text style={{ fontWeight: "bold" }}>Stamp & Signature:</Text>
-      <Image
-        src="/assets/images/signature.png"
-        style={{ width: 60, height: 25 }}
-      />
-      <Text style={{ fontWeight: "bold" }}>Sales Manager</Text>
-    </View>
-
-    {/* Bank Details - Terms & Conditions */}
-    <View style={styles.bankSection}>
-      <View
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        <View
-          style={{
-            backgroundColor: "#E8E9E9",
-            paddingVertical: 2,
-            paddingHorizontal: 5,
-          }}
-        >
-          <Text style={{ fontWeight: "bold", fontSize: 9 }}>Bank Details</Text>
-        </View>
-        <View
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            paddingHorizontal: 5,
-            paddingTop: 2,
-            width: "100%",
-          }}
-        >
-          <View style={{ display: "flex", flexDirection: "row", gap: 10 }}>
-            <Text style={styles.bankInfo}>Bank Name:</Text>
-            <Text style={{ ...styles.bankInfo, flex: 1 }}>
-              Ecobank Liberia Limited.
-            </Text>
-          </View>
-          <View style={{ display: "flex", flexDirection: "row", gap: 10 }}>
-            <Text style={styles.bankInfo}>Address:</Text>
-            <Text style={{ ...styles.bankInfo, flex: 1 }}>
-              11th Street, Sinkor, Monrovia, Liberia
-            </Text>
-          </View>
-          <View style={{ display: "flex", flexDirection: "row", gap: 10 }}>
-            <Text style={styles.bankInfo}>Account #:</Text>
-            <Text style={{ ...styles.bankInfo, flex: 1 }}>6102122392</Text>
-          </View>
-          <View style={{ display: "flex", flexDirection: "row", gap: 10 }}>
-            <Text style={styles.bankInfo}>Swift Code:</Text>
-            <Text style={{ ...styles.bankInfo, flex: 1 }}>ECOCLRLMXXX</Text>
-          </View>
-        </View>
-      </View>
-
-      <View
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        <View
-          style={{
-            backgroundColor: "#E8E9E9",
-            paddingVertical: 2,
-            paddingHorizontal: 5,
-          }}
-        >
-          <Text style={{ fontWeight: "bold", fontSize: 9 }}>
-            Terms & Conditions
-          </Text>
-        </View>
-        <View
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            paddingHorizontal: 5,
-            paddingTop: 2,
-          }}
-        >
-          <Text style={styles.bankInfo}>
-            Prices quoted here are valid for 6 months
-          </Text>
-          <Text style={styles.bankInfo}>Terms of payment is 30 days</Text>
-          <Text style={styles.bankInfo}>
-            This certifies that the Pro-Forma invoice is true and correct
-          </Text>
-          <Text style={styles.bankInfo}>
-            When a dispute arises over subtotal or total prices, individual unit
-            prices
-          </Text>
-        </View>
-      </View>
-    </View>
-  </View>
-);
 
 const QuotationPDF = ({
   quotation,
@@ -275,90 +89,9 @@ const QuotationPDF = ({
     <Document>
       <Page size="A4" style={styles.page}>
         {/* Header */}
-        <View
-          style={{
-            display: "flex",
-            flexDirection: "row",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            marginBottom: 20,
-            gap: 20,
-          }}
-          fixed
-        >
-          <View
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "flex-end",
-            }}
-          >
-            <Image
-              src="/assets/logos/logo2.png"
-              style={{ width: 100, height: 80 }}
-            />
-            <Text style={styles.companyInfo}>
-              Legacy of Quality Par Excellence
-            </Text>
-          </View>
-          <View
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              flex: 1,
-              width: "100%",
-            }}
-          >
-            <Text style={styles.title}>NORTHLAND BIOMEDICAL SOLUTIONS</Text>
-            <Text style={styles.companyInfo}>
-              Rockville Valley, Johnson Compound, Haile Selassie Avenue,
-            </Text>
-            <Text style={styles.companyInfo}>
-              Capitol Bypass, Monrovia-Liberia
-            </Text>
-            <Text style={styles.companyInfo}>
-              +231 775508118 / +233 244364439 (whatsapp)
-            </Text>
-            <Text style={styles.companyInfo}>
-              biomedicalsolutionsgh@gmail.com
-            </Text>
-            <Text style={styles.companyInfo}>
-              primegenebiomedicalsolutions.com
-            </Text>
-            <View
-              style={{ width: "100%", height: 3, backgroundColor: "#0fa345" }}
-            ></View>
-            <View
-              style={{ width: "100%", height: 3, backgroundColor: "#075323" }}
-            ></View>
-            <View
-              style={{
-                width: "100%",
-                height: 3,
-                backgroundColor: "#1a74e9",
-                borderColor: "#1a74e9",
-              }}
-            ></View>
-            <View
-              style={{ width: "100%", height: 3, backgroundColor: "#093c80" }}
-            ></View>
-          </View>
-        </View>
+        <PDFHeader />
         {/* Title */}
-        <View
-          style={{
-            width: "100%",
-            backgroundColor: "#002060",
-            paddingVertical: 4,
-          }}
-        >
-          <Text
-            style={{ ...styles.title, textAlign: "center", color: "#00fdff" }}
-          >
-            QUOTATION
-          </Text>
-        </View>
+        <PDFTittle title="QUOTATION" />
 
         {/* Quotation Info */}
         <View
@@ -466,89 +199,42 @@ const QuotationPDF = ({
             gap: 40,
           }}
         >
-          <View
-            style={{
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
-            <View
-              style={{
-                backgroundColor: "#E8E9E9",
-                paddingVertical: 2,
-                paddingHorizontal: 5,
-              }}
-            >
-              <Text style={{ fontWeight: "bold", fontSize: 10 }}>
-                Billing Address:
-              </Text>
-            </View>
-            <View
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                paddingLeft: 10,
-                paddingTop: 2,
-              }}
-            >
-              <Text style={styles.companyInfo}>{customer.name}</Text>
-              <Text style={styles.companyInfo}>
-                {customer.address || "N/A"}
-              </Text>
-            </View>
-          </View>
+          <Address
+            addressTitle="Billing Address:"
+            name={customer.name}
+            address={customer.address.address}
+            addressName={customer.address.addressName}
+            phone={customer.phone}
+            email={customer.email}
+            city={customer.address.city}
+            country={Country.getCountryByCode(customer.address.country)?.name}
+          />
 
-          <View
-            style={{
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
-            <View
-              style={{
-                backgroundColor: "#E8E9E9",
-                paddingVertical: 2,
-                paddingHorizontal: 5,
-              }}
-            >
-              <Text style={{ fontWeight: "bold", fontSize: 10 }}>
-                Delivery Address:
-              </Text>
-            </View>
-            {quote.isDeliveryAddressAdded ? (
-              <View
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  paddingLeft: 10,
-                  paddingTop: 2,
-                }}
-              >
-                <Text style={styles.companyInfo}>
-                  {quote.deliveryAddress.addressName}
-                </Text>
-                <Text style={styles.companyInfo}>
-                  {quote.deliveryAddress.address}
-                </Text>
-              </View>
-            ) : (
-              <View
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  paddingLeft: 10,
-                  paddingTop: 2,
-                }}
-              >
-                <Text style={styles.companyInfo}>{customer.name}</Text>
-                <Text style={styles.companyInfo}>
-                  {customer.address || "N/A"}
-                </Text>
-              </View>
-            )}
-          </View>
+          {quote.isDeliveryAddressAdded ? (
+            <Address
+              addressTitle="Delivery Address:"
+              name={quote.deliveryAddress.addressName}
+              address={quote.deliveryAddress.address}
+              addressName={quote.deliveryAddress.addressName}
+              phone={quote.deliveryAddress.phone}
+              email={quote.deliveryAddress.email}
+              city={quote.deliveryAddress.city}
+              country={
+                Country.getCountryByCode(quote.deliveryAddress.country)?.name
+              }
+            />
+          ) : (
+            <Address
+              addressTitle="Delivery Address:"
+              name={customer.name}
+              address={customer.address.address || ""}
+              addressName={customer.address.addressName || ""}
+              phone={customer.phone || ""}
+              email={customer.email || ""}
+              city={customer.address.city || ""}
+              country={Country.getCountryByCode(customer.address.country)?.name}
+            />
+          )}
         </View>
 
         {/* Products Table */}
@@ -631,7 +317,7 @@ const QuotationPDF = ({
           <SignatureAndBankSection />
         </View>
 
-        <QuotationFooter />
+        <PDFFooter />
       </Page>
     </Document>
   );

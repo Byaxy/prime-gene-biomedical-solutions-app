@@ -1,20 +1,20 @@
 "use client";
 
-import CustomerForm from "@/components/forms/CustomerForm";
+import DeliveryForm from "@/components/forms/DeliveryForm";
 import Loading from "@/components/loading";
 import PageWraper from "@/components/PageWraper";
-import { getCustomerById } from "@/lib/actions/customer.actions";
+import { getDeliveryById } from "@/lib/actions/delivery.actions";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 
-const EditCustomer = () => {
+const EditDelivery = () => {
   const { id } = useParams();
 
-  const { data: customer, isLoading } = useQuery({
-    queryKey: [id],
+  const { data: delivery, isLoading } = useQuery({
+    queryKey: ["deliveries"],
     queryFn: async () => {
       if (!id) return null;
-      return await getCustomerById(id as string);
+      return await getDeliveryById(id as string);
     },
     enabled: !!id,
     staleTime: 0,
@@ -23,17 +23,16 @@ const EditCustomer = () => {
   if (isLoading) {
     return <Loading />;
   }
-
   return (
-    <PageWraper title="Edit Customer">
+    <PageWraper title="Edit Delivery Note">
       <section className="space-y-6">
-        <CustomerForm
+        <DeliveryForm
           mode={"edit"}
-          initialData={customer ? customer : undefined}
+          initialData={delivery ? delivery : undefined}
         />
       </section>
     </PageWraper>
   );
 };
 
-export default EditCustomer;
+export default EditDelivery;

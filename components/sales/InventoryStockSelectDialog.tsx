@@ -14,7 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/utils";
-import { InventoryStockWithRelations, SelectedInventoryStock } from "@/types";
+import { InventoryStockWithRelations, SaleInventoryStock } from "@/types";
 import { X } from "lucide-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Switch } from "../ui/switch";
@@ -43,9 +43,9 @@ interface InventoryStockDialogProps {
   productID: string;
   requiredQuantity: number;
   availableStocks: InventoryStockWithRelations[];
-  selectedInventoryStock: SelectedInventoryStock[];
+  selectedInventoryStock: SaleInventoryStock[];
   onSave: (
-    stock: SelectedInventoryStock[],
+    stock: SaleInventoryStock[],
     hasBackorder: boolean,
     backorderQuantity: number
   ) => void;
@@ -147,9 +147,9 @@ const InventoryStockSelectDialog = ({
     (
       stocks: InventoryStockWithRelations[],
       requiredQty: number
-    ): { allocations: SelectedInventoryStock[]; backorderQty: number } => {
+    ): { allocations: SaleInventoryStock[]; backorderQty: number } => {
       let remaining = requiredQty;
-      const newAllocations: SelectedInventoryStock[] = [];
+      const newAllocations: SaleInventoryStock[] = [];
 
       if (stocks.length > 0) {
         for (const stock of stocks) {

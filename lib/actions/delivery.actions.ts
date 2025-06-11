@@ -9,6 +9,9 @@ import {
   deliveryItemsTable,
   deliveriesTable,
   saleItemsTable,
+  salesTable,
+  customersTable,
+  storesTable,
 } from "@/drizzle/schema";
 import { DeliveryStatus } from "@/types";
 import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
@@ -117,8 +120,19 @@ export const getDeliveryById = async (deliveryId: string) => {
     const result = await db.transaction(async (tx) => {
       // Get the main delivery record
       const delivery = await tx
-        .select()
+        .select({
+          delivery: deliveriesTable,
+          sale: salesTable,
+          customer: customersTable,
+          store: storesTable,
+        })
         .from(deliveriesTable)
+        .leftJoin(salesTable, eq(deliveriesTable.saleId, salesTable.id))
+        .leftJoin(
+          customersTable,
+          eq(deliveriesTable.customerId, customersTable.id)
+        )
+        .leftJoin(storesTable, eq(deliveriesTable.storeId, storesTable.id))
         .where(
           and(
             eq(deliveriesTable.id, deliveryId),
@@ -193,7 +207,21 @@ export const getDeliveries = async (
   try {
     const result = await db.transaction(async (tx) => {
       // Create base query
-      let deliveriesQuery = tx.select().from(deliveriesTable).$dynamic();
+      let deliveriesQuery = tx
+        .select({
+          delivery: deliveriesTable,
+          sale: salesTable,
+          customer: customersTable,
+          store: storesTable,
+        })
+        .from(deliveriesTable)
+        .leftJoin(salesTable, eq(deliveriesTable.saleId, salesTable.id))
+        .leftJoin(
+          customersTable,
+          eq(deliveriesTable.customerId, customersTable.id)
+        )
+        .leftJoin(storesTable, eq(deliveriesTable.storeId, storesTable.id))
+        .$dynamic();
 
       // Create conditions array
       const conditions = [eq(deliveriesTable.isActive, true)];
@@ -240,8 +268,8 @@ export const getDeliveries = async (
 
       const deliveries = await deliveriesQuery;
 
-      // Get all items for these deliveries in a single query
-      const deliveryIds = deliveries.map((d) => d.id);
+      // Get all products for these deliveries in a single query
+      const deliveryIds = deliveries.map((d) => d.delivery.id);
       const items =
         deliveryIds.length > 0
           ? await tx
@@ -276,7 +304,7 @@ export const getDeliveries = async (
       return {
         documents: deliveries.map((delivery) => ({
           ...delivery,
-          products: itemsMap.get(delivery.id) || [],
+          products: itemsMap.get(delivery.delivery.id) || [],
         })),
         total,
       };
@@ -292,6 +320,164 @@ export const getDeliveries = async (
   }
 };
 
+// Edit delivery
+export const editDelivery = async (
+  delivery: DeliveryFormValues,
+  deliveryId: string
+) => {
+  try {
+    const result = await db.transaction(async (tx) => {
+      // Update main delivery record
+      const [updatedDelivery] = await tx
+        .update(deliveriesTable)
+        .set({
+          deliveryDate: delivery.deliveryDate,
+          deliveryRefNumber: delivery.deliveryRefNumber,
+          status: delivery.status as DeliveryStatus,
+          deliveryAddress: delivery.deliveryAddress
+            ? {
+                addressName: delivery.deliveryAddress.addressName || "",
+                address: delivery.deliveryAddress.address || "",
+                city: delivery.deliveryAddress.city || "",
+                state: delivery.deliveryAddress.state || "",
+                country: delivery.deliveryAddress.country || "",
+                email: delivery.deliveryAddress.email || "",
+                phone: delivery.deliveryAddress.phone || "",
+              }
+            : null,
+          customerId: delivery.customerId,
+          storeId: delivery.storeId,
+          saleId: delivery.saleId,
+          deliveredBy: delivery.deliveredBy,
+          receivedBy: delivery.receivedBy,
+          notes: delivery.notes,
+        })
+        .where(eq(deliveriesTable.id, deliveryId))
+        .returning();
+
+      // Get existing delivery items
+      const existingItems = await tx
+        .select()
+        .from(deliveryItemsTable)
+        .where(
+          and(
+            eq(deliveryItemsTable.deliveryId, deliveryId),
+            eq(deliveryItemsTable.isActive, true)
+          )
+        );
+
+      // Delete existing delivery item inventory records
+      const existingItemIds = existingItems.map((item) => item.id);
+      if (existingItemIds.length > 0) {
+        await tx
+          .delete(deliveryItemInventoryTable)
+          .where(
+            inArray(deliveryItemInventoryTable.deliveryItemId, existingItemIds)
+          );
+      }
+
+      // Delete existing delivery items
+      await tx
+        .delete(deliveryItemsTable)
+        .where(eq(deliveryItemsTable.deliveryId, deliveryId));
+
+      // Process each product in the updated delivery
+      const deliveryItems = [];
+      for (const product of delivery.products) {
+        // Create new delivery item
+        const [deliveryItem] = await tx
+          .insert(deliveryItemsTable)
+          .values({
+            deliveryId: updatedDelivery.id,
+            productId: product.productId,
+            quantityRequested: product.quantityRequested,
+            quantitySupplied: product.quantitySupplied,
+            balanceLeft: product.balanceLeft,
+            productName: product.productName,
+            productID: product.productID,
+          })
+          .returning();
+
+        // Process supplied inventory stock
+        for (const inventory of product.inventoryStock) {
+          // Create delivery item inventory record
+          await tx.insert(deliveryItemInventoryTable).values({
+            deliveryItemId: deliveryItem.id,
+            inventoryStockId: inventory.inventoryStockId,
+            lotNumber: inventory.lotNumber,
+            quantityTaken: inventory.quantityTaken,
+          });
+        }
+
+        deliveryItems.push(deliveryItem);
+      }
+
+      // Recalculate sale item fulfillment for the entire sale
+      // First, reset all fulfilled quantities for this sale
+      await tx
+        .update(saleItemsTable)
+        .set({ fulfilledQuantity: 0 })
+        .where(
+          and(
+            eq(saleItemsTable.saleId, delivery.saleId),
+            eq(saleItemsTable.isActive, true)
+          )
+        );
+
+      // Then recalculate based on all active deliveries for this sale
+      const allDeliveriesForSale = await tx
+        .select({
+          deliveryItem: deliveryItemsTable,
+        })
+        .from(deliveryItemsTable)
+        .innerJoin(
+          deliveriesTable,
+          eq(deliveryItemsTable.deliveryId, deliveriesTable.id)
+        )
+        .where(
+          and(
+            eq(deliveriesTable.saleId, delivery.saleId),
+            eq(deliveriesTable.isActive, true),
+            eq(deliveryItemsTable.isActive, true)
+          )
+        );
+
+      // Group by product and sum quantities
+      const productFulfillmentMap = new Map();
+      allDeliveriesForSale.forEach(({ deliveryItem }) => {
+        const existing = productFulfillmentMap.get(deliveryItem.productId) || 0;
+        productFulfillmentMap.set(
+          deliveryItem.productId,
+          existing + deliveryItem.quantitySupplied
+        );
+      });
+
+      // Update sale items with recalculated fulfillment
+      for (const [productId, totalFulfilled] of productFulfillmentMap) {
+        await tx
+          .update(saleItemsTable)
+          .set({
+            fulfilledQuantity: totalFulfilled,
+          })
+          .where(
+            and(
+              eq(saleItemsTable.saleId, delivery.saleId),
+              eq(saleItemsTable.productId, productId),
+              eq(saleItemsTable.isActive, true)
+            )
+          );
+      }
+
+      return { delivery: updatedDelivery, items: deliveryItems };
+    });
+
+    revalidatePath("/deliveries");
+    return parseStringify(result);
+  } catch (error) {
+    console.error("Error editing delivery:", error);
+    throw error;
+  }
+};
 // Permanently delete Delivery
 export const deleteDelivery = async (deliveryId: string) => {
   try {
@@ -380,12 +566,11 @@ export const generateDeliveryRefNumber = async (): Promise<string> => {
       const now = new Date();
       const year = now.getFullYear();
       const month = String(now.getMonth() + 1).padStart(2, "0");
-      const day = String(now.getDate()).padStart(2, "0");
 
       const lastDelivery = await tx
         .select({ deliveryRefNumber: deliveriesTable.deliveryRefNumber })
         .from(deliveriesTable)
-        .where(sql`delivery_ref_number LIKE ${`DO-${year}${month}${day}-%`}`)
+        .where(sql`delivery_ref_number LIKE ${`DO${year}/${month}/%`}`)
         .orderBy(desc(deliveriesTable.createdAt))
         .limit(1);
 
@@ -393,14 +578,14 @@ export const generateDeliveryRefNumber = async (): Promise<string> => {
       if (lastDelivery.length > 0) {
         const lastRefNumber = lastDelivery[0].deliveryRefNumber;
         const lastSequence = parseInt(
-          lastRefNumber.split("-").pop() || "0",
+          lastRefNumber.split("/").pop() || "0",
           10
         );
         nextSequence = lastSequence + 1;
       }
 
       const sequenceNumber = String(nextSequence).padStart(4, "0");
-      return `DO-${year}${month}${day}-${sequenceNumber}`;
+      return `DO${year}/${month}/${sequenceNumber}`;
     });
 
     return result;

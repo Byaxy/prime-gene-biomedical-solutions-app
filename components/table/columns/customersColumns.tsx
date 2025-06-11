@@ -6,6 +6,7 @@ import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import CustomerActions from "@/components/customers/CustomerActions";
 import { Customer } from "@/types";
+import { Country } from "country-state-city";
 
 export const customersColumns: ColumnDef<Customer>[] = [
   {
@@ -62,11 +63,24 @@ export const customersColumns: ColumnDef<Customer>[] = [
     header: "Address",
     cell: ({ row }) => {
       const customer = row.original;
-      return <p className="text-14-medium ">{customer.address || "-"}</p>;
+      const address = customer.address.address ?? "";
+      const addressName = customer.address.addressName ?? "";
+      const city = customer.address.city ?? "";
+      const country =
+        Country.getCountryByCode(customer.address.country)?.name ?? "";
+      return (
+        <p className="text-14-medium ">
+          {addressName ? `${addressName}, ` : ""}
+          {address ? `${address}, ` : ""}
+          {city ? `${city}, ` : ""}
+          {country}
+          {!address && !addressName && !city && !country && "-"}
+        </p>
+      );
     },
   },
   {
-    accessorKey: "$createdAt",
+    accessorKey: "createdAt",
     header: ({ column }) => {
       return (
         <Button
@@ -89,7 +103,7 @@ export const customersColumns: ColumnDef<Customer>[] = [
     },
   },
   {
-    accessorKey: "$updatedAt",
+    accessorKey: "updatedAt",
     header: ({ column }) => {
       return (
         <Button

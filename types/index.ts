@@ -98,7 +98,13 @@ export interface Customer {
   name: string;
   email: string;
   phone: string;
-  address: string;
+  address: {
+    addressName: string;
+    address: string;
+    city: string;
+    state: string;
+    country: string;
+  };
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -195,6 +201,31 @@ export interface InventoryStockWithRelations {
   inventory: InventoryStock;
   product: Product;
   store: Store;
+}
+export interface GroupedInventoryStock {
+  id: string;
+  product: {
+    id: string;
+    productID: string;
+    name: string;
+  };
+  store: Store;
+  totalQuantity: number;
+  avgCostPrice: number;
+  avgSellingPrice: number;
+  stockBatches: {
+    id: string;
+    receivedDate: Date;
+    lotNumber: string;
+    quantity: number;
+    costPrice: number;
+    sellingPrice: number;
+    manufactureDate: Date | null;
+    expiryDate: Date | null;
+  }[];
+  earliestManufactureDate: Date | null;
+  nearestExpiryDate: Date | null;
+  latestReceivedDate: Date;
 }
 
 export interface InventoryTransactionWithRelations {
@@ -294,8 +325,8 @@ export interface SaleItem {
   saleId: string;
   productId: string;
   storeId: string;
-  inventoryStock: SelectedInventoryStock[];
-  backorders: SelectedBackorder[];
+  inventoryStock: SaleInventoryStock[];
+  backorders: SaleBackorder[];
   taxRateId: string;
   quantity: number;
   unitPrice: number;
@@ -311,12 +342,12 @@ export interface SaleItem {
   backorderQuantity: number;
 }
 
-export interface SelectedInventoryStock {
+export interface SaleInventoryStock {
   inventoryStockId: string;
   lotNumber: string;
   quantityToTake: number;
 }
-export interface SelectedBackorder {
+export interface SaleBackorder {
   id: string;
   productId: string;
   storeId: string;
@@ -332,6 +363,52 @@ export interface SaleWithRelations {
   products: SaleItem[];
   customer: Customer;
   store: Store;
+}
+
+export interface Delivery {
+  id: string;
+  deliveryDate: Date;
+  deliveryRefNumber: string;
+  status: DeliveryStatus;
+  deliveredBy: string;
+  receivedBy: string;
+  customerId: string;
+  storeId: string;
+  saleId: string;
+  notes: string;
+  deliveryAddress: DeliveryAddress;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface DeliveryItem {
+  id: string;
+  deliveryId: string;
+  productId: string;
+  inventoryStock: DeliveryInventoryStock[];
+  quantityRequested: number;
+  quantitySupplied: number;
+  balanceLeft: number;
+  productName: string;
+  productID: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface DeliveryInventoryStock {
+  inventoryStockId: string;
+  lotNumber: string;
+  quantityTaken: number;
+}
+
+export interface DeliveryWithRelations {
+  delivery: Delivery;
+  products: DeliveryItem[];
+  customer: Customer;
+  store: Store;
+  sale: Sale;
 }
 
 // payment methods

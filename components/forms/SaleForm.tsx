@@ -276,7 +276,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
           invoiceNumber: initialData.sale.invoiceNumber,
           saleDate: new Date(initialData.sale.saleDate || Date.now()),
           products: initialData?.products || [],
-          customerId: initialData.sale.customerId,
+          customerId: initialData.sale.customerId || "",
           storeId: initialData?.sale.storeId || "",
           status: initialData.sale.status,
           notes: initialData.sale.notes || "",
@@ -581,8 +581,6 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
     try {
       const values = form.getValues();
       if (!user) return;
-
-      console.log("Form values: ", values);
 
       if (fields.length === 0) {
         toast.error("At least one product is required");
@@ -1443,9 +1441,10 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                   placeholder={
                     selectedState ? "Select a city" : "Select a state first"
                   }
-                  onValueChange={(value) =>
-                    form.setValue("deliveryAddress.city", value)
-                  }
+                  onValueChange={(value) => {
+                    form.setValue("deliveryAddress.city", value);
+                    form.trigger("deliveryAddress.city");
+                  }}
                   disabled={!selectedState}
                 >
                   {cities.map((city) => (
