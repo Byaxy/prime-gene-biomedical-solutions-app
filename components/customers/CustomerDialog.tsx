@@ -34,7 +34,7 @@ const CustomerDialog = ({
         email: customer?.email || "",
         phone: customer?.phone || "",
         address: {
-          addressName: customer?.address?.addressName,
+          addressName: customer?.address?.addressName || "",
           address: customer?.address?.address || "",
           city: customer?.address?.city || "",
           state: customer?.address?.state || "",
