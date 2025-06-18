@@ -60,7 +60,6 @@ import { Input } from "../ui/input";
 import { Search } from "lucide-react";
 import { useStores } from "@/hooks/useStores";
 import StoreDialog from "../stores/StoreDialog";
-import { useAuth } from "@/hooks/useAuth";
 import { useProducts } from "@/hooks/useProducts";
 import InventoryStockSelectDialog from "../sales/InventoryStockSelectDialog";
 
@@ -82,8 +81,6 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
   const [selectedProductIndex, setSelectedProductIndex] = useState<
     number | null
   >(null);
-
-  const { user } = useAuth();
 
   const [states, setStates] = useState<IState[]>(() =>
     initialData?.sale.deliveryAddress?.country
@@ -580,7 +577,6 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
   const handleSubmit = async () => {
     try {
       const values = form.getValues();
-      if (!user) return;
 
       if (fields.length === 0) {
         toast.error("At least one product is required");
@@ -594,7 +590,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
 
       if (mode === "create") {
         await addSale(
-          { data: values, userId: user.id },
+          { data: values },
           {
             onSuccess: () => {
               toast.success("Sale created successfully!");
@@ -618,7 +614,6 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
               id: initialData?.sale.id,
               data: values,
               prevAttachmentIds: prevIds,
-              userId: user.id,
             },
             {
               onSuccess: () => {
@@ -637,7 +632,6 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
             {
               id: initialData?.sale.id,
               data: values,
-              userId: user.id,
             },
             {
               onSuccess: () => {
@@ -1131,7 +1125,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                       />
                       {form.formState.errors.products?.[index]
                         ?.inventoryStock && (
-                        <p className="text-red-500 text-xs">
+                        <p className="text-red-500 text-xs pt-2">
                           {
                             form.formState.errors.products?.[index]
                               ?.inventoryStock.message

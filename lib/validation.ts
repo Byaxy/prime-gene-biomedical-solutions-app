@@ -662,7 +662,7 @@ export const DeliveryFormValidation = z
       .enum(Object.values(DeliveryStatus) as [string, ...string[]])
       .default(QuotationStatus.Pending),
     deliveryAddress: z.object({
-      addressName: z.string().optional(),
+      addressName: z.string().nonempty("Address Name is required"),
       address: z.string().nonempty("Address is required"),
       city: z.string().nonempty("City is required"),
       state: z.string().nonempty("State is required"),
@@ -674,21 +674,12 @@ export const DeliveryFormValidation = z
     storeId: z.string().nonempty("Store is required"),
     saleId: z.string().nonempty("Sale is required"),
     notes: z.string().optional(),
-    deliveredBy: z.string().nonempty("Field is required"),
-    receivedBy: z.string().nonempty("Field is required"),
+    deliveredBy: z.string().optional(),
+    receivedBy: z.string().optional(),
     products: z
       .array(
         z.object({
           productId: z.string().nonempty("Product is required"),
-          inventoryStock: z.array(
-            z.object({
-              inventoryStockId: z
-                .string()
-                .nonempty("Inventory Stock is required"),
-              lotNumber: z.string().nonempty("Lot number is required"),
-              quantityTaken: z.number().min(1, "Quantity must be at least 1"),
-            })
-          ),
           quantityRequested: z
             .number()
             .int()
@@ -722,3 +713,98 @@ export const DeliveryFormValidation = z
   });
 
 export type DeliveryFormValues = z.infer<typeof DeliveryFormValidation>;
+
+// Waybills
+export const WaybillFormValidation = z
+  .object({
+    waybillRefNumber: z
+      .string()
+      .nonempty("Waybill refference number is required"),
+    waybillDate: z.date(),
+    status: z
+      .enum(Object.values(DeliveryStatus) as [string, ...string[]])
+      .default(QuotationStatus.Pending),
+    deliveryAddress: z.object({
+      addressName: z.string().optional(),
+      address: z.string().nonempty("Address is required"),
+      city: z.string().nonempty("City is required"),
+      state: z.string().nonempty("State is required"),
+      country: z.string().nonempty("Country is required"),
+      email: z.string().optional(),
+      phone: z.string().nonempty("Phone number is required"),
+    }),
+    customerId: z.string().nonempty("Customer is required"),
+    storeId: z.string().nonempty("Store is required"),
+    saleId: z.string().nonempty("Sale is required"),
+    notes: z.string().optional(),
+    deliveredBy: z.string().optional(),
+    receivedBy: z.string().optional(),
+    products: z
+      .array(
+        z.object({
+          productId: z.string().nonempty("Product is required"),
+          saleItemId: z.string().nonempty("Sale Item is required"),
+          inventoryStock: z
+            .array(
+              z.object({
+                inventoryStockId: z
+                  .string()
+                  .nonempty("Inventory Stock is required"),
+                lotNumber: z.string().nonempty("Lot number is required"),
+                quantityTaken: z.number().min(1, "Quantity must be at least 1"),
+                unitPrice: z.number().min(0, "Unit price must be 0 or more"),
+              })
+            )
+            .min(1, "At least one inventory stock is required"),
+          quantityRequested: z
+            .number()
+            .int()
+            .min(1, "Quantity must be 1 or more"),
+          quantitySupplied: z
+            .number()
+            .int()
+            .min(0, "Quantity supplied must be 0 or more"),
+          balanceLeft: z
+            .number()
+            .int()
+            .min(0, "Balance left must be 0 or more"),
+          fulfilledQuantity: z
+            .number()
+            .int()
+            .min(0, "Quantity supplied must be 0 or more"),
+          productName: z.string(),
+          productID: z.string(),
+        })
+      )
+      .min(1, "At least one product is required"),
+  })
+  .superRefine((data, ctx) => {
+    if (data.products.length > 0) {
+      data.products.forEach((product, index) => {
+        if (
+          product.quantitySupplied >
+          product.quantityRequested - product.fulfilledQuantity
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Quantity supplied cannot be more than quantity required",
+            path: ["products", index, "quantitySupplied"],
+          });
+        }
+
+        const totalInventoryStockQuantity = (
+          product.inventoryStock ?? []
+        ).reduce((total, stock) => total + (stock.quantityTaken || 0), 0);
+
+        if (totalInventoryStockQuantity !== product.quantitySupplied) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Total allocated quantity must match supplied quantity",
+            path: ["products", index, "inventoryStock"],
+          });
+        }
+      });
+    }
+  });
+
+export type WaybillFormValues = z.infer<typeof WaybillFormValidation>;

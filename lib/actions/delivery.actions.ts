@@ -5,10 +5,8 @@ import { parseStringify } from "../utils";
 import { db } from "@/drizzle/db";
 import { DeliveryFormValues } from "../validation";
 import {
-  deliveryItemInventoryTable,
   deliveryItemsTable,
   deliveriesTable,
-  saleItemsTable,
   salesTable,
   customersTable,
   storesTable,
@@ -42,8 +40,8 @@ export const addDelivery = async (delivery: DeliveryFormValues) => {
           customerId: delivery.customerId,
           storeId: delivery.storeId,
           saleId: delivery.saleId,
-          deliveredBy: delivery.deliveredBy,
-          receivedBy: delivery.receivedBy,
+          deliveredBy: delivery.deliveredBy || "",
+          receivedBy: delivery.receivedBy || "",
           notes: delivery.notes,
         })
         .returning();
@@ -65,43 +63,14 @@ export const addDelivery = async (delivery: DeliveryFormValues) => {
           })
           .returning();
 
-        // Process supplied inventory stock
-        for (const inventory of product.inventoryStock) {
-          // Create delivery item inventory record
-          await tx.insert(deliveryItemInventoryTable).values({
-            deliveryItemId: deliveryItem.id,
-            inventoryStockId: inventory.inventoryStockId,
-            lotNumber: inventory.lotNumber,
-            quantityTaken: inventory.quantityTaken,
-          });
-        }
-
-        // Update sale item fulfillment
-        const saleItem = await tx
-          .select()
-          .from(saleItemsTable)
-          .where(
-            and(
-              eq(saleItemsTable.saleId, delivery.saleId),
-              eq(saleItemsTable.productId, product.productId),
-              eq(saleItemsTable.isActive, true)
-            )
-          )
-          .then((res) => res[0]);
-
-        if (saleItem) {
-          const newFulfilledQuantity =
-            saleItem.fulfilledQuantity + product.quantitySupplied;
-          await tx
-            .update(saleItemsTable)
-            .set({
-              fulfilledQuantity: newFulfilledQuantity,
-            })
-            .where(eq(saleItemsTable.id, saleItem.id));
-        }
-
         deliveryItems.push(deliveryItem);
       }
+
+      // update sale
+      await tx
+        .update(salesTable)
+        .set({ isDeliveryNoteCreated: true })
+        .where(eq(salesTable.id, delivery.saleId));
 
       return { delivery: newDelivery, items: deliveryItems };
     });
@@ -154,39 +123,9 @@ export const getDeliveryById = async (deliveryId: string) => {
           )
         );
 
-      // Get all inventory records for these delivery items
-      const deliveryItemIds = items.map((item) => item.id);
-      const inventoryRecords =
-        deliveryItemIds.length > 0
-          ? await tx
-              .select()
-              .from(deliveryItemInventoryTable)
-              .where(
-                and(
-                  inArray(
-                    deliveryItemInventoryTable.deliveryItemId,
-                    deliveryItemIds
-                  ),
-                  eq(deliveryItemInventoryTable.isActive, true)
-                )
-              )
-          : [];
-
-      // Create a map of delivery item ID to its inventory records
-      const inventoryMap = new Map();
-      inventoryRecords.forEach((record) => {
-        if (!inventoryMap.has(record.deliveryItemId)) {
-          inventoryMap.set(record.deliveryItemId, []);
-        }
-        inventoryMap.get(record.deliveryItemId).push(record);
-      });
-
       return {
         ...delivery,
-        products: items.map((item) => ({
-          ...item,
-          inventoryStock: inventoryMap.get(item.id) || [],
-        })),
+        products: items,
       };
     });
 
@@ -355,117 +294,28 @@ export const editDelivery = async (
         .where(eq(deliveriesTable.id, deliveryId))
         .returning();
 
-      // Get existing delivery items
-      const existingItems = await tx
-        .select()
-        .from(deliveryItemsTable)
-        .where(
-          and(
-            eq(deliveryItemsTable.deliveryId, deliveryId),
-            eq(deliveryItemsTable.isActive, true)
-          )
-        );
-
-      // Delete existing delivery item inventory records
-      const existingItemIds = existingItems.map((item) => item.id);
-      if (existingItemIds.length > 0) {
-        await tx
-          .delete(deliveryItemInventoryTable)
-          .where(
-            inArray(deliveryItemInventoryTable.deliveryItemId, existingItemIds)
-          );
-      }
-
-      // Delete existing delivery items
-      await tx
-        .delete(deliveryItemsTable)
-        .where(eq(deliveryItemsTable.deliveryId, deliveryId));
-
       // Process each product in the updated delivery
       const deliveryItems = [];
       for (const product of delivery.products) {
-        // Create new delivery item
-        const [deliveryItem] = await tx
-          .insert(deliveryItemsTable)
-          .values({
-            deliveryId: updatedDelivery.id,
-            productId: product.productId,
+        // update delivery item
+        const [updatedItem] = await tx
+          .update(deliveryItemsTable)
+          .set({
             quantityRequested: product.quantityRequested,
             quantitySupplied: product.quantitySupplied,
             balanceLeft: product.balanceLeft,
-            productName: product.productName,
-            productID: product.productID,
-          })
-          .returning();
-
-        // Process supplied inventory stock
-        for (const inventory of product.inventoryStock) {
-          // Create delivery item inventory record
-          await tx.insert(deliveryItemInventoryTable).values({
-            deliveryItemId: deliveryItem.id,
-            inventoryStockId: inventory.inventoryStockId,
-            lotNumber: inventory.lotNumber,
-            quantityTaken: inventory.quantityTaken,
-          });
-        }
-
-        deliveryItems.push(deliveryItem);
-      }
-
-      // Recalculate sale item fulfillment for the entire sale
-      // First, reset all fulfilled quantities for this sale
-      await tx
-        .update(saleItemsTable)
-        .set({ fulfilledQuantity: 0 })
-        .where(
-          and(
-            eq(saleItemsTable.saleId, delivery.saleId),
-            eq(saleItemsTable.isActive, true)
-          )
-        );
-
-      // Then recalculate based on all active deliveries for this sale
-      const allDeliveriesForSale = await tx
-        .select({
-          deliveryItem: deliveryItemsTable,
-        })
-        .from(deliveryItemsTable)
-        .innerJoin(
-          deliveriesTable,
-          eq(deliveryItemsTable.deliveryId, deliveriesTable.id)
-        )
-        .where(
-          and(
-            eq(deliveriesTable.saleId, delivery.saleId),
-            eq(deliveriesTable.isActive, true),
-            eq(deliveryItemsTable.isActive, true)
-          )
-        );
-
-      // Group by product and sum quantities
-      const productFulfillmentMap = new Map();
-      allDeliveriesForSale.forEach(({ deliveryItem }) => {
-        const existing = productFulfillmentMap.get(deliveryItem.productId) || 0;
-        productFulfillmentMap.set(
-          deliveryItem.productId,
-          existing + deliveryItem.quantitySupplied
-        );
-      });
-
-      // Update sale items with recalculated fulfillment
-      for (const [productId, totalFulfilled] of productFulfillmentMap) {
-        await tx
-          .update(saleItemsTable)
-          .set({
-            fulfilledQuantity: totalFulfilled,
           })
           .where(
             and(
-              eq(saleItemsTable.saleId, delivery.saleId),
-              eq(saleItemsTable.productId, productId),
-              eq(saleItemsTable.isActive, true)
+              eq(deliveryItemsTable.deliveryId, deliveryId),
+              eq(deliveryItemsTable.productId, product.productId),
+              eq(deliveryItemsTable.productID, product.productID),
+              eq(deliveryItemsTable.isActive, true)
             )
-          );
+          )
+          .returning();
+
+        deliveryItems.push(updatedItem);
       }
 
       return { delivery: updatedDelivery, items: deliveryItems };
@@ -482,22 +332,6 @@ export const editDelivery = async (
 export const deleteDelivery = async (deliveryId: string) => {
   try {
     const result = await db.transaction(async (tx) => {
-      // Get delivery items
-      const deliveryItems = await tx
-        .select()
-        .from(deliveryItemsTable)
-        .where(eq(deliveryItemsTable.deliveryId, deliveryId));
-
-      // Delete delivery item inventory records
-      const deliveryItemIds = deliveryItems.map((item) => item.id);
-      if (deliveryItemIds.length > 0) {
-        await tx
-          .delete(deliveryItemInventoryTable)
-          .where(
-            inArray(deliveryItemInventoryTable.deliveryItemId, deliveryItemIds)
-          );
-      }
-
       // Delete delivery items
       await tx
         .delete(deliveryItemsTable)
@@ -524,22 +358,11 @@ export const deleteDelivery = async (deliveryId: string) => {
 export const softDeleteDelivery = async (deliveryId: string) => {
   try {
     const result = await db.transaction(async (tx) => {
-      // Soft delete delivery items and their inventory
-      const deliveryItems = await tx
+      // Soft delete delivery items
+      await tx
         .update(deliveryItemsTable)
         .set({ isActive: false })
-        .where(eq(deliveryItemsTable.deliveryId, deliveryId))
-        .returning();
-
-      const deliveryItemIds = deliveryItems.map((item) => item.id);
-      if (deliveryItemIds.length > 0) {
-        await tx
-          .update(deliveryItemInventoryTable)
-          .set({ isActive: false })
-          .where(
-            inArray(deliveryItemInventoryTable.deliveryItemId, deliveryItemIds)
-          );
-      }
+        .where(eq(deliveryItemsTable.deliveryId, deliveryId));
 
       // Soft delete main delivery record
       const [updatedDelivery] = await tx

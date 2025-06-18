@@ -1,21 +1,10 @@
-/* eslint-disable jsx-a11y/alt-text */
-"use client";
-
-import { DeliveryWithRelations } from "@/types";
-import {
-  Page,
-  Text,
-  View,
-  Document,
-  StyleSheet,
-  Image,
-} from "@react-pdf/renderer";
+import { Page, Text, View, Document, StyleSheet } from "@react-pdf/renderer";
 import SignatureAndBankSection from "../pdf-template/SignatureAndBankSection";
 import PDFFooter from "../pdf-template/PDFFooter";
-import Address from "../pdf-template/Address";
 import PDFHeader from "../pdf-template/PDFHeader";
 import PDFTittle from "../pdf-template/PDFTittle";
 import { formatDateTime } from "@/lib/utils";
+import { WaybillWithRelations } from "@/types";
 
 // styles
 const styles = StyleSheet.create({
@@ -54,11 +43,11 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
   },
-  deliveryInfo: {
+  waybillInfo: {
     fontSize: 9,
     marginBottom: 2,
   },
-  deliveryInfoContainer: {
+  waybillInfoContainer: {
     display: "flex",
     flexDirection: "row",
     flex: 1,
@@ -72,17 +61,18 @@ const styles = StyleSheet.create({
   },
 });
 
-const DeliveryNote = ({ delivery }: { delivery: DeliveryWithRelations }) => {
-  const { delivery: del, customer, sale, products } = delivery;
+const WaybillPDF = ({ waybill }: { waybill: WaybillWithRelations }) => {
+  const { waybill: bill, sale, products } = waybill;
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         {/* Header */}
         <PDFHeader />
         {/* Title */}
-        <PDFTittle title="Delivery Note" />
+        <PDFTittle title="Waybill" />
 
-        {/* Delivery Info */}
+        {/* waybill Info */}
         <View
           style={{
             display: "flex",
@@ -94,90 +84,78 @@ const DeliveryNote = ({ delivery }: { delivery: DeliveryWithRelations }) => {
           <View
             style={{
               display: "flex",
-              flexDirection: "row",
-              gap: 10,
-            }}
-          >
-            <Image
-              src="/assets/images/qrcode.png"
-              style={{ width: 50, height: 50 }}
-            />
-          </View>
-
-          <View
-            style={{
-              display: "flex",
               flexDirection: "column",
               flex: 1,
               gap: 10,
             }}
           >
-            <View style={styles.deliveryInfoContainer}>
-              <Text style={{ ...styles.deliveryInfo, flex: 1 }}>
-                {"Delivery Date"}
+            <View style={styles.waybillInfoContainer}>
+              <Text style={{ ...styles.waybillInfo, flex: 1 }}>
+                {"Waybill No."}
               </Text>
               <Text
-                style={{ ...styles.deliveryInfo, fontWeight: "bold", flex: 4 }}
+                style={{ ...styles.waybillInfo, fontWeight: "bold", flex: 4 }}
               >
-                {formatDateTime(del.deliveryDate).dateTime}
+                {bill.waybillRefNumber}
               </Text>
             </View>
-            <View style={styles.deliveryInfoContainer}>
-              <Text style={{ ...styles.deliveryInfo, flex: 1 }}>
-                {"Delivery Ref No."}
+            <View style={styles.waybillInfoContainer}>
+              <Text style={{ ...styles.waybillInfo, flex: 1 }}>
+                {"Waybill Date"}
               </Text>
               <Text
-                style={{ ...styles.deliveryInfo, fontWeight: "bold", flex: 4 }}
+                style={{ ...styles.waybillInfo, fontWeight: "bold", flex: 4 }}
               >
-                {del.deliveryRefNumber}
+                {formatDateTime(bill.waybillDate).dateTime}
               </Text>
             </View>
-            <View style={styles.deliveryInfoContainer}>
-              <Text style={{ ...styles.deliveryInfo, flex: 1 }}>
-                {"Delivery Status"}
+
+            <View style={styles.waybillInfoContainer}>
+              <Text style={{ ...styles.waybillInfo, flex: 1 }}>
+                {"Invoice Date"}
               </Text>
               <Text
-                style={{ ...styles.deliveryInfo, fontWeight: "bold", flex: 4 }}
-              >
-                {del.status}
-              </Text>
-            </View>
-            <View style={styles.deliveryInfoContainer}>
-              <Text style={{ ...styles.deliveryInfo, flex: 1 }}>
-                {"Sale Date"}
-              </Text>
-              <Text
-                style={{ ...styles.deliveryInfo, fontWeight: "bold", flex: 4 }}
+                style={{ ...styles.waybillInfo, fontWeight: "bold", flex: 4 }}
               >
                 {formatDateTime(sale.saleDate).dateTime}
               </Text>
             </View>
-            <View style={styles.deliveryInfoContainer}>
-              <Text style={{ ...styles.deliveryInfo, flex: 1 }}>
+            <View style={styles.waybillInfoContainer}>
+              <Text style={{ ...styles.waybillInfo, flex: 1 }}>
+                {"Sale Date"}
+              </Text>
+              <Text
+                style={{ ...styles.waybillInfo, fontWeight: "bold", flex: 4 }}
+              >
+                {formatDateTime(sale.saleDate).dateTime}
+              </Text>
+            </View>
+            <View style={styles.waybillInfoContainer}>
+              <Text style={{ ...styles.waybillInfo, flex: 1 }}>
                 {"Invoice Ref No."}
               </Text>
               <Text
-                style={{ ...styles.deliveryInfo, fontWeight: "bold", flex: 4 }}
+                style={{ ...styles.waybillInfo, fontWeight: "bold", flex: 4 }}
               >
                 {sale.invoiceNumber}
               </Text>
             </View>
-            <View style={styles.deliveryInfoContainer}>
-              <Text style={{ ...styles.deliveryInfo, flex: 1 }}>
+            <View style={styles.waybillInfoContainer}>
+              <Text style={{ ...styles.waybillInfo, flex: 1 }}>
                 {"Purchase Order No."}
               </Text>
               <Text
-                style={{ ...styles.deliveryInfo, fontWeight: "bold", flex: 4 }}
+                style={{ ...styles.waybillInfo, fontWeight: "bold", flex: 4 }}
               >
                 {"N/A"}
               </Text>
             </View>
-            <View style={styles.deliveryInfoContainer}>
-              <Text style={{ ...styles.deliveryInfo, flex: 1 }}>
+            <View style={styles.waybillInfoContainer}>
+              <Text style={{ ...styles.waybillInfo, flex: 1 }}>
                 {"Purchase Order Date"}
               </Text>
               <Text
-                style={{ ...styles.deliveryInfo, fontWeight: "bold", flex: 4 }}
+                style={{ ...styles.waybillInfo, fontWeight: "bold", flex: 4 }}
               >
                 {"N/A"}
               </Text>
@@ -193,27 +171,7 @@ const DeliveryNote = ({ delivery }: { delivery: DeliveryWithRelations }) => {
             marginBottom: 20,
             gap: 40,
           }}
-        >
-          <Address
-            addressTitle="Billing Address:"
-            name={customer.name}
-            address={customer.address.address}
-            phone={customer.phone}
-            email={customer.email}
-            city={customer.address.city}
-            country={customer.address.country}
-          />
-
-          <Address
-            addressTitle="Delivery Address:"
-            name={del.deliveryAddress.addressName}
-            address={del.deliveryAddress.address}
-            phone={del.deliveryAddress.phone}
-            email={del.deliveryAddress.email}
-            city={del.deliveryAddress.city}
-            country={del.deliveryAddress.country}
-          />
-        </View>
+        ></View>
 
         {/* Products Table */}
         <View style={styles.tableContainer}>
@@ -255,4 +213,4 @@ const DeliveryNote = ({ delivery }: { delivery: DeliveryWithRelations }) => {
   );
 };
 
-export default DeliveryNote;
+export default WaybillPDF;

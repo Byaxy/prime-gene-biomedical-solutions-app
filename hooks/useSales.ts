@@ -99,13 +99,7 @@ export const useSales = ({
   };
 
   const { mutate: addSaleMutation, status: addSaleStatus } = useMutation({
-    mutationFn: async ({
-      data,
-      userId,
-    }: {
-      data: SaleFormValues;
-      userId: string;
-    }) => {
+    mutationFn: async ({ data }: { data: SaleFormValues }) => {
       const supabase = createSupabaseBrowserClient();
       const attachments: Attachment[] = [];
 
@@ -145,7 +139,7 @@ export const useSales = ({
         ...data,
         attachments,
       };
-      return addSale(dataWithAttachment, userId);
+      return addSale(dataWithAttachment);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sales"] });
@@ -157,12 +151,10 @@ export const useSales = ({
       id,
       data,
       prevAttachmentIds,
-      userId,
     }: {
       id: string;
       data: SaleFormValues;
       prevAttachmentIds?: string[];
-      userId: string;
     }) => {
       const supabase = createSupabaseBrowserClient();
       const attachments: Array<{
@@ -220,7 +212,7 @@ export const useSales = ({
         ...data,
         attachments,
       };
-      return editSale(dataWithAttachments, id, userId);
+      return editSale(dataWithAttachments, id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sales", "paginatedSales"] });

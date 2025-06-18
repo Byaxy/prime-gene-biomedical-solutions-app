@@ -1,4 +1,10 @@
-import { DeliveryWithRelations } from "@/types";
+import { useWaybills } from "@/hooks/useWaybills";
+import { WaybillWithRelations } from "@/types";
+import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
+import WaybillPDF from "./WaybillPDF";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
 import {
   Dialog,
   DialogContent,
@@ -7,63 +13,57 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 import { Button } from "../ui/button";
-import { useDeliveries } from "@/hooks/useDeliveries";
-import toast from "react-hot-toast";
-import { PDFViewer } from "@react-pdf/renderer";
-import DeliveryNote from "./DeliveryNote";
-import { useRouter } from "next/navigation";
-import EditIcon from "@mui/icons-material/Edit";
-import DeleteIcon from "@mui/icons-material/Delete";
-import { Download } from "lucide-react";
 import { Mail } from "lucide-react";
+import { Download } from "lucide-react";
+import { PDFViewer } from "@react-pdf/renderer";
+import { FileText } from "lucide-react";
 
-interface DeliveryDialogProps {
+interface WaybillDialogProps {
   mode: "add" | "edit" | "delete" | "view";
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  delivery: DeliveryWithRelations;
+  waybill: WaybillWithRelations;
 }
 
-const DeliveryDialog = ({
+const WaybillDialog = ({
   mode,
   open,
   onOpenChange,
-  delivery,
-}: DeliveryDialogProps) => {
-  const { softDeleteDelivery, isSoftDeletingDelivery } = useDeliveries();
-
+  waybill,
+}: WaybillDialogProps) => {
+  const { softDeleteWaybill, isSoftDeletingWaybill } = useWaybills();
   const router = useRouter();
 
   const handleDelete = async () => {
     try {
-      if (delivery && delivery.delivery.id) {
-        await softDeleteDelivery(delivery.delivery.id, {
+      if (waybill && waybill.waybill.id) {
+        await softDeleteWaybill(waybill.waybill.id, {
           onSuccess: () => {
-            toast.success("Delivery deleted successfully.");
+            toast.success("Waybill deleted successfully.");
             onOpenChange(false);
           },
           onError: (error) => {
-            console.error("Error deleting delivery:", error);
-            toast.error("Failed to delete delivery.");
+            console.error("Error deleting waybill:", error);
+            toast.error("Failed to delete waybill.");
           },
         });
       } else {
-        throw new Error("Delivery is required.");
+        throw new Error("Waybill is required.");
       }
     } catch (error) {
-      console.error("Error deleting delivery:", error);
+      console.error("Error deleting waybill:", error);
     }
   };
 
   const handleDownloadPDF = async () => {
     try {
       const { pdf } = await import("@react-pdf/renderer");
-      const blob = await pdf(<DeliveryNote delivery={delivery} />).toBlob();
+      const blob = await pdf(<WaybillPDF waybill={waybill} />).toBlob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `Delivery_${
-        delivery.delivery.deliveryRefNumber || Date.now()
+      link.download = `Waybill_${
+        waybill.waybill.waybillRefNumber || Date.now()
       }.pdf`;
       document.body.appendChild(link);
       link.click();
@@ -83,23 +83,23 @@ const DeliveryDialog = ({
 
   const handleEmail = async () => {
     try {
-      if (!delivery.customer.email) {
+      if (!waybill.customer.email) {
         toast.error("Customer email not found");
         return;
       }
 
-      const subject = `Delivery Reference Number: ${
-        delivery.delivery.deliveryRefNumber || "N/A"
+      const subject = `Waybill Reference Number: ${
+        waybill.waybill.waybillRefNumber || "N/A"
       }`;
       const body = `Dear ${
-        delivery.customer.name || "Customer"
-      },\n\nPlease find attached the delivery note as requested.\n\nBest regards,\nYour Company \nSales Team`;
+        waybill.customer.name || "Customer"
+      },\n\nPlease find attached the waybill as requested.\n\nBest regards,\nYour Company \nSales Team`;
 
       // First, download the PDF
       await handleDownloadPDF();
 
       const mailtoLink = `mailto:${
-        delivery.customer.email
+        waybill.customer.email
       }?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(
         body
       )}`;
@@ -123,19 +123,19 @@ const DeliveryDialog = ({
           <DialogContent className="sm:max-w-2xl bg-light-200">
             <DialogHeader className="space-y-2">
               <DialogTitle className="text-xl text-blue-800">
-                Delete Delivery
+                Delete Waybill
               </DialogTitle>
               <DialogDescription className="text-dark-500">
-                Are you sure you want to delete this delivery? This action
-                cannot be undone.
+                Are you sure you want to delete this waybill? This action cannot
+                be undone.
               </DialogDescription>
             </DialogHeader>
 
             <div className="flex flex-col gap-4">
               <p className="text-sm text-red-500">
-                Delivery Ref Number:{" "}
+                Waybill Ref Number:{" "}
                 <span className="font-semibold">
-                  {delivery.delivery.deliveryRefNumber}
+                  {waybill.waybill.waybillRefNumber}
                 </span>
               </p>
               <div className="flex justify-end gap-4">
@@ -143,7 +143,7 @@ const DeliveryDialog = ({
                   type="button"
                   variant="outline"
                   onClick={() => onOpenChange(false)}
-                  disabled={isSoftDeletingDelivery}
+                  disabled={isSoftDeletingWaybill}
                   className="shad-primary-btn"
                 >
                   Cancel
@@ -152,7 +152,7 @@ const DeliveryDialog = ({
                   type="button"
                   variant="destructive"
                   onClick={handleDelete}
-                  disabled={isSoftDeletingDelivery}
+                  disabled={isSoftDeletingWaybill}
                   className="shad-danger-btn"
                 >
                   Delete
@@ -171,7 +171,7 @@ const DeliveryDialog = ({
             </DialogHeader>
             <div className="flex flex-col w-full h-full bg-light-200">
               <PDFViewer className="w-full h-full">
-                {<DeliveryNote delivery={delivery} />}
+                {<WaybillPDF waybill={waybill} />}
               </PDFViewer>
               <div className="flex justify-center gap-1.5 py-4 px-5">
                 <Button
@@ -179,14 +179,26 @@ const DeliveryDialog = ({
                   variant="outline"
                   onClick={() => {
                     router.push(
-                      `/deliveries/edit-delivery/${delivery.delivery.id}`
+                      `/promissory-notes/create-promissory-note/from-waybill/${waybill.waybill.id}`
                     );
+                    onOpenChange(false);
+                  }}
+                  className="shad-gray-btn"
+                >
+                  <FileText className="h-5 w-5" />
+                  Promissory Note
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    router.push(`/waybills/edit-waybill/${waybill.waybill.id}`);
                     onOpenChange(false);
                   }}
                   className="shad-primary-btn"
                 >
                   <EditIcon className="h-5 w-5" />
-                  Edit Delivery
+                  Edit Waybill
                 </Button>
                 <Button
                   type="button"
@@ -207,7 +219,7 @@ const DeliveryDialog = ({
                   className="shad-gray-btn"
                 >
                   <Mail className="h-5 w-5" />
-                  Email Delivery Note
+                  Email Waybill
                 </Button>
                 <Button
                   type="button"
@@ -216,7 +228,7 @@ const DeliveryDialog = ({
                   className="shad-danger-btn"
                 >
                   <DeleteIcon className="h-5 w-5" />
-                  Delete Delivery
+                  Delete Waybill
                 </Button>
               </div>
             </div>
@@ -227,4 +239,4 @@ const DeliveryDialog = ({
   );
 };
 
-export default DeliveryDialog;
+export default WaybillDialog;

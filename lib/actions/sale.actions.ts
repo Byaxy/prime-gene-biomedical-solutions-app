@@ -10,7 +10,6 @@ import {
   backordersTable,
   customersTable,
   inventoryTable,
-  inventoryTransactionsTable,
   productsTable,
   quotationsTable,
   saleItemInventoryTable,
@@ -28,7 +27,7 @@ import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { SaleFilters } from "@/hooks/useSales";
 
 // Add a new sale
-export const addSale = async (sale: SaleFormValues, userId: string) => {
+export const addSale = async (sale: SaleFormValues) => {
   try {
     // Verify that all products exist in the database before proceeding
     const productIds = sale.products.map((product) => product.productId);
@@ -123,36 +122,6 @@ export const addSale = async (sale: SaleFormValues, userId: string) => {
               lotNumber: inventory.lotNumber,
               quantityToTake: inventory.quantityToTake,
             });
-            // Update inventory quantity
-            const [updatedInventory] = await tx
-              .update(inventoryTable)
-              .set({
-                quantity: sql`${inventoryTable.quantity} - ${inventory.quantityToTake}`,
-              })
-              .where(eq(inventoryTable.id, inventory.inventoryStockId))
-              .returning();
-
-            // Log the inventory transaction
-            await tx.insert(inventoryTransactionsTable).values({
-              inventoryId: inventory.inventoryStockId,
-              productId: product.productId,
-              storeId: sale.storeId,
-              userId: userId,
-              transactionType: "sale",
-              quantityBefore:
-                updatedInventory.quantity - inventory.quantityToTake,
-              quantityAfter: updatedInventory.quantity,
-              transactionDate: new Date(),
-              notes: `Stock reduced for sale`,
-            });
-
-            // Update product total quantity
-            await tx
-              .update(productsTable)
-              .set({
-                quantity: sql`${productsTable.quantity} - ${inventory.quantityToTake}`,
-              })
-              .where(eq(productsTable.id, product.productId));
           }
 
           // Handle backorder
@@ -210,12 +179,7 @@ export const addSale = async (sale: SaleFormValues, userId: string) => {
 };
 
 // Edit sale
-// Edit sale
-export const editSale = async (
-  sale: SaleFormValues,
-  saleId: string,
-  userId: string
-) => {
+export const editSale = async (sale: SaleFormValues, saleId: string) => {
   try {
     // Verify that all products exist in the database before proceeding
     const productIds = sale.products.map((product) => product.productId);
@@ -391,32 +355,6 @@ export const editSale = async (
 
             // Reverse existing inventory transactions
             for (const invRecord of existingInventoryRecords) {
-              if (invRecord.inventoryStockId) {
-                // Update inventory quantity (add back the quantity)
-                const [updatedInventory] = await tx
-                  .update(inventoryTable)
-                  .set({
-                    quantity: sql`${inventoryTable.quantity} + ${invRecord.quantityToTake}`,
-                  })
-                  .where(eq(inventoryTable.id, invRecord.inventoryStockId))
-                  .returning();
-
-                // Log the inventory reversal transaction
-                await tx.insert(inventoryTransactionsTable).values({
-                  inventoryId: invRecord.inventoryStockId,
-                  productId: product.productId,
-                  storeId: updatedSale.storeId,
-                  userId: userId,
-                  transactionType: "sale_reversal",
-                  quantityBefore:
-                    updatedInventory.quantity - invRecord.quantityToTake,
-                  quantityAfter: updatedInventory.quantity,
-                  transactionDate: new Date(),
-                  referenceId: updatedSale.id,
-                  notes: `Stock restored from sale edit`,
-                });
-              }
-
               // Delete sale item inventory record
               await tx
                 .delete(saleItemInventoryTable)
@@ -430,14 +368,6 @@ export const editSale = async (
                 .where(eq(backordersTable.id, backorderRecord.id));
             }
 
-            // Update product total quantity (add back the old quantity)
-            await tx
-              .update(productsTable)
-              .set({
-                quantity: sql`${productsTable.quantity} + ${existingSaleItem.quantity}`,
-              })
-              .where(eq(productsTable.id, product.productId));
-
             // Now process the new inventory stock for this product (same as addSale)
             for (const inventory of product.inventoryStock) {
               // Handle existing inventory stock
@@ -448,38 +378,6 @@ export const editSale = async (
                 lotNumber: inventory.lotNumber,
                 quantityToTake: inventory.quantityToTake,
               });
-
-              // Update inventory quantity
-              const [updatedInventory] = await tx
-                .update(inventoryTable)
-                .set({
-                  quantity: sql`${inventoryTable.quantity} - ${inventory.quantityToTake}`,
-                })
-                .where(eq(inventoryTable.id, inventory.inventoryStockId))
-                .returning();
-
-              // Log the inventory transaction
-              await tx.insert(inventoryTransactionsTable).values({
-                inventoryId: inventory.inventoryStockId,
-                productId: product.productId,
-                storeId: sale.storeId,
-                userId: userId,
-                transactionType: "sale",
-                quantityBefore:
-                  updatedInventory.quantity + inventory.quantityToTake,
-                quantityAfter: updatedInventory.quantity,
-                transactionDate: new Date(),
-                referenceId: updatedSale.id,
-                notes: `Stock reduced for sale edit`,
-              });
-
-              // Update product total quantity
-              await tx
-                .update(productsTable)
-                .set({
-                  quantity: sql`${productsTable.quantity} - ${inventory.quantityToTake}`,
-                })
-                .where(eq(productsTable.id, product.productId));
             }
 
             // Handle back order
@@ -491,14 +389,6 @@ export const editSale = async (
                 saleItemId: updatedSaleItem.id,
                 pendingQuantity: product.backorderQuantity ?? 0,
               });
-
-              // Update product total quantity
-              await tx
-                .update(productsTable)
-                .set({
-                  quantity: sql`${productsTable.quantity} - ${product.backorderQuantity}`,
-                })
-                .where(eq(productsTable.id, product.productId));
 
               // Store backorder reference in sale item
               await tx
@@ -543,38 +433,6 @@ export const editSale = async (
                 lotNumber: inventory.lotNumber,
                 quantityToTake: inventory.quantityToTake,
               });
-
-              // Update inventory quantity
-              const [updatedInventory] = await tx
-                .update(inventoryTable)
-                .set({
-                  quantity: sql`${inventoryTable.quantity} - ${inventory.quantityToTake}`,
-                })
-                .where(eq(inventoryTable.id, inventory.inventoryStockId))
-                .returning();
-
-              // Log the inventory transaction
-              await tx.insert(inventoryTransactionsTable).values({
-                inventoryId: inventory.inventoryStockId,
-                productId: product.productId,
-                storeId: sale.storeId,
-                userId: userId,
-                transactionType: "sale",
-                quantityBefore:
-                  updatedInventory.quantity + inventory.quantityToTake,
-                quantityAfter: updatedInventory.quantity,
-                transactionDate: new Date(),
-                referenceId: updatedSale.id,
-                notes: `Stock reduced for sale edit - new item`,
-              });
-
-              // Update product total quantity
-              await tx
-                .update(productsTable)
-                .set({
-                  quantity: sql`${productsTable.quantity} - ${inventory.quantityToTake}`,
-                })
-                .where(eq(productsTable.id, product.productId));
             }
 
             // Handle back order
@@ -586,14 +444,6 @@ export const editSale = async (
                 saleItemId: saleItem.id,
                 pendingQuantity: product.backorderQuantity ?? 0,
               });
-
-              // Update product total quantity
-              await tx
-                .update(productsTable)
-                .set({
-                  quantity: sql`${productsTable.quantity} - ${product.backorderQuantity}`,
-                })
-                .where(eq(productsTable.id, product.productId));
 
               // Store backorder reference in sale item
               await tx
@@ -619,32 +469,6 @@ export const editSale = async (
           const inventoryRecords =
             saleItemInventoryMap.get(itemToDelete.id) || [];
           for (const invRecord of inventoryRecords) {
-            if (invRecord.inventoryStockId) {
-              // Reverse inventory transaction
-              const [updatedInventory] = await tx
-                .update(inventoryTable)
-                .set({
-                  quantity: sql`${inventoryTable.quantity} + ${invRecord.quantityToTake}`,
-                })
-                .where(eq(inventoryTable.id, invRecord.inventoryStockId))
-                .returning();
-
-              // Log the inventory reversal transaction
-              await tx.insert(inventoryTransactionsTable).values({
-                inventoryId: invRecord.inventoryStockId,
-                productId: itemToDelete.productId,
-                storeId: updatedSale.storeId,
-                userId: userId,
-                transactionType: "sale_reversal",
-                quantityBefore:
-                  updatedInventory.quantity - invRecord.quantityToTake,
-                quantityAfter: updatedInventory.quantity,
-                transactionDate: new Date(),
-                referenceId: updatedSale.id,
-                notes: `Stock restored from sale edit - item removed`,
-              });
-            }
-
             // Delete sale item inventory record
             await tx
               .delete(saleItemInventoryTable)
@@ -659,14 +483,6 @@ export const editSale = async (
               .delete(backordersTable)
               .where(eq(backordersTable.id, backorderRecord.id));
           }
-
-          // Update product total quantity (add back the quantity)
-          await tx
-            .update(productsTable)
-            .set({
-              quantity: sql`${productsTable.quantity} + ${itemToDelete.quantity}`,
-            })
-            .where(eq(productsTable.id, itemToDelete.productId));
 
           // Delete the sale item
           await tx
@@ -825,6 +641,7 @@ export const getSaleById = async (saleId: string) => {
           saleId: item.saleId,
           hasBackorder: item.hasBackorder,
           backOrderQuantity: item.backorderQuantity,
+          fulfilledQuantity: item.fulfilledQuantity,
         })),
       };
 
@@ -1024,6 +841,7 @@ export const getSales = async (
             saleId: item.saleId,
             hasBackorder: item.hasBackorder,
             backOrderQuantity: item.backorderQuantity,
+            fulfilledQuantity: item.fulfilledQuantity,
           })),
       }));
 

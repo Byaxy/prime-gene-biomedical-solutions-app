@@ -1,0 +1,1 @@
+ALTER TABLE "waybills" ALTER COLUMN "delivery_address" SET DEFAULT '{"addressName":"","address":"","city":"","state":"","country":"","email":"","phone":""}'::jsonb;

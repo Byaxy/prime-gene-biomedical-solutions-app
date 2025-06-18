@@ -1,0 +1,1 @@
+ALTER TABLE "waybill_items" ADD COLUMN "fulfilled_quantity" integer DEFAULT 0 NOT NULL;

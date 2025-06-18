@@ -6,7 +6,7 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 import { Button } from "../ui/button";
-import { SaleWithRelations } from "@/types";
+import { InventoryStockWithRelations, SaleWithRelations } from "@/types";
 import { useSales } from "@/hooks/useSales";
 import toast from "react-hot-toast";
 import { PDFViewer } from "@react-pdf/renderer";
@@ -17,6 +17,8 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 
 import { useRouter } from "next/navigation";
+import { FileText } from "lucide-react";
+import { useInventoryStock } from "@/hooks/useInventoryStock";
 interface SaleDialogProps {
   mode: "add" | "edit" | "delete" | "view";
   open: boolean;
@@ -27,7 +29,25 @@ interface SaleDialogProps {
 const SaleDialog = ({ mode, open, onOpenChange, sale }: SaleDialogProps) => {
   const { softDeleteSale, isSoftDeletingSale } = useSales();
   const { companySettings } = useCompanySettings();
+  const { inventoryStock } = useInventoryStock({
+    getAllInventoryStocks: true,
+  });
+
   const router = useRouter();
+
+  // helper function to check if sale has deliverable products
+  const hasDeliverableProducts = (sale: SaleWithRelations): boolean => {
+    return sale.products.some(
+      (product) =>
+        product.fulfilledQuantity < product.quantity &&
+        inventoryStock?.some(
+          (inv: InventoryStockWithRelations) =>
+            inv.product.id === product.productId &&
+            inv.store.id === product.storeId &&
+            inv.inventory.quantity > 0
+        )
+    );
+  };
 
   const handleDelete = async () => {
     try {
@@ -198,8 +218,28 @@ const SaleDialog = ({ mode, open, onOpenChange, sale }: SaleDialogProps) => {
                   }}
                   className="shad-gray-btn"
                 >
-                  <ShoppingCart className="h-5 w-5" />
+                  <FileText className="h-5 w-5" />
                   Promissory Note
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    if (hasDeliverableProducts(sale)) {
+                      router.push(
+                        `/waybills/create-waybill/from-sale/${sale.sale.id}`
+                      );
+                    } else {
+                      toast.error(
+                        "No deliverable products available for this sale"
+                      );
+                    }
+                    onOpenChange(false);
+                  }}
+                  className="shad-gray-btn"
+                >
+                  <ShoppingCart className="h-5 w-5" />
+                  Create Waybill
                 </Button>
                 <Button
                   type="button"

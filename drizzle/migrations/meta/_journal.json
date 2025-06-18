@@ -225,6 +225,48 @@
       "when": 1749286379914,
       "tag": "0031_fast_frightful_four",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1749723546694,
+      "tag": "0032_graceful_mother_askani",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1749724526928,
+      "tag": "0033_warm_squadron_sinister",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1749736572584,
+      "tag": "0034_amazing_spectrum",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1750153818568,
+      "tag": "0035_gray_wild_pack",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1750198075753,
+      "tag": "0036_bizarre_patriot",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1750256566071,
+      "tag": "0037_lyrical_shatterstar",
+      "breakpoints": true
     }
   ]
 }

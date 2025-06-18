@@ -81,6 +81,8 @@ export const inventoryTransactionTypeEnum = pgEnum("transaction_type", [
   "purchase",
   "sale",
   "sale_reversal",
+  "waybill_edit_reversal",
+  "waybill_edit",
   "transfer",
   "adjustment",
   "backorder_fulfillment",
@@ -566,6 +568,9 @@ export const salesTable = pgTable("sales", {
       }>
     >()
     .default([]),
+  isDeliveryNoteCreated: boolean("is_delivery_note_created")
+    .notNull()
+    .default(false),
   isDeliveryAddressAdded: boolean("is_delivery_address_added")
     .notNull()
     .default(false),
@@ -763,19 +768,89 @@ export const deliveryItemsTable = pgTable("delivery_items", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-// Delivery Items Inventory stock
-export const deliveryItemInventoryTable = pgTable("delivery_item_inventory", {
+// Waybills table
+export const waybillsTable = pgTable("waybills", {
   id: uuid("id")
     .primaryKey()
     .default(sql`gen_random_uuid()`),
-  deliveryItemId: uuid("delivery_item_id")
+  waybillRefNumber: text("waybill_ref_number").notNull().unique(),
+  waybillDate: timestamp("waybill_date").notNull(),
+  saleId: uuid("sale_id").references(() => salesTable.id, {
+    onDelete: "cascade",
+  }), // Optional reference to a sale
+  storeId: uuid("store_id")
     .notNull()
-    .references(() => deliveryItemsTable.id, { onDelete: "cascade" }),
+    .references(() => storesTable.id, { onDelete: "cascade" }), // Foreign key to the store sending the goods
+  customerId: uuid("customer_id")
+    .notNull()
+    .references(() => customersTable.id, { onDelete: "set null" }), // Foreign key to the customer
+  deliveryAddress: jsonb("delivery_address")
+    .$type<{
+      addressName: string;
+      address: string;
+      city: string;
+      state: string;
+      country: string;
+      email: string;
+      phone: string;
+    }>()
+    .default({
+      addressName: "",
+      address: "",
+      city: "",
+      state: "",
+      country: "",
+      email: "",
+      phone: "",
+    }),
+  deliveredBy: text("delivered_by").notNull(),
+  receivedBy: text("received_by").notNull(),
+  status: deliveryStatusEnum("status").notNull().default("pending"),
+  notes: text("notes"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Waybill Items Table
+export const waybillItemsTable = pgTable("waybill_items", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  waybillId: uuid("waybill_id")
+    .notNull()
+    .references(() => waybillsTable.id, { onDelete: "cascade" }), // Foreign key to the waybill
+  productId: uuid("product_id")
+    .notNull()
+    .references(() => productsTable.id, { onDelete: "cascade" }), // Foreign key to the product
+  saleItemId: uuid("sale_item_id")
+    .notNull()
+    .references(() => saleItemsTable.id, { onDelete: "cascade" }),
+  quantityRequested: integer("quantity_requested").notNull(),
+  quantitySupplied: integer("quantity_supplied").notNull(),
+  balanceLeft: integer("balance_left").notNull(),
+  fulfilledQuantity: integer("fulfilled_quantity").notNull().default(0),
+  productName: text("product_name"),
+  productID: text("product_ID"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Waybill Items Inventory stock
+export const waybillItemInventoryTable = pgTable("waybill_item_inventory", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  waybillItemId: uuid("waybill_item_id")
+    .notNull()
+    .references(() => waybillItemsTable.id, { onDelete: "cascade" }),
   inventoryStockId: uuid("inventory_stock_id")
     .notNull()
     .references(() => inventoryTable.id, { onDelete: "cascade" }),
   lotNumber: text("lot_number").notNull(),
   quantityTaken: integer("quantity_taken").notNull(),
+  unitPrice: numeric("unit_price").notNull(),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -786,17 +861,19 @@ export const promissoryNotesTable = pgTable("promissory_notes", {
   id: uuid("id")
     .primaryKey()
     .default(sql`gen_random_uuid()`),
-  promissoryNoteNumber: text("promissory_note_number").notNull().unique(),
+  promissoryNoteRefNumber: text("promissory_note_ref_number")
+    .notNull()
+    .unique(),
   promissoryNoteDate: timestamp("promissory_note_date").notNull(),
   customerId: uuid("customer_id")
     .notNull()
-    .references(() => customersTable.id, { onDelete: "set null" }), // Foreign key to customers
+    .references(() => customersTable.id, { onDelete: "cascade" }), // Foreign key to customers
   salesId: uuid("sales_id").references(() => salesTable.id, {
-    onDelete: "set null",
+    onDelete: "cascade",
   }), // Optional reference to the sales invoice
-  deliveryId: uuid("delivery_id").references(() => deliveriesTable.id, {
-    onDelete: "set null",
-  }), // Optional reference to a delivery
+  waybillId: uuid("waybill_id")
+    .notNull()
+    .references(() => waybillsTable.id, { onDelete: "cascade" }), // Foreign key to the waybill
   status: promissoryNoteStatusEnum("status").notNull().default("pending"),
   totalAmount: numeric("total_amount").notNull(),
   notes: text("notes"),
@@ -816,56 +893,6 @@ export const promissoryNoteItemsTable = pgTable("promissory_note_items", {
   productId: uuid("product_id")
     .notNull()
     .references(() => productsTable.id, { onDelete: "cascade" }), // Foreign key to products
-  lotNumber: text("lot_number").notNull(),
-  quantity: integer("quantity").notNull(),
-  unitPrice: numeric("unit_price").notNull(),
-  subTotal: numeric("sub_total").notNull(),
-  isActive: boolean("is_active").notNull().default(true),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
-// Waybills table
-export const waybillsTable = pgTable("waybills", {
-  id: uuid("id")
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
-  waybillNumber: text("waybill_number").notNull().unique(),
-  waybillDate: timestamp("waybill_date").notNull(),
-  fromStoreId: uuid("from_store_id")
-    .notNull()
-    .references(() => storesTable.id, { onDelete: "cascade" }), // Foreign key to the store sending the goods
-  customerId: uuid("customer_id")
-    .notNull()
-    .references(() => customersTable.id, { onDelete: "set null" }), // Foreign key to the customer
-  deliveryAddress: text("delivery_address").notNull(),
-  transportationFee: numeric("transportation_fee").notNull().default(0.0),
-  totalAmount: numeric("total_amount").notNull(),
-  saleId: uuid("sale_id").references(() => salesTable.id, {
-    onDelete: "set null",
-  }), // Optional reference to a sale
-  deliveryId: uuid("delivery_id").references(() => deliveriesTable.id, {
-    onDelete: "set null",
-  }), // Optional reference to a delivery
-  status: deliveryStatusEnum("status").notNull().default("pending"),
-  notes: text("notes"),
-  isActive: boolean("is_active").notNull().default(true),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
-// Waybill Items Table
-export const waybillItemsTable = pgTable("waybill_items", {
-  id: uuid("id")
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
-  waybillId: uuid("waybill_id")
-    .notNull()
-    .references(() => waybillsTable.id, { onDelete: "cascade" }), // Foreign key to the waybill
-  productId: uuid("product_id")
-    .notNull()
-    .references(() => productsTable.id, { onDelete: "cascade" }), // Foreign key to the product
-  lotNumber: text("lot_number").notNull(),
   quantity: integer("quantity").notNull(),
   unitPrice: numeric("unit_price").notNull(),
   subTotal: numeric("sub_total").notNull(),

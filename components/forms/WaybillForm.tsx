@@ -1,41 +1,43 @@
 "use client";
 
-import { generateDeliveryRefNumber } from "@/lib/actions/delivery.actions";
+import { useCustomers } from "@/hooks/useCustomers";
+import { useSales } from "@/hooks/useSales";
+import { useStores } from "@/hooks/useStores";
+import { useWaybills } from "@/hooks/useWaybills";
+import { generateWaybillRefNumber } from "@/lib/actions/waybill.actions";
 import {
   CustomerFormValues,
-  DeliveryFormValidation,
-  DeliveryFormValues,
   StoreFormValues,
+  WaybillFormValidation,
+  WaybillFormValues,
 } from "@/lib/validation";
 import {
   Customer,
   DeliveryStatus,
-  DeliveryWithRelations,
+  InventoryStockWithRelations,
   SaleItem,
   SaleWithRelations,
   Store,
+  WaybillInventoryStock,
+  WaybillWithRelations,
 } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import { City, Country, ICity, IState, State } from "country-state-city";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import toast from "react-hot-toast";
 import { Form } from "../ui/form";
-import { Button } from "../ui/button";
-import SubmitButton from "../SubmitButton";
 import CustomFormField, { FormFieldType } from "../CustomFormField";
+import { Button } from "../ui/button";
 import { RefreshCw } from "lucide-react";
 import Loading from "../loading";
 import { SelectItem } from "../ui/select";
-import { useStores } from "@/hooks/useStores";
-import { useCustomers } from "@/hooks/useCustomers";
-import CustomerDialog from "../customers/CustomerDialog";
-import StoreDialog from "../stores/StoreDialog";
 import { Search } from "lucide-react";
 import { Input } from "../ui/input";
-import { useSales } from "@/hooks/useSales";
 import { X } from "lucide-react";
+import DeleteIcon from "@mui/icons-material/Delete";
 import {
   Table,
   TableBody,
@@ -45,15 +47,21 @@ import {
   TableRow,
 } from "../ui/table";
 import { Check } from "lucide-react";
-import { useDeliveries } from "@/hooks/useDeliveries";
-import { useRouter } from "next/navigation";
 import { formatNumber } from "@/lib/utils";
-interface DeliveryFormProps {
+import SubmitButton from "../SubmitButton";
+import CustomerDialog from "../customers/CustomerDialog";
+import StoreDialog from "../stores/StoreDialog";
+import WaybillStockDialog from "../waybills/WaybillStockDialog";
+import { useInventoryStock } from "@/hooks/useInventoryStock";
+import { useAuth } from "@/hooks/useAuth";
+
+interface WaybillFormProps {
   mode: "create" | "edit";
-  initialData?: DeliveryWithRelations;
+  initialData?: WaybillWithRelations;
   sourceSale?: SaleWithRelations;
 }
-const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
+
+const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
   const [storeDialogOpen, setStoreDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -73,6 +81,9 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
         )
       : []
   );
+
+  const { user } = useAuth();
+
   const {
     stores,
     addStore,
@@ -87,22 +98,25 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
     isLoading: customersLoading,
   } = useCustomers({ getAllCustomers: true });
   const { sales, isLoading: salesLoading } = useSales({ getAllSales: true });
-  const { addDelivery, isAddingDelivery, editDelivery, isEditingDelivery } =
-    useDeliveries();
+  const { inventoryStock } = useInventoryStock({
+    getAllInventoryStocks: true,
+  });
+  const { addWaybill, isAddingWaybill, editWaybill, isEditingWaybill } =
+    useWaybills();
 
   const router = useRouter();
 
-  // Generate Delivery Reference number
+  // Generate Waybill Reference number
   const {
-    data: generatedDeliveryRefNumber,
+    data: generatedWaybillRefNumber,
     isLoading,
     refetch,
     isRefetching,
   } = useQuery({
-    queryKey: ["delivery-ref-number"],
+    queryKey: ["waybill-ref-number"],
     queryFn: async () => {
       if (mode !== "create") return null;
-      const result = await generateDeliveryRefNumber();
+      const result = await generateWaybillRefNumber();
       return result;
     },
     enabled: mode === "create",
@@ -111,8 +125,8 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
   // Default values
   const defaultValues = useMemo(
     () => ({
-      deliveryDate: new Date(),
-      deliveryRefNumber: generatedDeliveryRefNumber || "",
+      waybillDate: new Date(),
+      waybillRefNumber: generatedWaybillRefNumber || "",
       status: DeliveryStatus.Pending as DeliveryStatus,
       deliveryAddress: {
         addressName: "",
@@ -131,39 +145,46 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
       receivedBy: "",
       products: [],
     }),
-    [generatedDeliveryRefNumber]
+    [generatedWaybillRefNumber]
   );
-  const form = useForm<DeliveryFormValues>({
-    resolver: zodResolver(DeliveryFormValidation),
+  const form = useForm<WaybillFormValues>({
+    resolver: zodResolver(WaybillFormValidation),
     mode: "all",
     defaultValues: initialData
       ? {
-          deliveryDate: initialData.delivery.deliveryDate
-            ? new Date(initialData.delivery.deliveryDate)
+          waybillDate: initialData.waybill.waybillDate
+            ? new Date(initialData.waybill.waybillDate)
             : new Date(),
-          deliveryRefNumber: initialData.delivery.deliveryRefNumber || "",
-          status: initialData.delivery.status || DeliveryStatus.Pending,
+          waybillRefNumber: initialData.waybill.waybillRefNumber || "",
+          status: initialData.waybill.status || DeliveryStatus.Pending,
           deliveryAddress: {
-            addressName: initialData.delivery.deliveryAddress.addressName || "",
-            address: initialData.delivery.deliveryAddress.address || "",
-            city: initialData.delivery.deliveryAddress.city || "",
-            state: initialData.delivery.deliveryAddress.state || "",
-            country: initialData.delivery.deliveryAddress.country || "",
-            email: initialData.delivery.deliveryAddress.email || "",
-            phone: initialData.delivery.deliveryAddress.phone || "",
+            addressName: initialData.waybill.deliveryAddress.addressName || "",
+            address: initialData.waybill.deliveryAddress.address || "",
+            city: initialData.waybill.deliveryAddress.city || "",
+            state: initialData.waybill.deliveryAddress.state || "",
+            country: initialData.waybill.deliveryAddress.country || "",
+            email: initialData.waybill.deliveryAddress.email || "",
+            phone: initialData.waybill.deliveryAddress.phone || "",
           },
           customerId: initialData.customer.id || "",
           storeId: initialData.store.id || "",
-          saleId: initialData.delivery.saleId || "",
-          notes: initialData.delivery.notes || "",
-          deliveredBy: initialData.delivery.deliveredBy || "",
-          receivedBy: initialData.delivery.receivedBy || "",
+          saleId: initialData.waybill.saleId || "",
+          notes: initialData.waybill.notes || "",
+          deliveredBy: initialData.waybill.deliveredBy || "",
+          receivedBy: initialData.waybill.receivedBy || "",
           products: initialData.products.map((product) => ({
-            deliveryId: product.deliveryId,
             productId: product.productId,
+            saleItemId: product.id,
+            inventoryStock: product.inventoryStock.map((stock) => ({
+              inventoryStockId: stock.inventoryStockId,
+              lotNumber: stock.lotNumber,
+              quantityTaken: stock.quantityTaken,
+              unitPrice: stock.unitPrice,
+            })),
             quantityRequested: product.quantityRequested,
             quantitySupplied: product.quantitySupplied,
             balanceLeft: product.balanceLeft,
+            fulfilledQuantity: product.fulfilledQuantity,
             productName: product.productName || "",
             productID: product.productID || "",
           })),
@@ -179,19 +200,29 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
   const selectedCountry = form.watch("deliveryAddress.country");
   const selectedState = form.watch("deliveryAddress.state");
 
-  const filteredSales = sales?.filter((sale: SaleWithRelations) => {
-    if (mode === "edit") {
-      if (!searchQuery.trim()) return true;
-      const query = searchQuery.toLowerCase().trim();
-      return sale.sale.invoiceNumber?.toLowerCase().includes(query);
-    }
+  // helper function to check if sale has deliverable products
+  const hasDeliverableProducts = (sale: SaleWithRelations): boolean => {
+    return sale.products.some(
+      (product) =>
+        product.fulfilledQuantity < product.quantity &&
+        inventoryStock?.some(
+          (inv: InventoryStockWithRelations) =>
+            inv.product.id === product.productId &&
+            inv.store.id === product.storeId &&
+            inv.inventory.quantity > 0
+        )
+    );
+  };
 
-    if (!searchQuery.trim()) return !sale.sale.isDeliveryNoteCreated;
+  const filteredSales = sales?.filter((sale: SaleWithRelations) => {
+    if (mode === "edit") return true;
+
+    if (!searchQuery.trim()) return hasDeliverableProducts(sale);
 
     const query = searchQuery.toLowerCase().trim();
     return (
       sale.sale.invoiceNumber?.toLowerCase().includes(query) &&
-      !sale.sale.isDeliveryNoteCreated
+      hasDeliverableProducts(sale)
     );
   });
 
@@ -261,25 +292,151 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
     form.setValue("deliveryAddress.email", deliveryAddress?.email || "");
     form.setValue("deliveryAddress.phone", deliveryAddress?.phone || "");
 
+    // Process products
     if (selectedSale.products.length > 0) {
-      selectedSale.products.forEach((product: SaleItem) => {
-        const suppliedQty = product.inventoryStock.reduce(
-          (total, stock) => total + stock.quantityToTake,
-          0
-        );
+      selectedSale.products.forEach(
+        (product: SaleItem, productIndex: number) => {
+          if (product.fulfilledQuantity >= product.quantity) {
+            return;
+          }
 
-        append({
-          productId: product.productId,
-          quantityRequested: product.quantity,
-          quantitySupplied: suppliedQty,
-          balanceLeft: product.quantity - suppliedQty,
-          productName: product.productName,
-          productID: product.productID,
-        });
-      });
+          const remainingQuantity =
+            product.quantity - product.fulfilledQuantity;
+
+          const availableInventory =
+            inventoryStock?.filter((inv: InventoryStockWithRelations) => {
+              return (
+                inv.product.id === product.productId &&
+                inv.store.id === product.storeId &&
+                inv.product.productID === product.productID &&
+                inv.inventory.quantity > 0
+              );
+            }) || [];
+
+          if (availableInventory.length === 0) {
+            console.warn(
+              `No inventory available for product ${product.productID}`
+            );
+            return;
+          }
+
+          const totalAvailableQuantity = availableInventory.reduce(
+            (total: number, inv: InventoryStockWithRelations) =>
+              total + inv.inventory.quantity,
+            0
+          );
+
+          if (totalAvailableQuantity === 0) {
+            return;
+          }
+
+          const quantityToSupply = Math.min(
+            remainingQuantity,
+            totalAvailableQuantity
+          );
+
+          let remainingToAllocate = quantityToSupply;
+          const allocatedStock: WaybillInventoryStock[] = [];
+
+          for (const stockAllocation of product.inventoryStock) {
+            if (remainingToAllocate <= 0) break;
+
+            const inventoryItem = availableInventory.find(
+              (inv: InventoryStockWithRelations) =>
+                inv.inventory.id === stockAllocation.inventoryStockId
+            );
+
+            if (inventoryItem && inventoryItem.inventory.quantity > 0) {
+              const quantityFromThisStock = Math.min(
+                remainingToAllocate,
+                stockAllocation.quantityToTake,
+                inventoryItem.inventory.quantity
+              );
+
+              if (quantityFromThisStock > 0) {
+                allocatedStock.push({
+                  inventoryStockId: stockAllocation.inventoryStockId,
+                  lotNumber: stockAllocation.lotNumber,
+                  quantityTaken: quantityFromThisStock,
+                  unitPrice: product.unitPrice,
+                });
+
+                remainingToAllocate -= quantityFromThisStock;
+              }
+            }
+          }
+
+          // If we still have quantity to allocate, use remaining available inventory
+          if (remainingToAllocate > 0) {
+            for (const inventoryItem of availableInventory) {
+              if (remainingToAllocate <= 0) break;
+
+              // Check if this inventory is already allocated
+              const alreadyAllocated = allocatedStock.some(
+                (stock) => stock.inventoryStockId === inventoryItem.inventory.id
+              );
+
+              if (!alreadyAllocated && inventoryItem.inventory.quantity > 0) {
+                const quantityFromThisStock = Math.min(
+                  remainingToAllocate,
+                  inventoryItem.inventory.quantity
+                );
+
+                if (quantityFromThisStock > 0) {
+                  allocatedStock.push({
+                    inventoryStockId: inventoryItem.inventory.id,
+                    lotNumber: inventoryItem.inventory.lotNumber || "",
+                    quantityTaken: quantityFromThisStock,
+                    unitPrice: product.unitPrice,
+                  });
+
+                  remainingToAllocate -= quantityFromThisStock;
+                }
+              }
+            }
+          }
+
+          // Calculate actual supplied quantity from allocations
+          const actualSuppliedQuantity = allocatedStock.reduce(
+            (total, stock) => total + stock.quantityTaken,
+            0
+          );
+
+          const balanceLeft = remainingQuantity - actualSuppliedQuantity;
+
+          // Set form error if there's insufficient inventory
+          if (
+            actualSuppliedQuantity < remainingQuantity &&
+            totalAvailableQuantity < remainingQuantity
+          ) {
+            form.setError(`products.${productIndex}.inventoryStock`, {
+              message: `Insufficient inventory. Available: ${totalAvailableQuantity}, Required: ${remainingQuantity}`,
+            });
+          }
+
+          // Only add products that have some inventory allocation
+          if (allocatedStock.length > 0 && actualSuppliedQuantity > 0) {
+            append({
+              productId: product.productId,
+              saleItemId: product.id,
+              inventoryStock: allocatedStock,
+              quantityRequested: product.quantity,
+              quantitySupplied: actualSuppliedQuantity,
+              balanceLeft: balanceLeft,
+              fulfilledQuantity: product.fulfilledQuantity,
+              productName: product.productName,
+              productID: product.productID,
+            });
+          } else {
+            console.warn(
+              `Product ${product.productID} skipped - no valid inventory allocation`
+            );
+          }
+        }
+      );
     }
 
-    // Add a small delay to ensure state updates are processed
+    // Trigger form validation after a brief delay to ensure state updates
     setTimeout(() => {
       form.trigger([
         "deliveryAddress.country",
@@ -292,6 +449,7 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
         "saleId",
         "customerId",
         "storeId",
+        "products",
       ]);
     }, 100);
   };
@@ -315,7 +473,7 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
   useEffect(() => {
     if (initialData) {
       remove();
-      const deliveryAddress = initialData.delivery.deliveryAddress;
+      const deliveryAddress = initialData.waybill.deliveryAddress;
 
       if (deliveryAddress?.country) {
         const countryStates =
@@ -339,47 +497,56 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
 
       setTimeout(() => {
         form.reset({
-          deliveryDate: new Date(
-            initialData.delivery.deliveryDate || Date.now()
-          ),
-          deliveryRefNumber: initialData.delivery.deliveryRefNumber || "",
-          status: initialData.delivery.status,
-          customerId: initialData.delivery.customerId || "",
-          storeId: initialData.delivery.storeId || "",
-          saleId: initialData.delivery.saleId || "",
-          notes: initialData.delivery.notes || "",
-          deliveredBy: initialData.delivery.deliveredBy || "",
-          receivedBy: initialData.delivery.receivedBy || "",
-          products: initialData.products || [],
+          waybillDate: new Date(initialData.waybill.waybillDate || Date.now()),
+          waybillRefNumber: initialData.waybill.waybillRefNumber || "",
+          status: initialData.waybill.status,
+          customerId: initialData.waybill.customerId || "",
+          storeId: initialData.waybill.storeId || "",
+          saleId: initialData.waybill.saleId || "",
+          notes: initialData.waybill.notes || "",
+          deliveredBy: initialData.waybill.deliveredBy || "",
+          receivedBy: initialData.waybill.receivedBy || "",
           deliveryAddress: {
-            addressName:
-              initialData.delivery.deliveryAddress?.addressName || "",
-            address: initialData.delivery.deliveryAddress?.address || "",
-            city: initialData.delivery.deliveryAddress?.city || "",
-            state: initialData.delivery.deliveryAddress?.state || "",
-            country: initialData.delivery.deliveryAddress?.country || "",
-            email: initialData.delivery.deliveryAddress?.email || "",
-            phone: initialData.delivery.deliveryAddress?.phone || "",
+            addressName: initialData.waybill.deliveryAddress?.addressName || "",
+            address: initialData.waybill.deliveryAddress?.address || "",
+            city: initialData.waybill.deliveryAddress?.city || "",
+            state: initialData.waybill.deliveryAddress?.state || "",
+            country: initialData.waybill.deliveryAddress?.country || "",
+            email: initialData.waybill.deliveryAddress?.email || "",
+            phone: initialData.waybill.deliveryAddress?.phone || "",
           },
+          products: [],
         });
+
+        // Add products after form reset
+        if (initialData.products && initialData.products.length > 0) {
+          initialData.products.forEach((product) => {
+            append({
+              productId: product.productId,
+              saleItemId: product.id,
+              inventoryStock: product.inventoryStock.map((stock) => ({
+                inventoryStockId: stock.inventoryStockId,
+                lotNumber: stock.lotNumber,
+                quantityTaken: stock.quantityTaken,
+                unitPrice: stock.unitPrice,
+              })),
+              quantityRequested: product.quantityRequested,
+              quantitySupplied: product.quantitySupplied,
+              balanceLeft: product.balanceLeft,
+              fulfilledQuantity: product.fulfilledQuantity || 0,
+              productName: product.productName || "",
+              productID: product.productID || "",
+            });
+          });
+        }
+
+        // Trigger validation after initialization
+        setTimeout(() => {
+          form.trigger();
+        }, 100);
       }, 100);
     } else if (sourceSale) {
       const { sale, customer, products } = sourceSale;
-
-      const deliveryProducts = products?.map((product: SaleItem) => {
-        const suppliedQnty = product.inventoryStock.reduce(
-          (total, stock) => total + stock.quantityToTake,
-          0
-        );
-        return {
-          productId: product.productId,
-          quantityRequested: product.quantity,
-          quantitySupplied: suppliedQnty,
-          balanceLeft: product.quantity - suppliedQnty,
-          productName: product.productName,
-          productID: product.productID,
-        };
-      });
 
       const deliveryAddress =
         sale.isDeliveryAddressAdded && sale.deliveryAddress.address !== ""
@@ -423,7 +590,153 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
       form.setValue("deliveryAddress.country", deliveryAddress?.country);
       form.setValue("deliveryAddress.email", deliveryAddress?.email);
       form.setValue("deliveryAddress.phone", deliveryAddress?.phone);
-      form.setValue("products", deliveryProducts);
+
+      // Process products
+      if (products.length > 0) {
+        products.forEach((product: SaleItem, productIndex: number) => {
+          if (product.fulfilledQuantity >= product.quantity) {
+            return;
+          }
+
+          const remainingQuantity =
+            product.quantity - product.fulfilledQuantity;
+
+          const availableInventory =
+            inventoryStock?.filter((inv: InventoryStockWithRelations) => {
+              return (
+                inv.product.id === product.productId &&
+                inv.store.id === product.storeId &&
+                inv.product.productID === product.productID &&
+                inv.inventory.quantity > 0
+              );
+            }) || [];
+
+          if (availableInventory.length === 0) {
+            console.warn(
+              `No inventory available for product ${product.productID}`
+            );
+            return;
+          }
+
+          const totalAvailableQuantity = availableInventory.reduce(
+            (total: number, inv: InventoryStockWithRelations) =>
+              total + inv.inventory.quantity,
+            0
+          );
+
+          if (totalAvailableQuantity === 0) {
+            return;
+          }
+
+          const quantityToSupply = Math.min(
+            remainingQuantity,
+            totalAvailableQuantity
+          );
+
+          let remainingToAllocate = quantityToSupply;
+          const allocatedStock: Array<{
+            inventoryStockId: string;
+            lotNumber: string;
+            quantityTaken: number;
+            unitPrice: number;
+          }> = [];
+
+          for (const stockAllocation of product.inventoryStock) {
+            if (remainingToAllocate <= 0) break;
+
+            const inventoryItem = availableInventory.find(
+              (inv: InventoryStockWithRelations) =>
+                inv.inventory.id === stockAllocation.inventoryStockId
+            );
+
+            if (inventoryItem && inventoryItem.inventory.quantity > 0) {
+              const quantityFromThisStock = Math.min(
+                remainingToAllocate,
+                stockAllocation.quantityToTake,
+                inventoryItem.inventory.quantity
+              );
+
+              if (quantityFromThisStock > 0) {
+                allocatedStock.push({
+                  inventoryStockId: stockAllocation.inventoryStockId,
+                  lotNumber: stockAllocation.lotNumber,
+                  quantityTaken: quantityFromThisStock,
+                  unitPrice: product.unitPrice,
+                });
+
+                remainingToAllocate -= quantityFromThisStock;
+              }
+            }
+          }
+
+          // If we still have quantity to allocate, use remaining available inventory
+          if (remainingToAllocate > 0) {
+            for (const inventoryItem of availableInventory) {
+              if (remainingToAllocate <= 0) break;
+
+              // Check if this inventory is already allocated
+              const alreadyAllocated = allocatedStock.some(
+                (stock) => stock.inventoryStockId === inventoryItem.inventory.id
+              );
+
+              if (!alreadyAllocated && inventoryItem.inventory.quantity > 0) {
+                const quantityFromThisStock = Math.min(
+                  remainingToAllocate,
+                  inventoryItem.inventory.quantity
+                );
+
+                if (quantityFromThisStock > 0) {
+                  allocatedStock.push({
+                    inventoryStockId: inventoryItem.inventory.id,
+                    lotNumber: inventoryItem.inventory.lotNumber || "",
+                    quantityTaken: quantityFromThisStock,
+                    unitPrice: product.unitPrice,
+                  });
+
+                  remainingToAllocate -= quantityFromThisStock;
+                }
+              }
+            }
+          }
+
+          // Calculate actual supplied quantity from allocations
+          const actualSuppliedQuantity = allocatedStock.reduce(
+            (total, stock) => total + stock.quantityTaken,
+            0
+          );
+
+          const balanceLeft = remainingQuantity - actualSuppliedQuantity;
+
+          // Set form error if there's insufficient inventory
+          if (
+            actualSuppliedQuantity < remainingQuantity &&
+            totalAvailableQuantity < remainingQuantity
+          ) {
+            form.setError(`products.${productIndex}.inventoryStock`, {
+              message: `Insufficient inventory. Available: ${totalAvailableQuantity}, Required: ${remainingQuantity}`,
+            });
+          }
+
+          // Only add products that have some inventory allocation
+          if (allocatedStock.length > 0 && actualSuppliedQuantity > 0) {
+            append({
+              productId: product.productId,
+              saleItemId: product.id,
+              inventoryStock: allocatedStock,
+              quantityRequested: product.quantity,
+              quantitySupplied: actualSuppliedQuantity,
+              balanceLeft: balanceLeft,
+              fulfilledQuantity: product.fulfilledQuantity,
+              productName: product.productName,
+              productID: product.productID,
+            });
+          } else {
+            console.warn(
+              `Product ${product.productID} skipped - no valid inventory allocation`
+            );
+          }
+        });
+      }
     }
   }, [
     initialData,
@@ -433,7 +746,8 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
     append,
     defaultValues,
     sourceSale,
-    generatedDeliveryRefNumber,
+    generatedWaybillRefNumber,
+    inventoryStock,
   ]);
 
   // Handle country change
@@ -460,26 +774,31 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
     form.trigger("deliveryAddress.state");
   };
 
-  // Set delivery ref number
+  // Set Waybill ref number
   useEffect(() => {
-    if (generatedDeliveryRefNumber && mode === "create") {
-      form.setValue("deliveryRefNumber", generatedDeliveryRefNumber);
+    if (generatedWaybillRefNumber && mode === "create") {
+      form.setValue("waybillRefNumber", generatedWaybillRefNumber);
     }
-  }, [form, mode, generatedDeliveryRefNumber]);
+  }, [form, mode, generatedWaybillRefNumber]);
 
-  // Update the refresh button handler (deliveryRefNumber)
-  const handleRefreshDeliveryRefNumber = async () => {
+  // Update the refresh button handler (waybillRefNumber)
+  const handleRefreshWaybillRefNumber = async () => {
     if (mode === "create") {
       try {
         await refetch();
-        if (generatedDeliveryRefNumber) {
-          form.setValue("deliveryRefNumber", generatedDeliveryRefNumber);
+        if (generatedWaybillRefNumber) {
+          form.setValue("waybillRefNumber", generatedWaybillRefNumber);
         }
       } catch (error) {
-        console.error("Error refreshing delivery ref number:", error);
-        toast.error("Failed to refresh delivery ref number");
+        console.error("Error refreshing waybill ref number:", error);
+        toast.error("Failed to refresh waybill ref number");
       }
     }
+  };
+
+  // Handle delete entry
+  const handleDeleteEntry = (index: number) => {
+    remove(index);
   };
 
   // Update the cancel button handler
@@ -508,37 +827,38 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
   const handleSubmit = async () => {
     try {
       const values = form.getValues();
+      if (!user?.id) return;
       if (mode === "create") {
-        await addDelivery(
-          { data: values },
+        await addWaybill(
+          { data: values, userId: user.id },
           {
             onSuccess: () => {
-              toast.success("Delivery created successfully!");
+              toast.success("Waybill created successfully!");
               form.reset();
-              router.push("/deliveries");
+              router.push("/waybills");
             },
             onError: (error) => {
-              console.error("Create delivery error:", error);
-              toast.error("Failed to create delivery");
+              console.error("Create waybill error:", error);
+              toast.error("Failed to create waybill");
             },
           }
         );
       } else if (mode === "edit") {
-        if (!initialData?.delivery.id) {
-          toast.error("Delivery ID is required for editing");
+        if (!initialData?.waybill.id || !user.id) {
+          toast.error("Waybill ID and User are required for editing");
           return;
         }
-        await editDelivery(
-          { id: initialData.delivery.id, data: values },
+        await editWaybill(
+          { id: initialData.waybill.id, data: values, userId: user.id },
           {
             onSuccess: () => {
-              toast.success("Delivery updated successfully!");
+              toast.success("Waybill updated successfully!");
               form.reset();
-              router.push("/deliveries");
+              router.push("/waybills");
             },
             onError: (error) => {
-              console.error("Edit delivery error:", error);
-              toast.error("Failed to update delivery");
+              console.error("Edit waybill error:", error);
+              toast.error("Failed to update waybill");
             },
           }
         );
@@ -552,12 +872,18 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
   // Calculate entry Balance products
   const calculateEntryBalanceLeft = useCallback(
     (index: number) => {
-      const entryQntySupplied = form.watch(
-        `products.${index}.quantitySupplied`
-      );
+      const entryQntySupplied =
+        form.watch(`products.${index}.quantitySupplied`) || 0;
       const entryQntyRequested =
         form.watch(`products.${index}.quantityRequested`) || 0;
-      return entryQntyRequested - entryQntySupplied;
+      const entryFulfilledQuantity =
+        form.watch(`products.${index}.fulfilledQuantity`) || 0;
+
+      const remainingNeeded = entryQntyRequested - entryFulfilledQuantity;
+
+      const balanceLeft = remainingNeeded - entryQntySupplied;
+
+      return Math.max(0, balanceLeft);
     },
     [form]
   );
@@ -588,6 +914,62 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
     });
   };
 
+  // Enhanced validation for preventing over-allocation
+  const validateQuantitySupplied = (index: number, newQuantity: number) => {
+    const entryQntyRequested =
+      form.watch(`products.${index}.quantityRequested`) || 0;
+    const entryFulfilledQuantity =
+      form.watch(`products.${index}.fulfilledQuantity`) || 0;
+    const remainingNeeded = entryQntyRequested - entryFulfilledQuantity;
+
+    if (newQuantity > remainingNeeded) {
+      form.setError(`products.${index}.quantitySupplied`, {
+        message: `Cannot supply more than remaining quantity (${remainingNeeded})`,
+      });
+      return false;
+    }
+
+    // Check if we have enough inventory allocated
+    const allocatedStock = form.watch(`products.${index}.inventoryStock`) || [];
+    const totalAllocated = allocatedStock.reduce(
+      (total: number, stock: WaybillInventoryStock) =>
+        total + (stock.quantityTaken || 0),
+      0
+    );
+
+    if (newQuantity > totalAllocated) {
+      form.setError(`products.${index}.quantitySupplied`, {
+        message: `Cannot supply more than allocated inventory (${totalAllocated})`,
+      });
+      return false;
+    }
+
+    form.clearErrors(`products.${index}.quantitySupplied`);
+    return true;
+  };
+
+  // handle suppliedQuantity change
+  const handleQuantitySuppliedChange = (index: number, value: string) => {
+    const numValue = parseFloat(value) || 0;
+
+    if (validateQuantitySupplied(index, numValue)) {
+      form.setValue(`products.${index}.quantitySupplied`, numValue);
+
+      const balanceLeft = calculateEntryBalanceLeft(index);
+      form.setValue(`products.${index}.balanceLeft`, balanceLeft);
+    }
+  };
+
+  useEffect(() => {
+    if (fields.length > 0) {
+      fields.forEach((field, index) => {
+        const balanceLeft = calculateEntryBalanceLeft(index);
+
+        form.setValue(`products.${index}.balanceLeft`, balanceLeft);
+      });
+    }
+  }, [calculateEntryBalanceLeft, fields, form]);
+
   return (
     <>
       <Form {...form}>
@@ -600,18 +982,18 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
               <CustomFormField
                 fieldType={FormFieldType.INPUT}
                 control={form.control}
-                name="deliveryRefNumber"
-                label="Delivery Reference Number"
+                name="waybillRefNumber"
+                label="Waybill Reference Number"
                 placeholder={
                   isLoading || isRefetching
                     ? "Generating..."
-                    : "Enter delivery reference number"
+                    : "Enter waybill reference number"
                 }
               />
               <Button
                 type="button"
                 size={"icon"}
-                onClick={handleRefreshDeliveryRefNumber}
+                onClick={handleRefreshWaybillRefNumber}
                 className="self-end shad-primary-btn px-5"
                 disabled={isLoading || isRefetching}
               >
@@ -625,8 +1007,8 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
             <CustomFormField
               fieldType={FormFieldType.DATE_PICKER}
               control={form.control}
-              name="deliveryDate"
-              label="Delivery Date"
+              name="waybillDate"
+              label="Waybill Date"
               dateFormat="MM/dd/yyyy"
             />
           </div>
@@ -698,7 +1080,7 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
                   name="saleId"
                   label="Select Sale"
                   placeholder={"Select Sale"}
-                  key={`sale-select-${form.watch("saleId") || ""}`}
+                  key={`inventory-select-${form.watch("saleId") || ""}`}
                   disabled={!!sourceSale || !!initialData}
                 >
                   <div className="py-3">
@@ -797,15 +1179,18 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
                   <TableHead>PID</TableHead>
                   <TableHead>Product Description</TableHead>
                   <TableHead>Qnty Requested</TableHead>
+                  <TableHead>Qnty Fulfilled</TableHead>
                   <TableHead>Qnty Supplied</TableHead>
                   <TableHead>Balance Left</TableHead>
+                  <TableHead>Confirm Stock</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody className="w-full bg-white text-blue-800">
                 {fields.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={13} className="text-center py-4">
-                      No products
+                    <TableCell colSpan={9} className="text-center py-4">
+                      No products available for delivery
                     </TableCell>
                   </TableRow>
                 )}
@@ -817,11 +1202,19 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
                     <TableCell>{index + 1}</TableCell>
                     <TableCell>{entry.productID}</TableCell>
                     <TableCell>{entry.productName}</TableCell>
+
                     <TableCell>
                       <div className="flex items-center text-14-medium text-blue-800 rounded-md border bg-white px-3 border-dark-700 h-11">
-                        {entry.quantityRequested}
+                        {formatNumber(String(entry.quantityRequested))}
                       </div>
                     </TableCell>
+
+                    <TableCell>
+                      <div className="flex items-center text-14-medium text-green-600 rounded-md border bg-white px-3 border-dark-700 h-11">
+                        {formatNumber(String(entry.fulfilledQuantity || 0))}
+                      </div>
+                    </TableCell>
+
                     <TableCell>
                       <CustomFormField
                         fieldType={FormFieldType.NUMBER}
@@ -829,11 +1222,86 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
                         name={`products.${index}.quantitySupplied`}
                         label=""
                         placeholder="Qty supplied"
+                        onValueChange={(
+                          e: React.ChangeEvent<HTMLInputElement>
+                        ) =>
+                          handleQuantitySuppliedChange(index, e.target.value)
+                        }
+                        key={`qty-supplied-${form.watch(
+                          `products.${index}.quantitySupplied` || ""
+                        )}`}
                       />
                     </TableCell>
+
                     <TableCell>
-                      <div className="flex items-center text-14-medium text-blue-800 rounded-md border bg-white px-3 border-dark-700 h-11">
+                      <div
+                        className={`flex items-center text-14-medium rounded-md border px-3 h-11 ${
+                          calculateEntryBalanceLeft(index) > 0
+                            ? "text-orange-600 bg-orange-50 border-orange-400"
+                            : "text-green-500 bg-green-50 border-green-400"
+                        }`}
+                      >
                         {formatNumber(String(calculateEntryBalanceLeft(index)))}
+                      </div>
+                    </TableCell>
+
+                    <TableCell>
+                      <WaybillStockDialog
+                        stock={entry.inventoryStock}
+                        productID={entry.productID}
+                        qntyRequired={form.watch(
+                          `products.${index}.quantitySupplied`
+                        )}
+                        availableInventory={inventoryStock?.filter(
+                          (inv: InventoryStockWithRelations) =>
+                            inv.product.id === entry.productId &&
+                            inv.store.id === form.watch("storeId") &&
+                            inv.inventory.quantity > 0
+                        )}
+                        onSave={(stock) => {
+                          form.setValue(
+                            `products.${index}.inventoryStock`,
+                            stock
+                          );
+                          form.trigger(`products.${index}.inventoryStock`);
+
+                          // Recalculate supplied quantity based on stock allocation
+                          const totalAllocated = stock.reduce(
+                            (total, s) => total + s.quantityTaken,
+                            0
+                          );
+                          form.setValue(
+                            `products.${index}.quantitySupplied`,
+                            totalAllocated
+                          );
+
+                          // Recalculate balance
+                          const newBalance = calculateEntryBalanceLeft(index);
+                          form.setValue(
+                            `products.${index}.balanceLeft`,
+                            newBalance
+                          );
+                        }}
+                      />
+                      {form.formState.errors.products?.[index]
+                        ?.inventoryStock && (
+                        <p className="text-red-500 text-xs pt-2">
+                          {
+                            form.formState.errors.products?.[index]
+                              ?.inventoryStock.message
+                          }
+                        </p>
+                      )}
+                    </TableCell>
+
+                    <TableCell>
+                      <div className="flex flex-row items-center">
+                        <span
+                          onClick={() => handleDeleteEntry(index)}
+                          className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
+                        >
+                          <DeleteIcon className="h-5 w-5" />
+                        </span>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -953,7 +1421,7 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
               fieldType={FormFieldType.SELECT}
               control={form.control}
               name="status"
-              label="Delivery Status"
+              label="Waybill Status"
               placeholder="Select status"
               key={`status-select-${form.watch("status") || ""}`}
             >
@@ -991,7 +1459,7 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
             control={form.control}
             name="notes"
             label="Notes"
-            placeholder="Enter delivery notes"
+            placeholder="Enter waybill notes"
           />
 
           <div className="flex justify-end gap-4">
@@ -1003,13 +1471,13 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
               Cancel
             </Button>
             <SubmitButton
-              isLoading={isAddingDelivery || isEditingDelivery}
+              isLoading={isAddingWaybill || isEditingWaybill}
               className="shad-primary-btn"
             >
-              {mode === "create" ? "Create Delivery" : "Update Delivery"}
+              {mode === "create" ? "Create Waybill" : "Update Waybill"}
             </SubmitButton>
           </div>
-        </form>{" "}
+        </form>
       </Form>
       <CustomerDialog
         mode="add"
@@ -1028,4 +1496,4 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
   );
 };
 
-export default DeliveryForm;
+export default WaybillForm;

@@ -1,62 +1,35 @@
-import { useState } from "react";
-import EditIcon from "@mui/icons-material/Edit";
-import DeleteIcon from "@mui/icons-material/Delete";
-import SaleDialog from "./SaleDialog";
 import { useRouter } from "next/navigation";
-import { InventoryStockWithRelations, SaleWithRelations } from "@/types";
+import { useState } from "react";
+import WaybillPDF from "./WaybillPDF";
+import { WaybillWithRelations } from "@/types";
 import toast from "react-hot-toast";
+import WaybillDialog from "./WaybillDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { EllipsisVertical } from "lucide-react";
-import { Download } from "lucide-react";
-import { Mail } from "lucide-react";
-import { Plus } from "lucide-react";
-import { ShoppingCart } from "lucide-react";
-import { Truck } from "lucide-react";
-import SaleInvoice from "./SaleInvoice";
-import { useCompanySettings } from "@/hooks/useCompanySettings";
 import { Eye } from "lucide-react";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
+import { Mail } from "lucide-react";
+import { Download } from "lucide-react";
 import { FileText } from "lucide-react";
-import { useInventoryStock } from "@/hooks/useInventoryStock";
 
-const SaleActions = ({ sale }: { sale: SaleWithRelations }) => {
+const WaybillActions = ({ waybill }: { waybill: WaybillWithRelations }) => {
   const [open, setOpen] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
   const [mode, setMode] = useState<"add" | "edit" | "delete" | "view">("add");
 
-  const { companySettings } = useCompanySettings();
-  const { inventoryStock } = useInventoryStock({
-    getAllInventoryStocks: true,
-  });
-
   const router = useRouter();
-
-  // helper function to check if sale has deliverable products
-  const hasDeliverableProducts = (sale: SaleWithRelations): boolean => {
-    return sale.products.some(
-      (product) =>
-        product.fulfilledQuantity < product.quantity &&
-        inventoryStock?.some(
-          (inv: InventoryStockWithRelations) =>
-            inv.product.id === product.productId &&
-            inv.store.id === product.storeId &&
-            inv.inventory.quantity > 0
-        )
-    );
-  };
 
   const handleDownloadPDF = async () => {
     try {
       const { pdf } = await import("@react-pdf/renderer");
-      const blob = await pdf(
-        <SaleInvoice
-          sale={sale}
-          currencySymbol={companySettings?.currencySymbol || "$"}
-        />
-      ).toBlob();
+      const blob = await pdf(<WaybillPDF waybill={waybill} />).toBlob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `Invoice_${sale.sale.invoiceNumber || Date.now()}.pdf`;
+      link.download = `Waybill_${
+        waybill.waybill.waybillRefNumber || Date.now()
+      }.pdf`;
       document.body.appendChild(link);
       link.click();
 
@@ -73,23 +46,25 @@ const SaleActions = ({ sale }: { sale: SaleWithRelations }) => {
     }
   };
 
-  const handleEmailSale = async () => {
+  const handleEmail = async () => {
     try {
-      if (!sale.customer.email) {
+      if (!waybill.customer.email) {
         toast.error("Customer email not found");
         return;
       }
 
-      const subject = `Invoice Number: ${sale.sale.invoiceNumber}`;
+      const subject = `Waybill Reference Number: ${
+        waybill.waybill.waybillRefNumber || "N/A"
+      }`;
       const body = `Dear ${
-        sale.customer.name || "Customer"
-      },\n\nPlease find attached the sale invoice as requested.\n\nBest regards,\nYour Company \nSales Team`;
+        waybill.customer.name || "Customer"
+      },\n\nPlease find attached the waybill as requested.\n\nBest regards,\nYour Company \nSales Team`;
 
       // First, download the PDF
       await handleDownloadPDF();
 
       const mailtoLink = `mailto:${
-        sale.customer.email
+        waybill.customer.email
       }?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(
         body
       )}`;
@@ -105,7 +80,6 @@ const SaleActions = ({ sale }: { sale: SaleWithRelations }) => {
       toast.error("Failed to prepare email");
     }
   };
-
   return (
     <div className="flex items-center">
       <Popover open={open} onOpenChange={setOpen}>
@@ -122,21 +96,12 @@ const SaleActions = ({ sale }: { sale: SaleWithRelations }) => {
             className="text-green-500 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
             <Eye className="h-5 w-5" />
-            <span>Sale Details</span>
-          </p>
-          <p
-            onClick={() => {
-              router.push(`/sales/duplicate-invoice/${sale.sale.id}`);
-              setOpen(false);
-            }}
-            className="text-dark-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
-          >
-            <Plus className="h-5 w-5" /> <span>Duplicate Sale</span>
+            <span>Waybill Details</span>
           </p>
           <p
             onClick={() => {
               router.push(
-                `/promissory-notes/create-promissory-note/from-sale/${sale.sale.id}`
+                `/promissory-notes/create-promissory-note/from-waybill/${waybill.waybill.id}`
               );
               setOpen(false);
             }}
@@ -146,43 +111,13 @@ const SaleActions = ({ sale }: { sale: SaleWithRelations }) => {
           </p>
           <p
             onClick={() => {
-              if (hasDeliverableProducts(sale)) {
-                router.push(
-                  `/waybills/create-waybill/from-sale/${sale.sale.id}`
-                );
-              } else {
-                toast.error("No deliverable products available for this sale");
-              }
-              setOpen(false);
-            }}
-            className="text-dark-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
-          >
-            <ShoppingCart className="h-5 w-5" /> <span>Create Waybill</span>
-          </p>
-          <p
-            onClick={() => {
-              if (sale.sale.isDeliveryNoteCreated) {
-                toast.error("Delivery Note already created");
-              } else {
-                router.push(
-                  `/deliveries/create-delivery/from-sale/${sale.sale.id}`
-                );
-              }
-              setOpen(false);
-            }}
-            className="text-dark-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
-          >
-            <Truck className="h-5 w-5" /> <span>Add Delivery</span>
-          </p>
-          <p
-            onClick={() => {
               setMode("edit");
-              router.push(`/sales/edit-invoice/${sale.sale.id}`);
+              router.push(`/waybills/edit-waybill/${waybill.waybill.id}`);
               setOpen(false);
             }}
             className="text-[#475BE8] p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
-            <EditIcon className="h-5 w-5" /> <span>Edit Sale</span>
+            <EditIcon className="h-5 w-5" /> <span>Edit Waybill</span>
           </p>
           <p
             onClick={() => {
@@ -195,12 +130,12 @@ const SaleActions = ({ sale }: { sale: SaleWithRelations }) => {
           </p>
           <p
             onClick={() => {
-              handleEmailSale();
+              handleEmail();
               setOpen(false);
             }}
             className="text-dark-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
-            <Mail className="h-5 w-5" /> <span>Email Sale</span>
+            <Mail className="h-5 w-5" /> <span>Email Waybill</span>
           </p>
 
           <p
@@ -211,19 +146,19 @@ const SaleActions = ({ sale }: { sale: SaleWithRelations }) => {
             }}
             className="text-red-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
-            <DeleteIcon className="h-5 w-5" /> <span>Delete Sale</span>
+            <DeleteIcon className="h-5 w-5" /> <span>Delete Waybill</span>
           </p>
         </PopoverContent>
       </Popover>
 
-      <SaleDialog
+      <WaybillDialog
         mode={mode}
         open={openDialog}
         onOpenChange={setOpenDialog}
-        sale={sale}
+        waybill={waybill}
       />
     </div>
   );
 };
 
-export default SaleActions;
+export default WaybillActions;

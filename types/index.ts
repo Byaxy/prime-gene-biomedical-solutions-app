@@ -314,6 +314,7 @@ export interface Sale {
   notes: string;
   quotationId: string;
   attachments: Attachment[];
+  isDeliveryNoteCreated: boolean;
   isDeliveryAddressAdded: boolean;
   deliveryAddress: DeliveryAddress;
   isActive: boolean;
@@ -340,6 +341,7 @@ export interface SaleItem {
   productID: string;
   hasBackorder: boolean;
   backorderQuantity: number;
+  fulfilledQuantity: number;
 }
 
 export interface SaleInventoryStock {
@@ -386,7 +388,6 @@ export interface DeliveryItem {
   id: string;
   deliveryId: string;
   productId: string;
-  inventoryStock: DeliveryInventoryStock[];
   quantityRequested: number;
   quantitySupplied: number;
   balanceLeft: number;
@@ -397,15 +398,58 @@ export interface DeliveryItem {
   updatedAt: Date;
 }
 
-export interface DeliveryInventoryStock {
-  inventoryStockId: string;
-  lotNumber: string;
-  quantityTaken: number;
-}
-
 export interface DeliveryWithRelations {
   delivery: Delivery;
   products: DeliveryItem[];
+  customer: Customer;
+  store: Store;
+  sale: Sale;
+}
+
+// Waybill
+export interface Waybill {
+  id: string;
+  waybillRefNumber: string;
+  waybillDate: Date;
+  status: DeliveryStatus;
+  deliveredBy: string;
+  receivedBy: string;
+  customerId: string;
+  storeId: string;
+  saleId: string;
+  notes: string;
+  deliveryAddress: DeliveryAddress;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface WaybillItem {
+  id: string;
+  deliveryId: string;
+  productId: string;
+  saleItemId: string;
+  inventoryStock: WaybillInventoryStock[];
+  quantityRequested: number;
+  quantitySupplied: number;
+  balanceLeft: number;
+  fulfilledQuantity: number;
+  productName: string;
+  productID: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface WaybillInventoryStock {
+  inventoryStockId: string;
+  lotNumber: string;
+  quantityTaken: number;
+  unitPrice: number;
+}
+export interface WaybillWithRelations {
+  waybill: Waybill;
+  products: WaybillItem[];
   customer: Customer;
   store: Store;
   sale: Sale;
