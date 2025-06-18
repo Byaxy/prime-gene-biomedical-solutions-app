@@ -2,7 +2,7 @@
 
 ![Login Page](/public/assets/images/login.png)
 
-A modern, scalable, and user-friendly **Sales and Inventory Management Application** built with **Next.js**, **Tailwind CSS**, **shadcn/ui**, and **Appwrite**. This application helps small businesses manage their sales, track inventory, and generate insightful reports for better decision-making.
+A modern, scalable, and user-friendly **Inventory Management Application** built with **Next.js**, **Tailwind CSS**, **shadcn/ui**, and **Supabase**. This application helps small businesses manage their sales, track inventory, and generate insightful reports for better decision-making.
 
 ---
 
@@ -34,7 +34,7 @@ A modern, scalable, and user-friendly **Sales and Inventory Management Applicati
 ### **Backend Powered by Appwrite**
 
 - Secure authentication and user management.
-- Scalable database for storing sales, inventory, and customer data.
+- Scalable database for storing sales, inventory, and customer data, etc.
 - File storage for product images and documents.
 
 ---
@@ -54,11 +54,12 @@ A modern, scalable, and user-friendly **Sales and Inventory Management Applicati
 
 - **Backend**:
 
-  - [Appwrite](https://appwrite.io/) - Open-source backend platform for authentication, database, and storage.
-  - RESTful API for managing sales and inventory data.
+  - [Supabase](https://supabase.com/) - Open-source backend platform for authentication, database, and storage.
+  - [Drizzle ORM](https://orm.drizzle.team/) - Typescript ORM for database schema design and queries.
 
 - **Other Libraries**:
   - [React Phone Number Input](https://www.npmjs.com/package/react-phone-number-input) - Phone number input with country codes.
+  - [Country-State-City ](https://www.npmjs.com/package/react-phone-number-input) - Country, state, and City selection input.
 
 ---
 
@@ -82,9 +83,3 @@ A modern, scalable, and user-friendly **Sales and Inventory Management Applicati
 - **Settings**
   ![Settings page](/public/assets/images/settings.png)
 
-to do
--product ID on add inventory
--navigate to list page on add success
--preview product image in dialog on double click
--capture cost price and selling price on the add inventory
--when Adjusting inventory, load product cost price and selling price as defaults.
