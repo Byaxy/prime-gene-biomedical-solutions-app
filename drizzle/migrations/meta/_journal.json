@@ -267,6 +267,20 @@
       "when": 1750256566071,
       "tag": "0037_lyrical_shatterstar",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1750916405969,
+      "tag": "0038_wide_kingpin",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1750927734973,
+      "tag": "0039_aromatic_lady_deathstrike",
+      "breakpoints": true
     }
   ]
 }

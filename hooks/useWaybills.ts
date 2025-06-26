@@ -130,7 +130,8 @@ export const useWaybills = ({
 
   const { mutate: deleteWaybillMutation, status: deleteWaybillStatus } =
     useMutation({
-      mutationFn: (id: string) => deleteWaybill(id),
+      mutationFn: ({ id, userId }: { id: string; userId: string }) =>
+        deleteWaybill(id, userId),
       onSuccess: () => {
         queryClient.invalidateQueries({
           queryKey: ["waybills", "paginatedWaybills"],
@@ -145,7 +146,8 @@ export const useWaybills = ({
 
   const { mutate: softDeleteWaybillMutation, status: softDeleteWaybillStatus } =
     useMutation({
-      mutationFn: (id: string) => softDeleteWaybill(id),
+      mutationFn: ({ id, userId }: { id: string; userId: string }) =>
+        softDeleteWaybill(id, userId),
       onSuccess: () => {
         queryClient.invalidateQueries({
           queryKey: ["waybills", "paginatedWaybills"],

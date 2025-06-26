@@ -17,6 +17,7 @@ import { Mail } from "lucide-react";
 import { Download } from "lucide-react";
 import { PDFViewer } from "@react-pdf/renderer";
 import { FileText } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 interface WaybillDialogProps {
   mode: "add" | "edit" | "delete" | "view";
@@ -34,19 +35,24 @@ const WaybillDialog = ({
   const { softDeleteWaybill, isSoftDeletingWaybill } = useWaybills();
   const router = useRouter();
 
+  const { user } = useAuth();
+
   const handleDelete = async () => {
     try {
-      if (waybill && waybill.waybill.id) {
-        await softDeleteWaybill(waybill.waybill.id, {
-          onSuccess: () => {
-            toast.success("Waybill deleted successfully.");
-            onOpenChange(false);
-          },
-          onError: (error) => {
-            console.error("Error deleting waybill:", error);
-            toast.error("Failed to delete waybill.");
-          },
-        });
+      if (waybill && waybill.waybill.id && user?.id) {
+        await softDeleteWaybill(
+          { id: waybill.waybill.id, userId: user.id },
+          {
+            onSuccess: () => {
+              toast.success("Waybill deleted successfully.");
+              onOpenChange(false);
+            },
+            onError: (error) => {
+              console.error("Error deleting waybill:", error);
+              toast.error("Failed to delete waybill.");
+            },
+          }
+        );
       } else {
         throw new Error("Waybill is required.");
       }

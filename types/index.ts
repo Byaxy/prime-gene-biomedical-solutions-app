@@ -417,6 +417,9 @@ export interface Waybill {
   customerId: string;
   storeId: string;
   saleId: string;
+  waybillType: WaybillType;
+  originalLoanWaybillId: string | null;
+  isConverted: boolean;
   notes: string;
   deliveryAddress: DeliveryAddress;
   isActive: boolean;
@@ -498,4 +501,9 @@ export enum PaymentStatus {
   Partial = "partial",
   Paid = "paid",
   Due = "due",
+}
+
+export enum WaybillType {
+  Loan = "loan",
+  Sale = "sale",
 }

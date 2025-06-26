@@ -1,10 +1,5 @@
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { InventoryStockWithRelations, WaybillInventoryStock } from "@/types";
+import { Button } from "../ui/button";
 import {
   Table,
   TableBody,
@@ -12,13 +7,13 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { formatDateTime } from "@/lib/utils";
-import { InventoryStockWithRelations, SaleInventoryStock } from "@/types";
-import { X } from "lucide-react";
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { Switch } from "../ui/switch";
-import { Label } from "../ui/label";
+} from "../ui/table";
+import { Input } from "../ui/input";
+import DeleteIcon from "@mui/icons-material/Delete";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import {
   Select,
   SelectContent,
@@ -27,34 +22,26 @@ import {
   SelectValue,
 } from "../ui/select";
 import { Search } from "lucide-react";
-import { Input } from "../ui/input";
 import { Check } from "lucide-react";
-import DeleteIcon from "@mui/icons-material/Delete";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { formatDateTime } from "@/lib/utils";
 import {
-  InventoryStockAllocationFormValues,
-  InventoryStockAllocationValidation,
+  WaybillInventoryStockAllocationFormValues,
+  WaybillInventoryStockAllocationValidation,
 } from "@/lib/validation";
 import toast from "react-hot-toast";
+import { X } from "lucide-react";
 
-interface InventoryStockDialogProps {
+interface WaybillInventoryStockDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   productID: string;
   requiredQuantity: number;
   availableStocks: InventoryStockWithRelations[];
-  selectedInventoryStock: SaleInventoryStock[];
-  onSave: (
-    stock: SaleInventoryStock[],
-    hasBackorder: boolean,
-    backorderQuantity: number
-  ) => void;
-  hasBackorder: boolean;
-  backorderQuantity: number;
+  selectedInventoryStock: WaybillInventoryStock[];
+  onSave: (stock: WaybillInventoryStock[]) => void;
 }
 
-const InventoryStockSelectDialog = ({
+const WaybillInventoryStockSelectDialog = ({
   open,
   onOpenChange,
   productID,
@@ -62,24 +49,15 @@ const InventoryStockSelectDialog = ({
   availableStocks,
   selectedInventoryStock,
   onSave,
-  hasBackorder: initialHasBackorder,
-  backorderQuantity: initialBackorderQuantity,
-}: InventoryStockDialogProps) => {
+}: WaybillInventoryStockDialogProps) => {
   const [prevSelectedInventoryStockId, setPrevSelectedInventoryStockId] =
     useState<string | null>(null);
 
-  // Simplified backorder state management
-  const [includeBackorder, setIncludeBackorder] = useState(initialHasBackorder);
-  const [backorderQuantity, setBackorderQuantity] = useState(
-    initialBackorderQuantity
-  );
-
   // Initialize React Hook Form
-  const form = useForm<InventoryStockAllocationFormValues>({
-    resolver: zodResolver(InventoryStockAllocationValidation),
+  const form = useForm<WaybillInventoryStockAllocationFormValues>({
+    resolver: zodResolver(WaybillInventoryStockAllocationValidation),
     defaultValues: {
       inventoryStock: [],
-      includeBackorder: initialHasBackorder,
       searchQuery: "",
     },
   });
@@ -98,7 +76,7 @@ const InventoryStockSelectDialog = ({
 
   // Memoize calculated values to prevent unnecessary re-renders
   const totalAllocated = useMemo(
-    () => inventoryStock.reduce((sum, item) => sum + item.quantityToTake, 0),
+    () => inventoryStock.reduce((sum, item) => sum + item.quantityTaken, 0),
     [inventoryStock]
   );
 
@@ -108,15 +86,9 @@ const InventoryStockSelectDialog = ({
     [requiredQuantity, totalAllocated]
   );
 
-  // Calculate total allocated including backorder for display
-  const totalAllocatedWithBackorder = useMemo(
-    () => totalAllocated + (includeBackorder ? backorderQuantity : 0),
-    [totalAllocated, includeBackorder, backorderQuantity]
-  );
-
-  const remainingQtyWithBackorder = useMemo(
-    () => requiredQuantity - totalAllocatedWithBackorder,
-    [requiredQuantity, totalAllocatedWithBackorder]
+  const remainingQty = useMemo(
+    () => requiredQuantity - totalAllocated,
+    [requiredQuantity, totalAllocated]
   );
 
   const totalAvailable = useMemo(
@@ -125,56 +97,47 @@ const InventoryStockSelectDialog = ({
     [availableStocks]
   );
 
-  // Only show backorder switch if total available is less than required quantity
-  const shouldShowBackorderSwitch = useMemo(
-    () => totalAvailable < requiredQuantity,
-    [totalAvailable, requiredQuantity]
-  );
-
   // Clean up state when dialog closes
   const resetState = useCallback(() => {
     reset({
       inventoryStock: [],
-      includeBackorder: initialHasBackorder,
       searchQuery: "",
     });
-    setIncludeBackorder(initialHasBackorder);
-    setBackorderQuantity(initialBackorderQuantity);
     setPrevSelectedInventoryStockId(null);
-  }, [reset, initialHasBackorder, initialBackorderQuantity]);
+  }, [reset]);
 
   // Auto-populate inventory stock
   const autoPopulateStock = useCallback(
     (
       stocks: InventoryStockWithRelations[],
       requiredQty: number
-    ): { allocations: SaleInventoryStock[]; backorderQty: number } => {
+    ): { allocations: WaybillInventoryStock[] } => {
       let remaining = requiredQty;
-      const newAllocations: SaleInventoryStock[] = [];
+      const newAllocations: WaybillInventoryStock[] = [];
 
       if (stocks.length > 0) {
         for (const stock of stocks) {
           if (remaining <= 0) break;
           if (stock.inventory.quantity <= 0) continue;
 
-          const quantityToTake = Math.min(stock.inventory.quantity, remaining);
+          const quantityTaken = Math.min(stock.inventory.quantity, remaining);
 
           newAllocations.push({
             inventoryStockId: stock.inventory.id,
             lotNumber: stock.inventory.lotNumber,
-            quantityToTake,
+            quantityTaken,
+            unitPrice: stock.product.sellingPrice,
           });
 
-          remaining -= quantityToTake;
+          remaining -= quantityTaken;
         }
       } else {
-        // No stocks available, remaining becomes backorder quantity
+        // No stocks available,
         remaining = requiredQty;
       }
 
       return {
         allocations: newAllocations,
-        backorderQty: remaining,
       };
     },
     []
@@ -184,22 +147,13 @@ const InventoryStockSelectDialog = ({
   useEffect(() => {
     if (open) {
       if (selectedInventoryStock.length === 0) {
-        const { allocations, backorderQty } = autoPopulateStock(
+        const { allocations } = autoPopulateStock(
           availableStocks,
           requiredQuantity
         );
         setValue("inventoryStock", allocations);
-
-        // Set backorder state based on shortage
-        const needsBackorder = backorderQty > 0;
-        setIncludeBackorder(needsBackorder);
-        setBackorderQuantity(backorderQty);
-        setValue("includeBackorder", needsBackorder);
       } else {
         setValue("inventoryStock", [...selectedInventoryStock]);
-        setIncludeBackorder(initialHasBackorder);
-        setBackorderQuantity(initialBackorderQuantity);
-        setValue("includeBackorder", initialHasBackorder);
       }
     } else {
       // Clean up when dialog closes
@@ -213,30 +167,7 @@ const InventoryStockSelectDialog = ({
     resetState,
     autoPopulateStock,
     setValue,
-    initialHasBackorder,
-    initialBackorderQuantity,
   ]);
-
-  // Update backorder quantity when remaining quantity changes
-  useEffect(() => {
-    if (includeBackorder && remainingFromStock > 0) {
-      setBackorderQuantity(remainingFromStock);
-    } else if (!includeBackorder) {
-      setBackorderQuantity(0);
-    }
-  }, [includeBackorder, remainingFromStock]);
-
-  // Handle backorder switch toggle
-  const handleBackorderToggle = (checked: boolean) => {
-    setIncludeBackorder(checked);
-    setValue("includeBackorder", checked);
-
-    if (checked && remainingFromStock > 0) {
-      setBackorderQuantity(remainingFromStock);
-    } else {
-      setBackorderQuantity(0);
-    }
-  };
 
   const addStock = (stock: InventoryStockWithRelations) => {
     if (remainingFromStock <= 0) return;
@@ -252,7 +183,7 @@ const InventoryStockSelectDialog = ({
       // Update existing stock quantity instead of adding duplicate
       const existingStock = currentStock[existingStockIndex];
       const maxAdditional = Math.min(
-        stock.inventory.quantity - existingStock.quantityToTake,
+        stock.inventory.quantity - existingStock.quantityTaken,
         remainingFromStock
       );
 
@@ -260,7 +191,7 @@ const InventoryStockSelectDialog = ({
         const updatedStock = [...currentStock];
         updatedStock[existingStockIndex] = {
           ...existingStock,
-          quantityToTake: existingStock.quantityToTake + maxAdditional,
+          quantityTaken: existingStock.quantityTaken + maxAdditional,
         };
         setValue("inventoryStock", updatedStock);
       }
@@ -270,7 +201,8 @@ const InventoryStockSelectDialog = ({
       const newStockEntry = {
         inventoryStockId: stock.inventory.id,
         lotNumber: stock.inventory.lotNumber,
-        quantityToTake: maxTake,
+        quantityTaken: maxTake,
+        unitPrice: stock.product.sellingPrice,
       };
 
       setValue("inventoryStock", [...currentStock, newStockEntry]);
@@ -304,7 +236,7 @@ const InventoryStockSelectDialog = ({
 
     // Calculate what the new total would be
     const currentTotal = currentStock.reduce(
-      (sum, item, i) => (i === index ? sum : sum + item.quantityToTake),
+      (sum, item, i) => (i === index ? sum : sum + item.quantityTaken),
       0
     );
     const newTotal = currentTotal + maxQuantity;
@@ -315,38 +247,10 @@ const InventoryStockSelectDialog = ({
     }
 
     const updatedStock = currentStock.map((item, i) =>
-      i === index ? { ...item, quantityToTake: maxQuantity } : item
+      i === index ? { ...item, quantityTaken: maxQuantity } : item
     );
 
     setValue("inventoryStock", updatedStock);
-  };
-
-  const updateBackorderQuantity = (newQuantity: number) => {
-    if (newQuantity < 0) return;
-
-    // Calculate what the new total would be
-    const currentStockTotal = inventoryStock.reduce(
-      (sum, item) => sum + item.quantityToTake,
-      0
-    );
-    const newTotal = currentStockTotal + newQuantity;
-
-    // Prevent over-allocation
-    let maxBackorderQuantity = newQuantity;
-    if (newTotal > requiredQuantity) {
-      maxBackorderQuantity = Math.max(0, requiredQuantity - currentStockTotal);
-    }
-
-    setBackorderQuantity(maxBackorderQuantity);
-
-    // Update the switch state if backorder quantity becomes 0
-    if (maxBackorderQuantity === 0) {
-      setIncludeBackorder(false);
-      setValue("includeBackorder", false);
-    } else if (!includeBackorder) {
-      setIncludeBackorder(true);
-      setValue("includeBackorder", true);
-    }
   };
 
   const handleSaveAllocation = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -354,14 +258,13 @@ const InventoryStockSelectDialog = ({
     e.stopPropagation();
 
     // Calculate total allocated vs required
-    const totalAllocatedQty =
-      totalAllocated + (includeBackorder ? backorderQuantity : 0);
+    const totalAllocatedQty = totalAllocated;
 
     if (totalAllocatedQty !== requiredQuantity) {
       if (totalAllocatedQty < requiredQuantity) {
         const shortage = requiredQuantity - totalAllocatedQty;
         toast.error(
-          `Cannot save allocation. You need to allocate ${shortage} more items. Consider enabling backorder to fulfill the shortage.`
+          `Cannot save allocation. You need to allocate ${shortage} more items.`
         );
       } else {
         const excess = totalAllocatedQty - requiredQuantity;
@@ -376,15 +279,15 @@ const InventoryStockSelectDialog = ({
 
     // Filter out any invalid entries
     const validStock = currentStock.filter(
-      (stock) => stock.quantityToTake > 0 && stock.inventoryStockId !== ""
+      (stock) => stock.quantityTaken > 0 && stock.inventoryStockId !== ""
     );
 
-    if (validStock.length === 0 && !includeBackorder) {
+    if (validStock.length === 0) {
       toast.error("Please allocate stock before saving.");
       return;
     }
 
-    onSave(validStock, includeBackorder, backorderQuantity);
+    onSave(validStock);
     onOpenChange(false);
   };
 
@@ -410,17 +313,8 @@ const InventoryStockSelectDialog = ({
   const displayRows = useMemo(() => {
     const rows = [...inventoryStock];
 
-    // Add backorder row if it exists
-    if (includeBackorder && backorderQuantity > 0) {
-      rows.push({
-        inventoryStockId: "BACKORDER_DISPLAY",
-        lotNumber: "",
-        quantityToTake: backorderQuantity,
-      });
-    }
-
     return rows;
-  }, [inventoryStock, includeBackorder, backorderQuantity]);
+  }, [inventoryStock]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -440,20 +334,12 @@ const InventoryStockSelectDialog = ({
             <div className="text-right">
               <span
                 className={
-                  remainingQtyWithBackorder === 0
-                    ? "text-green-500"
-                    : "text-orange-500"
+                  remainingQty === 0 ? "text-green-500" : "text-orange-500"
                 }
               >
-                Remaining quantity: {remainingQtyWithBackorder}
+                Remaining quantity: {remainingQty}
               </span>
-              {includeBackorder && backorderQuantity > 0 && (
-                <div className="text-red-500 text-sm mt-1">
-                  ⚠️ This order includes backordered items ({backorderQuantity}{" "}
-                  items)
-                </div>
-              )}
-              {remainingQtyWithBackorder < 0 && (
+              {remainingQty < 0 && (
                 <div className="text-red-500 text-sm mt-1">
                   ⚠️ Over-allocation detected! Remove excess quantity.
                 </div>
@@ -475,7 +361,7 @@ const InventoryStockSelectDialog = ({
                 disabled={
                   availableStocks.length === 0 ||
                   remainingFromStock <= 0 ||
-                  remainingQtyWithBackorder <= 0
+                  remainingQty <= 0
                 }
               >
                 <SelectTrigger className="shad-select-trigger">
@@ -572,7 +458,7 @@ const InventoryStockSelectDialog = ({
                                     {stock.inventory.quantity}
                                   </TableCell>
                                   <TableCell>
-                                    {selectedStock?.quantityToTake || 0}
+                                    {selectedStock?.quantityTaken || 0}
                                   </TableCell>
                                   <TableCell className="w-10">
                                     {isRecentlySelected && (
@@ -614,22 +500,6 @@ const InventoryStockSelectDialog = ({
                 </SelectContent>
               </Select>
             </div>
-
-            {/* Backorder switch - only show if total available is less than required */}
-            {shouldShowBackorderSwitch && (
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="backorder"
-                  checked={includeBackorder}
-                  onCheckedChange={handleBackorderToggle}
-                  className="custom-switch shad-switch"
-                />
-                <Label htmlFor="backorder">
-                  Include backorder for shortage
-                  {remainingFromStock > 0 && ` (${remainingFromStock} items)`}
-                </Label>
-              </div>
-            )}
           </div>
 
           {/* Selected Inventory Stock */}
@@ -657,18 +527,10 @@ const InventoryStockSelectDialog = ({
                     const mainStock = availableStocks.find(
                       (s) => s.inventory.id === stock.inventoryStockId
                     );
-                    const isBackorder =
-                      stock.inventoryStockId === "BACKORDER_DISPLAY";
-                    const actualIndex = isBackorder ? -1 : index;
 
                     return (
-                      <TableRow
-                        key={stock.inventoryStockId || `backorder-${index}`}
-                        className={isBackorder ? "bg-orange-50" : ""}
-                      >
-                        <TableCell>
-                          {isBackorder ? "Backorder" : stock.lotNumber}
-                        </TableCell>
+                      <TableRow key={stock.inventoryStockId || index}>
+                        <TableCell>{stock.lotNumber}</TableCell>
                         <TableCell>
                           {mainStock?.inventory.expiryDate
                             ? formatDateTime(mainStock.inventory.expiryDate)
@@ -676,65 +538,32 @@ const InventoryStockSelectDialog = ({
                             : "N/A"}
                         </TableCell>
                         <TableCell>
-                          {isBackorder
-                            ? "∞"
-                            : mainStock?.inventory.quantity || "N/A"}
+                          {mainStock?.inventory.quantity || "N/A"}
                         </TableCell>
                         <TableCell>
-                          {isBackorder ? (
-                            <Input
-                              type="number"
-                              min="0"
-                              value={stock.quantityToTake}
-                              onChange={(e) =>
-                                updateBackorderQuantity(
-                                  parseInt(e.target.value) || 0
-                                )
-                              }
-                              className="w-20"
-                            />
-                          ) : (
-                            <Input
-                              type="number"
-                              min="0"
-                              max={mainStock?.inventory.quantity}
-                              value={stock.quantityToTake}
-                              onChange={(e) =>
-                                updateStockQuantity(
-                                  actualIndex,
-                                  parseInt(e.target.value) || 0
-                                )
-                              }
-                              className="w-20"
-                            />
-                          )}
+                          <Input
+                            type="number"
+                            min="0"
+                            max={mainStock?.inventory.quantity}
+                            value={stock.quantityTaken}
+                            onChange={(e) =>
+                              updateStockQuantity(
+                                index,
+                                parseInt(e.target.value) || 0
+                              )
+                            }
+                            className="w-20"
+                          />
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-row items-center">
-                            {!isBackorder && (
-                              <span
-                                onClick={() =>
-                                  removeInventoryStock(actualIndex)
-                                }
-                                className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
-                                title="Remove stock allocation"
-                              >
-                                <DeleteIcon className="h-4 w-4" />
-                              </span>
-                            )}
-                            {isBackorder && (
-                              <span
-                                onClick={() => {
-                                  setIncludeBackorder(false);
-                                  setBackorderQuantity(0);
-                                  setValue("includeBackorder", false);
-                                }}
-                                className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
-                                title="Remove backorder"
-                              >
-                                <DeleteIcon className="h-4 w-4" />
-                              </span>
-                            )}
+                            <span
+                              onClick={() => removeInventoryStock(index)}
+                              className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
+                              title="Remove stock allocation"
+                            >
+                              <DeleteIcon className="h-4 w-4" />
+                            </span>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -757,13 +586,10 @@ const InventoryStockSelectDialog = ({
               type="button"
               onClick={handleSaveAllocation}
               className="shad-primary-btn"
-              disabled={
-                displayRows.length === 0 || remainingQtyWithBackorder !== 0
-              }
+              disabled={displayRows.length === 0 || remainingQty !== 0}
             >
               Save Allocation
-              {remainingQtyWithBackorder !== 0 &&
-                ` (${remainingQtyWithBackorder} remaining)`}
+              {remainingQty !== 0 && ` (${remainingQty} remaining)`}
             </Button>
           </div>
         </div>
@@ -772,4 +598,4 @@ const InventoryStockSelectDialog = ({
   );
 };
 
-export default InventoryStockSelectDialog;
+export default WaybillInventoryStockSelectDialog;

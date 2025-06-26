@@ -9,6 +9,7 @@ import {
 import { Button } from "../ui/button";
 import { Customer } from "@/types";
 import CustomerForm from "../forms/CustomerForm";
+import { cn } from "@/lib/utils";
 
 interface CustomerDialogProps {
   mode: "add" | "edit" | "delete";
@@ -50,49 +51,69 @@ const CustomerDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl bg-light-200">
-        <DialogHeader className="space-y-2">
-          <DialogTitle className="text-xl text-blue-800">
-            Delete Customer
-          </DialogTitle>
-          <DialogDescription className="text-dark-500">
-            Are you sure you want to delete this customer? This action cannot be
-            undone.
-          </DialogDescription>
-        </DialogHeader>
-
+      <DialogContent
+        className={cn(
+          "sm:max-w-2xl bg-light-200",
+          mode === "add" && "sm:max-w-6xl"
+        )}
+      >
         {mode === "delete" && (
-          <div className="flex flex-col gap-4">
-            <p className="text-sm text-red-500">
-              Category: <span className="font-semibold">{customer?.name}</span>
-            </p>
-            <div className="flex justify-end gap-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                disabled={isLoading}
-                className="shad-primary-btn"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={handleDelete}
-                disabled={isLoading}
-                className="shad-danger-btn"
-              >
-                Delete
-              </Button>
+          <>
+            <DialogHeader className="space-y-2">
+              <DialogTitle className="text-xl text-blue-800">
+                Delete Customer
+              </DialogTitle>
+              <DialogDescription className="text-dark-500">
+                Are you sure you want to delete this customer? This action
+                cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col gap-4">
+              <p className="text-sm text-red-500">
+                Category:{" "}
+                <span className="font-semibold">{customer?.name}</span>
+              </p>
+              <div className="flex justify-end gap-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                  disabled={isLoading}
+                  className="shad-primary-btn"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={handleDelete}
+                  disabled={isLoading}
+                  className="shad-danger-btn"
+                >
+                  Delete
+                </Button>
+              </div>
             </div>
-          </div>
+          </>
         )}
 
         {mode === "add" && (
-          <div className="flex flex-col gap-4">
-            <CustomerForm mode="create" onCancel={() => onOpenChange(false)} />
-          </div>
+          <>
+            <DialogHeader className="space-y-2">
+              <DialogTitle className="text-xl text-blue-800">
+                Add Customer
+              </DialogTitle>
+              <DialogDescription className="text-dark-500">
+                Fill in the customer details below
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col gap-4">
+              <CustomerForm
+                mode="create"
+                onCancel={() => onOpenChange(false)}
+              />
+            </div>
+          </>
         )}
       </DialogContent>
     </Dialog>

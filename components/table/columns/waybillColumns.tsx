@@ -1,7 +1,7 @@
 import WaybillActions from "@/components/waybills/WaybillActions";
 import { Button } from "@/components/ui/button";
 import { cn, formatDateTime } from "@/lib/utils";
-import { WaybillWithRelations } from "@/types";
+import { WaybillType, WaybillWithRelations } from "@/types";
 import { ColumnDef } from "@tanstack/react-table";
 import { Country } from "country-state-city";
 import { ArrowUpDown } from "lucide-react";
@@ -84,7 +84,9 @@ export const waybillColumns: ColumnDef<WaybillWithRelations>[] = [
     cell: ({ row }) => {
       const waybill = row.original;
       return (
-        <p className="text-14-medium ">{waybill.sale.invoiceNumber || "-"}</p>
+        <p className="text-14-medium ">
+          {waybill?.sale ? waybill.sale.invoiceNumber : "-"}
+        </p>
       );
     },
   },
@@ -125,7 +127,7 @@ export const waybillColumns: ColumnDef<WaybillWithRelations>[] = [
   },
   {
     accessorKey: "waybill.status",
-    header: " Status",
+    header: "Status",
     cell: ({ row }) => {
       const waybill = row.original;
       return (
@@ -145,6 +147,47 @@ export const waybillColumns: ColumnDef<WaybillWithRelations>[] = [
           >
             {waybill.waybill.status}
           </span>
+        </p>
+      );
+    },
+  },
+  {
+    header: "Type",
+    cell: ({ row }) => {
+      const waybill = row.original;
+      return (
+        <p>
+          <span
+            className={cn(
+              "text-14-medium capitalize",
+              waybill.waybill.waybillType === `${WaybillType.Sale}` &&
+                "bg-green-500 text-white px-3 py-1 rounded-xl",
+              waybill.waybill.waybillType === `${WaybillType.Loan}` &&
+                "bg-red-600 text-white px-3 py-1 rounded-xl"
+            )}
+          >
+            {waybill.waybill.waybillType}
+          </span>
+        </p>
+      );
+    },
+  },
+  {
+    header: "Converted",
+    cell: ({ row }) => {
+      const waybill = row.original;
+      return (
+        <p>
+          {waybill.waybill.waybillType === WaybillType.Loan && (
+            <span
+              className={cn(
+                "text-14-medium capitalize bg-red-600 text-white px-3 py-1 rounded-xl",
+                waybill.waybill.isConverted && "bg-green-500"
+              )}
+            >
+              {waybill.waybill.isConverted ? "Yes" : "No"}
+            </span>
+          )}
         </p>
       );
     },

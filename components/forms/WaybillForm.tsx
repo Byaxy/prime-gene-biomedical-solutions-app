@@ -15,10 +15,12 @@ import {
   Customer,
   DeliveryStatus,
   InventoryStockWithRelations,
+  ProductWithRelations,
   SaleItem,
   SaleWithRelations,
   Store,
   WaybillInventoryStock,
+  WaybillType,
   WaybillWithRelations,
 } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -54,6 +56,8 @@ import StoreDialog from "../stores/StoreDialog";
 import WaybillStockDialog from "../waybills/WaybillStockDialog";
 import { useInventoryStock } from "@/hooks/useInventoryStock";
 import { useAuth } from "@/hooks/useAuth";
+import { useProducts } from "@/hooks/useProducts";
+import WaybillInventoryStockSelectDialog from "../waybills/WaybillInventoryStockSelectDialog";
 
 interface WaybillFormProps {
   mode: "create" | "edit";
@@ -68,21 +72,31 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
   const [prevSelectedSaleId, setPrevSelectedSaleId] = useState<string | null>(
     null
   );
+  const [prevSelectedProductId, setPrevSelectedProductId] = useState<
+    string | null
+  >(null);
+  const [selectedProductIndex, setSelectedProductIndex] = useState<
+    number | null
+  >(null);
   const [states, setStates] = useState<IState[]>(() =>
-    initialData?.sale.deliveryAddress?.country
-      ? State.getStatesOfCountry(initialData?.sale.deliveryAddress?.country)
+    initialData?.waybill.deliveryAddress
+      ? State.getStatesOfCountry(initialData?.waybill.deliveryAddress?.country)
       : []
   );
   const [cities, setCities] = useState<ICity[]>(() =>
-    initialData?.sale.deliveryAddress?.state
+    initialData?.waybill.deliveryAddress
       ? City.getCitiesOfState(
-          initialData?.sale.deliveryAddress?.country || "",
-          initialData?.sale.deliveryAddress?.state
+          initialData?.waybill.deliveryAddress?.country || "",
+          initialData?.waybill.deliveryAddress?.state
         )
       : []
   );
 
   const { user } = useAuth();
+
+  const { products, isLoading: productsLoading } = useProducts({
+    getAllProducts: true,
+  });
 
   const {
     stores,
@@ -144,6 +158,9 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
       deliveredBy: "",
       receivedBy: "",
       products: [],
+      isLoanWaybill: false,
+      originalLoanWaybillId: undefined,
+      isConverted: false,
     }),
     [generatedWaybillRefNumber]
   );
@@ -169,12 +186,17 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
           customerId: initialData.customer.id || "",
           storeId: initialData.store.id || "",
           saleId: initialData.waybill.saleId || "",
+          isLoanWaybill:
+            initialData.waybill.waybillType === WaybillType.Loan || false,
+          originalLoanWaybillId:
+            initialData.waybill.originalLoanWaybillId || undefined,
+          isConverted: initialData.waybill.isConverted || false,
           notes: initialData.waybill.notes || "",
           deliveredBy: initialData.waybill.deliveredBy || "",
           receivedBy: initialData.waybill.receivedBy || "",
           products: initialData.products.map((product) => ({
             productId: product.productId,
-            saleItemId: product.id,
+            saleItemId: product.saleItemId || "",
             inventoryStock: product.inventoryStock.map((stock) => ({
               inventoryStockId: stock.inventoryStockId,
               lotNumber: stock.lotNumber,
@@ -197,6 +219,9 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
     name: "products",
   });
 
+  const isLoanWaybill = form.watch("isLoanWaybill");
+  const selectedStoreId = form.watch("storeId");
+  const selectedProductId = form.watch("selectedProductId");
   const selectedCountry = form.watch("deliveryAddress.country");
   const selectedState = form.watch("deliveryAddress.state");
 
@@ -214,6 +239,23 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
     );
   };
 
+  //Filter products
+  const filteredProducts = products?.filter((product: ProductWithRelations) => {
+    const productStock = inventoryStock?.filter(
+      (inv: InventoryStockWithRelations) =>
+        inv.product.id === product.product.id
+    );
+    if (!searchQuery.trim()) return productStock?.length > 0;
+
+    const query = searchQuery.toLowerCase().trim();
+    return (
+      (product.product.productID?.toLowerCase().includes(query) ||
+        product.product.name?.toLowerCase().includes(query)) &&
+      productStock.length > 0
+    );
+  });
+
+  // Filter sales
   const filteredSales = sales?.filter((sale: SaleWithRelations) => {
     if (mode === "edit") return true;
 
@@ -503,6 +545,11 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
           customerId: initialData.waybill.customerId || "",
           storeId: initialData.waybill.storeId || "",
           saleId: initialData.waybill.saleId || "",
+          isLoanWaybill:
+            initialData.waybill.waybillType === WaybillType.Loan || false,
+          originalLoanWaybillId:
+            initialData.waybill.originalLoanWaybillId || undefined,
+          isConverted: initialData.waybill.isConverted || false,
           notes: initialData.waybill.notes || "",
           deliveredBy: initialData.waybill.deliveredBy || "",
           receivedBy: initialData.waybill.receivedBy || "",
@@ -523,7 +570,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
           initialData.products.forEach((product) => {
             append({
               productId: product.productId,
-              saleItemId: product.id,
+              saleItemId: product.saleItemId || "",
               inventoryStock: product.inventoryStock.map((stock) => ({
                 inventoryStockId: stock.inventoryStockId,
                 lotNumber: stock.lotNumber,
@@ -796,6 +843,42 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
     }
   };
 
+  // Handle add product
+  const handleAddProduct = () => {
+    if (!selectedProductId || !selectedStoreId) {
+      toast.error("Please select a store and Inventory");
+      return;
+    }
+
+    const selectedProduct = products?.find(
+      (product: ProductWithRelations) =>
+        product.product.id === selectedProductId
+    );
+
+    if (!selectedProduct) {
+      toast.error("Selected product not found");
+      return;
+    }
+
+    if (fields.some((entry) => entry.productId === selectedProductId)) {
+      toast.error("This product is already added");
+      return;
+    }
+
+    append({
+      productId: selectedProduct.product.id,
+      saleItemId: "",
+      inventoryStock: [],
+      quantityRequested: 0,
+      quantitySupplied: 0,
+      balanceLeft: 0,
+      fulfilledQuantity: 0,
+      productID: selectedProduct.product.productID,
+      productName: selectedProduct.product.name,
+    });
+    form.setValue("selectedProductId", "");
+  };
+
   // Handle delete entry
   const handleDeleteEntry = (index: number) => {
     remove(index);
@@ -948,6 +1031,38 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
     return true;
   };
 
+  // get entry inventory stocks based on selected product and store
+  const getEntryInventoryStocks = useCallback(
+    (productId: string) => {
+      return (
+        inventoryStock
+          ?.filter((stock: InventoryStockWithRelations) => {
+            if (!selectedStoreId) return false;
+            return (
+              stock.product.id === productId &&
+              stock.store.id === selectedStoreId &&
+              stock.inventory.quantity > 0
+            );
+          })
+          .sort(
+            (
+              a: InventoryStockWithRelations,
+              b: InventoryStockWithRelations
+            ) => {
+              const aExpiry: number = a.inventory.expiryDate
+                ? new Date(a.inventory.expiryDate).getTime()
+                : Infinity;
+              const bExpiry: number = b.inventory.expiryDate
+                ? new Date(b.inventory.expiryDate).getTime()
+                : Infinity;
+              return aExpiry - bExpiry;
+            }
+          ) || []
+      );
+    },
+    [inventoryStock, selectedStoreId]
+  );
+
   // handle suppliedQuantity change
   const handleQuantitySuppliedChange = (index: number, value: string) => {
     const numValue = parseFloat(value) || 0;
@@ -959,6 +1074,45 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
       form.setValue(`products.${index}.balanceLeft`, balanceLeft);
     }
   };
+
+  // handle switch toggle
+  const handleSwitchToggle = () => {
+    form.setValue("saleId", "");
+    form.setValue("storeId", "");
+    form.setValue("customerId", "");
+    form.setValue("products", []);
+    form.setValue("deliveryAddress", {
+      addressName: "",
+      address: "",
+      city: "",
+      state: "",
+      country: "",
+      email: "",
+      phone: "",
+    });
+  };
+
+  useEffect(() => {
+    if (isLoanWaybill) {
+      const customerId = form.watch("customerId");
+      if (customerId) {
+        const customer = customers?.find(
+          (cust: Customer) => cust.id === customerId
+        );
+        if (customer) {
+          form.setValue("deliveryAddress", {
+            addressName: customer.address.addressName || "",
+            address: customer.address.address || "",
+            city: customer.address.city || "",
+            state: customer.address.state || "",
+            country: customer.address.country || "",
+            email: customer.email || "",
+            phone: customer.phone || "",
+          });
+        }
+      }
+    }
+  });
 
   useEffect(() => {
     if (fields.length > 0) {
@@ -977,6 +1131,15 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
           onSubmit={form.handleSubmit(handleSubmit)}
           className="space-y-5 text-dark-500"
         >
+          <div className="w-full py-5">
+            <CustomFormField
+              fieldType={FormFieldType.SWITCH}
+              control={form.control}
+              onValueChange={handleSwitchToggle}
+              name="isLoanWaybill"
+              label="Is this a Loan Waybill ?"
+            />
+          </div>
           <div className="w-full flex flex-col md:flex-row gap-5">
             <div className="flex flex-1 flex-row gap-2 items-center">
               <CustomFormField
@@ -1021,7 +1184,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
               placeholder="Select sale"
               onAddNew={() => setCustomerDialogOpen(true)}
               key={`customer-select-${form.watch("customerId") || ""}`}
-              disabled={true}
+              disabled={!isLoanWaybill}
             >
               {customersLoading && (
                 <div className="py-4">
@@ -1047,7 +1210,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
               placeholder="Select sale"
               onAddNew={() => setStoreDialogOpen(true)}
               key={`store-select-${form.watch("storeId") || ""}`}
-              disabled={true}
+              disabled={!isLoanWaybill}
             >
               {storesLoading && (
                 <div className="py-4">
@@ -1072,242 +1235,529 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
                 : ""
             }`}
           >
-            <div className="w-full flex flex-col gap-5">
-              <div className="w-full sm:w-1/2">
-                <CustomFormField
-                  fieldType={FormFieldType.SELECT}
-                  control={form.control}
-                  name="saleId"
-                  label="Select Sale"
-                  placeholder={"Select Sale"}
-                  key={`inventory-select-${form.watch("saleId") || ""}`}
-                  disabled={!!sourceSale || !!initialData}
-                >
-                  <div className="py-3">
-                    <div className="relative flex items-center rounded-md border border-dark-700 bg-white">
-                      <Search className="ml-2 h-4 w-4 opacity-50" />
-                      <Input
-                        type="text"
-                        placeholder="Search by Invoice Number"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
-                        disabled={salesLoading}
-                      />
-                      {searchQuery && (
-                        <button
-                          type="button"
-                          onClick={() => setSearchQuery("")}
-                          className="absolute right-3 top-3 text-dark-700 hover:text-dark-600"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  {salesLoading ? (
-                    <div className="py-4">
-                      <Loading />
-                    </div>
-                  ) : filteredSales && filteredSales.length > 0 ? (
-                    <>
-                      <Table className="shad-table border border-light-200 rounded-lg">
-                        <TableHeader>
-                          <TableRow className="w-full bg-blue-800 text-white px-2 font-semibold">
-                            <TableHead>Invoice Number</TableHead>
-                            <TableHead>Customer</TableHead>
-                            <TableHead></TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody className="w-full bg-white">
-                          {filteredSales.map((sale: SaleWithRelations) => (
-                            <TableRow
-                              key={sale.sale.id}
-                              className="cursor-pointer hover:bg-blue-50"
-                              onClick={() => {
-                                setPrevSelectedSaleId(sale.sale.id);
-                                setSearchQuery("");
-                                handleSaleSelection(sale.sale.id);
-                                // Find and click the hidden SelectItem with this value
-                                const selectItem = document.querySelector(
-                                  `[data-value="${sale.sale.id}"]`
-                                ) as HTMLElement;
-                                if (selectItem) {
-                                  selectItem.click();
-                                }
-                              }}
+            {isLoanWaybill ? (
+              <>
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="w-full sm:w-1/2">
+                    <CustomFormField
+                      fieldType={FormFieldType.SELECT}
+                      control={form.control}
+                      name="selectedProductId"
+                      label="Select Inventory"
+                      placeholder={
+                        productsLoading
+                          ? "Loading..."
+                          : selectedStoreId
+                          ? "Select inventory"
+                          : "Select store first"
+                      }
+                      disabled={!selectedStoreId}
+                      key={`inventory-select-${selectedProductId || ""}`}
+                    >
+                      <div className="py-3">
+                        <div className="relative flex items-center rounded-md border border-dark-700 bg-white">
+                          <Search className="ml-2 h-4 w-4 opacity-50" />
+                          <Input
+                            type="text"
+                            placeholder="Search by Product ID, Product Name"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
+                            disabled={!selectedStoreId || productsLoading}
+                          />
+                          {searchQuery && (
+                            <button
+                              type="button"
+                              onClick={() => setSearchQuery("")}
+                              className="absolute right-3 top-3 text-dark-700 hover:text-dark-600"
                             >
-                              <TableCell>{sale.sale.invoiceNumber}</TableCell>
-                              <TableCell>{sale.customer.name}</TableCell>
-                              <TableCell className="w-10">
-                                {prevSelectedSaleId === sale.sale.id && (
-                                  <span className="text-blue-800">
-                                    <Check className="h-5 w-5" />
-                                  </span>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                      {/* Hidden select options for form control */}
-                      <div className="hidden">
-                        {filteredSales.map((sale: SaleWithRelations) => (
-                          <SelectItem
-                            key={sale.sale.id}
-                            value={sale.sale.id}
-                            data-value={sale.sale.id}
-                          >
-                            {sale.sale.invoiceNumber}
-                          </SelectItem>
-                        ))}
+                              <X className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </>
-                  ) : (
-                    <SelectItem value="null" disabled>
-                      <div>No sales found</div>
-                    </SelectItem>
-                  )}
-                </CustomFormField>
-              </div>
-            </div>
-            <p className="text-16-medium text-blue-800">Products</p>
-            <Table className="shad-table">
-              <TableHeader>
-                <TableRow className="w-full bg-blue-800 text-white px-2 font-semibold">
-                  <TableHead>#</TableHead>
-                  <TableHead>PID</TableHead>
-                  <TableHead>Product Description</TableHead>
-                  <TableHead>Qnty Requested</TableHead>
-                  <TableHead>Qnty Fulfilled</TableHead>
-                  <TableHead>Qnty Supplied</TableHead>
-                  <TableHead>Balance Left</TableHead>
-                  <TableHead>Confirm Stock</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody className="w-full bg-white text-blue-800">
-                {fields.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={9} className="text-center py-4">
-                      No products available for delivery
-                    </TableCell>
-                  </TableRow>
-                )}
-                {fields.map((entry, index) => (
-                  <TableRow
-                    key={`${entry.productId}-${index}`}
-                    className={`w-full ${index % 2 === 1 ? "bg-blue-50" : ""}`}
+                      {productsLoading ? (
+                        <div className="py-4">
+                          <Loading />
+                        </div>
+                      ) : filteredProducts && filteredProducts.length > 0 ? (
+                        <>
+                          <Table className="shad-table border border-light-200 rounded-lg">
+                            <TableHeader>
+                              <TableRow className="w-full bg-blue-800 text-white px-2 font-semibold">
+                                <TableHead>Product ID</TableHead>
+                                <TableHead>Product Name</TableHead>
+                                <TableHead>Qnty</TableHead>
+                                <TableHead></TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody className="w-full bg-white">
+                              {filteredProducts.map(
+                                (product: ProductWithRelations) => (
+                                  <TableRow
+                                    key={product.product.id}
+                                    className="cursor-pointer hover:bg-blue-50"
+                                    onClick={() => {
+                                      form.setValue(
+                                        "selectedProductId",
+                                        product.product.id
+                                      );
+                                      setPrevSelectedProductId(
+                                        product.product.id
+                                      );
+                                      setSearchQuery("");
+                                      // Find and click the hidden SelectItem with this value
+                                      const selectItem = document.querySelector(
+                                        `[data-value="${product.product.id}"]`
+                                      ) as HTMLElement;
+                                      if (selectItem) {
+                                        selectItem.click();
+                                      }
+                                    }}
+                                  >
+                                    <TableCell>
+                                      {product.product.productID}
+                                    </TableCell>
+                                    <TableCell>
+                                      {product.product.name}
+                                    </TableCell>
+                                    <TableCell>
+                                      {product.product.quantity}
+                                    </TableCell>
+                                    <TableCell className="w-10">
+                                      {prevSelectedProductId ===
+                                        product.product.id && (
+                                        <span className="text-blue-800">
+                                          <Check className="h-5 w-5" />
+                                        </span>
+                                      )}
+                                    </TableCell>
+                                  </TableRow>
+                                )
+                              )}
+                            </TableBody>
+                          </Table>
+                          {/* Hidden select options for form control */}
+                          <div className="hidden">
+                            {filteredProducts.map(
+                              (product: ProductWithRelations) => (
+                                <SelectItem
+                                  key={product.product.id}
+                                  value={product.product.id}
+                                  data-value={product.product.id}
+                                >
+                                  {product.product.productID} -
+                                  {product.product.name}
+                                  {}
+                                </SelectItem>
+                              )
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <SelectItem value="null" disabled>
+                          {selectedStoreId ? (
+                            <div>No inventory found for this store</div>
+                          ) : (
+                            <div>Please select a store first</div>
+                          )}
+                        </SelectItem>
+                      )}
+                    </CustomFormField>
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={handleAddProduct}
+                    disabled={!selectedProductId}
+                    className="self-end shad-primary-btn h-11"
                   >
-                    <TableCell>{index + 1}</TableCell>
-                    <TableCell>{entry.productID}</TableCell>
-                    <TableCell>{entry.productName}</TableCell>
+                    Add Inventory
+                  </Button>
+                </div>
 
-                    <TableCell>
-                      <div className="flex items-center text-14-medium text-blue-800 rounded-md border bg-white px-3 border-dark-700 h-11">
-                        {formatNumber(String(entry.quantityRequested))}
-                      </div>
-                    </TableCell>
-
-                    <TableCell>
-                      <div className="flex items-center text-14-medium text-green-600 rounded-md border bg-white px-3 border-dark-700 h-11">
-                        {formatNumber(String(entry.fulfilledQuantity || 0))}
-                      </div>
-                    </TableCell>
-
-                    <TableCell>
-                      <CustomFormField
-                        fieldType={FormFieldType.NUMBER}
-                        control={form.control}
-                        name={`products.${index}.quantitySupplied`}
-                        label=""
-                        placeholder="Qty supplied"
-                        onValueChange={(
-                          e: React.ChangeEvent<HTMLInputElement>
-                        ) =>
-                          handleQuantitySuppliedChange(index, e.target.value)
-                        }
-                        key={`qty-supplied-${form.watch(
-                          `products.${index}.quantitySupplied` || ""
-                        )}`}
-                      />
-                    </TableCell>
-
-                    <TableCell>
-                      <div
-                        className={`flex items-center text-14-medium rounded-md border px-3 h-11 ${
-                          calculateEntryBalanceLeft(index) > 0
-                            ? "text-orange-600 bg-orange-50 border-orange-400"
-                            : "text-green-500 bg-green-50 border-green-400"
+                <Table className="shad-table">
+                  <TableHeader>
+                    <TableRow className="w-full bg-blue-800 text-white px-2 font-semibold">
+                      <TableHead>#</TableHead>
+                      <TableHead>PID</TableHead>
+                      <TableHead>Product Description</TableHead>
+                      <TableHead className="!max-w-60">Lot Number</TableHead>
+                      <TableHead>Quantity</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody className="w-full bg-white text-blue-800">
+                    {fields.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={13} className="text-center py-4">
+                          No products added
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {fields.map((entry, index) => (
+                      <TableRow
+                        key={`${entry.productId}-${index}`}
+                        className={`w-full ${
+                          index % 2 === 1 ? "bg-blue-50" : ""
                         }`}
                       >
-                        {formatNumber(String(calculateEntryBalanceLeft(index)))}
+                        <TableCell>{index + 1}</TableCell>
+                        <TableCell>{entry.productID}</TableCell>
+                        <TableCell>{entry.productName}</TableCell>
+                        <TableCell>
+                          <Button
+                            variant="outline"
+                            onClick={() => setSelectedProductIndex(index)}
+                            disabled={
+                              form.watch(
+                                `products.${index}.quantityRequested`
+                              ) <= 0
+                            }
+                            type="button"
+                            className="bg-gray-200"
+                            title="Manage Lot Numbers / Inventory stock"
+                          >
+                            {form.watch(
+                              `products.${index}.quantityRequested`
+                            ) <= 0
+                              ? "Add Qnty first"
+                              : "Manage Lots"}
+                          </Button>
+                          <WaybillInventoryStockSelectDialog
+                            open={selectedProductIndex === index}
+                            onOpenChange={(open) =>
+                              setSelectedProductIndex(open ? index : null)
+                            }
+                            productID={entry.productID}
+                            requiredQuantity={form.watch(
+                              `products.${index}.quantityRequested`
+                            )}
+                            availableStocks={getEntryInventoryStocks(
+                              entry.productId
+                            )}
+                            selectedInventoryStock={entry.inventoryStock}
+                            onSave={(stock) => {
+                              const quantityRequested = form.watch(
+                                `products.${index}.quantityRequested`
+                              );
+                              const quantitySupplied = stock.reduce(
+                                (qnty, s) => qnty + s.quantityTaken,
+                                0
+                              );
+                              if (quantityRequested !== quantitySupplied) {
+                                form.setError(
+                                  `products.${index}.quantitySupplied`,
+                                  {
+                                    message:
+                                      "Total allocated quantity must match supplied quantity",
+                                  }
+                                );
+                              }
+                              form.setValue(
+                                `products.${index}.inventoryStock`,
+                                stock
+                              );
+                              form.setValue(
+                                `products.${index}.quantitySupplied`,
+                                quantitySupplied
+                              );
+                              form.setValue(
+                                `products.${index}.fulfilledQuantity`,
+                                quantitySupplied
+                              );
+                              form.trigger(`products.${index}.inventoryStock`);
+                            }}
+                          />
+                          {form.formState.errors.products?.[index]
+                            ?.inventoryStock && (
+                            <p className="text-red-500 text-xs pt-2">
+                              {
+                                form.formState.errors.products?.[index]
+                                  ?.inventoryStock.message
+                              }
+                            </p>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <CustomFormField
+                            fieldType={FormFieldType.NUMBER}
+                            control={form.control}
+                            name={`products.${index}.quantityRequested`}
+                            label=""
+                            placeholder="Qnty"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-row items-center">
+                            <span
+                              onClick={() => handleDeleteEntry(index)}
+                              className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
+                            >
+                              <DeleteIcon className="h-5 w-5" />
+                            </span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </>
+            ) : (
+              <>
+                <div className="w-full flex flex-col gap-5">
+                  <div className="w-full sm:w-1/2">
+                    <CustomFormField
+                      fieldType={FormFieldType.SELECT}
+                      control={form.control}
+                      name="saleId"
+                      label="Select Sale"
+                      placeholder={`${
+                        salesLoading ? "Loading..." : "Select sale"
+                      }`}
+                      key={`inventory-select-${form.watch("saleId") || ""}`}
+                      disabled={!!sourceSale || !!initialData}
+                    >
+                      <div className="py-3">
+                        <div className="relative flex items-center rounded-md border border-dark-700 bg-white">
+                          <Search className="ml-2 h-4 w-4 opacity-50" />
+                          <Input
+                            type="text"
+                            placeholder="Search by Invoice Number"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
+                            disabled={
+                              salesLoading || filteredSales?.length === 0
+                            }
+                          />
+                          {searchQuery && (
+                            <button
+                              type="button"
+                              onClick={() => setSearchQuery("")}
+                              className="absolute right-3 top-3 text-dark-700 hover:text-dark-600"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </TableCell>
-
-                    <TableCell>
-                      <WaybillStockDialog
-                        stock={entry.inventoryStock}
-                        productID={entry.productID}
-                        qntyRequired={form.watch(
-                          `products.${index}.quantitySupplied`
-                        )}
-                        availableInventory={inventoryStock?.filter(
-                          (inv: InventoryStockWithRelations) =>
-                            inv.product.id === entry.productId &&
-                            inv.store.id === form.watch("storeId") &&
-                            inv.inventory.quantity > 0
-                        )}
-                        onSave={(stock) => {
-                          form.setValue(
-                            `products.${index}.inventoryStock`,
-                            stock
-                          );
-                          form.trigger(`products.${index}.inventoryStock`);
-
-                          // Recalculate supplied quantity based on stock allocation
-                          const totalAllocated = stock.reduce(
-                            (total, s) => total + s.quantityTaken,
-                            0
-                          );
-                          form.setValue(
-                            `products.${index}.quantitySupplied`,
-                            totalAllocated
-                          );
-
-                          // Recalculate balance
-                          const newBalance = calculateEntryBalanceLeft(index);
-                          form.setValue(
-                            `products.${index}.balanceLeft`,
-                            newBalance
-                          );
-                        }}
-                      />
-                      {form.formState.errors.products?.[index]
-                        ?.inventoryStock && (
-                        <p className="text-red-500 text-xs pt-2">
-                          {
-                            form.formState.errors.products?.[index]
-                              ?.inventoryStock.message
-                          }
-                        </p>
+                      {salesLoading ? (
+                        <div className="py-4">
+                          <Loading />
+                        </div>
+                      ) : filteredSales && filteredSales.length > 0 ? (
+                        <>
+                          <Table className="shad-table border border-light-200 rounded-lg">
+                            <TableHeader>
+                              <TableRow className="w-full bg-blue-800 text-white px-2 font-semibold">
+                                <TableHead>Invoice Number</TableHead>
+                                <TableHead>Customer</TableHead>
+                                <TableHead></TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody className="w-full bg-white">
+                              {filteredSales.map((sale: SaleWithRelations) => (
+                                <TableRow
+                                  key={sale.sale.id}
+                                  className="cursor-pointer hover:bg-blue-50"
+                                  onClick={() => {
+                                    setPrevSelectedSaleId(sale.sale.id);
+                                    setSearchQuery("");
+                                    handleSaleSelection(sale.sale.id);
+                                    // Find and click the hidden SelectItem with this value
+                                    const selectItem = document.querySelector(
+                                      `[data-value="${sale.sale.id}"]`
+                                    ) as HTMLElement;
+                                    if (selectItem) {
+                                      selectItem.click();
+                                    }
+                                  }}
+                                >
+                                  <TableCell>
+                                    {sale.sale.invoiceNumber}
+                                  </TableCell>
+                                  <TableCell>{sale.customer.name}</TableCell>
+                                  <TableCell className="w-10">
+                                    {prevSelectedSaleId === sale.sale.id && (
+                                      <span className="text-blue-800">
+                                        <Check className="h-5 w-5" />
+                                      </span>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                          {/* Hidden select options for form control */}
+                          <div className="hidden">
+                            {filteredSales.map((sale: SaleWithRelations) => (
+                              <SelectItem
+                                key={sale.sale.id}
+                                value={sale.sale.id}
+                                data-value={sale.sale.id}
+                              >
+                                {sale.sale.invoiceNumber}
+                              </SelectItem>
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        <SelectItem value="null" disabled>
+                          <div className="text-red-600">
+                            No sales with deliverable products
+                          </div>
+                        </SelectItem>
                       )}
-                    </TableCell>
+                    </CustomFormField>
+                  </div>
+                </div>
+                <Table className="shad-table">
+                  <TableHeader>
+                    <TableRow className="w-full bg-blue-800 text-white px-2 font-semibold">
+                      <TableHead>#</TableHead>
+                      <TableHead>PID</TableHead>
+                      <TableHead>Product Description</TableHead>
+                      <TableHead>Qnty Requested</TableHead>
+                      <TableHead>Qnty Fulfilled</TableHead>
+                      <TableHead>Qnty Supplied</TableHead>
+                      <TableHead>Balance Left</TableHead>
+                      <TableHead>Confirm Stock</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody className="w-full bg-white text-blue-800">
+                    {fields.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center py-4">
+                          No products available for delivery
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {fields.map((entry, index) => (
+                      <TableRow
+                        key={`${entry.productId}-${index}`}
+                        className={`w-full ${
+                          index % 2 === 1 ? "bg-blue-50" : ""
+                        }`}
+                      >
+                        <TableCell>{index + 1}</TableCell>
+                        <TableCell>{entry.productID}</TableCell>
+                        <TableCell>{entry.productName}</TableCell>
 
-                    <TableCell>
-                      <div className="flex flex-row items-center">
-                        <span
-                          onClick={() => handleDeleteEntry(index)}
-                          className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
-                        >
-                          <DeleteIcon className="h-5 w-5" />
-                        </span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                        <TableCell>
+                          <div className="flex items-center text-14-medium text-blue-800 rounded-md border bg-white px-3 border-dark-700 h-11">
+                            {formatNumber(String(entry.quantityRequested))}
+                          </div>
+                        </TableCell>
+
+                        <TableCell>
+                          <div className="flex items-center text-14-medium text-green-600 rounded-md border bg-white px-3 border-dark-700 h-11">
+                            {formatNumber(String(entry.fulfilledQuantity || 0))}
+                          </div>
+                        </TableCell>
+
+                        <TableCell>
+                          <CustomFormField
+                            fieldType={FormFieldType.NUMBER}
+                            control={form.control}
+                            name={`products.${index}.quantitySupplied`}
+                            label=""
+                            placeholder="Qty supplied"
+                            onValueChange={(
+                              e: React.ChangeEvent<HTMLInputElement>
+                            ) =>
+                              handleQuantitySuppliedChange(
+                                index,
+                                e.target.value
+                              )
+                            }
+                            key={`qty-supplied-${form.watch(
+                              `products.${index}.quantitySupplied` || ""
+                            )}`}
+                          />
+                        </TableCell>
+
+                        <TableCell>
+                          <div
+                            className={`flex items-center text-14-medium rounded-md border px-3 h-11 ${
+                              calculateEntryBalanceLeft(index) > 0
+                                ? "text-orange-600 bg-orange-50 border-orange-400"
+                                : "text-green-500 bg-green-50 border-green-400"
+                            }`}
+                          >
+                            {formatNumber(
+                              String(calculateEntryBalanceLeft(index))
+                            )}
+                          </div>
+                        </TableCell>
+
+                        <TableCell>
+                          <WaybillStockDialog
+                            stock={entry.inventoryStock}
+                            productID={entry.productID}
+                            qntyRequired={form.watch(
+                              `products.${index}.quantitySupplied`
+                            )}
+                            availableInventory={inventoryStock?.filter(
+                              (inv: InventoryStockWithRelations) =>
+                                inv.product.id === entry.productId &&
+                                inv.store.id === form.watch("storeId") &&
+                                inv.inventory.quantity > 0
+                            )}
+                            onSave={(stock) => {
+                              form.setValue(
+                                `products.${index}.inventoryStock`,
+                                stock
+                              );
+                              form.trigger(`products.${index}.inventoryStock`);
+
+                              // Recalculate supplied quantity based on stock allocation
+                              const totalAllocated = stock.reduce(
+                                (total, s) => total + s.quantityTaken,
+                                0
+                              );
+                              form.setValue(
+                                `products.${index}.quantitySupplied`,
+                                totalAllocated
+                              );
+
+                              // Recalculate balance
+                              const newBalance =
+                                calculateEntryBalanceLeft(index);
+                              form.setValue(
+                                `products.${index}.balanceLeft`,
+                                newBalance
+                              );
+                            }}
+                          />
+                          {form.formState.errors.products?.[index]
+                            ?.inventoryStock && (
+                            <p className="text-red-500 text-xs pt-2">
+                              {
+                                form.formState.errors.products?.[index]
+                                  ?.inventoryStock.message
+                              }
+                            </p>
+                          )}
+                        </TableCell>
+
+                        <TableCell>
+                          <div className="flex flex-row items-center">
+                            <span
+                              onClick={() => handleDeleteEntry(index)}
+                              className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
+                            >
+                              <DeleteIcon className="h-5 w-5" />
+                            </span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </>
+            )}
+
             {form.formState.errors.products && (
               <p className="shad-error text-xs">
                 {form.formState.errors.products.message}

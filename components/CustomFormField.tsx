@@ -251,7 +251,10 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
             <Switch
               id={props.name}
               checked={field.value}
-              onCheckedChange={field.onChange}
+              onCheckedChange={() => {
+                field.onChange(!field.value);
+                props.onValueChange?.(!field.value);
+              }}
               disabled={props.disabled}
               className="custom-switch shad-switch"
             />

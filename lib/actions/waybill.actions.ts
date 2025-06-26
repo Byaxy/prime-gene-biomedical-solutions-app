@@ -16,7 +16,7 @@ import {
   inventoryTransactionsTable,
   productsTable,
 } from "@/drizzle/schema";
-import { DeliveryStatus } from "@/types";
+import { DeliveryStatus, WaybillType } from "@/types";
 import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { WaybillFilters } from "@/hooks/useWaybills";
 
@@ -27,6 +27,10 @@ export const addWaybill = async (
 ) => {
   try {
     const result = await db.transaction(async (tx) => {
+      const waybillType =
+        waybill.saleId && !waybill.isLoanWaybill
+          ? WaybillType.Sale
+          : WaybillType.Loan;
       // Create main waybill record
       const [newWaybill] = await tx
         .insert(waybillsTable)
@@ -47,7 +51,8 @@ export const addWaybill = async (
             : null,
           customerId: waybill.customerId,
           storeId: waybill.storeId,
-          saleId: waybill.saleId,
+          saleId: waybill.saleId ? waybill.saleId : null,
+          waybillType: waybillType,
           deliveredBy: waybill.deliveredBy || "",
           receivedBy: waybill.receivedBy || "",
           notes: waybill.notes,
@@ -63,7 +68,8 @@ export const addWaybill = async (
           .values({
             waybillId: newWaybill.id,
             productId: product.productId,
-            saleItemId: product.saleItemId,
+            saleItemId:
+              waybillType === WaybillType.Sale ? product.saleItemId : null,
             quantityRequested: product.quantityRequested,
             quantitySupplied: product.quantitySupplied,
             balanceLeft: product.balanceLeft,
@@ -118,14 +124,14 @@ export const addWaybill = async (
             productId: product.productId,
             storeId: waybill.storeId,
             userId: userId,
-            transactionType: "sale",
+            transactionType: waybillType,
             quantityBefore: updatedInventory.quantity + inventory.quantityTaken,
             quantityAfter: updatedInventory.quantity,
             transactionDate: new Date(),
-            notes: `Stock reduced for sale`,
+            notes: `Stock reduced for ${waybillType}`,
           });
 
-          // Update product total quantity
+          // Update product total quantity if this is a loan waybill
           await tx
             .update(productsTable)
             .set({
@@ -133,34 +139,37 @@ export const addWaybill = async (
             })
             .where(eq(productsTable.id, product.productId));
 
-          //Update sale item fulfillment
-          await tx
-            .update(saleItemsTable)
-            .set({
-              fulfilledQuantity: sql`${saleItemsTable.fulfilledQuantity} + ${inventory.quantityTaken}`,
-            })
-            .where(eq(saleItemsTable.id, product.saleItemId));
+          // Update sale item fulfillment if this is a sale waybill
+          if (waybillType === WaybillType.Sale && product.saleItemId) {
+            await tx
+              .update(saleItemsTable)
+              .set({
+                fulfilledQuantity: sql`${saleItemsTable.fulfilledQuantity} + ${inventory.quantityTaken}`,
+              })
+              .where(eq(saleItemsTable.id, product.saleItemId));
+          }
         }
-
-        // Check if sale is fully fulfilled
-        const saleItems = await tx
-          .select()
-          .from(saleItemsTable)
-          .where(eq(saleItemsTable.saleId, waybill.saleId));
-
-        const isFullyFulfilled = saleItems.every(
-          (item) => item.quantity <= item.fulfilledQuantity
-        );
-        // mark sale as completed
-        if (isFullyFulfilled) {
-          await tx
-            .update(salesTable)
-            .set({ status: "completed" })
-            .where(eq(salesTable.id, waybill.saleId));
-        }
-        // Handle promissory note update here...
-
         waybillItems.push(waybillItem);
+
+        // Check if sale is fully fulfilled (only for sale waybills)
+        if (waybillType === WaybillType.Sale && waybill.saleId) {
+          const saleItems = await tx
+            .select()
+            .from(saleItemsTable)
+            .where(eq(saleItemsTable.saleId, waybill.saleId));
+
+          const isFullyFulfilled = saleItems.every(
+            (item) => item.quantity <= item.fulfilledQuantity
+          );
+
+          // Mark sale as completed if fully fulfilled
+          if (isFullyFulfilled) {
+            await tx
+              .update(salesTable)
+              .set({ status: "completed" })
+              .where(eq(salesTable.id, waybill.saleId));
+          }
+        }
       }
 
       return { waybill: newWaybill, items: waybillItems };
@@ -377,9 +386,15 @@ export const editWaybill = async (
 ) => {
   try {
     const result = await db.transaction(async (tx) => {
+      const waybillType =
+        waybill.saleId && !waybill.isLoanWaybill
+          ? WaybillType.Sale
+          : WaybillType.Loan;
+
       if (!userId) {
         throw new Error("User not found");
       }
+
       // Get the existing waybill with its items and inventory
       const existingWaybill = await tx
         .select()
@@ -389,6 +404,45 @@ export const editWaybill = async (
 
       if (!existingWaybill) {
         throw new Error("Waybill not found");
+      }
+
+      // Verify all sale items exist before processing
+      const saleItemIds = waybill.products
+        .map((p) => p.saleItemId)
+        .filter(Boolean);
+      if (saleItemIds.length > 0) {
+        const existingSaleItems = await tx
+          .select({ id: saleItemsTable.id })
+          .from(saleItemsTable)
+          .where(inArray(saleItemsTable.id, saleItemIds));
+
+        const foundSaleItemIds = existingSaleItems.map((item) => item.id);
+        const missingSaleItemIds = saleItemIds.filter(
+          (id) => !foundSaleItemIds.includes(id)
+        );
+
+        if (missingSaleItemIds.length > 0) {
+          throw new Error(
+            `The following sale items no longer exist: ${missingSaleItemIds.join(
+              ", "
+            )}. Please refresh the page and try again.`
+          );
+        }
+      }
+
+      // Verify the sale exists
+      if (waybill.saleId) {
+        const saleExists = await tx
+          .select({ id: salesTable.id })
+          .from(salesTable)
+          .where(eq(salesTable.id, waybill.saleId))
+          .then((res) => res.length > 0);
+
+        if (!saleExists) {
+          throw new Error(
+            "Associated sale no longer exists. Please refresh the page and try again."
+          );
+        }
       }
 
       // Get existing waybill items and their inventory
@@ -427,60 +481,61 @@ export const editWaybill = async (
           console.warn(
             `Waybill item not found for inventory record ${invRecord.waybillInv.id}`
           );
+          continue;
         }
+
         // Return inventory quantity
-        await tx
+        const [updatedInventory] = await tx
           .update(inventoryTable)
           .set({
             quantity: sql`${inventoryTable.quantity} + ${invRecord.waybillInv.quantityTaken}`,
           })
-          .where(eq(inventoryTable.id, invRecord.waybillInv.inventoryStockId));
+          .where(eq(inventoryTable.id, invRecord.waybillInv.inventoryStockId))
+          .returning();
 
         // Return product quantity
-        await tx
-          .update(productsTable)
-          .set({
-            quantity: sql`${productsTable.quantity} + ${invRecord.waybillInv.quantityTaken}`,
-          })
-          .where(eq(productsTable.id, invRecord.waybillItem?.productId ?? ""));
-
-        // Get current inventory quantity for logging
-        const currentInventory = await tx
-          .select({ quantity: inventoryTable.quantity })
-          .from(inventoryTable)
-          .where(eq(inventoryTable.id, invRecord.waybillInv.inventoryStockId))
-          .then((res) => res[0]);
+        if (waybillType === WaybillType.Loan) {
+          await tx
+            .update(productsTable)
+            .set({
+              quantity: sql`${productsTable.quantity} + ${invRecord.waybillInv.quantityTaken}`,
+            })
+            .where(eq(productsTable.id, invRecord.waybillItem.productId));
+        }
 
         // Log the reversal transaction with actual quantities
         await tx.insert(inventoryTransactionsTable).values({
           inventoryId: invRecord.waybillInv.inventoryStockId,
-          productId: invRecord.waybillItem?.productId ?? "",
+          productId: invRecord.waybillItem.productId,
           storeId: existingWaybill.storeId,
           userId: userId,
           transactionType: "waybill_edit_reversal",
           quantityBefore:
-            currentInventory.quantity - invRecord.waybillInv.quantityTaken,
-          quantityAfter: currentInventory.quantity,
+            updatedInventory.quantity - invRecord.waybillInv.quantityTaken,
+          quantityAfter: updatedInventory.quantity,
           transactionDate: new Date(),
           notes: `Stock returned during waybill edit`,
         });
 
-        // Update sale item fulfillment (reduce fulfilled quantity)
-        const saleItemExists = await tx
-          .select({ id: saleItemsTable.id })
-          .from(saleItemsTable)
-          .where(eq(saleItemsTable.id, invRecord.waybillItem?.saleItemId ?? ""))
-          .then((res) => res.length > 0);
-
-        if (saleItemExists) {
-          await tx
-            .update(saleItemsTable)
-            .set({
-              fulfilledQuantity: sql`GREATEST(0, ${saleItemsTable.fulfilledQuantity} - ${invRecord.waybillInv.quantityTaken})`,
+        // Update sale item fulfillment (reduce fulfilled quantity) - with existence check
+        if (invRecord.waybillItem.saleItemId) {
+          const saleItemExists = await tx
+            .select({
+              id: saleItemsTable.id,
+              fulfilledQuantity: saleItemsTable.fulfilledQuantity,
             })
-            .where(
-              eq(saleItemsTable.id, invRecord.waybillItem?.saleItemId ?? "")
-            );
+            .from(saleItemsTable)
+            .where(eq(saleItemsTable.id, invRecord.waybillItem.saleItemId))
+            .limit(1);
+
+          if (saleItemExists.length > 0) {
+            await tx
+              .update(saleItemsTable)
+              .set({
+                fulfilledQuantity: sql`GREATEST(0, ${saleItemsTable.fulfilledQuantity} - ${invRecord.waybillInv.quantityTaken})`,
+              })
+              .where(eq(saleItemsTable.id, invRecord.waybillItem.saleItemId));
+          }
         }
       }
 
@@ -518,7 +573,8 @@ export const editWaybill = async (
             : null,
           customerId: waybill.customerId,
           storeId: waybill.storeId,
-          saleId: waybill.saleId,
+          saleId: waybill.saleId ? waybill.saleId : null,
+          waybillType: waybillType,
           deliveredBy: waybill.deliveredBy,
           receivedBy: waybill.receivedBy,
           notes: waybill.notes,
@@ -530,10 +586,29 @@ export const editWaybill = async (
       const waybillItems = [];
       for (const product of waybill.products) {
         // Validate product data
-        if (!product.productId || !product.saleItemId) {
+        if (!product.productId) {
+          throw new Error("Invalid product data: missing productId");
+        }
+        // For sale waybills, validate saleItemId
+        if (waybillType === WaybillType.Sale && !product.saleItemId) {
           throw new Error(
-            "Invalid product data: missing productId or saleItemId"
+            "Invalid product data: missing saleItemId for sale waybill"
           );
+        }
+
+        // Double-check that the sale item still exists (extra safety) - only for sale waybills
+        if (waybillType === WaybillType.Sale && product.saleItemId) {
+          const saleItemExists = await tx
+            .select({ id: saleItemsTable.id })
+            .from(saleItemsTable)
+            .where(eq(saleItemsTable.id, product.saleItemId))
+            .then((res) => res.length > 0);
+
+          if (!saleItemExists) {
+            throw new Error(
+              `Sale item ${product.saleItemId} no longer exists. Please refresh the page and try again.`
+            );
+          }
         }
 
         // Create new waybill item
@@ -542,7 +617,8 @@ export const editWaybill = async (
           .values({
             waybillId: updatedWaybill.id,
             productId: product.productId,
-            saleItemId: product.saleItemId,
+            saleItemId:
+              waybillType === WaybillType.Sale ? product.saleItemId : null,
             quantityRequested: product.quantityRequested,
             quantitySupplied: product.quantitySupplied,
             balanceLeft: product.balanceLeft,
@@ -617,41 +693,58 @@ export const editWaybill = async (
             });
 
             // Update product total quantity
-            await tx
-              .update(productsTable)
-              .set({
-                quantity: sql`${productsTable.quantity} - ${inventory.quantityTaken}`,
-              })
-              .where(eq(productsTable.id, product.productId));
+            if (waybillType === WaybillType.Loan) {
+              await tx
+                .update(productsTable)
+                .set({
+                  quantity: sql`${productsTable.quantity} - ${inventory.quantityTaken}`,
+                })
+                .where(eq(productsTable.id, product.productId));
+            }
 
-            // Update sale item fulfillment
-            await tx
-              .update(saleItemsTable)
-              .set({
-                fulfilledQuantity: sql`${saleItemsTable.fulfilledQuantity} + ${inventory.quantityTaken}`,
-              })
-              .where(eq(saleItemsTable.id, product.saleItemId));
+            // Update sale item fulfillment (only for sale waybills)
+            if (waybillType === WaybillType.Sale && product.saleItemId) {
+              await tx
+                .update(saleItemsTable)
+                .set({
+                  fulfilledQuantity: sql`${saleItemsTable.fulfilledQuantity} + ${inventory.quantityTaken}`,
+                })
+                .where(eq(saleItemsTable.id, product.saleItemId));
+            }
           }
         }
 
         waybillItems.push(waybillItem);
       }
 
-      // Recalculate sale fulfillment status
-      const saleItems = await tx
-        .select()
-        .from(saleItemsTable)
-        .where(eq(saleItemsTable.saleId, waybill.saleId));
+      // Recalculate sale fulfillment status (only for sale waybills)
+      if (waybillType === WaybillType.Sale && waybill.saleId) {
+        const saleItems = await tx
+          .select()
+          .from(saleItemsTable)
+          .where(eq(saleItemsTable.saleId, waybill.saleId));
 
-      const isFullyFulfilled = saleItems.every(
-        (item) => item.quantity <= item.fulfilledQuantity
-      );
+        const isFullyFulfilled = saleItems.every(
+          (item) => item.quantity <= item.fulfilledQuantity
+        );
 
-      if (isFullyFulfilled) {
-        await tx
-          .update(salesTable)
-          .set({ status: "completed" })
-          .where(eq(salesTable.id, waybill.saleId));
+        if (isFullyFulfilled) {
+          await tx
+            .update(salesTable)
+            .set({ status: "completed" })
+            .where(eq(salesTable.id, waybill.saleId));
+        } else {
+          // If not fully fulfilled, ensure sale status is not "completed"
+          await tx
+            .update(salesTable)
+            .set({ status: "pending" })
+            .where(
+              and(
+                eq(salesTable.id, waybill.saleId),
+                eq(salesTable.status, "completed")
+              )
+            );
+        }
       }
 
       return { waybill: updatedWaybill, items: waybillItems };
@@ -664,10 +757,22 @@ export const editWaybill = async (
     throw error;
   }
 };
+
 // Permanently delete Waybill
-export const deleteWaybill = async (waybillId: string) => {
+export const deleteWaybill = async (waybillId: string, userId: string) => {
   try {
     const result = await db.transaction(async (tx) => {
+      // Get the waybill details first
+      const [waybill] = await tx
+        .select()
+        .from(waybillsTable)
+        .where(eq(waybillsTable.id, waybillId))
+        .limit(1);
+
+      if (!waybill) {
+        throw new Error("Waybill not found");
+      }
+
       // Get waybill items
       const waybillItems = await tx
         .select()
@@ -676,6 +781,85 @@ export const deleteWaybill = async (waybillId: string) => {
 
       // Delete waybill item inventory records
       const waybillItemIds = waybillItems.map((item) => item.id);
+
+      // Get inventory records to restore stock
+      const inventoryRecords =
+        waybillItemIds.length > 0
+          ? await tx
+              .select({
+                waybillInv: waybillItemInventoryTable,
+                waybillItem: waybillItemsTable,
+              })
+              .from(waybillItemInventoryTable)
+              .leftJoin(
+                waybillItemsTable,
+                eq(
+                  waybillItemInventoryTable.waybillItemId,
+                  waybillItemsTable.id
+                )
+              )
+              .where(
+                inArray(waybillItemInventoryTable.waybillItemId, waybillItemIds)
+              )
+          : [];
+
+      // Restore inventory quantities and log transactions
+      for (const invRecord of inventoryRecords) {
+        if (!invRecord.waybillItem) continue;
+
+        // Get current inventory for logging
+        const [currentInventory] = await tx
+          .select()
+          .from(inventoryTable)
+          .where(eq(inventoryTable.id, invRecord.waybillInv.inventoryStockId))
+          .limit(1);
+
+        if (currentInventory) {
+          // Restore inventory quantity
+          const [restoredInventory] = await tx
+            .update(inventoryTable)
+            .set({
+              quantity: sql`${inventoryTable.quantity} + ${invRecord.waybillInv.quantityTaken}`,
+            })
+            .where(eq(inventoryTable.id, invRecord.waybillInv.inventoryStockId))
+            .returning();
+
+          // Restore product quantity
+          if (waybill.waybillType === WaybillType.Loan) {
+            await tx
+              .update(productsTable)
+              .set({
+                quantity: sql`${productsTable.quantity} + ${invRecord.waybillInv.quantityTaken}`,
+              })
+              .where(eq(productsTable.id, invRecord.waybillItem.productId));
+          }
+
+          // Log the restoration transaction
+          await tx.insert(inventoryTransactionsTable).values({
+            inventoryId: invRecord.waybillInv.inventoryStockId,
+            productId: invRecord.waybillItem.productId,
+            storeId: waybill.storeId,
+            userId: userId,
+            transactionType: "waybill_deletion_restore",
+            quantityBefore: currentInventory.quantity,
+            quantityAfter: restoredInventory.quantity,
+            transactionDate: new Date(),
+            notes: `Stock restored from deleted waybill ${waybill.waybillRefNumber}`,
+            referenceId: waybillId,
+          });
+
+          // Update sale item fulfillment if applicable
+          if (invRecord.waybillItem.saleItemId) {
+            await tx
+              .update(saleItemsTable)
+              .set({
+                fulfilledQuantity: sql`GREATEST(0, ${saleItemsTable.fulfilledQuantity} - ${invRecord.waybillInv.quantityTaken})`,
+              })
+              .where(eq(saleItemsTable.id, invRecord.waybillItem.saleItemId));
+          }
+        }
+      }
+
       if (waybillItemIds.length > 0) {
         await tx
           .delete(waybillItemInventoryTable)
@@ -688,6 +872,24 @@ export const deleteWaybill = async (waybillId: string) => {
       await tx
         .delete(waybillItemsTable)
         .where(eq(waybillItemsTable.waybillId, waybillId));
+
+      // Update sale status if this was a sale waybill
+      if (waybill.saleId && waybill.waybillType === WaybillType.Sale) {
+        const saleItems = await tx
+          .select()
+          .from(saleItemsTable)
+          .where(eq(saleItemsTable.saleId, waybill.saleId));
+
+        const isFullyFulfilled = saleItems.every(
+          (item) => item.quantity <= item.fulfilledQuantity
+        );
+
+        // Update sale status based on fulfillment
+        await tx
+          .update(salesTable)
+          .set({ status: isFullyFulfilled ? "completed" : "pending" })
+          .where(eq(salesTable.id, waybill.saleId));
+      }
 
       // Delete the main waybill record
       const [deletedWaybill] = await tx
@@ -707,9 +909,20 @@ export const deleteWaybill = async (waybillId: string) => {
 };
 
 // Soft delete waybill
-export const softDeleteWaybill = async (waybillId: string) => {
+export const softDeleteWaybill = async (waybillId: string, userId: string) => {
   try {
     const result = await db.transaction(async (tx) => {
+      // Get the waybill details first
+      const [waybill] = await tx
+        .select()
+        .from(waybillsTable)
+        .where(eq(waybillsTable.id, waybillId))
+        .limit(1);
+
+      if (!waybill) {
+        throw new Error("Waybill not found");
+      }
+
       // Soft delete waybill items and their inventory
       const waybillItems = await tx
         .update(waybillItemsTable)
@@ -718,6 +931,85 @@ export const softDeleteWaybill = async (waybillId: string) => {
         .returning();
 
       const waybillItemIds = waybillItems.map((item) => item.id);
+
+      // Get inventory records to restore stock
+      const inventoryRecords =
+        waybillItemIds.length > 0
+          ? await tx
+              .select({
+                waybillInv: waybillItemInventoryTable,
+                waybillItem: waybillItemsTable,
+              })
+              .from(waybillItemInventoryTable)
+              .leftJoin(
+                waybillItemsTable,
+                eq(
+                  waybillItemInventoryTable.waybillItemId,
+                  waybillItemsTable.id
+                )
+              )
+              .where(
+                inArray(waybillItemInventoryTable.waybillItemId, waybillItemIds)
+              )
+          : [];
+
+      // Restore inventory quantities and log transactions
+      for (const invRecord of inventoryRecords) {
+        if (!invRecord.waybillItem) continue;
+
+        // Get current inventory for logging
+        const [currentInventory] = await tx
+          .select()
+          .from(inventoryTable)
+          .where(eq(inventoryTable.id, invRecord.waybillInv.inventoryStockId))
+          .limit(1);
+
+        if (currentInventory) {
+          // Restore inventory quantity
+          const [restoredInventory] = await tx
+            .update(inventoryTable)
+            .set({
+              quantity: sql`${inventoryTable.quantity} + ${invRecord.waybillInv.quantityTaken}`,
+            })
+            .where(eq(inventoryTable.id, invRecord.waybillInv.inventoryStockId))
+            .returning();
+
+          // Restore product quantity
+          if (waybill.waybillType === WaybillType.Loan) {
+            await tx
+              .update(productsTable)
+              .set({
+                quantity: sql`${productsTable.quantity} + ${invRecord.waybillInv.quantityTaken}`,
+              })
+              .where(eq(productsTable.id, invRecord.waybillItem.productId));
+          }
+
+          // Log the restoration transaction
+          await tx.insert(inventoryTransactionsTable).values({
+            inventoryId: invRecord.waybillInv.inventoryStockId,
+            productId: invRecord.waybillItem.productId,
+            storeId: waybill.storeId,
+            userId: userId,
+            transactionType: "waybill_deletion_restore",
+            quantityBefore: currentInventory.quantity,
+            quantityAfter: restoredInventory.quantity,
+            transactionDate: new Date(),
+            notes: `Stock restored from soft deleted waybill ${waybill.waybillRefNumber}`,
+            referenceId: waybillId,
+          });
+
+          // Update sale item fulfillment if applicable
+          if (invRecord.waybillItem.saleItemId) {
+            await tx
+              .update(saleItemsTable)
+              .set({
+                fulfilledQuantity: sql`GREATEST(0, ${saleItemsTable.fulfilledQuantity} - ${invRecord.waybillInv.quantityTaken})`,
+              })
+              .where(eq(saleItemsTable.id, invRecord.waybillItem.saleItemId));
+          }
+        }
+      }
+
       if (waybillItemIds.length > 0) {
         await tx
           .update(waybillItemInventoryTable)
@@ -725,6 +1017,30 @@ export const softDeleteWaybill = async (waybillId: string) => {
           .where(
             inArray(waybillItemInventoryTable.waybillItemId, waybillItemIds)
           );
+      }
+
+      // update waybill items
+      await tx
+        .update(waybillItemsTable)
+        .set({ isActive: false })
+        .where(eq(waybillItemsTable.waybillId, waybillId));
+
+      // Update sale status if this was a sale waybill
+      if (waybill.saleId && waybill.waybillType === WaybillType.Sale) {
+        const saleItems = await tx
+          .select()
+          .from(saleItemsTable)
+          .where(eq(saleItemsTable.saleId, waybill.saleId));
+
+        const isFullyFulfilled = saleItems.every(
+          (item) => item.quantity <= item.fulfilledQuantity
+        );
+
+        // Update sale status based on fulfillment
+        await tx
+          .update(salesTable)
+          .set({ status: isFullyFulfilled ? "completed" : "pending" })
+          .where(eq(salesTable.id, waybill.saleId));
       }
 
       // Soft delete main waybill record

@@ -735,7 +735,7 @@ export const WaybillFormValidation = z
     }),
     customerId: z.string().nonempty("Customer is required"),
     storeId: z.string().nonempty("Store is required"),
-    saleId: z.string().nonempty("Sale is required"),
+    saleId: z.string(),
     notes: z.string().optional(),
     deliveredBy: z.string().optional(),
     receivedBy: z.string().optional(),
@@ -743,7 +743,7 @@ export const WaybillFormValidation = z
       .array(
         z.object({
           productId: z.string().nonempty("Product is required"),
-          saleItemId: z.string().nonempty("Sale Item is required"),
+          saleItemId: z.string(),
           inventoryStock: z
             .array(
               z.object({
@@ -777,18 +777,35 @@ export const WaybillFormValidation = z
         })
       )
       .min(1, "At least one product is required"),
+
+    originalLoanWaybillId: z.string().optional(),
+    isConverted: z.boolean().default(false),
+    isLoanWaybill: z.boolean().default(false),
+    selectedProductId: z.string().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.products.length > 0) {
       data.products.forEach((product, index) => {
         if (
           product.quantitySupplied >
-          product.quantityRequested - product.fulfilledQuantity
+            product.quantityRequested - product.fulfilledQuantity &&
+          !data.isLoanWaybill
         ) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             message: "Quantity supplied cannot be more than quantity required",
             path: ["products", index, "quantitySupplied"],
+          });
+        }
+
+        if (
+          data.isLoanWaybill &&
+          product.quantitySupplied !== product.quantityRequested
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Total allocated quantity must match supplied quantity",
+            path: ["products", index, "inventoryStock"],
           });
         }
 
@@ -808,3 +825,63 @@ export const WaybillFormValidation = z
   });
 
 export type WaybillFormValues = z.infer<typeof WaybillFormValidation>;
+
+export const WaybillInventoryStockAllocationValidation = z
+  .object({
+    inventoryStock: z
+      .array(
+        z.object({
+          inventoryStockId: z.string().nonempty("Inventory Stock is required"),
+          lotNumber: z.string().nonempty("Lot number is required"),
+          quantityTaken: z.number().min(1, "Quantity must be at least 1"),
+          unitPrice: z.number().min(0, "Unit price must be 0 or more"),
+        })
+      )
+      .min(1, "At least one stock allocation is required")
+      .superRefine((items, ctx) => {
+        const stockIds = items.map((item) => item.inventoryStockId);
+
+        const duplicates = stockIds.filter(
+          (id, index) => stockIds.indexOf(id) !== index
+        );
+
+        if (duplicates.length > 0) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Duplicate stock allocations are not allowed",
+            path: ["inventoryStock"],
+          });
+        }
+      }),
+    searchQuery: z.string().default(""),
+    // Additional validation fields for business logic
+    requiredQuantity: z
+      .number()
+      .min(1, "Required quantity must be at least 1")
+      .optional(),
+    totalAvailable: z
+      .number()
+      .min(0, "Total available must be 0 or more")
+      .optional(),
+  })
+  .superRefine((data, ctx) => {
+    // Validate total allocation doesn't exceed required quantity
+    if (data.requiredQuantity) {
+      const totalAllocated = data.inventoryStock.reduce(
+        (sum, item) => sum + item.quantityTaken,
+        0
+      );
+
+      if (totalAllocated > data.requiredQuantity) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Total allocation (${totalAllocated}) exceeds required quantity (${data.requiredQuantity})`,
+          path: ["inventoryStock"],
+        });
+      }
+    }
+  });
+
+export type WaybillInventoryStockAllocationFormValues = z.infer<
+  typeof WaybillInventoryStockAllocationValidation
+>;

@@ -117,7 +117,7 @@ const WaybillPDF = ({ waybill }: { waybill: WaybillWithRelations }) => {
               <Text
                 style={{ ...styles.waybillInfo, fontWeight: "bold", flex: 4 }}
               >
-                {formatDateTime(sale.saleDate).dateTime}
+                {sale !== null ? formatDateTime(sale.saleDate).dateTime : "N/A"}
               </Text>
             </View>
             <View style={styles.waybillInfoContainer}>
@@ -127,7 +127,7 @@ const WaybillPDF = ({ waybill }: { waybill: WaybillWithRelations }) => {
               <Text
                 style={{ ...styles.waybillInfo, fontWeight: "bold", flex: 4 }}
               >
-                {formatDateTime(sale.saleDate).dateTime}
+                {sale !== null ? formatDateTime(sale.saleDate).dateTime : "N/A"}
               </Text>
             </View>
             <View style={styles.waybillInfoContainer}>
@@ -137,7 +137,7 @@ const WaybillPDF = ({ waybill }: { waybill: WaybillWithRelations }) => {
               <Text
                 style={{ ...styles.waybillInfo, fontWeight: "bold", flex: 4 }}
               >
-                {sale.invoiceNumber}
+                {sale !== null ? sale.invoiceNumber : "N/A"}
               </Text>
             </View>
             <View style={styles.waybillInfoContainer}>

@@ -21,6 +21,7 @@ import {
   PaymentMethod,
   PaymentStatus,
   QuotationStatus,
+  SaleInventoryStock,
   SaleStatus,
 } from "@/types";
 import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
@@ -113,6 +114,23 @@ export const addSale = async (sale: SaleFormValues) => {
             })
             .returning();
 
+          // Calculate total quantity being allocated (sold + backordered)
+          const allocatedQuantity =
+            product.inventoryStock.reduce(
+              (total, inv) => total + inv.quantityToTake,
+              0
+            ) + (product.backorderQuantity || 0);
+
+          // Update main product quantity to reflect allocated stock
+          if (allocatedQuantity > 0) {
+            await tx
+              .update(productsTable)
+              .set({
+                quantity: sql`${productsTable.quantity} - ${allocatedQuantity}`,
+              })
+              .where(eq(productsTable.id, product.productId));
+          }
+
           // Handle sale item inventory stock
           for (const inventory of product.inventoryStock) {
             // create sale item invetory
@@ -132,14 +150,6 @@ export const addSale = async (sale: SaleFormValues) => {
               saleItemId: saleItem.id,
               pendingQuantity: product.backorderQuantity ?? 0,
             });
-
-            // Update product total quantity
-            await tx
-              .update(productsTable)
-              .set({
-                quantity: sql`${productsTable.quantity} - ${product.backorderQuantity}`,
-              })
-              .where(eq(productsTable.id, product.productId));
 
             // Store backorder reference in sale item
             await tx
@@ -326,6 +336,36 @@ export const editSale = async (sale: SaleFormValues, saleId: string) => {
           );
 
           if (existingSaleItem) {
+            // Clean up existing inventory and backorder relationships
+            const existingInventoryRecords =
+              saleItemInventoryMap.get(existingSaleItem.id) || [];
+            const existingBackorderRecords =
+              saleItemBackordersMap.get(existingSaleItem.id) || [];
+
+            const previousAllocatedQuantity =
+              existingInventoryRecords.reduce(
+                (total: number, inv: SaleInventoryStock) =>
+                  total + inv.quantityToTake,
+                0
+              ) + (existingSaleItem.backOrderQuantity || 0);
+
+            // CALCULATE NEW ALLOCATED QUANTITY
+            const newAllocatedQuantity =
+              product.inventoryStock.reduce(
+                (total, inv) => total + inv.quantityToTake,
+                0
+              ) + (product.backorderQuantity || 0);
+
+            // RESTORE PREVIOUS ALLOCATION
+            if (previousAllocatedQuantity > 0) {
+              await tx
+                .update(productsTable)
+                .set({
+                  quantity: sql`${productsTable.quantity} + ${previousAllocatedQuantity}`,
+                })
+                .where(eq(productsTable.id, product.productId));
+            }
+
             // Update existing sale item
             const [updatedSaleItem] = await tx
               .update(saleItemsTable)
@@ -347,12 +387,6 @@ export const editSale = async (sale: SaleFormValues, saleId: string) => {
               .where(eq(saleItemsTable.id, existingSaleItem.id))
               .returning();
 
-            // Clean up existing inventory and backorder relationships
-            const existingInventoryRecords =
-              saleItemInventoryMap.get(existingSaleItem.id) || [];
-            const existingBackorderRecords =
-              saleItemBackordersMap.get(existingSaleItem.id) || [];
-
             // Reverse existing inventory transactions
             for (const invRecord of existingInventoryRecords) {
               // Delete sale item inventory record
@@ -368,10 +402,19 @@ export const editSale = async (sale: SaleFormValues, saleId: string) => {
                 .where(eq(backordersTable.id, backorderRecord.id));
             }
 
+            // APPLY NEW ALLOCATION
+            if (newAllocatedQuantity > 0) {
+              await tx
+                .update(productsTable)
+                .set({
+                  quantity: sql`${productsTable.quantity} - ${newAllocatedQuantity}`,
+                })
+                .where(eq(productsTable.id, product.productId));
+            }
+
             // Now process the new inventory stock for this product (same as addSale)
             for (const inventory of product.inventoryStock) {
               // Handle existing inventory stock
-              // Create sale item inventory
               await tx.insert(saleItemInventoryTable).values({
                 saleItemId: updatedSaleItem.id,
                 inventoryStockId: inventory.inventoryStockId,
@@ -424,6 +467,22 @@ export const editSale = async (sale: SaleFormValues, saleId: string) => {
               })
               .returning();
 
+            // Calculate and apply allocation for new product
+            const allocatedQuantity =
+              product.inventoryStock.reduce(
+                (total, inv) => total + inv.quantityToTake,
+                0
+              ) + (product.backorderQuantity || 0);
+
+            if (allocatedQuantity > 0) {
+              await tx
+                .update(productsTable)
+                .set({
+                  quantity: sql`${productsTable.quantity} - ${allocatedQuantity}`,
+                })
+                .where(eq(productsTable.id, product.productId));
+            }
+
             // Handle sale item inventory stock (same as addSale)
             for (const inventory of product.inventoryStock) {
               // Create sale item inventory
@@ -468,6 +527,23 @@ export const editSale = async (sale: SaleFormValues, saleId: string) => {
           // Clean up inventory relationships
           const inventoryRecords =
             saleItemInventoryMap.get(itemToDelete.id) || [];
+          const quantityToRestore =
+            inventoryRecords.reduce(
+              (total: number, inv: SaleInventoryStock) =>
+                total + inv.quantityToTake,
+              0
+            ) + (itemToDelete.backOrderQuantity || 0);
+
+          // Restore product quantity
+          if (quantityToRestore > 0) {
+            await tx
+              .update(productsTable)
+              .set({
+                quantity: sql`${productsTable.quantity} + ${quantityToRestore}`,
+              })
+              .where(eq(productsTable.id, itemToDelete.productId));
+          }
+
           for (const invRecord of inventoryRecords) {
             // Delete sale item inventory record
             await tx
@@ -916,6 +992,55 @@ export const deleteSale = async (saleId: string) => {
         .from(saleItemsTable)
         .where(eq(saleItemsTable.saleId, saleId));
 
+      const saleItemIds = saleItems.map((item) => item.id);
+
+      // Get inventory records to calculate quantities to restore
+      const inventoryRecords =
+        saleItemIds.length > 0
+          ? await tx
+              .select()
+              .from(saleItemInventoryTable)
+              .where(inArray(saleItemInventoryTable.saleItemId, saleItemIds))
+          : [];
+
+      // Calculate quantities to restore per product
+      const productQuantityMap = new Map();
+
+      // Add quantities from inventory allocations
+      inventoryRecords.forEach((record) => {
+        const saleItem = saleItems.find(
+          (item) => item.id === record.saleItemId
+        );
+        if (saleItem) {
+          const current = productQuantityMap.get(saleItem.productId) || 0;
+          productQuantityMap.set(
+            saleItem.productId,
+            current + record.quantityToTake
+          );
+        }
+      });
+
+      // Add backorder quantities
+      saleItems.forEach((item) => {
+        if (item.hasBackorder && item.backorderQuantity > 0) {
+          const current = productQuantityMap.get(item.productId) || 0;
+          productQuantityMap.set(
+            item.productId,
+            current + item.backorderQuantity
+          );
+        }
+      });
+
+      // Restore product quantities
+      for (const [productId, quantityToRestore] of productQuantityMap) {
+        await tx
+          .update(productsTable)
+          .set({
+            quantity: sql`${productsTable.quantity} + ${quantityToRestore}`,
+          })
+          .where(eq(productsTable.id, productId));
+      }
+
       for (const product of saleItems) {
         if (product.hasBackorder && product.backorderQuantity > 0) {
           await tx
@@ -957,6 +1082,59 @@ export const deleteSale = async (saleId: string) => {
 export const softDeleteSale = async (saleId: string) => {
   try {
     const result = await db.transaction(async (tx) => {
+      // Get sale items to calculate restoration quantities
+      const saleItems = await tx
+        .select()
+        .from(saleItemsTable)
+        .where(eq(saleItemsTable.saleId, saleId));
+
+      const saleItemIds = saleItems.map((item) => item.id);
+
+      // Get inventory records
+      const inventoryRecords =
+        saleItemIds.length > 0
+          ? await tx
+              .select()
+              .from(saleItemInventoryTable)
+              .where(inArray(saleItemInventoryTable.saleItemId, saleItemIds))
+          : [];
+
+      // Calculate and restore product quantities (same logic as deleteSale)
+      const productQuantityMap = new Map();
+
+      inventoryRecords.forEach((record) => {
+        const saleItem = saleItems.find(
+          (item) => item.id === record.saleItemId
+        );
+        if (saleItem) {
+          const current = productQuantityMap.get(saleItem.productId) || 0;
+          productQuantityMap.set(
+            saleItem.productId,
+            current + record.quantityToTake
+          );
+        }
+      });
+
+      saleItems.forEach((item) => {
+        if (item.hasBackorder && item.backorderQuantity > 0) {
+          const current = productQuantityMap.get(item.productId) || 0;
+          productQuantityMap.set(
+            item.productId,
+            current + item.backorderQuantity
+          );
+        }
+      });
+
+      // Restore product quantities
+      for (const [productId, quantityToRestore] of productQuantityMap) {
+        await tx
+          .update(productsTable)
+          .set({
+            quantity: sql`${productsTable.quantity} + ${quantityToRestore}`,
+          })
+          .where(eq(productsTable.id, productId));
+      }
+
       const [updatedSaleItem] = await tx
         .update(saleItemsTable)
         .set({ isActive: false })

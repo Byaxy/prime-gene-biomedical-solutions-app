@@ -80,12 +80,14 @@ export const quotationItemStatusEnum = pgEnum("quotation_item_status", [
 export const inventoryTransactionTypeEnum = pgEnum("transaction_type", [
   "purchase",
   "sale",
+  "loan",
   "sale_reversal",
   "waybill_edit_reversal",
   "waybill_edit",
   "transfer",
   "adjustment",
   "backorder_fulfillment",
+  "waybill_deletion_restore",
 ]);
 
 export const promissoryNoteStatusEnum = pgEnum("promissory_note_status", [
@@ -94,6 +96,8 @@ export const promissoryNoteStatusEnum = pgEnum("promissory_note_status", [
   "partially_fulfilled",
   "cancelled",
 ]);
+
+export const waybillTypeEnum = pgEnum("waybill_type", ["sale", "loan"]);
 
 // Users
 export const usersTable = pgTable("users", {
@@ -784,6 +788,14 @@ export const waybillsTable = pgTable("waybills", {
   customerId: uuid("customer_id")
     .notNull()
     .references(() => customersTable.id, { onDelete: "set null" }), // Foreign key to the customer
+  waybillType: waybillTypeEnum("waybill_type").default("sale"), // 'sale' or 'loan'
+  originalLoanWaybillId: uuid("original_loan_waybill_id").references(
+    (): PgColumn => waybillsTable.id,
+    {
+      onDelete: "set null",
+    }
+  ), // For converted waybills
+  isConverted: boolean("is_converted").notNull().default(false),
   deliveryAddress: jsonb("delivery_address")
     .$type<{
       addressName: string;
@@ -823,9 +835,9 @@ export const waybillItemsTable = pgTable("waybill_items", {
   productId: uuid("product_id")
     .notNull()
     .references(() => productsTable.id, { onDelete: "cascade" }), // Foreign key to the product
-  saleItemId: uuid("sale_item_id")
-    .notNull()
-    .references(() => saleItemsTable.id, { onDelete: "cascade" }),
+  saleItemId: uuid("sale_item_id").references(() => saleItemsTable.id, {
+    onDelete: "cascade",
+  }),
   quantityRequested: integer("quantity_requested").notNull(),
   quantitySupplied: integer("quantity_supplied").notNull(),
   balanceLeft: integer("balance_left").notNull(),
