@@ -15,6 +15,7 @@ import {
   Customer,
   DeliveryStatus,
   InventoryStockWithRelations,
+  Product,
   ProductWithRelations,
   SaleItem,
   SaleWithRelations,
@@ -227,46 +228,142 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
 
   // helper function to check if sale has deliverable products
   const hasDeliverableProducts = (sale: SaleWithRelations): boolean => {
-    return sale.products.some(
-      (product) =>
-        product.fulfilledQuantity < product.quantity &&
-        inventoryStock?.some(
-          (inv: InventoryStockWithRelations) =>
+    if (!sale?.products?.length || !inventoryStock?.length) {
+      return false;
+    }
+
+    return sale.products.reduce((hasDeliverable: boolean, product) => {
+      if (hasDeliverable) return true;
+
+      if (
+        !product?.productId ||
+        !product.productID ||
+        !product?.storeId ||
+        typeof product.fulfilledQuantity !== "number" ||
+        typeof product.quantity !== "number"
+      ) {
+        return false;
+      }
+
+      const hasUnfulfilledQuantity =
+        product.fulfilledQuantity < product.quantity;
+      if (!hasUnfulfilledQuantity) return false;
+
+      // Check if there's available inventory using reduce
+      const hasAvailableInventory = inventoryStock.reduce(
+        (hasStock: boolean, inv: InventoryStockWithRelations) => {
+          if (hasStock) return true;
+
+          // Validate inventory structure
+          if (
+            !inv?.product?.id ||
+            !inv?.product?.productID ||
+            !inv?.store?.id ||
+            !inv?.inventory?.quantity
+          ) {
+            return false;
+          }
+
+          // Check if inventory matches product and has positive quantity
+          return (
             inv.product.id === product.productId &&
+            inv.product.productID === product.productID &&
             inv.store.id === product.storeId &&
             inv.inventory.quantity > 0
-        )
-    );
+          );
+        },
+        false
+      );
+
+      return hasAvailableInventory;
+    }, false);
   };
 
-  //Filter products
-  const filteredProducts = products?.filter((product: ProductWithRelations) => {
-    const productStock = inventoryStock?.filter(
-      (inv: InventoryStockWithRelations) =>
-        inv.product.id === product.product.id
-    );
-    if (!searchQuery.trim()) return productStock?.length > 0;
+  const filteredProducts = products
+    ?.reduce((acc: Product[], product: ProductWithRelations) => {
+      if (
+        !selectedStoreId ||
+        !product?.product?.id ||
+        !product?.product?.productID
+      ) {
+        return acc;
+      }
 
-    const query = searchQuery.toLowerCase().trim();
-    return (
-      (product.product.productID?.toLowerCase().includes(query) ||
-        product.product.name?.toLowerCase().includes(query)) &&
-      productStock.length > 0
-    );
-  });
+      const { product: pdt } = product;
+
+      const productQnty =
+        inventoryStock?.reduce(
+          (total: number, inv: InventoryStockWithRelations) => {
+            if (
+              !inv?.product?.id ||
+              !inv?.inventory?.quantity ||
+              !inv?.store?.id
+            ) {
+              return total;
+            }
+
+            if (
+              inv.product.id === pdt.id &&
+              inv.product.productID === pdt.productID &&
+              inv.store.id === selectedStoreId &&
+              inv.inventory.quantity > 0
+            ) {
+              return total + inv.inventory.quantity;
+            }
+
+            return total;
+          },
+          0
+        ) || 0;
+
+      const updatedProduct = { ...pdt, quantity: productQnty };
+
+      // Apply search filter
+      if (searchQuery?.trim()) {
+        const query = searchQuery.toLowerCase().trim();
+        const matchesSearch =
+          updatedProduct.productID?.toLowerCase().includes(query) ||
+          updatedProduct.name?.toLowerCase().includes(query);
+
+        if (!matchesSearch) return acc;
+      }
+
+      acc.push(updatedProduct);
+      return acc;
+    }, [])
+    .filter((pdt: Product) => pdt.quantity > 0);
 
   // Filter sales
-  const filteredSales = sales?.filter((sale: SaleWithRelations) => {
-    if (mode === "edit") return true;
+  const filteredSales =
+    sales?.reduce((acc: SaleWithRelations[], sale: SaleWithRelations) => {
+      if (!sale?.sale || !sale?.products) {
+        return acc;
+      }
 
-    if (!searchQuery.trim()) return hasDeliverableProducts(sale);
+      if (mode === "edit") {
+        acc.push(sale);
+        return acc;
+      }
 
-    const query = searchQuery.toLowerCase().trim();
-    return (
-      sale.sale.invoiceNumber?.toLowerCase().includes(query) &&
-      hasDeliverableProducts(sale)
-    );
-  });
+      const isDeliverable = hasDeliverableProducts(sale);
+      if (!isDeliverable) {
+        return acc;
+      }
+
+      if (searchQuery?.trim()) {
+        const query = searchQuery.toLowerCase().trim();
+        const matchesSearch =
+          sale.sale.invoiceNumber?.toLowerCase().includes(query) || false;
+
+        if (matchesSearch) {
+          acc.push(sale);
+        }
+      } else {
+        acc.push(sale);
+      }
+
+      return acc;
+    }, []) || [];
 
   // Handle products for selected sale.
   const handleSaleSelection = (saleId: string) => {
@@ -1292,66 +1389,52 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
                               </TableRow>
                             </TableHeader>
                             <TableBody className="w-full bg-white">
-                              {filteredProducts.map(
-                                (product: ProductWithRelations) => (
-                                  <TableRow
-                                    key={product.product.id}
-                                    className="cursor-pointer hover:bg-blue-50"
-                                    onClick={() => {
-                                      form.setValue(
-                                        "selectedProductId",
-                                        product.product.id
-                                      );
-                                      setPrevSelectedProductId(
-                                        product.product.id
-                                      );
-                                      setSearchQuery("");
-                                      // Find and click the hidden SelectItem with this value
-                                      const selectItem = document.querySelector(
-                                        `[data-value="${product.product.id}"]`
-                                      ) as HTMLElement;
-                                      if (selectItem) {
-                                        selectItem.click();
-                                      }
-                                    }}
-                                  >
-                                    <TableCell>
-                                      {product.product.productID}
-                                    </TableCell>
-                                    <TableCell>
-                                      {product.product.name}
-                                    </TableCell>
-                                    <TableCell>
-                                      {product.product.quantity}
-                                    </TableCell>
-                                    <TableCell className="w-10">
-                                      {prevSelectedProductId ===
-                                        product.product.id && (
-                                        <span className="text-blue-800">
-                                          <Check className="h-5 w-5" />
-                                        </span>
-                                      )}
-                                    </TableCell>
-                                  </TableRow>
-                                )
-                              )}
+                              {filteredProducts.map((product: Product) => (
+                                <TableRow
+                                  key={product.id}
+                                  className="cursor-pointer hover:bg-blue-50"
+                                  onClick={() => {
+                                    form.setValue(
+                                      "selectedProductId",
+                                      product.id
+                                    );
+                                    setPrevSelectedProductId(product.id);
+                                    setSearchQuery("");
+                                    // Find and click the hidden SelectItem with this value
+                                    const selectItem = document.querySelector(
+                                      `[data-value="${product.id}"]`
+                                    ) as HTMLElement;
+                                    if (selectItem) {
+                                      selectItem.click();
+                                    }
+                                  }}
+                                >
+                                  <TableCell>{product.productID}</TableCell>
+                                  <TableCell>{product.name}</TableCell>
+                                  <TableCell>{product.quantity}</TableCell>
+                                  <TableCell className="w-10">
+                                    {prevSelectedProductId === product.id && (
+                                      <span className="text-blue-800">
+                                        <Check className="h-5 w-5" />
+                                      </span>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
                             </TableBody>
                           </Table>
                           {/* Hidden select options for form control */}
                           <div className="hidden">
-                            {filteredProducts.map(
-                              (product: ProductWithRelations) => (
-                                <SelectItem
-                                  key={product.product.id}
-                                  value={product.product.id}
-                                  data-value={product.product.id}
-                                >
-                                  {product.product.productID} -
-                                  {product.product.name}
-                                  {}
-                                </SelectItem>
-                              )
-                            )}
+                            {filteredProducts.map((product: Product) => (
+                              <SelectItem
+                                key={product.id}
+                                value={product.id}
+                                data-value={product.id}
+                              >
+                                {product.productID} -{product.name}
+                                {}
+                              </SelectItem>
+                            ))}
                           </div>
                         </>
                       ) : (

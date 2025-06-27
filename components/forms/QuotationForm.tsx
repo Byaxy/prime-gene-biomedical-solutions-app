@@ -32,6 +32,8 @@ import { useRouter } from "next/navigation";
 import {
   Attachment,
   Customer,
+  InventoryStockWithRelations,
+  Product,
   ProductWithRelations,
   QuotationStatus,
   QuotationWithRelations,
@@ -52,6 +54,7 @@ import { Check } from "lucide-react";
 import { Search } from "lucide-react";
 import { Input } from "../ui/input";
 import { X } from "lucide-react";
+import { useInventoryStock } from "@/hooks/useInventoryStock";
 
 interface QuotationFormProps {
   mode: "create" | "edit";
@@ -85,6 +88,9 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
 
   const { products, isLoading: productsLoading } = useProducts({
     getAllProducts: true,
+  });
+  const { inventoryStock } = useInventoryStock({
+    getAllInventoryStocks: true,
   });
   const {
     customers,
@@ -222,15 +228,55 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
     discountRate: form.watch(`products.${index}.discountRate`),
   }));
 
-  const filteredProducts = products?.filter((product: ProductWithRelations) => {
-    if (!searchQuery.trim()) return true;
+  const filteredProducts = products?.reduce(
+    (acc: Product[], product: ProductWithRelations) => {
+      if (!product?.product?.id || !product?.product?.productID) {
+        return acc;
+      }
 
-    const query = searchQuery.toLowerCase().trim();
-    return (
-      product.product.productID?.toLowerCase().includes(query) ||
-      product.product.name?.toLowerCase().includes(query)
-    );
-  });
+      const { product: pdt } = product;
+
+      const productQnty =
+        inventoryStock?.reduce(
+          (total: number, inv: InventoryStockWithRelations) => {
+            if (
+              !inv?.product?.id ||
+              !inv?.inventory?.quantity ||
+              !inv?.store?.id
+            ) {
+              return total;
+            }
+
+            if (
+              inv.product.id === pdt.id &&
+              inv.product.productID === pdt.productID &&
+              inv.inventory.quantity > 0
+            ) {
+              return total + inv.inventory.quantity;
+            }
+
+            return total;
+          },
+          0
+        ) || 0;
+
+      const updatedProduct = { ...pdt, quantity: productQnty };
+
+      // Apply search filter
+      if (searchQuery?.trim()) {
+        const query = searchQuery.toLowerCase().trim();
+        const matchesSearch =
+          updatedProduct.productID?.toLowerCase().includes(query) ||
+          updatedProduct.name?.toLowerCase().includes(query);
+
+        if (!matchesSearch) return acc;
+      }
+
+      acc.push(updatedProduct);
+      return acc;
+    },
+    []
+  );
 
   // Set initial values for the form
   useEffect(() => {
@@ -782,7 +828,9 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                   control={form.control}
                   name="selectedProductId"
                   label="Select Inventory"
-                  placeholder={"Select inventory"}
+                  placeholder={
+                    productsLoading ? "Loading..." : "Select inventory"
+                  }
                   key={`inventory-select-${selectedProductId || ""}`}
                 >
                   <div className="py-3">
@@ -823,62 +871,49 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                           </TableRow>
                         </TableHeader>
                         <TableBody className="w-full bg-white">
-                          {filteredProducts.map(
-                            (product: ProductWithRelations) => (
-                              <TableRow
-                                key={product.product.id}
-                                className="cursor-pointer hover:bg-blue-50"
-                                onClick={() => {
-                                  form.setValue(
-                                    "selectedProductId",
-                                    product.product.id
-                                  );
-                                  setPrevSelectedProductId(product.product.id);
-                                  setSearchQuery("");
-                                  // Find and click the hidden SelectItem with this value
-                                  const selectItem = document.querySelector(
-                                    `[data-value="${product.product.id}"]`
-                                  ) as HTMLElement;
-                                  if (selectItem) {
-                                    selectItem.click();
-                                  }
-                                }}
-                              >
-                                <TableCell>
-                                  {product.product.productID}
-                                </TableCell>
-                                <TableCell>{product.product.name}</TableCell>
-                                <TableCell>
-                                  {product.product.quantity}
-                                </TableCell>
-                                <TableCell className="w-10">
-                                  {prevSelectedProductId ===
-                                    product.product.id && (
-                                    <span className="text-blue-800">
-                                      <Check className="h-5 w-5" />
-                                    </span>
-                                  )}
-                                </TableCell>
-                              </TableRow>
-                            )
-                          )}
+                          {filteredProducts.map((product: Product) => (
+                            <TableRow
+                              key={product.id}
+                              className="cursor-pointer hover:bg-blue-50"
+                              onClick={() => {
+                                form.setValue("selectedProductId", product.id);
+                                setPrevSelectedProductId(product.id);
+                                setSearchQuery("");
+                                // Find and click the hidden SelectItem with this value
+                                const selectItem = document.querySelector(
+                                  `[data-value="${product.id}"]`
+                                ) as HTMLElement;
+                                if (selectItem) {
+                                  selectItem.click();
+                                }
+                              }}
+                            >
+                              <TableCell>{product.productID}</TableCell>
+                              <TableCell>{product.name}</TableCell>
+                              <TableCell>{product.quantity}</TableCell>
+                              <TableCell className="w-10">
+                                {prevSelectedProductId === product.id && (
+                                  <span className="text-blue-800">
+                                    <Check className="h-5 w-5" />
+                                  </span>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
                         </TableBody>
                       </Table>
                       {/* Hidden select options for form control */}
                       <div className="hidden">
-                        {filteredProducts.map(
-                          (product: ProductWithRelations) => (
-                            <SelectItem
-                              key={product.product.id}
-                              value={product.product.id}
-                              data-value={product.product.id}
-                            >
-                              {product.product.productID} -
-                              {product.product.name}
-                              {}
-                            </SelectItem>
-                          )
-                        )}
+                        {filteredProducts.map((product: Product) => (
+                          <SelectItem
+                            key={product.id}
+                            value={product.id}
+                            data-value={product.id}
+                          >
+                            {product.productID} -{product.name}
+                            {}
+                          </SelectItem>
+                        ))}
                       </div>
                     </>
                   ) : (

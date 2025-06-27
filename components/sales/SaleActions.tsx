@@ -32,16 +32,55 @@ const SaleActions = ({ sale }: { sale: SaleWithRelations }) => {
 
   // helper function to check if sale has deliverable products
   const hasDeliverableProducts = (sale: SaleWithRelations): boolean => {
-    return sale.products.some(
-      (product) =>
-        product.fulfilledQuantity < product.quantity &&
-        inventoryStock?.some(
-          (inv: InventoryStockWithRelations) =>
+    if (!sale?.products?.length || !inventoryStock?.length) {
+      return false;
+    }
+
+    return sale.products.reduce((hasDeliverable: boolean, product) => {
+      if (hasDeliverable) return true;
+
+      if (
+        !product?.productId ||
+        !product.productID ||
+        !product?.storeId ||
+        typeof product.fulfilledQuantity !== "number" ||
+        typeof product.quantity !== "number"
+      ) {
+        return false;
+      }
+
+      const hasUnfulfilledQuantity =
+        product.fulfilledQuantity < product.quantity;
+      if (!hasUnfulfilledQuantity) return false;
+
+      // Check if there's available inventory using reduce
+      const hasAvailableInventory = inventoryStock.reduce(
+        (hasStock: boolean, inv: InventoryStockWithRelations) => {
+          if (hasStock) return true;
+
+          // Validate inventory structure
+          if (
+            !inv?.product?.id ||
+            !inv?.product?.productID ||
+            !inv?.store?.id ||
+            !inv?.inventory?.quantity
+          ) {
+            return false;
+          }
+
+          // Check if inventory matches product and has positive quantity
+          return (
             inv.product.id === product.productId &&
+            inv.product.productID === product.productID &&
             inv.store.id === product.storeId &&
             inv.inventory.quantity > 0
-        )
-    );
+          );
+        },
+        false
+      );
+
+      return hasAvailableInventory;
+    }, false);
   };
 
   const handleDownloadPDF = async () => {
