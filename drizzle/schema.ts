@@ -97,7 +97,17 @@ export const promissoryNoteStatusEnum = pgEnum("promissory_note_status", [
   "cancelled",
 ]);
 
-export const waybillTypeEnum = pgEnum("waybill_type", ["sale", "loan"]);
+export const waybillConversionStatusEnum = pgEnum("waybill_conversion_status", [
+  "pending",
+  "partial",
+  "full",
+]);
+
+export const waybillTypeEnum = pgEnum("waybill_type", [
+  "sale",
+  "loan",
+  "conversion",
+]);
 
 // Users
 export const usersTable = pgTable("users", {
@@ -787,15 +797,17 @@ export const waybillsTable = pgTable("waybills", {
     .references(() => storesTable.id, { onDelete: "cascade" }), // Foreign key to the store sending the goods
   customerId: uuid("customer_id")
     .notNull()
-    .references(() => customersTable.id, { onDelete: "set null" }), // Foreign key to the customer
+    .references(() => customersTable.id, { onDelete: "cascade" }), // Foreign key to the customer
   waybillType: waybillTypeEnum("waybill_type").default("sale"), // 'sale' or 'loan'
+  isConverted: boolean("is_converted").notNull().default(false),
+  conversionDate: timestamp("conversion_date"),
+  conversionStatus: waybillConversionStatusEnum("conversion_status"),
   originalLoanWaybillId: uuid("original_loan_waybill_id").references(
     (): PgColumn => waybillsTable.id,
     {
-      onDelete: "set null",
+      onDelete: "cascade",
     }
   ), // For converted waybills
-  isConverted: boolean("is_converted").notNull().default(false),
   deliveryAddress: jsonb("delivery_address")
     .$type<{
       addressName: string;
@@ -842,6 +854,7 @@ export const waybillItemsTable = pgTable("waybill_items", {
   quantitySupplied: integer("quantity_supplied").notNull(),
   balanceLeft: integer("balance_left").notNull(),
   fulfilledQuantity: integer("fulfilled_quantity").notNull().default(0),
+  quantityConverted: integer("quantity_converted").notNull().default(0),
   productName: text("product_name"),
   productID: text("product_ID"),
   isActive: boolean("is_active").notNull().default(true),

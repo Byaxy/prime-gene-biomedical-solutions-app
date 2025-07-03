@@ -63,7 +63,7 @@ const Waybills = () => {
           pageSize={pageSize}
           onPageSizeChange={setPageSize}
           searchBy={[
-            "waybills.waybillsRefNumber",
+            "waybill.waybillsRefNumber",
             "customer.name",
             "sale.invoiceNumber",
           ]}

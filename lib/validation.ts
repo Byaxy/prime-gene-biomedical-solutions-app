@@ -5,6 +5,7 @@ import {
   PurchaseStatus,
   QuotationStatus,
   SaleStatus,
+  WaybillType,
 } from "@/types";
 import { z } from "zod";
 
@@ -772,13 +773,16 @@ export const WaybillFormValidation = z
             .number()
             .int()
             .min(0, "Quantity supplied must be 0 or more"),
+          quantityConverted: z
+            .number()
+            .int()
+            .min(0, "Quantity converted must be 0 or more"),
           productName: z.string(),
           productID: z.string(),
         })
       )
       .min(1, "At least one product is required"),
 
-    originalLoanWaybillId: z.string().optional(),
     isConverted: z.boolean().default(false),
     isLoanWaybill: z.boolean().default(false),
     selectedProductId: z.string().optional(),
@@ -823,7 +827,6 @@ export const WaybillFormValidation = z
       });
     }
   });
-
 export type WaybillFormValues = z.infer<typeof WaybillFormValidation>;
 
 export const WaybillInventoryStockAllocationValidation = z
@@ -884,4 +887,78 @@ export const WaybillInventoryStockAllocationValidation = z
 
 export type WaybillInventoryStockAllocationFormValues = z.infer<
   typeof WaybillInventoryStockAllocationValidation
+>;
+
+export const ConvertLoanWaybillFormValidation = z
+  .object({
+    waybillRefNumber: z
+      .string()
+      .nonempty("Waybill refference number is required"),
+    waybillType: z
+      .enum(Object.values(WaybillType) as [string, ...string[]])
+      .default(WaybillType.Loan),
+    customerId: z.string().nonempty("Customer is required"),
+    storeId: z.string().nonempty("Store is required"),
+    saleId: z.string().nonempty("Sale is required"),
+    products: z
+      .array(
+        z.object({
+          waybillItemId: z.string().nonempty("Waybill item ID is required"),
+          productId: z.string().nonempty("Product is required"),
+          saleItemId: z.string().nonempty("Sale item ID is required"),
+          quantityRequested: z
+            .number()
+            .int()
+            .min(1, "Quantity must be 1 or more"),
+          quantitySupplied: z
+            .number()
+            .int()
+            .min(0, "Quantity supplied must be 0 or more"),
+          balanceLeft: z
+            .number()
+            .int()
+            .min(0, "Balance left must be 0 or more"),
+          fulfilledQuantity: z
+            .number()
+            .int()
+            .min(0, "Quantity supplied must be 0 or more"),
+          quantityConverted: z
+            .number()
+            .int()
+            .min(0, "Quantity converted must be 0 or more"),
+          quantityToConvert: z
+            .number()
+            .int()
+            .min(1, "Quantity converted must be more than 0"),
+          maxConvertibleQuantity: z
+            .number()
+            .int()
+            .min(1, "Quantity converted must be more than 0"),
+          productName: z.string(),
+          productID: z.string(),
+        })
+      )
+      .min(1, "At least one product is required"),
+
+    conversionDate: z.date().refine((date) => date <= new Date(), {
+      message: "Conversion date cannot be in the future",
+    }),
+    notes: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.products.length > 0) {
+      data.products.forEach((product, index) => {
+        if (product.quantityToConvert > product.maxConvertibleQuantity) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              "Quantity to convert cannot exceed the maximum convertible quantity",
+            path: ["products", index, "quantityToConvert"],
+          });
+        }
+      });
+    }
+  });
+export type ConvertLoanWaybillFormValues = z.infer<
+  typeof ConvertLoanWaybillFormValidation
 >;

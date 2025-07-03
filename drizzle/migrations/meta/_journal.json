@@ -281,6 +281,34 @@
       "when": 1750927734973,
       "tag": "0039_aromatic_lady_deathstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1751448993805,
+      "tag": "0040_numerous_major_mapleleaf",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1751468901347,
+      "tag": "0041_workable_mimic",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1751484492430,
+      "tag": "0042_fancy_red_wolf",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1751539904188,
+      "tag": "0043_curved_lady_deathstrike",
+      "breakpoints": true
     }
   ]
 }

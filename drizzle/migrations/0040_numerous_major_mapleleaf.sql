@@ -1,0 +1,1 @@
+ALTER TABLE "waybill_items" ADD COLUMN "quantity_converted" integer DEFAULT 0 NOT NULL;

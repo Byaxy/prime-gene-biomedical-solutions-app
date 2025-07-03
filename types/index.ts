@@ -418,8 +418,9 @@ export interface Waybill {
   storeId: string;
   saleId: string;
   waybillType: WaybillType;
-  originalLoanWaybillId: string | null;
   isConverted: boolean;
+  conversionDate: Date | null;
+  conversionStatus: WaybillConversionStatus;
   notes: string;
   deliveryAddress: DeliveryAddress;
   isActive: boolean;
@@ -437,6 +438,7 @@ export interface WaybillItem {
   quantitySupplied: number;
   balanceLeft: number;
   fulfilledQuantity: number;
+  quantityConverted: number;
   productName: string;
   productID: string;
   isActive: boolean;
@@ -506,4 +508,11 @@ export enum PaymentStatus {
 export enum WaybillType {
   Loan = "loan",
   Sale = "sale",
+  Conversion = "conversion",
+}
+
+export enum WaybillConversionStatus {
+  Pending = "pending",
+  Partial = "partial",
+  Full = "full",
 }

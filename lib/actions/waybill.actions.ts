@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { parseStringify } from "../utils";
 import { db } from "@/drizzle/db";
-import { WaybillFormValues } from "../validation";
+import { ConvertLoanWaybillFormValues, WaybillFormValues } from "../validation";
 import {
   saleItemsTable,
   salesTable,
@@ -15,8 +15,9 @@ import {
   inventoryTable,
   inventoryTransactionsTable,
   productsTable,
+  backordersTable,
 } from "@/drizzle/schema";
-import { DeliveryStatus, WaybillType } from "@/types";
+import { DeliveryStatus, WaybillConversionStatus, WaybillType } from "@/types";
 import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { WaybillFilters } from "@/hooks/useWaybills";
 
@@ -53,6 +54,10 @@ export const addWaybill = async (
           storeId: waybill.storeId,
           saleId: waybill.saleId ? waybill.saleId : null,
           waybillType: waybillType,
+          conversionStatus:
+            waybillType === WaybillType.Loan
+              ? WaybillConversionStatus.Pending
+              : null,
           deliveredBy: waybill.deliveredBy || "",
           receivedBy: waybill.receivedBy || "",
           notes: waybill.notes,
@@ -74,6 +79,7 @@ export const addWaybill = async (
             quantitySupplied: product.quantitySupplied,
             balanceLeft: product.balanceLeft,
             fulfilledQuantity: product.fulfilledQuantity,
+            quantityConverted: product.quantityConverted,
             productName: product.productName,
             productID: product.productID,
           })
@@ -1093,6 +1099,289 @@ export const generateWaybillRefNumber = async (): Promise<string> => {
     return result;
   } catch (error) {
     console.error("Error generating waybill reference number:", error);
+    throw error;
+  }
+};
+
+// Convert loan waybill
+export const convertLoanWaybill = async (
+  data: ConvertLoanWaybillFormValues,
+  loanWaybillId: string
+) => {
+  try {
+    const result = await db.transaction(async (tx) => {
+      const [loanWaybill] = await tx
+        .select()
+        .from(waybillsTable)
+        .where(
+          and(
+            eq(waybillsTable.id, loanWaybillId),
+            eq(waybillsTable.waybillType, WaybillType.Loan)
+          )
+        )
+        .limit(1);
+
+      if (!loanWaybill) {
+        throw new Error("Loan waybill not found or not a loan waybill");
+      }
+
+      const [sale] = await tx
+        .select()
+        .from(salesTable)
+        .where(eq(salesTable.id, data.saleId))
+        .limit(1);
+
+      if (!sale) {
+        throw new Error("Sale not found");
+      }
+
+      const newWaybillRefNumber = await generateWaybillRefNumber();
+      if (!newWaybillRefNumber) {
+        throw new Error("Failed to generate waybill reference number");
+      }
+
+      // Create new waybill record
+      const [newWaybill] = await tx
+        .insert(waybillsTable)
+        .values({
+          waybillDate: new Date(),
+          waybillRefNumber: newWaybillRefNumber,
+          status: DeliveryStatus.Delivered,
+          deliveryAddress: loanWaybill.deliveryAddress
+            ? {
+                addressName: loanWaybill.deliveryAddress.addressName || "",
+                address: loanWaybill.deliveryAddress.address || "",
+                city: loanWaybill.deliveryAddress.city || "",
+                state: loanWaybill.deliveryAddress.state || "",
+                country: loanWaybill.deliveryAddress.country || "",
+                email: loanWaybill.deliveryAddress.email || "",
+                phone: loanWaybill.deliveryAddress.phone || "",
+              }
+            : null,
+          customerId: data.customerId,
+          storeId: data.storeId,
+          saleId: data.saleId,
+          waybillType: WaybillType.Conversion,
+          originalLoanWaybillId: loanWaybill.id,
+          isConverted: true,
+          conversionStatus: WaybillConversionStatus.Full,
+          conversionDate: data.conversionDate || new Date(),
+          deliveredBy: loanWaybill.deliveredBy || "",
+          receivedBy: loanWaybill.receivedBy || "",
+          notes: data.notes,
+        })
+        .returning();
+
+      const newLoanWaybillItems = [];
+
+      // Get all loan waybill items
+      const loanWaybillItems = await tx
+        .select()
+        .from(waybillItemsTable)
+        .where(eq(waybillItemsTable.waybillId, loanWaybillId));
+
+      // Process each product to be converted
+      for (const product of data.products) {
+        const waybillItem = loanWaybillItems.find(
+          (item) =>
+            item.id === product.waybillItemId &&
+            item.productId === product.productId &&
+            item.productID === product.productID
+        );
+
+        if (!waybillItem) {
+          console.warn(
+            `Product ${product.productID} not found in loan waybill items`
+          );
+          continue;
+        }
+
+        // Create waybill item
+        const [newWaybillItem] = await tx
+          .insert(waybillItemsTable)
+          .values({
+            waybillId: newWaybill.id,
+            productId: product.productId,
+            saleItemId: product.saleItemId,
+            quantityRequested: product.quantityToConvert,
+            quantitySupplied: product.quantityToConvert,
+            balanceLeft: 0,
+            fulfilledQuantity: product.quantityToConvert,
+            quantityConverted: product.quantityToConvert,
+            productName: product.productName,
+            productID: product.productID,
+          })
+          .returning();
+
+        // Calculate new converted quantity
+        const newConvertedQuantity =
+          (waybillItem.quantityConverted || 0) + product.quantityToConvert;
+
+        if (newConvertedQuantity > waybillItem.quantitySupplied) {
+          throw new Error(
+            `Cannot convert more than supplied quantity for product ${product.productID}`
+          );
+        }
+
+        // Update the loan waybill item with converted quantity
+        await tx
+          .update(waybillItemsTable)
+          .set({
+            quantityConverted: newConvertedQuantity,
+          })
+          .where(eq(waybillItemsTable.id, waybillItem.id));
+
+        // Get the sale item to check for backorder quantity
+        const [saleItem] = await tx
+          .select()
+          .from(saleItemsTable)
+          .where(eq(saleItemsTable.id, product.saleItemId))
+          .limit(1);
+
+        if (!saleItem) {
+          throw new Error(`Sale item ${product.saleItemId} not found`);
+        }
+
+        // Handle backorder processing
+        const hasBackorder =
+          saleItem.hasBackorder && saleItem.backorderQuantity > 0;
+
+        if (hasBackorder) {
+          // Calculate how much backorder quantity to reduce
+          const backorderReduction = Math.min(
+            product.quantityToConvert,
+            saleItem.backorderQuantity
+          );
+
+          const newBackorderQuantity = Math.max(
+            0,
+            saleItem.backorderQuantity - backorderReduction
+          );
+          const isBackorderCompletelyFulfilled = newBackorderQuantity === 0;
+
+          // Update the sale item backorder quantity
+          await tx
+            .update(saleItemsTable)
+            .set({
+              backorderQuantity: newBackorderQuantity,
+              fulfilledQuantity: sql`${saleItemsTable.fulfilledQuantity} + ${product.quantityToConvert}`,
+              hasBackorder: !isBackorderCompletelyFulfilled,
+            })
+            .where(eq(saleItemsTable.id, product.saleItemId));
+
+          // Update general product quantity
+          await tx
+            .update(productsTable)
+            .set({
+              quantity: sql`${productsTable.quantity} + ${product.quantityToConvert}`,
+            })
+            .where(eq(productsTable.id, product.productId));
+
+          // Update corresponding backorder records in backorders table
+          const backorders = await tx
+            .select()
+            .from(backordersTable)
+            .where(
+              and(
+                eq(backordersTable.saleItemId, product.saleItemId),
+                eq(backordersTable.productId, product.productId),
+                eq(backordersTable.storeId, data.storeId),
+                eq(backordersTable.isActive, true)
+              )
+            )
+            .orderBy(backordersTable.createdAt);
+
+          let remainingReduction = backorderReduction;
+
+          for (const backorder of backorders) {
+            if (remainingReduction <= 0) break;
+
+            const reductionAmount = Math.min(
+              remainingReduction,
+              backorder.pendingQuantity
+            );
+
+            if (reductionAmount > 0) {
+              const newPendingQuantity = Math.max(
+                0,
+                backorder.pendingQuantity - reductionAmount
+              );
+
+              const isBackorderItemCompleted = newPendingQuantity === 0;
+
+              await tx
+                .update(backordersTable)
+                .set({
+                  pendingQuantity: newPendingQuantity,
+                  isActive: !isBackorderItemCompleted,
+                })
+                .where(eq(backordersTable.id, backorder.id));
+
+              remainingReduction -= reductionAmount;
+            }
+          }
+        } else {
+          // No backorder, just update fulfilled quantity
+          await tx
+            .update(saleItemsTable)
+            .set({
+              fulfilledQuantity: sql`${saleItemsTable.fulfilledQuantity} + ${product.quantityToConvert}`,
+            })
+            .where(eq(saleItemsTable.id, product.saleItemId));
+        }
+
+        newLoanWaybillItems.push(newWaybillItem);
+      }
+
+      // Update the loan waybill with sale information and conversion status
+      const updatedLoanWaybillItems = await tx
+        .select()
+        .from(waybillItemsTable)
+        .where(eq(waybillItemsTable.waybillId, loanWaybillId));
+
+      const isFullyConverted = updatedLoanWaybillItems.every(
+        (item) => item.quantityConverted >= item.quantitySupplied
+      );
+
+      await tx
+        .update(waybillsTable)
+        .set({
+          isConverted: isFullyConverted,
+          conversionStatus: isFullyConverted
+            ? WaybillConversionStatus.Full
+            : WaybillConversionStatus.Partial,
+          conversionDate: data.conversionDate || new Date(),
+        })
+        .where(eq(waybillsTable.id, loanWaybillId))
+        .returning();
+
+      // Check if sale is fully fulfilled
+      const saleItems = await tx
+        .select()
+        .from(saleItemsTable)
+        .where(eq(saleItemsTable.saleId, data.saleId));
+
+      const isSaleFullyFulfilled = saleItems.every(
+        (item) =>
+          item.quantity <= item.fulfilledQuantity &&
+          item.backorderQuantity === 0
+      );
+
+      if (isSaleFullyFulfilled) {
+        await tx
+          .update(salesTable)
+          .set({ status: "completed" })
+          .where(eq(salesTable.id, data.saleId));
+      }
+
+      return { waybill: newWaybill, items: newLoanWaybillItems };
+    });
+
+    revalidatePath("/waybills");
+    revalidatePath("/sales");
+    return parseStringify(result);
+  } catch (error) {
+    console.error("Error converting loan waybill:", error);
     throw error;
   }
 };

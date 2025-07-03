@@ -1,11 +1,15 @@
 import {
   addWaybill,
+  convertLoanWaybill,
   deleteWaybill,
   editWaybill,
   getWaybills,
   softDeleteWaybill,
 } from "@/lib/actions/waybill.actions";
-import { WaybillFormValues } from "@/lib/validation";
+import {
+  ConvertLoanWaybillFormValues,
+  WaybillFormValues,
+} from "@/lib/validation";
 import { WaybillWithRelations } from "@/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -109,6 +113,23 @@ export const useWaybills = ({
     },
   });
 
+  // Convert Loan Waybill Mutation
+  const {
+    mutate: convertLoanWaybillMutation,
+    status: convertLoanWaybillStatus,
+  } = useMutation({
+    mutationFn: async ({
+      data,
+      loanWaybillId,
+    }: {
+      data: ConvertLoanWaybillFormValues;
+      loanWaybillId: string;
+    }) => convertLoanWaybill(data, loanWaybillId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["waybills"] });
+    },
+  });
+
   // Edit Waybill Mutation
   const { mutate: editWaybillMutation, status: editWaybillStatus } =
     useMutation({
@@ -182,5 +203,7 @@ export const useWaybills = ({
     isDeletingWaybill: deleteWaybillStatus === "pending",
     softDeleteWaybill: softDeleteWaybillMutation,
     isSoftDeletingWaybill: softDeleteWaybillStatus === "pending",
+    convertLoanWaybill: convertLoanWaybillMutation,
+    isConvertingLoanWaybill: convertLoanWaybillStatus === "pending",
   };
 };

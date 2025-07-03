@@ -20,7 +20,9 @@ import {
   SaleItem,
   SaleWithRelations,
   Store,
+  WaybillConversionStatus,
   WaybillInventoryStock,
+  WaybillItem,
   WaybillType,
   WaybillWithRelations,
 } from "@/types";
@@ -59,6 +61,7 @@ import { useInventoryStock } from "@/hooks/useInventoryStock";
 import { useAuth } from "@/hooks/useAuth";
 import { useProducts } from "@/hooks/useProducts";
 import WaybillInventoryStockSelectDialog from "../waybills/WaybillInventoryStockSelectDialog";
+import LoanWaybillsDialog from "../waybills/LoanWaybillsDialog";
 
 interface WaybillFormProps {
   mode: "create" | "edit";
@@ -69,7 +72,13 @@ interface WaybillFormProps {
 const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
   const [storeDialogOpen, setStoreDialogOpen] = useState(false);
+  const [loanWaybillDialogOpen, setLoanWaybillDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [customerMatchingLoanWaybills, setCustomerMatchingLoanWaybills] =
+    useState<WaybillWithRelations[] | null>(null);
+  const [selectedSale, setSelectedSale] = useState<SaleWithRelations | null>(
+    null
+  );
   const [prevSelectedSaleId, setPrevSelectedSaleId] = useState<string | null>(
     null
   );
@@ -97,6 +106,10 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
 
   const { products, isLoading: productsLoading } = useProducts({
     getAllProducts: true,
+  });
+
+  const { waybills } = useWaybills({
+    getAllWaybills: true,
   });
 
   const {
@@ -160,8 +173,9 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
       receivedBy: "",
       products: [],
       isLoanWaybill: false,
-      originalLoanWaybillId: undefined,
       isConverted: false,
+      conversionDate: undefined,
+      conversionStatus: WaybillConversionStatus.Partial,
     }),
     [generatedWaybillRefNumber]
   );
@@ -189,8 +203,6 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
           saleId: initialData.waybill.saleId || "",
           isLoanWaybill:
             initialData.waybill.waybillType === WaybillType.Loan || false,
-          originalLoanWaybillId:
-            initialData.waybill.originalLoanWaybillId || undefined,
           isConverted: initialData.waybill.isConverted || false,
           notes: initialData.waybill.notes || "",
           deliveredBy: initialData.waybill.deliveredBy || "",
@@ -208,6 +220,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
             quantitySupplied: product.quantitySupplied,
             balanceLeft: product.balanceLeft,
             fulfilledQuantity: product.fulfilledQuantity,
+            quantityConverted: product.quantityConverted,
             productName: product.productName || "",
             productID: product.productID || "",
           })),
@@ -365,7 +378,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
       return acc;
     }, []) || [];
 
-  // Handle products for selected sale.
+  // Handle sale selection.
   const handleSaleSelection = (saleId: string) => {
     if (!saleId) {
       toast.error("Please select a Sale");
@@ -386,6 +399,64 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
 
     // Clear previous products
     remove();
+    setCustomerMatchingLoanWaybills(null);
+    setSelectedSale(selectedSale);
+
+    const matchingLoanWaybills: WaybillWithRelations[] = [];
+    const customerLoanWaybills =
+      waybills?.reduce(
+        (acc: WaybillWithRelations[], waybill: WaybillWithRelations) => {
+          if (!waybill.waybill?.waybillType || !waybill?.waybill?.customerId) {
+            return acc;
+          }
+
+          const isLoanWaybill = waybill.waybill.waybillType === "loan";
+          const isNotConverted = waybill.waybill.isConverted === false;
+          const hasNoSaleId =
+            !waybill.waybill.saleId ||
+            waybill.waybill.saleId === null ||
+            waybill.waybill.saleId === undefined;
+          const isForSelectedCustomer =
+            waybill.waybill.customerId === selectedSale.customer.id;
+
+          if (
+            isLoanWaybill &&
+            isNotConverted &&
+            hasNoSaleId &&
+            isForSelectedCustomer
+          ) {
+            acc.push(waybill);
+          }
+
+          return acc;
+        },
+        []
+      ) || [];
+
+    if (customerLoanWaybills.length > 0 && selectedSale.products.length > 0) {
+      customerLoanWaybills.forEach((loanWaybill: WaybillWithRelations) => {
+        // Check if ANY loan waybill product is present in sale products
+        const hasMatchingProduct = loanWaybill.products.some(
+          (loanProduct: WaybillItem) => {
+            return selectedSale.products.some(
+              (saleProduct: SaleItem) =>
+                saleProduct.productId === loanProduct.productId &&
+                saleProduct.productID === loanProduct.productID &&
+                loanProduct.quantitySupplied > loanProduct.quantityConverted
+            );
+          }
+        );
+
+        // Add the waybill if it has at least one matching product
+        if (hasMatchingProduct) {
+          matchingLoanWaybills.push(loanWaybill);
+        }
+      });
+    }
+
+    if (matchingLoanWaybills.length > 0) {
+      setCustomerMatchingLoanWaybills(matchingLoanWaybills);
+    }
 
     const deliveryAddress =
       selectedSale.sale.isDeliveryAddressAdded &&
@@ -563,6 +634,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
               quantitySupplied: actualSuppliedQuantity,
               balanceLeft: balanceLeft,
               fulfilledQuantity: product.fulfilledQuantity,
+              quantityConverted: 0,
               productName: product.productName,
               productID: product.productID,
             });
@@ -644,8 +716,6 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
           saleId: initialData.waybill.saleId || "",
           isLoanWaybill:
             initialData.waybill.waybillType === WaybillType.Loan || false,
-          originalLoanWaybillId:
-            initialData.waybill.originalLoanWaybillId || undefined,
           isConverted: initialData.waybill.isConverted || false,
           notes: initialData.waybill.notes || "",
           deliveredBy: initialData.waybill.deliveredBy || "",
@@ -678,6 +748,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
               quantitySupplied: product.quantitySupplied,
               balanceLeft: product.balanceLeft,
               fulfilledQuantity: product.fulfilledQuantity || 0,
+              quantityConverted: product.quantityConverted || 0,
               productName: product.productName || "",
               productID: product.productID || "",
             });
@@ -691,6 +762,67 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
       }, 100);
     } else if (sourceSale) {
       const { sale, customer, products } = sourceSale;
+
+      setCustomerMatchingLoanWaybills(null);
+
+      const matchingLoanWaybills: WaybillWithRelations[] = [];
+      const customerLoanWaybills =
+        waybills?.reduce(
+          (acc: WaybillWithRelations[], waybill: WaybillWithRelations) => {
+            if (
+              !waybill.waybill?.waybillType ||
+              !waybill?.waybill?.customerId
+            ) {
+              return acc;
+            }
+
+            const isLoanWaybill = waybill.waybill.waybillType === "loan";
+            const isNotConverted = waybill.waybill.isConverted === false;
+            const hasNoSaleId =
+              !waybill.waybill.saleId ||
+              waybill.waybill.saleId === null ||
+              waybill.waybill.saleId === undefined;
+            const isForSelectedCustomer =
+              waybill.waybill.customerId === customer.id;
+
+            if (
+              isLoanWaybill &&
+              isNotConverted &&
+              hasNoSaleId &&
+              isForSelectedCustomer
+            ) {
+              acc.push(waybill);
+            }
+
+            return acc;
+          },
+          []
+        ) || [];
+
+      if (customerLoanWaybills.length > 0 && products.length > 0) {
+        customerLoanWaybills.forEach((loanWaybill: WaybillWithRelations) => {
+          // Check if ANY loan waybill product is present in sale products
+          const hasMatchingProduct = loanWaybill.products.some(
+            (loanProduct: WaybillItem) => {
+              return products.some(
+                (saleProduct: SaleItem) =>
+                  saleProduct.productId === loanProduct.productId &&
+                  saleProduct.productID === loanProduct.productID &&
+                  loanProduct.quantitySupplied > loanProduct.quantityConverted
+              );
+            }
+          );
+
+          // Add the waybill if it has at least one matching product
+          if (hasMatchingProduct) {
+            matchingLoanWaybills.push(loanWaybill);
+          }
+        });
+      }
+
+      if (matchingLoanWaybills.length > 0) {
+        setCustomerMatchingLoanWaybills(matchingLoanWaybills);
+      }
 
       const deliveryAddress =
         sale.isDeliveryAddressAdded && sale.deliveryAddress.address !== ""
@@ -871,6 +1003,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
               quantitySupplied: actualSuppliedQuantity,
               balanceLeft: balanceLeft,
               fulfilledQuantity: product.fulfilledQuantity,
+              quantityConverted: 0,
               productName: product.productName,
               productID: product.productID,
             });
@@ -892,6 +1025,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
     sourceSale,
     generatedWaybillRefNumber,
     inventoryStock,
+    waybills,
   ]);
 
   // Handle country change
@@ -970,6 +1104,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
       quantitySupplied: 0,
       balanceLeft: 0,
       fulfilledQuantity: 0,
+      quantityConverted: 0,
       productID: selectedProduct.product.productID,
       productName: selectedProduct.product.name,
     });
@@ -994,6 +1129,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
   const closeDialog = () => {
     setCustomerDialogOpen(false);
     setStoreDialogOpen(false);
+    setLoanWaybillDialogOpen(false);
 
     setTimeout(() => {
       const stuckSection = document.querySelector(".MuiBox-root.css-0");
@@ -1587,8 +1723,8 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
               </>
             ) : (
               <>
-                <div className="w-full flex flex-col gap-5">
-                  <div className="w-full sm:w-1/2">
+                <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className="w-full">
                     <CustomFormField
                       fieldType={FormFieldType.SELECT}
                       control={form.control}
@@ -1694,6 +1830,26 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
                     </CustomFormField>
                   </div>
                 </div>
+
+                {customerMatchingLoanWaybills &&
+                  customerMatchingLoanWaybills?.length > 0 && (
+                    <div className="flex flex-col items-center justify-center gap-2 bg-red-600/10 p-5 rounded-md border border-red-600 text-center">
+                      <Button
+                        type="button"
+                        className="shad-danger-btn w-fit"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setLoanWaybillDialogOpen(true);
+                        }}
+                      >
+                        View Matching Loan waybills
+                      </Button>
+                      <p className="text-red-600 text-sm">
+                        ⚠️ Matching loan waybills found for this cutomer
+                      </p>
+                    </div>
+                  )}
                 <Table className="shad-table">
                   <TableHeader>
                     <TableRow className="w-full bg-blue-800 text-white px-2 font-semibold">
@@ -2025,6 +2181,14 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
         onOpenChange={closeDialog}
         isLoading={isAddingStore}
       />
+      {(selectedSale || sourceSale) && (
+        <LoanWaybillsDialog
+          open={loanWaybillDialogOpen}
+          onOpenChange={closeDialog}
+          waybills={customerMatchingLoanWaybills || []}
+          sale={selectedSale || (sourceSale as SaleWithRelations)}
+        />
+      )}
     </>
   );
 };

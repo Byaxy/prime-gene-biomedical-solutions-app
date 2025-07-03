@@ -1,7 +1,11 @@
 import WaybillActions from "@/components/waybills/WaybillActions";
 import { Button } from "@/components/ui/button";
 import { cn, formatDateTime } from "@/lib/utils";
-import { WaybillType, WaybillWithRelations } from "@/types";
+import {
+  WaybillConversionStatus,
+  WaybillType,
+  WaybillWithRelations,
+} from "@/types";
 import { ColumnDef } from "@tanstack/react-table";
 import { Country } from "country-state-city";
 import { ArrowUpDown } from "lucide-react";
@@ -43,7 +47,7 @@ export const waybillColumns: ColumnDef<WaybillWithRelations>[] = [
     },
   },
   {
-    id: "waybill.waybillRefNumber",
+    id: "waybill.waybillsRefNumber",
     accessorKey: "waybill.waybillRefNumber",
     header: ({ column }) => {
       return (
@@ -162,6 +166,8 @@ export const waybillColumns: ColumnDef<WaybillWithRelations>[] = [
               "text-14-medium capitalize",
               waybill.waybill.waybillType === `${WaybillType.Sale}` &&
                 "bg-green-500 text-white px-3 py-1 rounded-xl",
+              waybill.waybill.waybillType === `${WaybillType.Conversion}` &&
+                "bg-blue-600 text-white px-3 py-1 rounded-xl",
               waybill.waybill.waybillType === `${WaybillType.Loan}` &&
                 "bg-red-600 text-white px-3 py-1 rounded-xl"
             )}
@@ -178,7 +184,8 @@ export const waybillColumns: ColumnDef<WaybillWithRelations>[] = [
       const waybill = row.original;
       return (
         <p>
-          {waybill.waybill.waybillType === WaybillType.Loan && (
+          {waybill.waybill.waybillType === WaybillType.Loan ||
+          waybill.waybill.waybillType === WaybillType.Conversion ? (
             <span
               className={cn(
                 "text-14-medium capitalize bg-red-600 text-white px-3 py-1 rounded-xl",
@@ -187,7 +194,37 @@ export const waybillColumns: ColumnDef<WaybillWithRelations>[] = [
             >
               {waybill.waybill.isConverted ? "Yes" : "No"}
             </span>
-          )}
+          ) : null}
+        </p>
+      );
+    },
+  },
+  {
+    accessorKey: "waybill.conversionStatus",
+    header: "Conversion Status",
+    cell: ({ row }) => {
+      const waybill = row.original;
+      return (
+        <p>
+          {waybill.waybill.waybillType === WaybillType.Loan ||
+          waybill.waybill.waybillType === WaybillType.Conversion ? (
+            <span
+              className={cn(
+                "text-14-medium capitalize",
+                waybill.waybill.conversionStatus ===
+                  WaybillConversionStatus.Pending &&
+                  "text-white bg-red-600 px-3 py-1 rounded-xl",
+                waybill.waybill.conversionStatus ===
+                  WaybillConversionStatus.Partial &&
+                  "bg-[#f59e0b] text-white px-3 py-1 rounded-xl",
+                waybill.waybill.conversionStatus ===
+                  WaybillConversionStatus.Full &&
+                  "bg-green-500 text-white px-3 py-1 rounded-xl"
+              )}
+            >
+              {waybill.waybill.conversionStatus}
+            </span>
+          ) : null}
         </p>
       );
     },
