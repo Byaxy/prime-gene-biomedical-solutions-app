@@ -1345,7 +1345,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
         }
       }
     }
-  });
+  }, [customers, form, isLoanWaybill]);
 
   useEffect(() => {
     if (fields.length > 0) {
