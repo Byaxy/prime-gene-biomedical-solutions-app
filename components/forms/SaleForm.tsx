@@ -63,6 +63,7 @@ import { useStores } from "@/hooks/useStores";
 import StoreDialog from "../stores/StoreDialog";
 import { useProducts } from "@/hooks/useProducts";
 import InventoryStockSelectDialog from "../sales/InventoryStockSelectDialog";
+import { cn } from "@/lib/utils";
 
 interface SaleFormProps {
   mode: "create" | "edit";
@@ -1104,157 +1105,185 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                     </TableCell>
                   </TableRow>
                 )}
-                {fields.map((entry, index) => (
-                  <TableRow
-                    key={`${entry.productId}-${index}`}
-                    className={`w-full ${index % 2 === 1 ? "bg-blue-50" : ""}`}
-                  >
-                    <TableCell>{index + 1}</TableCell>
-                    <TableCell>{entry.productID}</TableCell>
-                    <TableCell>{entry.productName}</TableCell>
-                    <TableCell>
-                      <Button
-                        variant="outline"
-                        onClick={() => setSelectedProductIndex(index)}
-                        disabled={form.watch(`products.${index}.quantity`) <= 0}
-                        type="button"
-                        className="bg-gray-200"
-                        title="Manage Lot Numbers / Inventory stock"
-                      >
-                        {form.watch(`products.${index}.quantity`) <= 0
-                          ? "Add Qnty first"
-                          : "Manage Lots"}
-                      </Button>
-                      <InventoryStockSelectDialog
-                        open={selectedProductIndex === index}
-                        onOpenChange={(open) =>
-                          setSelectedProductIndex(open ? index : null)
-                        }
-                        productID={entry.productID}
-                        requiredQuantity={form.watch(
-                          `products.${index}.quantity`
-                        )}
-                        availableStocks={getEntryInventoryStocks(
-                          entry.productId
-                        )}
-                        selectedInventoryStock={entry.inventoryStock}
-                        hasBackorder={entry.hasBackorder}
-                        backorderQuantity={entry.backorderQuantity ?? 0}
-                        onSave={(
-                          stock,
-                          includeBackorder,
-                          backorderQuantity
-                        ) => {
-                          form.setValue(
-                            `products.${index}.inventoryStock`,
-                            stock
-                          );
-                          form.setValue(
-                            `products.${index}.hasBackorder`,
-                            includeBackorder
-                          );
-                          form.setValue(
-                            `products.${index}.backorderQuantity`,
-                            backorderQuantity
-                          );
-                          form.trigger(`products.${index}.inventoryStock`);
-                        }}
-                      />
-                      {form.formState.errors.products?.[index]
-                        ?.inventoryStock && (
-                        <p className="text-red-500 text-xs pt-2">
-                          {
-                            form.formState.errors.products?.[index]
-                              ?.inventoryStock.message
-                          }
-                        </p>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <CustomFormField
-                        fieldType={FormFieldType.NUMBER}
-                        control={form.control}
-                        name={`products.${index}.quantity`}
-                        label=""
-                        placeholder="Qty"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <CustomFormField
-                        fieldType={FormFieldType.AMOUNT}
-                        control={form.control}
-                        name={`products.${index}.unitPrice`}
-                        label=""
-                        placeholder="Unit price"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <CustomFormField
-                        fieldType={FormFieldType.SELECT}
-                        control={form.control}
-                        name={`products.${index}.taxRateId`}
-                        label=""
-                        placeholder="Tax Rate"
-                        onAddNew={() => setTaxDialogOpen(true)}
-                        key={`tax-select-${
-                          form.watch(`products.${index}.taxRateId`) || ""
-                        }-${index}`}
-                      >
-                        {taxesLoading && (
-                          <div className="py-4">
-                            <Loading />
-                          </div>
-                        )}
-                        {taxes?.map((tax: Tax) => (
-                          <SelectItem
-                            key={tax.id}
-                            value={tax.id}
-                            className="text-14-medium text-blue-800 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
-                          >
-                            {tax.code} - {`${tax.taxRate}%`}
-                          </SelectItem>
-                        ))}
-                      </CustomFormField>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center text-14-medium text-blue-800 rounded-md border bg-white px-3 border-dark-700 h-11">
-                        <FormatNumber value={calculateEntryTaxAmount(index)} />
-                      </div>
-                    </TableCell>
+                {fields.map((entry, index) => {
+                  const entryStock = form.watch(
+                    `products.${index}.inventoryStock`
+                  );
+                  const bckOrderQnty =
+                    form.watch(`products.${index}.backorderQuantity`) || 0;
 
-                    <TableCell>
-                      <CustomFormField
-                        fieldType={FormFieldType.NUMBER}
-                        control={form.control}
-                        name={`products.${index}.discountRate`}
-                        label=""
-                        placeholder="Discount %"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center text-14-medium text-blue-800 rounded-md border bg-white px-3 border-dark-700 h-11">
-                        <FormatNumber
-                          value={calculateEntryDiscountAmount(index)}
-                        />
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <FormatNumber
-                        value={calculateEntryTaxableAmount(index)}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-row items-center">
-                        <span
-                          onClick={() => handleDeleteEntry(index)}
-                          className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
+                  const entryQnty =
+                    form.watch(`products.${index}.quantity`) || 0;
+
+                  return (
+                    <TableRow
+                      key={`${entry.productId}-${index}`}
+                      className={`w-full ${
+                        index % 2 === 1 ? "bg-blue-50" : ""
+                      }`}
+                    >
+                      <TableCell>{index + 1}</TableCell>
+                      <TableCell>{entry.productID}</TableCell>
+                      <TableCell>{entry.productName}</TableCell>
+                      <TableCell>
+                        <Button
+                          variant="outline"
+                          onClick={() => setSelectedProductIndex(index)}
+                          disabled={
+                            form.watch(`products.${index}.quantity`) <= 0
+                          }
+                          type="button"
+                          className={cn(
+                            "text-white border-0",
+                            entryQnty > 0 &&
+                              entryStock.reduce(
+                                (acc, stock) => acc + stock.quantityToTake,
+                                0
+                              ) +
+                                bckOrderQnty ===
+                                entryQnty
+                              ? "bg-green-500"
+                              : "bg-red-500"
+                          )}
+                          title="Manage Lot Numbers / Inventory stock"
                         >
-                          <DeleteIcon className="h-5 w-5" />
-                        </span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                          {form.watch(`products.${index}.quantity`) <= 0
+                            ? "Add Qnty first"
+                            : "Manage Lots"}
+                        </Button>
+                        <InventoryStockSelectDialog
+                          open={selectedProductIndex === index}
+                          onOpenChange={(open) =>
+                            setSelectedProductIndex(open ? index : null)
+                          }
+                          productID={entry.productID}
+                          requiredQuantity={form.watch(
+                            `products.${index}.quantity`
+                          )}
+                          availableStocks={getEntryInventoryStocks(
+                            entry.productId
+                          )}
+                          selectedInventoryStock={entry.inventoryStock}
+                          hasBackorder={entry.hasBackorder}
+                          backorderQuantity={entry.backorderQuantity ?? 0}
+                          onSave={(
+                            stock,
+                            includeBackorder,
+                            backorderQuantity
+                          ) => {
+                            form.setValue(
+                              `products.${index}.inventoryStock`,
+                              stock
+                            );
+                            form.setValue(
+                              `products.${index}.hasBackorder`,
+                              includeBackorder
+                            );
+                            form.setValue(
+                              `products.${index}.backorderQuantity`,
+                              backorderQuantity
+                            );
+                            form.trigger(`products.${index}.inventoryStock`);
+                          }}
+                        />
+                        {form.formState.errors.products?.[index]
+                          ?.inventoryStock && (
+                          <p className="text-red-500 text-xs pt-2">
+                            {
+                              form.formState.errors.products?.[index]
+                                ?.inventoryStock.message
+                            }
+                          </p>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <CustomFormField
+                          fieldType={FormFieldType.NUMBER}
+                          control={form.control}
+                          name={`products.${index}.quantity`}
+                          label=""
+                          placeholder="Qty"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <CustomFormField
+                          fieldType={FormFieldType.AMOUNT}
+                          control={form.control}
+                          name={`products.${index}.unitPrice`}
+                          label=""
+                          placeholder="Unit price"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <CustomFormField
+                          fieldType={FormFieldType.SELECT}
+                          control={form.control}
+                          name={`products.${index}.taxRateId`}
+                          label=""
+                          placeholder="Tax Rate"
+                          onAddNew={() => setTaxDialogOpen(true)}
+                          key={`tax-select-${
+                            form.watch(`products.${index}.taxRateId`) || ""
+                          }-${index}`}
+                        >
+                          {taxesLoading && (
+                            <div className="py-4">
+                              <Loading />
+                            </div>
+                          )}
+                          {taxes?.map((tax: Tax) => (
+                            <SelectItem
+                              key={tax.id}
+                              value={tax.id}
+                              className="text-14-medium text-blue-800 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+                            >
+                              {tax.code} - {`${tax.taxRate}%`}
+                            </SelectItem>
+                          ))}
+                        </CustomFormField>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center text-14-medium text-blue-800 rounded-md border bg-white px-3 border-dark-700 h-11">
+                          <FormatNumber
+                            value={calculateEntryTaxAmount(index)}
+                          />
+                        </div>
+                      </TableCell>
+
+                      <TableCell>
+                        <CustomFormField
+                          fieldType={FormFieldType.NUMBER}
+                          control={form.control}
+                          name={`products.${index}.discountRate`}
+                          label=""
+                          placeholder="Discount %"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center text-14-medium text-blue-800 rounded-md border bg-white px-3 border-dark-700 h-11">
+                          <FormatNumber
+                            value={calculateEntryDiscountAmount(index)}
+                          />
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <FormatNumber
+                          value={calculateEntryTaxableAmount(index)}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-row items-center">
+                          <span
+                            onClick={() => handleDeleteEntry(index)}
+                            className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
+                          >
+                            <DeleteIcon className="h-5 w-5" />
+                          </span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
                 {/* Total amount row */}
                 {fields.length > 0 && (
                   <>

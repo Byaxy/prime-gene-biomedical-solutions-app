@@ -52,7 +52,7 @@ import {
   TableRow,
 } from "../ui/table";
 import { Check } from "lucide-react";
-import { formatNumber } from "@/lib/utils";
+import { cn, formatNumber } from "@/lib/utils";
 import SubmitButton from "../SubmitButton";
 import CustomerDialog from "../customers/CustomerDialog";
 import StoreDialog from "../stores/StoreDialog";
@@ -1613,111 +1613,131 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
                         </TableCell>
                       </TableRow>
                     )}
-                    {fields.map((entry, index) => (
-                      <TableRow
-                        key={`${entry.productId}-${index}`}
-                        className={`w-full ${
-                          index % 2 === 1 ? "bg-blue-50" : ""
-                        }`}
-                      >
-                        <TableCell>{index + 1}</TableCell>
-                        <TableCell>{entry.productID}</TableCell>
-                        <TableCell>{entry.productName}</TableCell>
-                        <TableCell>
-                          <Button
-                            variant="outline"
-                            onClick={() => setSelectedProductIndex(index)}
-                            disabled={
-                              form.watch(
+                    {fields.map((entry, index) => {
+                      const entryStock = form.watch(
+                        `products.${index}.inventoryStock`
+                      );
+                      const entryQntyRequested = form.watch(
+                        `products.${index}.quantityRequested`
+                      );
+
+                      return (
+                        <TableRow
+                          key={`${entry.productId}-${index}`}
+                          className={`w-full ${
+                            index % 2 === 1 ? "bg-blue-50" : ""
+                          }`}
+                        >
+                          <TableCell>{index + 1}</TableCell>
+                          <TableCell>{entry.productID}</TableCell>
+                          <TableCell>{entry.productName}</TableCell>
+                          <TableCell>
+                            <Button
+                              variant="outline"
+                              onClick={() => setSelectedProductIndex(index)}
+                              disabled={
+                                form.watch(
+                                  `products.${index}.quantityRequested`
+                                ) <= 0
+                              }
+                              type="button"
+                              className={cn(
+                                "text-white border-0",
+                                entryQntyRequested > 0 &&
+                                  entryStock.reduce(
+                                    (acc, stock) => acc + stock.quantityTaken,
+                                    0
+                                  ) === entryQntyRequested
+                                  ? "bg-green-500"
+                                  : "bg-red-500"
+                              )}
+                              title="Manage Lot Numbers / Inventory stock"
+                            >
+                              {form.watch(
                                 `products.${index}.quantityRequested`
                               ) <= 0
-                            }
-                            type="button"
-                            className="bg-gray-200"
-                            title="Manage Lot Numbers / Inventory stock"
-                          >
-                            {form.watch(
-                              `products.${index}.quantityRequested`
-                            ) <= 0
-                              ? "Add Qnty first"
-                              : "Manage Lots"}
-                          </Button>
-                          <WaybillInventoryStockSelectDialog
-                            open={selectedProductIndex === index}
-                            onOpenChange={(open) =>
-                              setSelectedProductIndex(open ? index : null)
-                            }
-                            productID={entry.productID}
-                            requiredQuantity={form.watch(
-                              `products.${index}.quantityRequested`
-                            )}
-                            availableStocks={getEntryInventoryStocks(
-                              entry.productId
-                            )}
-                            selectedInventoryStock={entry.inventoryStock}
-                            onSave={(stock) => {
-                              const quantityRequested = form.watch(
+                                ? "Add Qnty first"
+                                : "Manage Lots"}
+                            </Button>
+                            <WaybillInventoryStockSelectDialog
+                              open={selectedProductIndex === index}
+                              onOpenChange={(open) =>
+                                setSelectedProductIndex(open ? index : null)
+                              }
+                              productID={entry.productID}
+                              requiredQuantity={form.watch(
                                 `products.${index}.quantityRequested`
-                              );
-                              const quantitySupplied = stock.reduce(
-                                (qnty, s) => qnty + s.quantityTaken,
-                                0
-                              );
-                              if (quantityRequested !== quantitySupplied) {
-                                form.setError(
-                                  `products.${index}.quantitySupplied`,
-                                  {
-                                    message:
-                                      "Total allocated quantity must match supplied quantity",
-                                  }
+                              )}
+                              availableStocks={getEntryInventoryStocks(
+                                entry.productId
+                              )}
+                              selectedInventoryStock={entry.inventoryStock}
+                              onSave={(stock) => {
+                                const quantityRequested = form.watch(
+                                  `products.${index}.quantityRequested`
                                 );
-                              }
-                              form.setValue(
-                                `products.${index}.inventoryStock`,
-                                stock
-                              );
-                              form.setValue(
-                                `products.${index}.quantitySupplied`,
-                                quantitySupplied
-                              );
-                              form.setValue(
-                                `products.${index}.fulfilledQuantity`,
-                                quantitySupplied
-                              );
-                              form.trigger(`products.${index}.inventoryStock`);
-                            }}
-                          />
-                          {form.formState.errors.products?.[index]
-                            ?.inventoryStock && (
-                            <p className="text-red-500 text-xs pt-2">
-                              {
-                                form.formState.errors.products?.[index]
-                                  ?.inventoryStock.message
-                              }
-                            </p>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <CustomFormField
-                            fieldType={FormFieldType.NUMBER}
-                            control={form.control}
-                            name={`products.${index}.quantityRequested`}
-                            label=""
-                            placeholder="Qnty"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-row items-center">
-                            <span
-                              onClick={() => handleDeleteEntry(index)}
-                              className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
-                            >
-                              <DeleteIcon className="h-5 w-5" />
-                            </span>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                                const quantitySupplied = stock.reduce(
+                                  (qnty, s) => qnty + s.quantityTaken,
+                                  0
+                                );
+                                if (quantityRequested !== quantitySupplied) {
+                                  form.setError(
+                                    `products.${index}.quantitySupplied`,
+                                    {
+                                      message:
+                                        "Total allocated quantity must match supplied quantity",
+                                    }
+                                  );
+                                }
+                                form.setValue(
+                                  `products.${index}.inventoryStock`,
+                                  stock
+                                );
+                                form.setValue(
+                                  `products.${index}.quantitySupplied`,
+                                  quantitySupplied
+                                );
+                                form.setValue(
+                                  `products.${index}.fulfilledQuantity`,
+                                  quantitySupplied
+                                );
+                                form.trigger(
+                                  `products.${index}.inventoryStock`
+                                );
+                              }}
+                            />
+                            {form.formState.errors.products?.[index]
+                              ?.inventoryStock && (
+                              <p className="text-red-500 text-xs pt-2">
+                                {
+                                  form.formState.errors.products?.[index]
+                                    ?.inventoryStock.message
+                                }
+                              </p>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <CustomFormField
+                              fieldType={FormFieldType.NUMBER}
+                              control={form.control}
+                              name={`products.${index}.quantityRequested`}
+                              label=""
+                              placeholder="Qnty"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-row items-center">
+                              <span
+                                onClick={() => handleDeleteEntry(index)}
+                                className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
+                              >
+                                <DeleteIcon className="h-5 w-5" />
+                              </span>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </>
@@ -1872,126 +1892,150 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
                         </TableCell>
                       </TableRow>
                     )}
-                    {fields.map((entry, index) => (
-                      <TableRow
-                        key={`${entry.productId}-${index}`}
-                        className={`w-full ${
-                          index % 2 === 1 ? "bg-blue-50" : ""
-                        }`}
-                      >
-                        <TableCell>{index + 1}</TableCell>
-                        <TableCell>{entry.productID}</TableCell>
-                        <TableCell>{entry.productName}</TableCell>
+                    {fields.map((entry, index) => {
+                      const entryStock = form.watch(
+                        `products.${index}.inventoryStock`
+                      );
 
-                        <TableCell>
-                          <div className="flex items-center text-14-medium text-blue-800 rounded-md border bg-white px-3 border-dark-700 h-11">
-                            {formatNumber(String(entry.quantityRequested))}
-                          </div>
-                        </TableCell>
+                      const entryQntySupplied = form.watch(
+                        `products.${index}.quantitySupplied`
+                      );
+                      return (
+                        <TableRow
+                          key={`${entry.productId}-${index}`}
+                          className={`w-full ${
+                            index % 2 === 1 ? "bg-blue-50" : ""
+                          }`}
+                        >
+                          <TableCell>{index + 1}</TableCell>
+                          <TableCell>{entry.productID}</TableCell>
+                          <TableCell>{entry.productName}</TableCell>
 
-                        <TableCell>
-                          <div className="flex items-center text-14-medium text-green-600 rounded-md border bg-white px-3 border-dark-700 h-11">
-                            {formatNumber(String(entry.fulfilledQuantity || 0))}
-                          </div>
-                        </TableCell>
+                          <TableCell>
+                            <div className="flex items-center text-14-medium text-blue-800 rounded-md border bg-white px-3 border-dark-700 h-11">
+                              {formatNumber(String(entry.quantityRequested))}
+                            </div>
+                          </TableCell>
 
-                        <TableCell>
-                          <CustomFormField
-                            fieldType={FormFieldType.NUMBER}
-                            control={form.control}
-                            name={`products.${index}.quantitySupplied`}
-                            label=""
-                            placeholder="Qty supplied"
-                            onValueChange={(
-                              e: React.ChangeEvent<HTMLInputElement>
-                            ) =>
-                              handleQuantitySuppliedChange(
-                                index,
-                                e.target.value
-                              )
-                            }
-                            key={`qty-supplied-${form.watch(
-                              `products.${index}.quantitySupplied` || ""
-                            )}`}
-                          />
-                        </TableCell>
+                          <TableCell>
+                            <div className="flex items-center text-14-medium text-green-600 rounded-md border bg-white px-3 border-dark-700 h-11">
+                              {formatNumber(
+                                String(entry.fulfilledQuantity || 0)
+                              )}
+                            </div>
+                          </TableCell>
 
-                        <TableCell>
-                          <div
-                            className={`flex items-center text-14-medium rounded-md border px-3 h-11 ${
-                              calculateEntryBalanceLeft(index) > 0
-                                ? "text-orange-600 bg-orange-50 border-orange-400"
-                                : "text-green-500 bg-green-50 border-green-400"
-                            }`}
-                          >
-                            {formatNumber(
-                              String(calculateEntryBalanceLeft(index))
-                            )}
-                          </div>
-                        </TableCell>
-
-                        <TableCell>
-                          <WaybillStockDialog
-                            stock={entry.inventoryStock}
-                            productID={entry.productID}
-                            qntyRequired={form.watch(
-                              `products.${index}.quantitySupplied`
-                            )}
-                            availableInventory={inventoryStock?.filter(
-                              (inv: InventoryStockWithRelations) =>
-                                inv.product.id === entry.productId &&
-                                inv.store.id === form.watch("storeId") &&
-                                inv.inventory.quantity > 0
-                            )}
-                            onSave={(stock) => {
-                              form.setValue(
-                                `products.${index}.inventoryStock`,
-                                stock
-                              );
-                              form.trigger(`products.${index}.inventoryStock`);
-
-                              // Recalculate supplied quantity based on stock allocation
-                              const totalAllocated = stock.reduce(
-                                (total, s) => total + s.quantityTaken,
-                                0
-                              );
-                              form.setValue(
-                                `products.${index}.quantitySupplied`,
-                                totalAllocated
-                              );
-
-                              // Recalculate balance
-                              const newBalance =
-                                calculateEntryBalanceLeft(index);
-                              form.setValue(
-                                `products.${index}.balanceLeft`,
-                                newBalance
-                              );
-                            }}
-                          />
-                          {form.formState.errors.products?.[index]
-                            ?.inventoryStock && (
-                            <p className="text-red-500 text-xs pt-2">
-                              {
-                                form.formState.errors.products?.[index]
-                                  ?.inventoryStock.message
+                          <TableCell>
+                            <CustomFormField
+                              fieldType={FormFieldType.NUMBER}
+                              control={form.control}
+                              name={`products.${index}.quantitySupplied`}
+                              label=""
+                              placeholder="Qty supplied"
+                              onValueChange={(
+                                e: React.ChangeEvent<HTMLInputElement>
+                              ) =>
+                                handleQuantitySuppliedChange(
+                                  index,
+                                  e.target.value
+                                )
                               }
-                            </p>
-                          )}
-                        </TableCell>
+                              key={`qty-supplied-${form.watch(
+                                `products.${index}.quantitySupplied` || ""
+                              )}`}
+                            />
+                          </TableCell>
 
-                        <TableCell>
-                          <div className="flex flex-row items-center">
-                            <span
-                              onClick={() => handleDeleteEntry(index)}
-                              className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
+                          <TableCell>
+                            <div
+                              className={`flex items-center text-14-medium rounded-md border px-3 h-11 ${
+                                calculateEntryBalanceLeft(index) > 0
+                                  ? "text-orange-600 bg-orange-50 border-orange-400"
+                                  : "text-green-500 bg-green-50 border-green-400"
+                              }`}
                             >
-                              <DeleteIcon className="h-5 w-5" />
-                            </span>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                              {formatNumber(
+                                String(calculateEntryBalanceLeft(index))
+                              )}
+                            </div>
+                          </TableCell>
+
+                          <TableCell>
+                            <WaybillStockDialog
+                              stock={entry.inventoryStock}
+                              productID={entry.productID}
+                              qntyRequired={form.watch(
+                                `products.${index}.quantitySupplied`
+                              )}
+                              className={`
+                                text-white border-0 ${
+                                  entryQntySupplied > 0 &&
+                                  entryStock.reduce(
+                                    (acc, stock) => acc + stock.quantityTaken,
+                                    0
+                                  ) === entryQntySupplied
+                                    ? "bg-green-500"
+                                    : "bg-red-500"
+                                }
+                                `}
+                              availableInventory={inventoryStock?.filter(
+                                (inv: InventoryStockWithRelations) =>
+                                  inv.product.id === entry.productId &&
+                                  inv.store.id === form.watch("storeId") &&
+                                  inv.inventory.quantity > 0
+                              )}
+                              onSave={(stock) => {
+                                form.setValue(
+                                  `products.${index}.inventoryStock`,
+                                  stock
+                                );
+                                form.trigger(
+                                  `products.${index}.inventoryStock`
+                                );
+
+                                // Recalculate supplied quantity based on stock allocation
+                                const totalAllocated = stock.reduce(
+                                  (total, s) => total + s.quantityTaken,
+                                  0
+                                );
+                                form.setValue(
+                                  `products.${index}.quantitySupplied`,
+                                  totalAllocated
+                                );
+
+                                // Recalculate balance
+                                const newBalance =
+                                  calculateEntryBalanceLeft(index);
+                                form.setValue(
+                                  `products.${index}.balanceLeft`,
+                                  newBalance
+                                );
+                              }}
+                            />
+                            {form.formState.errors.products?.[index]
+                              ?.inventoryStock && (
+                              <p className="text-red-500 text-xs pt-2">
+                                {
+                                  form.formState.errors.products?.[index]
+                                    ?.inventoryStock.message
+                                }
+                              </p>
+                            )}
+                          </TableCell>
+
+                          <TableCell>
+                            <div className="flex flex-row items-center">
+                              <span
+                                onClick={() => handleDeleteEntry(index)}
+                                className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
+                              >
+                                <DeleteIcon className="h-5 w-5" />
+                              </span>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </>

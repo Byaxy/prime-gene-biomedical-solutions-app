@@ -58,6 +58,7 @@ interface WaybillStockDialogProps {
   qntyRequired: number;
   onSave: (updatedStock: WaybillInventoryStock[]) => void;
   availableInventory: InventoryStockWithRelations[];
+  className?: string;
 }
 
 const WaybillStockDialog = ({
@@ -66,6 +67,7 @@ const WaybillStockDialog = ({
   qntyRequired,
   onSave,
   availableInventory,
+  className = "",
 }: WaybillStockDialogProps) => {
   const [open, setOpen] = useState(false);
   const { inventoryStock, isLoading } = useInventoryStock({
@@ -310,7 +312,7 @@ const WaybillStockDialog = ({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="bg-gray-200">Confirm Stock</Button>
+        <Button className={className}>Confirm Stock</Button>
       </DialogTrigger>
       <DialogContent className="max-w-7xl bg-light-200">
         <DialogHeader>
