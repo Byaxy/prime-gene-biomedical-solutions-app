@@ -1364,15 +1364,17 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
           onSubmit={form.handleSubmit(handleSubmit)}
           className="space-y-5 text-dark-500"
         >
-          <div className="w-full py-5">
-            <CustomFormField
-              fieldType={FormFieldType.SWITCH}
-              control={form.control}
-              onValueChange={handleSwitchToggle}
-              name="isLoanWaybill"
-              label="Is this a Loan Waybill ?"
-            />
-          </div>
+          {!sourceSale && (
+            <div className="w-full py-5">
+              <CustomFormField
+                fieldType={FormFieldType.SWITCH}
+                control={form.control}
+                onValueChange={handleSwitchToggle}
+                name="isLoanWaybill"
+                label="Is this a Loan Waybill ?"
+              />
+            </div>
+          )}
           <div className="w-full flex flex-col md:flex-row gap-5">
             <div className="flex flex-1 flex-row gap-2 items-center">
               <CustomFormField
