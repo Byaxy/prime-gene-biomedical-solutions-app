@@ -187,6 +187,24 @@ export const salesColumns: ColumnDef<SaleWithRelations>[] = [
     },
   },
   {
+    header: "Delivery Note?",
+    cell: ({ row }) => {
+      const sale = row.original;
+      return (
+        <span
+          className={cn(
+            "text-14-medium",
+            sale?.delivery
+              ? "bg-green-500 text-white px-3 py-1 rounded-xl"
+              : "bg-red-600 text-white px-3 py-1 rounded-xl"
+          )}
+        >
+          {sale?.delivery ? "Yes" : "No"}
+        </span>
+      );
+    },
+  },
+  {
     header: "Delivery Status",
     cell: ({ row }) => {
       const sale = row.original;

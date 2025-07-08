@@ -9,6 +9,7 @@ import { SaleFormValues } from "../validation";
 import {
   backordersTable,
   customersTable,
+  deliveriesTable,
   inventoryTable,
   productsTable,
   quotationsTable,
@@ -606,10 +607,12 @@ export const getSaleById = async (saleId: string) => {
           sale: salesTable,
           customer: customersTable,
           store: storesTable,
+          delivery: deliveriesTable,
         })
         .from(salesTable)
         .leftJoin(customersTable, eq(salesTable.customerId, customersTable.id))
         .leftJoin(storesTable, eq(salesTable.storeId, storesTable.id))
+        .leftJoin(deliveriesTable, eq(salesTable.id, deliveriesTable.saleId))
         .where(and(eq(salesTable.id, saleId), eq(salesTable.isActive, true)))
         .then((res) => res[0]);
 
@@ -746,10 +749,12 @@ export const getSales = async (
           sale: salesTable,
           customer: customersTable,
           store: storesTable,
+          delivery: deliveriesTable,
         })
         .from(salesTable)
         .leftJoin(customersTable, eq(salesTable.customerId, customersTable.id))
         .leftJoin(storesTable, eq(salesTable.storeId, storesTable.id))
+        .leftJoin(deliveriesTable, eq(salesTable.id, deliveriesTable.saleId))
         .$dynamic();
 
       // Create conditions array

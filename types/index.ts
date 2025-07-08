@@ -365,6 +365,7 @@ export interface SaleWithRelations {
   products: SaleItem[];
   customer: Customer;
   store: Store;
+  delivery: Delivery;
 }
 
 export interface Delivery {
