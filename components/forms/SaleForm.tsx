@@ -64,6 +64,8 @@ import StoreDialog from "../stores/StoreDialog";
 import { useProducts } from "@/hooks/useProducts";
 import InventoryStockSelectDialog from "../sales/InventoryStockSelectDialog";
 import { cn } from "@/lib/utils";
+import { useQuotations } from "@/hooks/useQuotations";
+import CustomerQuotationsDialog from "../sales/CustomerQuotationsDialog";
 
 interface SaleFormProps {
   mode: "create" | "edit";
@@ -76,12 +78,16 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
   const [taxDialogOpen, setTaxDialogOpen] = useState(false);
   const [storeDialogOpen, setStoreDialogOpen] = useState(false);
   const [productDialogOpen, setProductDialogOpen] = useState(false);
+  const [quotationDialogOpen, setQuotationDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [prevSelectedProductId, setPrevSelectedProductId] = useState<
     string | null
   >(null);
   const [selectedProductIndex, setSelectedProductIndex] = useState<
     number | null
+  >(null);
+  const [customerQuotations, setCustomerQuotations] = useState<
+    QuotationWithRelations[] | null
   >(null);
 
   const [states, setStates] = useState<IState[]>(() =>
@@ -101,6 +107,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
   const { products, isLoading: productsLoading } = useProducts({
     getAllProducts: true,
   });
+  const { quotations } = useQuotations({ getAllQuotations: true });
   const { inventoryStock } = useInventoryStock({
     getAllInventoryStocks: true,
   });
@@ -226,6 +233,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
     name: "products",
   });
 
+  const selectedCustomerId = form.watch("customerId");
   const selectedStoreId = form.watch("storeId");
   const selectedProductId = form.watch("selectedProductId");
   const isDeliveryAddressAdded = form.watch("isDeliveryAddressAdded");
@@ -555,6 +563,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
     setTaxDialogOpen(false);
     setProductDialogOpen(false);
     setStoreDialogOpen(false);
+    setQuotationDialogOpen(false);
 
     setTimeout(() => {
       const stuckSection = document.querySelector(".MuiBox-root.css-0");
@@ -859,6 +868,37 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
     taxes,
   ]);
 
+  useEffect(() => {
+    if (selectedCustomerId && selectedCustomerId !== "") {
+      const customerQuotations =
+        quotations?.reduce(
+          (
+            acc: QuotationWithRelations[],
+            quotation: QuotationWithRelations
+          ) => {
+            if (!quotation.customer.id || !quotation.quotation.customerId) {
+              return acc;
+            }
+
+            const isNotConverted =
+              quotation.quotation.convertedToSale === false;
+            const isSameCustomer = quotation.customer.id === selectedCustomerId;
+
+            if (isNotConverted && isSameCustomer) {
+              acc.push(quotation);
+            }
+
+            return acc;
+          },
+          []
+        ) || [];
+
+      setCustomerQuotations(customerQuotations);
+    } else {
+      setCustomerQuotations(null);
+    }
+  }, [form, quotations, selectedCustomerId]);
+
   return (
     <>
       <Form {...form}>
@@ -907,9 +947,12 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
               control={form.control}
               name="customerId"
               label="Customer"
-              placeholder="Select customer"
+              placeholder={`${
+                customersLoading ? "Loading..." : "Select customer"
+              }`}
               onAddNew={() => setCustomerDialogOpen(true)}
               key={`customer-select-${form.watch("customerId") || ""}`}
+              disabled={!!sourceQuotation}
             >
               {customersLoading && (
                 <div className="py-4">
@@ -1079,6 +1122,27 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                 Add Inventory
               </Button>
             </div>
+
+            {!sourceQuotation &&
+              customerQuotations &&
+              customerQuotations?.length > 0 && (
+                <div className="flex flex-col items-center justify-center gap-2 bg-red-600/10 p-5 rounded-md border border-red-600 text-center">
+                  <Button
+                    type="button"
+                    className="shad-danger-btn w-fit"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setQuotationDialogOpen(true);
+                    }}
+                  >
+                    View Pending Quotations
+                  </Button>
+                  <p className="text-red-600 text-sm">
+                    ⚠️ Pending quotations found for this cutomer
+                  </p>
+                </div>
+              )}
 
             <Table className="shad-table">
               <TableHeader>
@@ -1600,6 +1664,23 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
         open={storeDialogOpen}
         onOpenChange={closeDialog}
         isLoading={isAddingStore}
+      />
+
+      <CustomerQuotationsDialog
+        open={
+          !!(
+            quotationDialogOpen &&
+            customerQuotations &&
+            customerQuotations.length > 0
+          )
+        }
+        quotations={customerQuotations || []}
+        customer={
+          customers?.find(
+            (customer: Customer) => customer.id === selectedCustomerId
+          ) as Customer
+        }
+        onOpenChange={closeDialog}
       />
     </>
   );

@@ -187,6 +187,41 @@ export const salesColumns: ColumnDef<SaleWithRelations>[] = [
     },
   },
   {
+    header: "Delivery Status",
+    cell: ({ row }) => {
+      const sale = row.original;
+
+      const productsDelivered = sale.products.reduce(
+        (total, product) => total + product.fulfilledQuantity,
+        0
+      );
+      const totalPdctQnty = sale.products.reduce(
+        (total, product) => total + product.quantity,
+        0
+      );
+
+      return (
+        <p>
+          {productsDelivered === 0 && (
+            <span className="bg-red-600 text-white px-3 py-1 rounded-xl">
+              Pending
+            </span>
+          )}
+          {productsDelivered > 0 && productsDelivered < totalPdctQnty && (
+            <span className="text-white bg-[#f59e0b] px-3 py-1 rounded-xl">
+              Partially Delivered
+            </span>
+          )}
+          {productsDelivered === totalPdctQnty && (
+            <span className="text-white bg-green-500 px-3 py-1 rounded-xl">
+              Fully Delivered
+            </span>
+          )}
+        </p>
+      );
+    },
+  },
+  {
     id: "actions",
     header: "Actions",
     cell: ({ row }) => {
