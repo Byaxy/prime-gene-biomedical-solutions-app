@@ -228,6 +228,16 @@ export interface GroupedInventoryStock {
   latestReceivedDate: Date;
 }
 
+export interface GroupedWaybills {
+  id: string;
+  customer: Customer;
+  sale: Sale;
+  totalWaybills: number;
+  waybills: WaybillWithRelations[];
+  latestWaybillDate: Date;
+  latestWaybillRefNumber: string;
+}
+
 export interface InventoryTransactionWithRelations {
   transaction: typeof inventoryTransactionsTable.$inferSelect;
   inventory: InventoryStock;

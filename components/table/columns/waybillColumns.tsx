@@ -2,6 +2,7 @@ import WaybillActions from "@/components/waybills/WaybillActions";
 import { Button } from "@/components/ui/button";
 import { cn, formatDateTime } from "@/lib/utils";
 import {
+  GroupedWaybills,
   WaybillConversionStatus,
   WaybillType,
   WaybillWithRelations,
@@ -237,6 +238,112 @@ export const waybillColumns: ColumnDef<WaybillWithRelations>[] = [
     },
     meta: {
       skipRowClick: true,
+    },
+  },
+];
+
+export const groupedWaybillColumns: ColumnDef<GroupedWaybills>[] = [
+  {
+    id: "index",
+    header: "#",
+    cell: ({ row, table }) => {
+      const pagination = table.getState().pagination;
+
+      const globalIndex =
+        pagination.pageIndex * pagination.pageSize + row.index + 1;
+      return <span className="text-sm text-dark-600">{globalIndex}</span>;
+    },
+    enableSorting: false,
+  },
+  {
+    accessorKey: "latestWaybillDate",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="font-semibold px-0"
+        >
+          Latest Waybill Date
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      );
+    },
+    cell: ({ row }) => {
+      const waybill = row.original;
+      return (
+        <p className="text-14-medium ">
+          {formatDateTime(waybill.latestWaybillDate).dateTime}
+        </p>
+      );
+    },
+  },
+  {
+    id: "latestWaybillRefNumber",
+    accessorKey: "latestWaybillRefNumber",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="font-semibold px-0"
+        >
+          Latest Waybill Ref No.
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      );
+    },
+    cell: ({ row }) => {
+      const waybill = row.original;
+      return (
+        <p className="text-14-medium">
+          {waybill.latestWaybillRefNumber || "-"}
+        </p>
+      );
+    },
+  },
+  {
+    id: "sale.invoiceNumber",
+    accessorKey: "sale.invoiceNumber",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="font-semibold px-0"
+        >
+          Sale Ref No.
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      );
+    },
+    cell: ({ row }) => {
+      const waybill = row.original;
+      return (
+        <p className="text-14-medium ">
+          {waybill?.sale ? waybill.sale.invoiceNumber : "-"}
+        </p>
+      );
+    },
+  },
+  {
+    header: "Total Waybills",
+    cell: ({ row }) => {
+      const waybill = row.original;
+      return <p className="text-14-medium ">{waybill.totalWaybills || 0}</p>;
+    },
+  },
+  {
+    id: "customer.name",
+    accessorKey: "customer.name",
+    header: "Customer",
+    cell: ({ row }) => {
+      const waybill = row.original;
+      return (
+        <p className="text-14-medium ">
+          {waybill.customer ? waybill.customer.name : "-"}
+        </p>
+      );
     },
   },
 ];

@@ -16,18 +16,27 @@ import {
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
+  onRowClick?: (rowData: TData) => void;
 }
 import { HeaderGroup, Header } from "@tanstack/react-table";
+import { cn } from "@/lib/utils";
 
 export function ItemsTable<TData, TValue>({
   columns,
   data,
+  onRowClick,
 }: DataTableProps<TData, TValue>) {
   const table = useReactTable({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
   });
+
+  const handleRowClick = (rowData: TData) => {
+    if (onRowClick) {
+      onRowClick(rowData);
+    }
+  };
 
   return (
     <div className="data-table">
@@ -62,13 +71,30 @@ export function ItemsTable<TData, TValue>({
               <TableRow
                 key={row.id}
                 data-state={row.getIsSelected() && "selected"}
-                className="shad-table-row"
+                className={cn("shad-table-row", onRowClick && "cursor-pointer")}
               >
-                {row.getVisibleCells().map((cell: any) => (
-                  <TableCell key={cell.id}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
+                {row.getVisibleCells().map((cell: any) => {
+                  const skipRowClick = cell.column.columnDef.meta?.skipRowClick;
+
+                  return (
+                    <TableCell
+                      key={cell.id}
+                      onClick={(e) => {
+                        if (skipRowClick) {
+                          e.stopPropagation();
+                        } else if (onRowClick) {
+                          handleRowClick(row.original);
+                        }
+                      }}
+                      className={skipRowClick ? "relative" : ""}
+                    >
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
+                      )}
+                    </TableCell>
+                  );
+                })}
               </TableRow>
             ))
           ) : (

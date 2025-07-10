@@ -16,14 +16,16 @@ import {
   TableRow,
 } from "../ui/table";
 import { Button } from "../ui/button";
-import { WaybillItem } from "@/types";
+import { WaybillItem, WaybillType } from "@/types";
 import { formatNumber } from "@/lib/utils";
 import { Eye } from "lucide-react";
 
 const LoanWaybillProductsDialog = ({
   products,
+  waybillType,
 }: {
   products: WaybillItem[];
+  waybillType: WaybillType;
 }) => {
   const [open, setOpen] = useState(false);
   const handleOpenChange = (newOpen: boolean) => {
@@ -47,7 +49,7 @@ const LoanWaybillProductsDialog = ({
           <Eye /> View products
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-7xl bg-light-200">
+      <DialogContent className="max-w-[100rem] bg-light-200">
         <DialogHeader>
           <DialogTitle>Laon Waybill Products</DialogTitle>
           <DialogDescription className="text-dark-600"></DialogDescription>
@@ -61,6 +63,9 @@ const LoanWaybillProductsDialog = ({
                 <TableHead>Product Description</TableHead>
                 <TableHead>Qnty Supplied</TableHead>
                 <TableHead>Qnty Converted</TableHead>
+                {waybillType === WaybillType.Loan && (
+                  <TableHead>Qnty Left to Convert</TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody className="w-full bg-white text-blue-800">
@@ -86,6 +91,15 @@ const LoanWaybillProductsDialog = ({
                   <TableCell className="text-center">
                     {formatNumber(String(product.quantityConverted))}
                   </TableCell>
+                  {waybillType === WaybillType.Loan && (
+                    <TableCell className="text-center">
+                      {formatNumber(
+                        String(
+                          product.quantitySupplied - product.quantityConverted
+                        )
+                      )}
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>

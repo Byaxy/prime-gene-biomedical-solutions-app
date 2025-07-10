@@ -92,6 +92,7 @@ const LoanWaybillsDialog = ({
                           (product) =>
                             product.quantityConverted < product.quantitySupplied
                         )}
+                        waybillType={waybill.waybill.waybillType}
                       />
                       <Button
                         size={"sm"}

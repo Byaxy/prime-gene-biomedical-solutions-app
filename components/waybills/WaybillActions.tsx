@@ -4,17 +4,21 @@ import WaybillPDF from "./WaybillPDF";
 import { WaybillWithRelations } from "@/types";
 import toast from "react-hot-toast";
 import WaybillDialog from "./WaybillDialog";
-import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { EllipsisVertical } from "lucide-react";
 import { Eye } from "lucide-react";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { Mail } from "lucide-react";
 import { Download } from "lucide-react";
-import { FileText } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
+import LoanWaybillProductsDialog from "./LoanWaybillProductsDialog";
 
 const WaybillActions = ({ waybill }: { waybill: WaybillWithRelations }) => {
-  const [open, setOpen] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
   const [mode, setMode] = useState<"add" | "edit" | "delete" | "view">("add");
 
@@ -74,82 +78,75 @@ const WaybillActions = ({ waybill }: { waybill: WaybillWithRelations }) => {
       toast.success(
         "Email client opened. Please attach the downloaded PDF manually."
       );
-      setOpen(false);
     } catch (error) {
       console.error("Error preparing email:", error);
       toast.error("Failed to prepare email");
     }
   };
+
   return (
     <div className="flex items-center">
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
           <EllipsisVertical className="w-10 h-10 hover:bg-white cursor-pointer p-2 rounded-full" />
-        </PopoverTrigger>
-        <PopoverContent className="w-72 flex flex-col mt-2 mr-12 gap-2 bg-white z-50">
-          <p
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="w-72 bg-white py-4 px-2" align="end">
+          <DropdownMenuItem
             onClick={() => {
               setMode("view");
               setOpenDialog(true);
-              setOpen(false);
             }}
             className="text-green-500 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
             <Eye className="h-5 w-5" />
             <span>Waybill Details</span>
-          </p>
-          <p
-            onClick={() => {
-              router.push(
-                `/promissory-notes/create-promissory-note/from-waybill/${waybill.waybill.id}`
-              );
-              setOpen(false);
-            }}
-            className="text-dark-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
-          >
-            <FileText className="h-5 w-5" /> <span>Promissory Note</span>
-          </p>
-          <p
+          </DropdownMenuItem>
+
+          <DropdownMenuItem
             onClick={() => {
               setMode("edit");
               router.push(`/waybills/edit-waybill/${waybill.waybill.id}`);
-              setOpen(false);
             }}
             className="text-[#475BE8] p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
-            <EditIcon className="h-5 w-5" /> <span>Edit Waybill</span>
-          </p>
-          <p
-            onClick={() => {
-              handleDownloadPDF();
-              setOpen(false);
-            }}
-            className="text-dark-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
-          >
-            <Download className="h-5 w-5" /> <span>Download as PDF</span>
-          </p>
-          <p
-            onClick={() => {
-              handleEmail();
-              setOpen(false);
-            }}
-            className="text-dark-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
-          >
-            <Mail className="h-5 w-5" /> <span>Email Waybill</span>
-          </p>
+            <EditIcon className="h-5 w-5" />
+            <span>Edit Waybill</span>
+          </DropdownMenuItem>
 
-          <p
+          <DropdownMenuItem
+            onClick={handleDownloadPDF}
+            className="text-dark-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
+          >
+            <Download className="h-5 w-5" />
+            <span>Download as PDF</span>
+          </DropdownMenuItem>
+
+          <DropdownMenuItem
+            onClick={handleEmail}
+            className="text-dark-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
+          >
+            <Mail className="h-5 w-5" />
+            <span>Email Waybill</span>
+          </DropdownMenuItem>
+
+          <DropdownMenuItem
             onClick={() => {
               setMode("delete");
               setOpenDialog(true);
-              setOpen(false);
             }}
             className="text-red-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
-            <DeleteIcon className="h-5 w-5" /> <span>Delete Waybill</span>
-          </p>
-        </PopoverContent>
-      </Popover>
+            <DeleteIcon className="h-5 w-5" />
+            <span>Delete Waybill</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem>
+            <LoanWaybillProductsDialog
+              products={waybill.products}
+              waybillType={waybill.waybill.waybillType}
+            />
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <WaybillDialog
         mode={mode}

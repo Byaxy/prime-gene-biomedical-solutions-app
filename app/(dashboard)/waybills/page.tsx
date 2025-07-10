@@ -1,18 +1,16 @@
 "use client";
 
 import PageWraper from "@/components/PageWraper";
-import { waybillColumns } from "@/components/table/columns/waybillColumns";
+import { groupedWaybillColumns } from "@/components/table/columns/waybillColumns";
 import { DataTable } from "@/components/table/DataTable";
-import WaybillDialog from "@/components/waybills/WaybillDialog";
+import WaybillListDialog from "@/components/waybills/WaybillListDialog";
 import { useWaybills } from "@/hooks/useWaybills";
-import { DeliveryStatus, WaybillWithRelations } from "@/types";
-import { useState } from "react";
+import { DeliveryStatus, GroupedWaybills, WaybillWithRelations } from "@/types";
+import { useMemo, useState } from "react";
 
 const Waybills = () => {
   const [openDialog, setOpenDialog] = useState(false);
-  const [selectedWaybill, setSelectedWaybill] = useState(
-    {} as WaybillWithRelations
-  );
+  const [selectedWaybill, setSelectedWaybill] = useState({} as GroupedWaybills);
   const {
     waybills,
     isLoading,
@@ -26,7 +24,7 @@ const Waybills = () => {
     defaultFilterValues,
   } = useWaybills({ initialPageSize: 10 });
 
-  const handleRowClick = (rowData: WaybillWithRelations) => {
+  const handleRowClick = (rowData: GroupedWaybills) => {
     setSelectedWaybill(rowData);
     setOpenDialog(true);
   };
@@ -46,6 +44,48 @@ const Waybills = () => {
     },
   };
 
+  const groupedWaybills = useMemo<GroupedWaybills[]>(() => {
+    if (!waybills || waybills.length === 0) {
+      return [];
+    }
+
+    const grouped = waybills.reduce(
+      (acc: Record<string, GroupedWaybills>, waybill: WaybillWithRelations) => {
+        const saleKey = waybill.waybill.saleId || `loan-${waybill.waybill.id}`;
+
+        if (!acc[saleKey]) {
+          acc[saleKey] = {
+            id: saleKey,
+            customer: waybill.customer || null,
+            sale: waybill.sale || null,
+            totalWaybills: 0,
+            waybills: [],
+            latestWaybillDate: waybill.waybill.waybillDate,
+            latestWaybillRefNumber: waybill.waybill.waybillRefNumber,
+          };
+        }
+
+        const group = acc[saleKey];
+
+        // Add waybill item
+        group.waybills.push(waybill);
+
+        // Update totals
+        group.totalWaybills += 1;
+
+        if (waybill.waybill.waybillDate > group.latestWaybillDate) {
+          group.latestWaybillDate = waybill.waybill.waybillDate;
+          group.latestWaybillRefNumber = waybill.waybill.waybillRefNumber;
+        }
+
+        return acc;
+      },
+      {}
+    );
+
+    return Object.values(grouped);
+  }, [waybills]);
+
   return (
     <PageWraper
       title="Way Bills"
@@ -54,8 +94,8 @@ const Waybills = () => {
     >
       <>
         <DataTable
-          columns={waybillColumns}
-          data={waybills || []}
+          columns={groupedWaybillColumns}
+          data={groupedWaybills || []}
           isLoading={isLoading}
           totalItems={totalItems}
           page={page}
@@ -63,7 +103,7 @@ const Waybills = () => {
           pageSize={pageSize}
           onPageSizeChange={setPageSize}
           searchBy={[
-            "waybill.waybillsRefNumber",
+            "latestWaybillRefNumber",
             "customer.name",
             "sale.invoiceNumber",
           ]}
@@ -73,11 +113,10 @@ const Waybills = () => {
           onFilterChange={onFilterChange}
           defaultFilterValues={defaultFilterValues}
         />
-        <WaybillDialog
-          mode={"view"}
-          open={openDialog && !!selectedWaybill}
+        <WaybillListDialog
+          open={openDialog}
           onOpenChange={setOpenDialog}
-          waybill={selectedWaybill}
+          waybills={selectedWaybill.waybills || []}
         />
       </>
     </PageWraper>
