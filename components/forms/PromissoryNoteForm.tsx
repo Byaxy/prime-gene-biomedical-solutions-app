@@ -142,12 +142,12 @@ const PromissoryNoteForm = ({ mode, initialData }: PromissoryNoteFormProps) => {
           sale.promissoryNote.id
       );
 
-      if (saleHasPromissoryNote) {
-        toast.error("This sale already has a promissory note");
-        return;
-      }
-
       if (mode === "create") {
+        if (saleHasPromissoryNote) {
+          toast.error("This sale already has a promissory note");
+          return;
+        }
+
         await addPromissoryNote(
           { data: values },
           {
