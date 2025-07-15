@@ -14,10 +14,18 @@ import {
 import { DeliveryStatus } from "@/types";
 import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { DeliveryFilters } from "@/hooks/useDeliveries";
+import { getSaleById } from "./sale.actions";
 
 // Add a new delivery
 export const addDelivery = async (delivery: DeliveryFormValues) => {
   try {
+    // verify sale has no delivery
+    const sale = await getSaleById(delivery.saleId);
+
+    if (sale && sale.delivery) {
+      throw new Error("Sale already has a delivery");
+    }
+
     const result = await db.transaction(async (tx) => {
       // Create main delivery record
       const [newDelivery] = await tx

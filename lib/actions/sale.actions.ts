@@ -56,6 +56,17 @@ export const addSale = async (sale: SaleFormValues) => {
           .join(", ")}`
       );
     }
+
+    // validate sale invoice number not taken
+    const existingInvoiceNumber = await db
+      .select({ invoiceNumber: salesTable.invoiceNumber })
+      .from(salesTable)
+      .where(eq(salesTable.invoiceNumber, sale.invoiceNumber));
+
+    if (existingInvoiceNumber.length > 0) {
+      throw new Error("Invoice number already exists");
+    }
+
     const result = await db.transaction(async (tx) => {
       try {
         // Create main sale record

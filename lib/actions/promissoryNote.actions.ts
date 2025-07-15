@@ -13,11 +13,19 @@ import {
 import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { PromissoryNoteFilters } from "@/hooks/usePromissoryNote";
 import { PromissoryNoteStatus } from "@/types";
+import { getSaleById } from "./sale.actions";
 
 export const addPromissoryNote = async (
   promissoryNote: PromissoryNoteFormValues
 ) => {
   try {
+    // validate sale has no promissory note
+    const sale = await getSaleById(promissoryNote.saleId);
+
+    if (sale && sale.promissoryNote) {
+      throw new Error("Sale already has a promissory note");
+    }
+
     const result = await db.transaction(async (tx) => {
       // Create main promissory note record
       const [newPromissoryNote] = await tx
