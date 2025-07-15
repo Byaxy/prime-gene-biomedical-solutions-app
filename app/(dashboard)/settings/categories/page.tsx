@@ -25,6 +25,8 @@ const Categories = () => {
     setPageSize,
     addCategory,
     isAddingCategory,
+    refetch,
+    isRefetching,
   } = useCategories({ initialPageSize: 10 });
 
   console.log(categories);
@@ -89,6 +91,8 @@ const Categories = () => {
           onDownloadSelected={handleDownloadSelected}
           rowSelection={rowSelection}
           onRowSelectionChange={setRowSelection}
+          refetch={refetch}
+          isRefetching={isRefetching}
         />
         <CategoryDialog
           mode="add"

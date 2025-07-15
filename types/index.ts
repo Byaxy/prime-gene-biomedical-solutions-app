@@ -376,6 +376,7 @@ export interface SaleWithRelations {
   customer: Customer;
   store: Store;
   delivery: Delivery;
+  promissoryNote: PromissoryNote;
 }
 
 export interface Delivery {
@@ -471,6 +472,43 @@ export interface WaybillWithRelations {
   sale: Sale;
 }
 
+export interface PromissoryNote {
+  id: string;
+  promissoryNoteRefNumber: string;
+  promissoryNoteDate: Date;
+  customerId: string;
+  saleId: string;
+  totalAmount: number;
+  status: PromissoryNoteStatus;
+  notes: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PromissoryNoteItem {
+  id: string;
+  saleItemId: string;
+  productId: string;
+  promissoryNoteId: string;
+  fulfilledQuantity: number;
+  quantity: number;
+  unitPrice: number;
+  subTotal: number;
+  productName: string;
+  productID: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PromissoryNoteWithRelations {
+  promissoryNote: PromissoryNote;
+  products: PromissoryNoteItem[];
+  customer: Customer;
+  sale: Sale;
+}
+
 // payment methods
 export enum PaymentMethod {
   Cash = "cash",
@@ -526,4 +564,11 @@ export enum WaybillConversionStatus {
   Pending = "pending",
   Partial = "partial",
   Full = "full",
+}
+
+export enum PromissoryNoteStatus {
+  Pending = "pending",
+  Fulfiled = "fulfilled",
+  Partial = "partial",
+  Cancelled = "cancelled",
 }

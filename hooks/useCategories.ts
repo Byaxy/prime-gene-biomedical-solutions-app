@@ -145,5 +145,11 @@ export const useCategories = ({
     isEditingCategory: editCategoryStatus === "pending",
     isDeletingCategory: deleteCategoryStatus === "pending",
     isSoftDeletingCategory: softDeleteCategoryStatus === "pending",
+    refetch: getAllCategories
+      ? allCategoriesQuery.refetch
+      : paginatedCategoriesQuery.refetch,
+    isRefetching: getAllCategories
+      ? allCategoriesQuery.isRefetching
+      : paginatedCategoriesQuery.isRefetching,
   };
 };

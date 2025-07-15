@@ -14,6 +14,8 @@ const Expenses = () => {
     setPage,
     pageSize,
     setPageSize,
+    refetch,
+    isRefetching,
   } = useExpenses({
     initialPageSize: 10,
   });
@@ -34,6 +36,8 @@ const Expenses = () => {
         pageSize={pageSize}
         onPageSizeChange={setPageSize}
         searchBy="title"
+        refetch={refetch}
+        isRefetching={isRefetching}
       />
     </PageWraper>
   );

@@ -962,3 +962,33 @@ export const ConvertLoanWaybillFormValidation = z
 export type ConvertLoanWaybillFormValues = z.infer<
   typeof ConvertLoanWaybillFormValidation
 >;
+
+export const PromissoryNoteFormValidation = z.object({
+  customerId: z.string().nonempty("Customer is required"),
+  saleId: z.string().nonempty("Sale is required"),
+  promissoryNoteRefNumber: z
+    .string()
+    .nonempty("Promissory note refference number is required"),
+  promissoryNoteDate: z.date().refine((date) => date <= new Date(), {
+    message: "Promissory note date cannot be in the future",
+  }),
+  totalAmount: z.number().min(0, "Total amount must be 0 or more"),
+  notes: z.string().optional(),
+  products: z
+    .array(
+      z.object({
+        saleItemId: z.string().nonempty("Sale item ID is required"),
+        productId: z.string().nonempty("Product is required"),
+        quantity: z.number().int().min(1, "Quantity must be 1 or more"),
+        unitPrice: z.number().min(0, "Unit price must be 0 or more"),
+        subTotal: z.number().min(0, "Subtotal must be 0 or more"),
+        productName: z.string(),
+        productID: z.string(),
+      })
+    )
+    .min(1, "At least one product is required"),
+});
+
+export type PromissoryNoteFormValues = z.infer<
+  typeof PromissoryNoteFormValidation
+>;

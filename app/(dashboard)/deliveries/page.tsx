@@ -24,6 +24,8 @@ const Deliveries = () => {
     filters,
     onFilterChange,
     defaultFilterValues,
+    refetch,
+    isRefetching,
   } = useDeliveries({ initialPageSize: 10 });
 
   const handleRowClick = (rowData: DeliveryWithRelations) => {
@@ -72,6 +74,8 @@ const Deliveries = () => {
           filterValues={filters}
           onFilterChange={onFilterChange}
           defaultFilterValues={defaultFilterValues}
+          refetch={refetch}
+          isRefetching={isRefetching}
         />
         <DeliveryDialog
           mode={"view"}

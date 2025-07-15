@@ -211,5 +211,11 @@ export const useInventoryStock = ({
     getFilteredTransactions: getFilteredTransactions.mutateAsync,
     isFetchingTransactions: inventoryTransactionsQuery.isLoading,
     isFilteringTransactions: getFilteredTransactions.isPending,
+    refetch: getAllInventoryStocks
+      ? allInventoryStockQuery.refetch
+      : paginatedInventoryStockQuery.refetch,
+    isRefetching: getAllInventoryStocks
+      ? allInventoryStockQuery.isRefetching
+      : paginatedInventoryStockQuery.isRefetching,
   };
 };

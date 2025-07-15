@@ -49,7 +49,9 @@ export const inventoryTransactionsColumns: ColumnDef<InventoryTransactionWithRel
         const inventoryStock = row.original;
         return (
           <p className="text-14-medium ">
-            {inventoryStock.inventory.lotNumber || "N/A"}
+            {inventoryStock?.inventory
+              ? inventoryStock.inventory.lotNumber
+              : "N/A"}
           </p>
         );
       },

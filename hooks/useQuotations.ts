@@ -275,5 +275,11 @@ export const useQuotations = ({
     isDeletingQuotation: deleteQuotationStatus === "pending",
     softDeleteQuotation: softDeleteQuotationMutation,
     isSoftDeletingQuotation: softDeleteQuotationStatus === "pending",
+    refetch: getAllQuotations
+      ? allQuotationsQuery.refetch
+      : paginatedQuotationsQuery.refetch,
+    isRefetching: getAllQuotations
+      ? allQuotationsQuery.isRefetching
+      : paginatedQuotationsQuery.isRefetching,
   };
 };

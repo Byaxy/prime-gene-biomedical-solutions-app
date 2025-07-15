@@ -25,6 +25,8 @@ const Taxes = () => {
     setPageSize,
     addTax,
     isAddingTax,
+    refetch,
+    isRefetching,
   } = useTaxes({ initialPageSize: 10 });
 
   const handleAddTax = async (data: TaxFormValues): Promise<void> => {
@@ -86,6 +88,8 @@ const Taxes = () => {
           rowSelection={rowSelection}
           onRowSelectionChange={setRowSelection}
           onDownloadSelected={handleDownloadSelected}
+          refetch={refetch}
+          isRefetching={isRefetching}
         />
         <TaxDialog
           mode="add"

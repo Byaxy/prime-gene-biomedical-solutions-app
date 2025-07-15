@@ -25,6 +25,8 @@ const Stores = () => {
     setPageSize,
     addStore,
     isAddingStore,
+    refetch,
+    isRefetching,
   } = useStores({ initialPageSize: 10 });
 
   const handleAddStore = async (data: StoreFormValues): Promise<void> => {
@@ -84,6 +86,8 @@ const Stores = () => {
           rowSelection={rowSelection}
           onRowSelectionChange={setRowSelection}
           onDownloadSelected={handleDownloadSelected}
+          refetch={refetch}
+          isRefetching={isRefetching}
         />
         <StoreDialog
           mode="add"

@@ -259,5 +259,9 @@ export const useUsers = ({
     isDeletingUser: deleteUserStatus === "pending",
     updatePassword: updatePasswordMutation,
     isUpdatingPassword: updatePasswordStatus === "pending",
+    refetch: getAllUsers ? allUsersQuery.refetch : paginatedUsersQuery.refetch,
+    isRefetching: getAllUsers
+      ? allUsersQuery.isRefetching
+      : paginatedUsersQuery.isRefetching,
   };
 };

@@ -757,6 +757,7 @@ export const editWaybill = async (
     });
 
     revalidatePath("/waybills");
+    revalidatePath(`/waybills/edit-waybill/${waybillId}`);
     return parseStringify(result);
   } catch (error) {
     console.error("Error editing waybill:", error);

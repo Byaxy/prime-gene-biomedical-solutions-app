@@ -152,5 +152,11 @@ export const usePurchases = ({
     isSoftDeletingPurchase: softDeletePurchaseStatus === "pending",
     deletePurchase: deletePurchaseMutation,
     isDeletingPurchase: deletePurchaseStatus === "pending",
+    refetch: getAllPurchases
+      ? allPurchasesQuery.refetch
+      : paginatedPurchasesQuery.refetch,
+    isRefetching: getAllPurchases
+      ? allPurchasesQuery.isRefetching
+      : paginatedPurchasesQuery.isRefetching,
   };
 };

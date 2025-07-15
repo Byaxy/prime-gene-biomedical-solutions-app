@@ -265,5 +265,9 @@ export const useSales = ({
     isDeletingSale: deleteSaleStatus === "pending",
     softDeleteSale: softDeleteSaleMutation,
     isSoftDeletingSale: softDeleteSaleStatus === "pending",
+    refetch: getAllSales ? allSalesQuery.refetch : paginatedSalesQuery.refetch,
+    isRefetching: getAllSales
+      ? allSalesQuery.isRefetching
+      : paginatedSalesQuery.isRefetching,
   };
 };

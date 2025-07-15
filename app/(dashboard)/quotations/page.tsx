@@ -24,6 +24,8 @@ const Quotations = () => {
     filters,
     onFilterChange,
     defaultFilterValues,
+    refetch,
+    isRefetching,
   } = useQuotations({ initialPageSize: 10 });
 
   const handleRowClick = (rowData: QuotationWithRelations) => {
@@ -80,6 +82,8 @@ const Quotations = () => {
             "customer.name",
             "quotation.rfqNumber",
           ]}
+          refetch={refetch}
+          isRefetching={isRefetching}
         />
         <QuotationDialog
           mode={"view"}

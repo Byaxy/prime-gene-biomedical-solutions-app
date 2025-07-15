@@ -11,8 +11,17 @@ import { User } from "@/types";
 
 const Users = () => {
   const [rowSelection, setRowSelection] = useState({});
-  const { users, totalItems, page, setPage, pageSize, setPageSize, isLoading } =
-    useUsers({ initialPageSize: 10 });
+  const {
+    users,
+    totalItems,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    isLoading,
+    refetch,
+    isRefetching,
+  } = useUsers({ initialPageSize: 10 });
 
   const handleDownloadSelected = async (selectedItems: User[]) => {
     try {
@@ -60,6 +69,8 @@ const Users = () => {
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}
         onDownloadSelected={handleDownloadSelected}
+        refetch={refetch}
+        isRefetching={isRefetching}
       />
     </PageWraper>
   );

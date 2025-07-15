@@ -24,12 +24,6 @@ interface UseDeliveriesOptions {
   initialPageSize?: number;
 }
 
-export interface DeliveryFilters {
-  deliveryDate_start?: string;
-  deliveryDate_end?: string;
-  status?: string;
-}
-
 export const defaultDeliveryFilters: DeliveryFilters = {
   deliveryDate_start: undefined,
   deliveryDate_end: undefined,
@@ -180,5 +174,11 @@ export const useDeliveries = ({
     isDeletingDelivery: deleteDeliveryStatus === "pending",
     softDeleteDelivery: softDeleteDeliveryMutation,
     isSoftDeletingDelivery: softDeleteDeliveryStatus === "pending",
+    refetch: getAllDeliveries
+      ? allDeliveriesQuery.refetch
+      : paginatedDeliveriesQuery.refetch,
+    isRefetching: getAllDeliveries
+      ? allDeliveriesQuery.isRefetching
+      : paginatedDeliveriesQuery.isRefetching,
   };
 };

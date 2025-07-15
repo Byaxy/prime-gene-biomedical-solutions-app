@@ -307,5 +307,12 @@ export const useProducts = ({
     isDeletingMultipleProducts: deleteMultipleProductsStatus === "pending",
     isSoftDeletingMultipleProducts:
       softDeleteMultipleProductsStatus === "pending",
+
+    refetch: getAllProducts
+      ? allProductsQuery.refetch
+      : paginatedProductsQuery.refetch,
+    isRefetching: getAllProducts
+      ? allProductsQuery.isRefetching
+      : paginatedProductsQuery.isRefetching,
   };
 };

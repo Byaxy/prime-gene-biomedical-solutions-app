@@ -23,6 +23,8 @@ const Sales = () => {
     filters,
     onFilterChange,
     defaultFilterValues,
+    refetch,
+    isRefetching,
   } = useSales({ initialPageSize: 10 });
 
   const handleRowClick = (rowData: SaleWithRelations) => {
@@ -85,6 +87,8 @@ const Sales = () => {
           filterValues={filters}
           onFilterChange={onFilterChange}
           defaultFilterValues={defaultFilterValues}
+          refetch={refetch}
+          isRefetching={isRefetching}
         />
         <SaleDialog
           mode={"view"}

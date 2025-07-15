@@ -141,5 +141,11 @@ export const useExpenses = ({
     isEditingExpense: editExpenseStatus === "pending",
     isDeletingExpense: deleteExpenseStatus === "pending",
     isSoftDeletingExpense: softDeleteExpenseStatus === "pending",
+    refetch: getAllExpenses
+      ? allExpensesQuery.refetch
+      : paginatedExpensesQuery.refetch,
+    isRefetching: getAllExpenses
+      ? allExpensesQuery.isRefetching
+      : paginatedExpensesQuery.isRefetching,
   };
 };

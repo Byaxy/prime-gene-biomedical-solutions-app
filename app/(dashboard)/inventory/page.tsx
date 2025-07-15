@@ -22,6 +22,8 @@ const Inventory = () => {
     setPageSize,
     softDeleteMultipleProducts,
     isSoftDeletingMultipleProducts,
+    refetch,
+    isRefetching,
   } = useProducts({
     initialPageSize: 10,
   });
@@ -83,6 +85,8 @@ const Inventory = () => {
         onRowSelectionChange={setRowSelection}
         isDeletingSelected={isSoftDeletingMultipleProducts}
         onDownloadSelected={handleDownloadSelected}
+        refetch={refetch}
+        isRefetching={isRefetching}
       />
     </PageWraper>
   );

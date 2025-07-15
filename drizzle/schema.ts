@@ -93,7 +93,7 @@ export const inventoryTransactionTypeEnum = pgEnum("transaction_type", [
 export const promissoryNoteStatusEnum = pgEnum("promissory_note_status", [
   "pending",
   "fulfilled",
-  "partially_fulfilled",
+  "partial",
   "cancelled",
 ]);
 
@@ -893,12 +893,11 @@ export const promissoryNotesTable = pgTable("promissory_notes", {
   customerId: uuid("customer_id")
     .notNull()
     .references(() => customersTable.id, { onDelete: "cascade" }), // Foreign key to customers
-  salesId: uuid("sales_id").references(() => salesTable.id, {
-    onDelete: "cascade",
-  }), // Optional reference to the sales invoice
-  waybillId: uuid("waybill_id")
+  saleId: uuid("sale_id")
     .notNull()
-    .references(() => waybillsTable.id, { onDelete: "cascade" }), // Foreign key to the waybill
+    .references(() => salesTable.id, {
+      onDelete: "cascade",
+    }), // Optional reference to the sales invoice
   status: promissoryNoteStatusEnum("status").notNull().default("pending"),
   totalAmount: numeric("total_amount").notNull(),
   notes: text("notes"),
@@ -918,9 +917,15 @@ export const promissoryNoteItemsTable = pgTable("promissory_note_items", {
   productId: uuid("product_id")
     .notNull()
     .references(() => productsTable.id, { onDelete: "cascade" }), // Foreign key to products
+  saleItemId: uuid("sale_item_id").references(() => saleItemsTable.id, {
+    onDelete: "cascade",
+  }),
   quantity: integer("quantity").notNull(),
   unitPrice: numeric("unit_price").notNull(),
   subTotal: numeric("sub_total").notNull(),
+  fulfilledQuantity: integer("fulfilled_quantity").notNull().default(0),
+  productName: text("product_name"),
+  productID: text("product_ID"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

@@ -1,9 +1,12 @@
+import PromissoryNoteForm from "@/components/forms/PromissoryNoteForm";
 import PageWraper from "@/components/PageWraper";
 
 const CreatePromissoryNote = () => {
   return (
     <PageWraper title="Create Promissory Note">
-      <div></div>
+      <section className="space-y-6">
+        <PromissoryNoteForm mode={"create"} />
+      </section>
     </PageWraper>
   );
 };

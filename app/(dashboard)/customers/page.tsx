@@ -14,6 +14,8 @@ const Customers = () => {
     setPage,
     pageSize,
     setPageSize,
+    refetch,
+    isRefetching,
   } = useCustomers({ initialPageSize: 10 });
 
   return (
@@ -31,6 +33,8 @@ const Customers = () => {
         onPageChange={setPage}
         pageSize={pageSize}
         onPageSizeChange={setPageSize}
+        refetch={refetch}
+        isRefetching={isRefetching}
       />
     </PageWraper>
   );

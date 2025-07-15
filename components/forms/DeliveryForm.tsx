@@ -508,6 +508,16 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
   const handleSubmit = async () => {
     try {
       const values = form.getValues();
+      const saleHasDelivery = sales.find(
+        (sale: SaleWithRelations) =>
+          sale.sale.id === values.saleId && sale.delivery && sale.delivery.id
+      );
+
+      if (saleHasDelivery) {
+        toast.error("This sale already has a delivery note");
+        return;
+      }
+
       if (mode === "create") {
         await addDelivery(
           { data: values },

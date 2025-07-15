@@ -14,6 +14,8 @@ const Purchases = () => {
     pageSize,
     setPageSize,
     isLoading,
+    refetch,
+    isRefetching,
   } = usePurchases({ initialPageSize: 10 });
 
   return (
@@ -32,6 +34,8 @@ const Purchases = () => {
         pageSize={pageSize}
         onPageSizeChange={setPageSize}
         searchBy="purchaseOrderNumber"
+        refetch={refetch}
+        isRefetching={isRefetching}
       />
     </PageWraper>
   );

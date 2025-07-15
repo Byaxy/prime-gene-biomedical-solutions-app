@@ -12,6 +12,7 @@ import {
   deliveriesTable,
   inventoryTable,
   productsTable,
+  promissoryNotesTable,
   quotationsTable,
   saleItemInventoryTable,
   saleItemsTable,
@@ -608,11 +609,16 @@ export const getSaleById = async (saleId: string) => {
           customer: customersTable,
           store: storesTable,
           delivery: deliveriesTable,
+          promissoryNote: promissoryNotesTable,
         })
         .from(salesTable)
         .leftJoin(customersTable, eq(salesTable.customerId, customersTable.id))
         .leftJoin(storesTable, eq(salesTable.storeId, storesTable.id))
         .leftJoin(deliveriesTable, eq(salesTable.id, deliveriesTable.saleId))
+        .leftJoin(
+          promissoryNotesTable,
+          eq(salesTable.id, promissoryNotesTable.saleId)
+        )
         .where(and(eq(salesTable.id, saleId), eq(salesTable.isActive, true)))
         .then((res) => res[0]);
 
@@ -750,11 +756,16 @@ export const getSales = async (
           customer: customersTable,
           store: storesTable,
           delivery: deliveriesTable,
+          promissoryNote: promissoryNotesTable,
         })
         .from(salesTable)
         .leftJoin(customersTable, eq(salesTable.customerId, customersTable.id))
         .leftJoin(storesTable, eq(salesTable.storeId, storesTable.id))
         .leftJoin(deliveriesTable, eq(salesTable.id, deliveriesTable.saleId))
+        .leftJoin(
+          promissoryNotesTable,
+          eq(salesTable.id, promissoryNotesTable.saleId)
+        )
         .$dynamic();
 
       // Create conditions array

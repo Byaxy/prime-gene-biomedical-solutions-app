@@ -132,5 +132,9 @@ export const useTaxes = ({
     isSoftDeletingTax: softDeleteTaxStatus === "pending",
     deleteTax: deleteTaxMutation,
     isDeletingTax: deleteTaxStatus === "pending",
+    refetch: getAllTaxes ? allTaxesQuery.refetch : paginatedTaxesQuery.refetch,
+    isRefetching: getAllTaxes
+      ? allTaxesQuery.isRefetching
+      : paginatedTaxesQuery.isRefetching,
   };
 };

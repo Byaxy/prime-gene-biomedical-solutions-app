@@ -137,5 +137,11 @@ export const useCustomers = ({
     isSoftDeletingCustomer: softDeleteCustomerStatus === "pending",
     deleteCustomer: deleteCustomerMutation,
     isDeletingCustomer: deleteCustomerStatus === "pending",
+    refetch: getAllCustomers
+      ? allCustomersQuery.refetch
+      : paginatedCustomersQuery.refetch,
+    isRefetching: getAllCustomers
+      ? allCustomersQuery.isRefetching
+      : paginatedCustomersQuery.isRefetching,
   };
 };

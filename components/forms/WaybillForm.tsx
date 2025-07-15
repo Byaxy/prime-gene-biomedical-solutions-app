@@ -1880,7 +1880,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
                       <TableHead>Product Description</TableHead>
                       <TableHead>Qnty Requested</TableHead>
                       <TableHead>Qnty Fulfilled</TableHead>
-                      <TableHead>Qnty Supplied</TableHead>
+                      <TableHead>Qnty to Supply</TableHead>
                       <TableHead>Balance Left</TableHead>
                       <TableHead>Confirm Stock</TableHead>
                       <TableHead>Actions</TableHead>

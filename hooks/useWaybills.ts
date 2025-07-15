@@ -205,5 +205,11 @@ export const useWaybills = ({
     isSoftDeletingWaybill: softDeleteWaybillStatus === "pending",
     convertLoanWaybill: convertLoanWaybillMutation,
     isConvertingLoanWaybill: convertLoanWaybillStatus === "pending",
+    refetch: getAllWaybills
+      ? allWaybillsQuery.refetch
+      : paginatedWaybillsQuery.refetch,
+    isRefetching: getAllWaybills
+      ? allWaybillsQuery.isRefetching
+      : paginatedWaybillsQuery.isRefetching,
   };
 };

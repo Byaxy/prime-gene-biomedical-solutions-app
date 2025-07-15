@@ -132,5 +132,9 @@ export const useUnits = ({
     isSoftDeletingUnit: softDeleteUnitStatus === "pending",
     deleteUnit: deleteUnitMutation,
     isDeletingUnit: deleteUnitStatus === "pending",
+    refetch: getAllUnits ? allUnitsQuery.refetch : paginatedUnitsQuery.refetch,
+    isRefetching: getAllUnits
+      ? allUnitsQuery.isRefetching
+      : paginatedUnitsQuery.isRefetching,
   };
 };

@@ -133,5 +133,11 @@ export const useVendors = ({
     isSoftDeletingVendor: softDeleteVendorStatus === "pending",
     deleteVendor: deleteVendorMutation,
     isDeletingVendor: deleteVendorStatus === "pending",
+    refetch: getAllVendors
+      ? allVendorsQuery.refetch
+      : paginatedVendorsQuery.refetch,
+    isRefetching: getAllVendors
+      ? allVendorsQuery.isRefetching
+      : paginatedVendorsQuery.isRefetching,
   };
 };

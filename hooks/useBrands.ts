@@ -221,5 +221,11 @@ export const useBrands = ({
     isEditingBrand: editBrandStatus === "pending",
     isDeletingBrand: deleteBrandStatus === "pending",
     isSoftDeletingBrand: softDeleteBrandStatus === "pending",
+    refetch: getAllBrands
+      ? allBrandsQuery.refetch
+      : paginatedBrandsQuery.refetch,
+    isRefetching: getAllBrands
+      ? allBrandsQuery.isRefetching
+      : paginatedBrandsQuery.isRefetching,
   };
 };

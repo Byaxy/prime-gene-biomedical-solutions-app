@@ -25,6 +25,8 @@ const Types = () => {
     setPageSize,
     addType,
     isAddingType,
+    refetch,
+    isRefetching,
   } = useTypes({ initialPageSize: 10 });
 
   const handleAddType = async (data: TypeFormValues): Promise<void> => {
@@ -84,6 +86,8 @@ const Types = () => {
           rowSelection={rowSelection}
           onRowSelectionChange={setRowSelection}
           onDownloadSelected={handleDownloadSelected}
+          refetch={refetch}
+          isRefetching={isRefetching}
         />
         <ProductTypeDialog
           mode="add"

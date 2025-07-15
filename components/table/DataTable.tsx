@@ -39,6 +39,7 @@ import Image from "next/image";
 import { Search } from "lucide-react";
 import FiltersSheet from "./FiltersSheet";
 import { cn } from "@/lib/utils";
+import { RefreshCw } from "lucide-react";
 
 declare module "@tanstack/react-table" {
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-constraint, @typescript-eslint/no-unused-vars
@@ -74,6 +75,8 @@ interface DataTableProps<TData, TValue> {
   onFilterChange?: (filters: Record<string, any>) => void;
   defaultFilterValues?: Record<string, any> | null;
   onRowClick?: (rowData: TData) => void;
+  refetch?: () => void;
+  isRefetching?: boolean;
 }
 
 export function DataTable<TData, TValue>({
@@ -97,6 +100,8 @@ export function DataTable<TData, TValue>({
   onFilterChange,
   defaultFilterValues,
   onRowClick,
+  refetch,
+  isRefetching,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
@@ -169,28 +174,43 @@ export function DataTable<TData, TValue>({
           </div>
         )}
 
-        {filters && (
-          <div className="flex flex-row gap-4">
+        <div className="flex flex-row gap-4">
+          {filters && (
+            <div className="flex flex-row gap-4">
+              <Button
+                variant="outline"
+                className="border-blue-800/60 text-dark-500 bg-blue-50"
+                onClick={() => onFilterChange?.(defaultFilterValues || {})}
+                disabled={
+                  !Object.values(filterValues).some(
+                    (val) => val !== undefined && val !== ""
+                  )
+                }
+              >
+                Clear Filters
+              </Button>
+              <FiltersSheet
+                filters={filters}
+                filterValues={filterValues}
+                onFilterChange={onFilterChange}
+                defaultFilterValues={defaultFilterValues}
+              />
+            </div>
+          )}
+          {refetch && (
             <Button
-              variant="outline"
-              className="border-blue-800/60 text-dark-500 bg-blue-50"
-              onClick={() => onFilterChange?.(defaultFilterValues || {})}
-              disabled={
-                !Object.values(filterValues).some(
-                  (val) => val !== undefined && val !== ""
-                )
-              }
+              type="button"
+              size={"icon"}
+              onClick={refetch}
+              className="self-end shad-primary-btn px-5"
+              disabled={isLoading || isRefetching}
             >
-              Clear Filters
+              <RefreshCw
+                className={`h-5 w-5 ${isRefetching ? "animate-spin" : ""}`}
+              />
             </Button>
-            <FiltersSheet
-              filters={filters}
-              filterValues={filterValues}
-              onFilterChange={onFilterChange}
-              defaultFilterValues={defaultFilterValues}
-            />
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {table.getSelectedRowModel().rows.length > 0 && (

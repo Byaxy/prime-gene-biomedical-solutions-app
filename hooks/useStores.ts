@@ -133,5 +133,11 @@ export const useStores = ({
     isSoftDeletingStore: softDeleteStoreStatus === "pending",
     deleteStore: deleteStoreMutation,
     isDeletingStore: deleteStoreStatus === "pending",
+    refetch: getAllStores
+      ? allStoresQuery.refetch
+      : paginatedStoresQuery.refetch,
+    isRefetching: getAllStores
+      ? allStoresQuery.isRefetching
+      : paginatedStoresQuery.isRefetching,
   };
 };

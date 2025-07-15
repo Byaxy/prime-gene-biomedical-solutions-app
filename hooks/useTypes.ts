@@ -132,5 +132,9 @@ export const useTypes = ({
     isSoftDeletingType: softDeleteTypeStatus === "pending",
     deleteType: deleteTypeMutation,
     isDeletingType: deleteTypeStatus === "pending",
+    refetch: getAllTypes ? allTypesQuery.refetch : paginatedTypesQuery.refetch,
+    isRefetching: getAllTypes
+      ? allTypesQuery.isRefetching
+      : paginatedTypesQuery.isRefetching,
   };
 };

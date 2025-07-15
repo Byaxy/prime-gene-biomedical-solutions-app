@@ -22,6 +22,8 @@ const Waybills = () => {
     filters,
     onFilterChange,
     defaultFilterValues,
+    refetch,
+    isRefetching,
   } = useWaybills({ initialPageSize: 10 });
 
   const handleRowClick = (rowData: GroupedWaybills) => {
@@ -112,6 +114,8 @@ const Waybills = () => {
           filterValues={filters}
           onFilterChange={onFilterChange}
           defaultFilterValues={defaultFilterValues}
+          refetch={refetch}
+          isRefetching={isRefetching}
         />
         <WaybillListDialog
           open={openDialog}
