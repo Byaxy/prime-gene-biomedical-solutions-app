@@ -1,4 +1,3 @@
-import { VendorFormValues } from "@/lib/validation";
 import {
   Dialog,
   DialogContent,
@@ -9,33 +8,37 @@ import {
 import { Button } from "../ui/button";
 import VendorForm from "../forms/VendorForm";
 import { Vendor } from "@/types";
+import { useVendors } from "@/hooks/useVendors";
+import toast from "react-hot-toast";
 
 interface VendorDialogProps {
   mode: "add" | "edit" | "delete";
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  isLoading?: boolean;
   vendor?: Vendor;
-  onSubmit: (data: VendorFormValues) => Promise<void>;
 }
 
 const VendorDialog = ({
   mode,
   open,
   onOpenChange,
-  isLoading,
   vendor,
-  onSubmit,
 }: VendorDialogProps) => {
+  const { softDeleteVendor, isSoftDeletingVendor } = useVendors();
   const handleDelete = async () => {
     try {
-      await onSubmit({
-        name: vendor?.name || "",
-        email: vendor?.email || "",
-        phone: vendor?.phone || "",
-        address: vendor?.address || "",
-      });
-      onOpenChange(false);
+      if (mode === "delete" && vendor?.id && vendor.id !== "") {
+        await softDeleteVendor(vendor?.id, {
+          onSuccess: () => {
+            toast.success("Vendor deleted successfully!");
+          },
+          onError: (error) => {
+            console.error("Delete vendor error:", error);
+            toast.error("Failed to delete vendor");
+          },
+        });
+        onOpenChange(false);
+      }
     } catch (error) {
       console.error("Error deleting vendor:", error);
     } finally {
@@ -76,7 +79,7 @@ const VendorDialog = ({
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
-                disabled={isLoading}
+                disabled={isSoftDeletingVendor}
                 className="shad-primary-btn"
               >
                 Cancel
@@ -85,10 +88,10 @@ const VendorDialog = ({
                 type="button"
                 variant="destructive"
                 onClick={handleDelete}
-                disabled={isLoading}
+                disabled={isSoftDeletingVendor}
                 className="shad-danger-btn"
               >
-                Delete
+                {isSoftDeletingVendor ? "Deleting..." : "Delete"}
               </Button>
             </div>
           </div>
@@ -102,7 +105,7 @@ const VendorDialog = ({
                   }
                 : undefined
             }
-            onSubmit={onSubmit}
+            onCancel={() => onOpenChange(false)}
           />
         )}
       </DialogContent>

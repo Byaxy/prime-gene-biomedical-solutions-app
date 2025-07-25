@@ -42,6 +42,7 @@ import { RefreshCw } from "lucide-react";
 import { Check } from "lucide-react";
 import { Search } from "lucide-react";
 import { Input } from "../ui/input";
+import VendorDialog from "../vendors/VendorDialog";
 
 interface PurchaseFormProps {
   mode: "create" | "edit";
@@ -49,6 +50,7 @@ interface PurchaseFormProps {
 }
 
 const PurchaseForm = ({ mode, initialData }: PurchaseFormProps) => {
+  const [vendorDialogOpen, setVendorDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [prevSelectedProductId, setPrevSelectedProductId] = useState<
     string | null
@@ -221,6 +223,17 @@ const PurchaseForm = ({ mode, initialData }: PurchaseFormProps) => {
     }
   };
 
+  // handle close dialog
+  const closeDialog = () => {
+    setVendorDialogOpen(false);
+
+    setTimeout(() => {
+      const stuckSection = document.querySelector(".MuiBox-root.css-0");
+      if (stuckSection instanceof HTMLElement) {
+        stuckSection.style.pointerEvents = "auto";
+      }
+    }, 100);
+  };
   // cancel button handler
   const handleCancel = () => {
     if (mode === "create") {
@@ -371,326 +384,334 @@ const PurchaseForm = ({ mode, initialData }: PurchaseFormProps) => {
   ]);
 
   return (
-    <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(handleSubmit)}
-        className="space-y-5 text-dark-500"
-      >
-        <div className="w-full flex flex-col md:flex-row gap-5">
-          <div className="flex flex-1 flex-row gap-2 items-center">
-            <CustomFormField
-              fieldType={FormFieldType.INPUT}
-              control={form.control}
-              name="purchaseOrderNumber"
-              label="Purchase Order Number"
-              placeholder={
-                isLoading || isRefetching
-                  ? "Generating..."
-                  : "Enter purchase order number"
-              }
-            />
-            <Button
-              type="button"
-              size={"icon"}
-              onClick={handleRefreshPurchaseOrderNumber}
-              className="self-end shad-primary-btn px-5"
-              disabled={isLoading || isRefetching}
-            >
-              <RefreshCw
-                className={`h-5 w-5 ${
-                  isLoading || isRefetching ? "animate-spin" : ""
-                }`}
-              />
-            </Button>
-          </div>
-          <CustomFormField
-            fieldType={FormFieldType.DATE_PICKER}
-            control={form.control}
-            name="purchaseDate"
-            label="Purchase Date"
-            dateFormat="MM/dd/yyyy"
-          />
-        </div>
-        <div className="flex flex-col sm:flex-row gap-5"></div>
-
-        <div
-          className={`space-y-5 ${
-            form.formState.errors.products
-              ? "border-2 border-red-500 p-4 rounded-md"
-              : ""
-          }`}
+    <>
+      <Form {...form}>
+        <form
+          onSubmit={form.handleSubmit(handleSubmit)}
+          className="space-y-5 text-dark-500"
         >
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="w-full sm:w-1/2">
+          <div className="w-full flex flex-col md:flex-row gap-5">
+            <div className="flex flex-1 flex-row gap-2 items-center">
               <CustomFormField
-                fieldType={FormFieldType.SELECT}
+                fieldType={FormFieldType.INPUT}
                 control={form.control}
-                name="selectedProductId"
-                label="Select Inventory"
+                name="purchaseOrderNumber"
+                label="Purchase Order Number"
                 placeholder={
-                  productsLoading ? "Loading..." : "Select inventory"
+                  isLoading || isRefetching
+                    ? "Generating..."
+                    : "Enter purchase order number"
                 }
-                key={`inventory-select-${selectedProductId || ""}`}
+              />
+              <Button
+                type="button"
+                size={"icon"}
+                onClick={handleRefreshPurchaseOrderNumber}
+                className="self-end shad-primary-btn px-5"
+                disabled={isLoading || isRefetching}
               >
-                <div className="py-3">
-                  <div className="relative flex items-center rounded-md border border-dark-700 bg-white">
-                    <Search className="ml-2 h-4 w-4 opacity-50" />
-                    <Input
-                      type="text"
-                      placeholder="Search by Product ID, Product Name"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
-                      disabled={productsLoading}
-                    />
-                    {searchQuery && (
-                      <button
-                        type="button"
-                        onClick={() => setSearchQuery("")}
-                        className="absolute right-3 top-3 text-dark-700 hover:text-dark-600"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-                {productsLoading ? (
-                  <div className="py-4">
-                    <Loading />
-                  </div>
-                ) : filteredProducts && filteredProducts.length > 0 ? (
-                  <>
-                    <Table className="shad-table border border-light-200 rounded-lg">
-                      <TableHeader>
-                        <TableRow className="w-full bg-blue-800 text-white px-2 font-semibold">
-                          <TableHead>Product ID</TableHead>
-                          <TableHead>Product Name</TableHead>
-                          <TableHead>Qnty</TableHead>
-                          <TableHead></TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody className="w-full bg-white">
-                        {filteredProducts.map((product: Product) => (
-                          <TableRow
-                            key={product.id}
-                            className="cursor-pointer hover:bg-blue-50"
-                            onClick={() => {
-                              form.setValue("selectedProductId", product.id);
-                              setPrevSelectedProductId(product.id);
-                              setSearchQuery("");
-                              // Find and click the hidden SelectItem with this value
-                              const selectItem = document.querySelector(
-                                `[data-value="${product.id}"]`
-                              ) as HTMLElement;
-                              if (selectItem) {
-                                selectItem.click();
-                              }
-                            }}
-                          >
-                            <TableCell>{product.productID}</TableCell>
-                            <TableCell>{product.name}</TableCell>
-                            <TableCell>{product.quantity}</TableCell>
-                            <TableCell className="w-10">
-                              {prevSelectedProductId === product.id && (
-                                <span className="text-blue-800">
-                                  <Check className="h-5 w-5" />
-                                </span>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                    {/* Hidden select options for form control */}
-                    <div className="hidden">
-                      {filteredProducts.map((product: Product) => (
-                        <SelectItem
-                          key={product.id}
-                          value={product.id}
-                          data-value={product.id}
-                        >
-                          {product.productID} -{product.name}
-                          {}
-                        </SelectItem>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <SelectItem value="null" disabled>
-                    <div>No inventory found</div>
-                  </SelectItem>
-                )}
-              </CustomFormField>
+                <RefreshCw
+                  className={`h-5 w-5 ${
+                    isLoading || isRefetching ? "animate-spin" : ""
+                  }`}
+                />
+              </Button>
             </div>
-            <Button
-              type="button"
-              onClick={handleAddProduct}
-              disabled={!selectedProductId}
-              className="self-end mb-1 shad-primary-btn"
-            >
-              Add Product
-            </Button>
+            <CustomFormField
+              fieldType={FormFieldType.DATE_PICKER}
+              control={form.control}
+              name="purchaseDate"
+              label="Purchase Date"
+              dateFormat="MM/dd/yyyy"
+            />
           </div>
+          <div className="flex flex-col sm:flex-row gap-5"></div>
 
-          <Table className="shad-table">
-            <TableHeader>
-              <TableRow className="w-full bg-blue-800 text-white px-2 font-semibold">
-                <TableHead>#</TableHead>
-                <TableHead>PID</TableHead>
-                <TableHead>Product Description</TableHead>
-                <TableHead>Quantity</TableHead>
-                <TableHead>Cost Price</TableHead>
-                <TableHead>Sub-Total</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody className="w-full bg-white text-blue-800">
-              {fields.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={11} className="text-center py-4">
-                    No products added
-                  </TableCell>
-                </TableRow>
-              )}
-              {fields.map((entry, index) => (
-                <TableRow
-                  key={`${entry.productId}-${index}`}
-                  className="w-full hover:bg-blue-50"
+          <div
+            className={`space-y-5 ${
+              form.formState.errors.products
+                ? "border-2 border-red-500 p-4 rounded-md"
+                : ""
+            }`}
+          >
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="w-full sm:w-1/2">
+                <CustomFormField
+                  fieldType={FormFieldType.SELECT}
+                  control={form.control}
+                  name="selectedProductId"
+                  label="Select Inventory"
+                  placeholder={
+                    productsLoading ? "Loading..." : "Select inventory"
+                  }
+                  key={`inventory-select-${selectedProductId || ""}`}
                 >
-                  <TableCell>{index + 1}</TableCell>
-                  <TableCell>{entry.productID}</TableCell>
-                  <TableCell>{entry.productName}</TableCell>
-
-                  <TableCell>
-                    <CustomFormField
-                      fieldType={FormFieldType.NUMBER}
-                      control={form.control}
-                      name={`products.${index}.quantity`}
-                      label=""
-                      placeholder="Qty"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <CustomFormField
-                      fieldType={FormFieldType.AMOUNT}
-                      control={form.control}
-                      name={`products.${index}.costPrice`}
-                      label=""
-                      placeholder="Cost price"
-                    />
-                  </TableCell>
-
-                  <TableCell>
-                    <div className="flex items-center text-14-medium text-blue-800 rounded-md border bg-white px-3 border-dark-700 h-11">
-                      <FormatNumber value={calculateEntryTotalPrice(index)} />
+                  <div className="py-3">
+                    <div className="relative flex items-center rounded-md border border-dark-700 bg-white">
+                      <Search className="ml-2 h-4 w-4 opacity-50" />
+                      <Input
+                        type="text"
+                        placeholder="Search by Product ID, Product Name"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
+                        disabled={productsLoading}
+                      />
+                      {searchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchQuery("")}
+                          className="absolute right-3 top-3 text-dark-700 hover:text-dark-600"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-row items-center">
-                      <span
-                        onClick={() => handleDeleteEntry(index)}
-                        className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
-                      >
-                        <DeleteIcon className="h-5 w-5" />
-                      </span>
+                  </div>
+                  {productsLoading ? (
+                    <div className="py-4">
+                      <Loading />
                     </div>
-                  </TableCell>
+                  ) : filteredProducts && filteredProducts.length > 0 ? (
+                    <>
+                      <Table className="shad-table border border-light-200 rounded-lg">
+                        <TableHeader>
+                          <TableRow className="w-full bg-blue-800 text-white px-2 font-semibold">
+                            <TableHead>Product ID</TableHead>
+                            <TableHead>Product Name</TableHead>
+                            <TableHead>Qnty</TableHead>
+                            <TableHead></TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody className="w-full bg-white">
+                          {filteredProducts.map((product: Product) => (
+                            <TableRow
+                              key={product.id}
+                              className="cursor-pointer hover:bg-blue-50"
+                              onClick={() => {
+                                form.setValue("selectedProductId", product.id);
+                                setPrevSelectedProductId(product.id);
+                                setSearchQuery("");
+                                // Find and click the hidden SelectItem with this value
+                                const selectItem = document.querySelector(
+                                  `[data-value="${product.id}"]`
+                                ) as HTMLElement;
+                                if (selectItem) {
+                                  selectItem.click();
+                                }
+                              }}
+                            >
+                              <TableCell>{product.productID}</TableCell>
+                              <TableCell>{product.name}</TableCell>
+                              <TableCell>{product.quantity}</TableCell>
+                              <TableCell className="w-10">
+                                {prevSelectedProductId === product.id && (
+                                  <span className="text-blue-800">
+                                    <Check className="h-5 w-5" />
+                                  </span>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                      {/* Hidden select options for form control */}
+                      <div className="hidden">
+                        {filteredProducts.map((product: Product) => (
+                          <SelectItem
+                            key={product.id}
+                            value={product.id}
+                            data-value={product.id}
+                          >
+                            {product.productID} -{product.name}
+                            {}
+                          </SelectItem>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <SelectItem value="null" disabled>
+                      <div>No inventory found</div>
+                    </SelectItem>
+                  )}
+                </CustomFormField>
+              </div>
+              <Button
+                type="button"
+                onClick={handleAddProduct}
+                disabled={!selectedProductId}
+                className="self-end mb-1 shad-primary-btn"
+              >
+                Add Product
+              </Button>
+            </div>
+
+            <Table className="shad-table">
+              <TableHeader>
+                <TableRow className="w-full bg-blue-800 text-white px-2 font-semibold">
+                  <TableHead>#</TableHead>
+                  <TableHead>PID</TableHead>
+                  <TableHead>Product Description</TableHead>
+                  <TableHead>Quantity</TableHead>
+                  <TableHead>Cost Price</TableHead>
+                  <TableHead>Sub-Total</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
-              ))}
-              {/* Total amount row */}
-              {fields.length > 0 && (
-                <>
+              </TableHeader>
+              <TableBody className="w-full bg-white text-blue-800">
+                {fields.length === 0 && (
                   <TableRow>
-                    <TableCell
-                      colSpan={5}
-                      className="text-right font-semibold text-blue-800 text-[17px] py-4"
-                    >
-                      {`Grand Total:`}
-                    </TableCell>
-                    <TableCell
-                      colSpan={2}
-                      className="font-semibold text-blue-800 text-[17px] py-4"
-                    >
-                      <FormatNumber value={calculateTotalAmount()} />
+                    <TableCell colSpan={11} className="text-center py-4">
+                      No products added
                     </TableCell>
                   </TableRow>
-                </>
-              )}
-            </TableBody>
-          </Table>
-          {form.formState.errors.products && (
-            <p className="shad-error text-xs">
-              {form.formState.errors.products.message}
-            </p>
-          )}
-        </div>
+                )}
+                {fields.map((entry, index) => (
+                  <TableRow
+                    key={`${entry.productId}-${index}`}
+                    className="w-full hover:bg-blue-50"
+                  >
+                    <TableCell>{index + 1}</TableCell>
+                    <TableCell>{entry.productID}</TableCell>
+                    <TableCell>{entry.productName}</TableCell>
 
-        <div className="w-full flex flex-col sm:flex-row gap-5">
+                    <TableCell>
+                      <CustomFormField
+                        fieldType={FormFieldType.NUMBER}
+                        control={form.control}
+                        name={`products.${index}.quantity`}
+                        label=""
+                        placeholder="Qty"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <CustomFormField
+                        fieldType={FormFieldType.AMOUNT}
+                        control={form.control}
+                        name={`products.${index}.costPrice`}
+                        label=""
+                        placeholder="Cost price"
+                      />
+                    </TableCell>
+
+                    <TableCell>
+                      <div className="flex items-center text-14-medium text-blue-800 rounded-md border bg-white px-3 border-dark-700 h-11">
+                        <FormatNumber value={calculateEntryTotalPrice(index)} />
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-row items-center">
+                        <span
+                          onClick={() => handleDeleteEntry(index)}
+                          className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
+                        >
+                          <DeleteIcon className="h-5 w-5" />
+                        </span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {/* Total amount row */}
+                {fields.length > 0 && (
+                  <>
+                    <TableRow>
+                      <TableCell
+                        colSpan={5}
+                        className="text-right font-semibold text-blue-800 text-[17px] py-4"
+                      >
+                        {`Grand Total:`}
+                      </TableCell>
+                      <TableCell
+                        colSpan={2}
+                        className="font-semibold text-blue-800 text-[17px] py-4"
+                      >
+                        <FormatNumber value={calculateTotalAmount()} />
+                      </TableCell>
+                    </TableRow>
+                  </>
+                )}
+              </TableBody>
+            </Table>
+            {form.formState.errors.products && (
+              <p className="shad-error text-xs">
+                {form.formState.errors.products.message}
+              </p>
+            )}
+          </div>
+
+          <div className="w-full flex flex-col sm:flex-row gap-5">
+            <CustomFormField
+              fieldType={FormFieldType.SELECT}
+              control={form.control}
+              name="vendorId"
+              label="Vendor"
+              placeholder="Select vendor"
+              key={`vendor-select-${form.watch("vendorId") || ""}`}
+              onAddNew={() => setVendorDialogOpen(true)}
+            >
+              {vendors?.map((vendor: Vendor) => (
+                <SelectItem
+                  key={vendor.id}
+                  value={vendor.id}
+                  className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
+                >
+                  {vendor.name}
+                </SelectItem>
+              ))}
+            </CustomFormField>
+
+            <CustomFormField
+              fieldType={FormFieldType.SELECT}
+              control={form.control}
+              name="status"
+              label="Purchase Status"
+              placeholder="Select status"
+              key={`status-select-${form.watch("status") || ""}`}
+            >
+              {Object.values(PurchaseStatus).map((status) => (
+                <SelectItem
+                  key={status}
+                  value={status}
+                  className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
+                >
+                  {status}
+                </SelectItem>
+              ))}
+            </CustomFormField>
+          </div>
+
           <CustomFormField
-            fieldType={FormFieldType.SELECT}
+            fieldType={FormFieldType.TEXTAREA}
             control={form.control}
-            name="vendorId"
-            label="Vendor"
-            placeholder="Select vendor"
-            key={`vendor-select-${form.watch("vendorId") || ""}`}
-            onAddNew={() => {}}
-          >
-            {vendors?.map((vendor: Vendor) => (
-              <SelectItem
-                key={vendor.id}
-                value={vendor.id}
-                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
-              >
-                {vendor.name}
-              </SelectItem>
-            ))}
-          </CustomFormField>
+            name="notes"
+            label="Notes"
+            placeholder="Enter purchase notes"
+          />
 
-          <CustomFormField
-            fieldType={FormFieldType.SELECT}
-            control={form.control}
-            name="status"
-            label="Purchase Status"
-            placeholder="Select status"
-            key={`status-select-${form.watch("status") || ""}`}
-          >
-            {Object.values(PurchaseStatus).map((status) => (
-              <SelectItem
-                key={status}
-                value={status}
-                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
-              >
-                {status}
-              </SelectItem>
-            ))}
-          </CustomFormField>
-        </div>
+          <div className="flex justify-end gap-4">
+            <Button
+              type="button"
+              onClick={handleCancel}
+              className="shad-danger-btn"
+            >
+              Cancel
+            </Button>
+            <SubmitButton
+              isLoading={isCreatingPurchase || isEditingPurchase}
+              className="shad-primary-btn"
+            >
+              {mode === "create" ? "Create Purchase" : "Update Purchase"}
+            </SubmitButton>
+          </div>
+        </form>
+      </Form>
 
-        <CustomFormField
-          fieldType={FormFieldType.TEXTAREA}
-          control={form.control}
-          name="notes"
-          label="Notes"
-          placeholder="Enter purchase notes"
-        />
-
-        <div className="flex justify-end gap-4">
-          <Button
-            type="button"
-            onClick={handleCancel}
-            className="shad-danger-btn"
-          >
-            Cancel
-          </Button>
-          <SubmitButton
-            isLoading={isCreatingPurchase || isEditingPurchase}
-            className="shad-primary-btn"
-          >
-            {mode === "create" ? "Create Purchase" : "Update Purchase"}
-          </SubmitButton>
-        </div>
-      </form>
-    </Form>
+      <VendorDialog
+        mode="add"
+        open={vendorDialogOpen}
+        onOpenChange={closeDialog}
+      />
+    </>
   );
 };
 

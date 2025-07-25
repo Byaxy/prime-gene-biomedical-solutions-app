@@ -8,7 +8,6 @@ import {
 import { VendorFormValues } from "@/lib/validation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import toast from "react-hot-toast";
 
 interface UseVendorsOptions {
   getAllVendors?: boolean;
@@ -62,11 +61,9 @@ export const useVendors = ({
     mutationFn: (data: VendorFormValues) => addVendor(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vendors"] });
-      toast.success("vendor added successfully");
     },
     onError: (error) => {
       console.error("Error adding vendor:", error);
-      toast.error("Failed to add vendor");
     },
   });
 
@@ -76,11 +73,9 @@ export const useVendors = ({
       editVendor(data, id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vendors"] });
-      toast.success("Vendor updated successfully");
     },
     onError: (error) => {
       console.error("Error updating vendor:", error);
-      toast.error("Failed to update vendor");
     },
   });
 
@@ -90,11 +85,9 @@ export const useVendors = ({
       mutationFn: (id: string) => softDeleteVendor(id),
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["vendors"] });
-        toast.success("vendor deleted successfully");
       },
       onError: (error) => {
         console.error("Error deleting vendor:", error);
-        toast.error("Failed to delete vendor");
       },
     });
 
@@ -104,11 +97,9 @@ export const useVendors = ({
       mutationFn: (id: string) => deleteVendor(id),
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["vendors"] });
-        toast.success("Vendor deleted successfully");
       },
       onError: (error) => {
         console.error("Error deleting vendor:", error);
-        toast.error("Failed to delete vendor");
       },
     });
 

@@ -1,21 +1,26 @@
 import { VendorFormValidation, VendorFormValues } from "@/lib/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "../ui/button";
 import SubmitButton from "../SubmitButton";
 import CustomFormField, { FormFieldType } from "../CustomFormField";
 import { Form } from "../ui/form";
 import { Vendor } from "@/types";
+import { useVendors } from "@/hooks/useVendors";
+import toast from "react-hot-toast";
+import { useRouter } from "next/navigation";
 
 interface VendorFormProps {
   mode: "create" | "edit";
   initialData?: Vendor;
-  onSubmit: (data: VendorFormValues) => Promise<void>;
+  onCancel?: () => void;
 }
 
-const VendorForm = ({ mode, initialData, onSubmit }: VendorFormProps) => {
-  const [isLoading, setIsLoading] = useState(false);
+const VendorForm = ({ mode, initialData, onCancel }: VendorFormProps) => {
+  const { addVendor, isAddingVendor, editVendor, isEditingVendor } =
+    useVendors();
+
+  const router = useRouter();
 
   const form = useForm<VendorFormValues>({
     resolver: zodResolver(VendorFormValidation),
@@ -28,13 +33,42 @@ const VendorForm = ({ mode, initialData, onSubmit }: VendorFormProps) => {
   });
 
   const handleSubmit = async (values: VendorFormValues) => {
-    setIsLoading(true);
     try {
-      await onSubmit(values);
+      if (mode === "create") {
+        await addVendor(values, {
+          onSuccess: () => {
+            toast.success("Vendor created successfully!");
+            form.reset();
+            router.push("/vendors");
+          },
+          onError: (error) => {
+            console.error("Create vendor error:", error);
+            toast.error("Failed to create vendor");
+          },
+        });
+        onCancel?.();
+      } else if (mode === "edit") {
+        if (!initialData?.id) {
+          throw new Error("Vendor ID is required for editing");
+        }
+        await editVendor(
+          { id: initialData.id, data: values },
+          {
+            onSuccess: () => {
+              toast.success("Vendor updated successfully!");
+              form.reset();
+              router.push("/vendors");
+            },
+            onError: (error) => {
+              console.error("Edit vendor error:", error);
+              toast.error("Failed to update vendor");
+            },
+          }
+        );
+        onCancel?.();
+      }
     } catch (error) {
       console.error("Error submitting form:", error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -77,12 +111,18 @@ const VendorForm = ({ mode, initialData, onSubmit }: VendorFormProps) => {
         <div className="flex justify-end gap-4 mt-4">
           <Button
             type="button"
-            onClick={() => form.reset()}
+            onClick={() => {
+              form.reset();
+              onCancel?.();
+            }}
             className="shad-danger-btn"
           >
             Cancel
           </Button>
-          <SubmitButton isLoading={isLoading} className="shad-primary-btn">
+          <SubmitButton
+            isLoading={isAddingVendor || isEditingVendor}
+            className="shad-primary-btn"
+          >
             {mode === "create" ? "Create Vendor" : "Update Vendor"}
           </SubmitButton>
         </div>
