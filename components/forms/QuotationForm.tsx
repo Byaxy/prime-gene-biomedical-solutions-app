@@ -391,7 +391,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
     }
   }, [generatedQuotationNumber, form, mode]);
 
-  // Update the refresh button handler
+  // refresh button handler
   const handleRefreshQuotationNumber = async () => {
     if (mode === "create") {
       try {
@@ -406,7 +406,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
     }
   };
 
-  // Update the cancel button handler
+  // cancel button handler
   const handleCancel = () => {
     if (mode === "create") {
       form.reset(defaultValues);
@@ -558,7 +558,6 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
             {
               onSuccess: () => {
                 toast.success("Quotation updated successfully!");
-                form.reset();
                 router.push("/quotations");
               },
               onError: (error) => {
@@ -576,7 +575,6 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
             {
               onSuccess: () => {
                 toast.success("Quotation updated successfully!");
-                form.reset();
                 router.push("/quotations");
               },
               onError: (error) => {

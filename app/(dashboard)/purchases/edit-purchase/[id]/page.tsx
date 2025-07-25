@@ -3,15 +3,12 @@
 import PurchaseForm from "@/components/forms/PurchaseForm";
 import Loading from "@/components/loading";
 import PageWraper from "@/components/PageWraper";
-import { usePurchases } from "@/hooks/usePurchases";
 import { getPurchaseById } from "@/lib/actions/purchase.actions";
-import { PurchaseFormValues } from "@/lib/validation";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 
 const EditPurchase = () => {
   const { id } = useParams();
-  const { editPurchase } = usePurchases();
 
   const { data: purchase, isLoading } = useQuery({
     queryKey: [id],
@@ -22,24 +19,6 @@ const EditPurchase = () => {
     enabled: !!id,
   });
 
-  const handleEditPurchase = async (
-    data: PurchaseFormValues
-  ): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      editPurchase(
-        { id: id as string, data },
-        {
-          onSuccess: () => {
-            resolve();
-          },
-          onError: (error) => {
-            reject(error);
-          },
-        }
-      );
-    });
-  };
-
   if (isLoading) {
     return <Loading />;
   }
@@ -49,7 +28,6 @@ const EditPurchase = () => {
       <section className="space-y-6">
         <PurchaseForm
           mode={"edit"}
-          onSubmit={handleEditPurchase}
           initialData={
             purchase
               ? {

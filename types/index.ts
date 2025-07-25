@@ -246,6 +246,40 @@ export interface InventoryTransactionWithRelations {
   user: User;
 }
 
+// Purchases
+export interface Purchase {
+  id: string;
+  purchaseOrderNumber: string;
+  purchaseDate: Date;
+  vendorId: string;
+  totalAmount: number;
+  status: PurchaseStatus;
+  notes: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+export interface PurchaseItem {
+  id: string;
+  purchaseId: string;
+  productId: string;
+  quantity: number;
+  quantityReceived: number;
+  costPrice: number;
+  totalPrice: number;
+  productName: string;
+  productID: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PurchaseWithRelations {
+  purchase: Purchase;
+  vendor: Vendor;
+  products: PurchaseItem[];
+}
+
 // Quotations
 export interface Quotation {
   id: string;

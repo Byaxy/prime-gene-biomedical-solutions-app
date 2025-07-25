@@ -10,7 +10,7 @@ import QuotationDialog from "@/components/quotations/QuotationsDialog";
 
 const Quotations = () => {
   const [openDialog, setOpenDialog] = useState(false);
-  const [selectedSale, setSelectedSale] = useState(
+  const [selectedQuotation, setSelectedQuotation] = useState(
     {} as QuotationWithRelations
   );
   const {
@@ -29,7 +29,7 @@ const Quotations = () => {
   } = useQuotations({ initialPageSize: 10 });
 
   const handleRowClick = (rowData: QuotationWithRelations) => {
-    setSelectedSale(rowData);
+    setSelectedQuotation(rowData);
     setOpenDialog(true);
   };
 
@@ -87,9 +87,9 @@ const Quotations = () => {
         />
         <QuotationDialog
           mode={"view"}
-          open={openDialog && !!selectedSale}
+          open={openDialog && !!selectedQuotation}
           onOpenChange={setOpenDialog}
-          quotation={selectedSale}
+          quotation={selectedQuotation}
         />
       </>
     </PageWraper>

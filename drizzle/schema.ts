@@ -363,16 +363,8 @@ export const purchasesTable = pgTable("purchases", {
     .notNull()
     .references(() => vendorsTable.id, { onDelete: "set null" }), // Foreign key to vendors
   totalAmount: numeric("total_amount").notNull(),
-  amountPaid: numeric("amount_paid").notNull(),
   purchaseDate: timestamp("purchase_date").notNull(),
   status: purchaseStatusEnum("status").notNull().default("pending"),
-  paymentMethod: paymentMethodEnum("payment_method").notNull().default("cash"),
-  paymentStatus: paymentStatusEnum("payment_status")
-    .notNull()
-    .default("pending"),
-  deliveryStatus: deliveryStatusEnum("delivery_status")
-    .notNull()
-    .default("pending"),
   notes: text("notes"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -393,6 +385,9 @@ export const purchaseItemsTable = pgTable("purchase_items", {
   quantity: integer("quantity").notNull(),
   costPrice: numeric("cost_price").notNull(),
   totalPrice: numeric("total_price").notNull(),
+  productName: text("product_name"),
+  productID: text("product_ID"),
+  quantityReceived: integer("quantity_received").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

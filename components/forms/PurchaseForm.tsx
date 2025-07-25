@@ -7,13 +7,7 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { Button } from "../ui/button";
 import { SelectItem } from "../ui/select";
 import { useProducts } from "@/hooks/useProducts";
-import {
-  DeliveryStatus,
-  PaymentMethod,
-  Purchase,
-  PurchaseStatus,
-} from "@/types/appwrite.types";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Table,
   TableBody,
@@ -22,9 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "../ui/table";
-import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { getProductById } from "@/lib/actions/product.actions";
 import toast from "react-hot-toast";
 import { X } from "lucide-react";
 import { PurchaseFormValidation, PurchaseFormValues } from "@/lib/validation";
@@ -34,298 +26,349 @@ import Loading from "@/components/loading";
 import FormatNumber from "@/components/FormatNumber";
 import { usePurchases } from "@/hooks/usePurchases";
 import { useVendors } from "@/hooks/useVendors";
-import { Product, Vendor } from "@/types";
-
-interface ProductType extends Product {
-  id: string;
-  name: string;
-  lotNumber: string;
-  unit: { name: string; code: string };
-  quantity: number;
-  costPrice: number;
-}
-
-interface PurchaseProduct {
-  product: string | ProductType;
-  quantity: number;
-  unitPrice: number;
-  totalPrice: number;
-  productName?: string;
-  productLotNumber?: string;
-  productUnit?: string;
-}
+import {
+  InventoryStockWithRelations,
+  Product,
+  ProductWithRelations,
+  PurchaseStatus,
+  PurchaseWithRelations,
+  Vendor,
+} from "@/types";
+import { useInventoryStock } from "@/hooks/useInventoryStock";
+import { useQuery } from "@tanstack/react-query";
+import { generatePurchaseOrdereNumber } from "@/lib/actions/purchase.actions";
+import { useRouter } from "next/navigation";
+import { RefreshCw } from "lucide-react";
+import { Check } from "lucide-react";
+import { Search } from "lucide-react";
+import { Input } from "../ui/input";
 
 interface PurchaseFormProps {
   mode: "create" | "edit";
-  initialData?: Purchase;
-  onSubmit: (data: PurchaseFormValues) => Promise<void>;
+  initialData?: PurchaseWithRelations;
 }
 
-type FormProduct = Omit<PurchaseProduct, "product"> & {
-  product: string;
-};
-
-type ExtendedPurchaseFormValues = Omit<PurchaseFormValues, "products"> & {
-  products: FormProduct[];
-};
-
-const PurchaseForm = ({ mode, initialData, onSubmit }: PurchaseFormProps) => {
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [selectedProductName, setSelectedProductName] = useState<string>("");
-  const [isLoadingEdit, setIsLoadingEdit] = useState(mode === "edit");
-  const [isLoading, setIsLoading] = useState(false);
-  const { products } = useProducts({ getAllProducts: true });
+const PurchaseForm = ({ mode, initialData }: PurchaseFormProps) => {
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [prevSelectedProductId, setPrevSelectedProductId] = useState<
+    string | null
+  >(null);
+  const { products, isLoading: productsLoading } = useProducts({
+    getAllProducts: true,
+  });
   const { vendors } = useVendors({ getAllVendors: true });
-  const { purchases } = usePurchases({ getAllPurchases: true });
+  const {
+    purchases,
+    addPurchase,
+    editPurchase,
+    isCreatingPurchase,
+    isEditingPurchase,
+  } = usePurchases({ getAllPurchases: true });
+
+  const { inventoryStock } = useInventoryStock({
+    getAllInventoryStocks: true,
+  });
+
+  const router = useRouter();
+
+  // Generate purchase order number
+  const {
+    data: generatedPurchaseOrderNumber,
+    isLoading,
+    refetch,
+    isRefetching,
+  } = useQuery({
+    queryKey: ["purchase-order-number"],
+    queryFn: async () => {
+      if (mode !== "create") return null;
+      const result = await generatePurchaseOrdereNumber();
+      return result;
+    },
+    enabled: mode === "create",
+  });
 
   const defaultValues = {
-    purchaseOrderNumber: "",
+    purchaseOrderNumber: generatedPurchaseOrderNumber || "",
     purchaseDate: new Date(),
-    products: [] as FormProduct[],
+    products: [],
     vendor: "",
     status: PurchaseStatus.Pending as PurchaseStatus,
-    paymentMethod: PaymentMethod.Cash as PaymentMethod,
-    deliveryStatus: DeliveryStatus.Pending as DeliveryStatus,
     notes: "",
-    amountPaid: 0,
     totalAmount: 0,
-    selectedProduct: "",
-    tempQuantity: 0,
-    tempPrice: 0,
+    selectedProductId: "",
   };
 
-  const form = useForm<ExtendedPurchaseFormValues>({
+  const form = useForm<PurchaseFormValues>({
     resolver: zodResolver(PurchaseFormValidation),
     mode: "all",
     defaultValues:
-      mode === "create" ? defaultValues : { ...defaultValues, ...initialData },
+      mode === "create"
+        ? defaultValues
+        : {
+            purchaseOrderNumber:
+              initialData?.purchase.purchaseOrderNumber || "",
+            purchaseDate: initialData?.purchase.purchaseDate
+              ? new Date(initialData?.purchase.purchaseDate)
+              : new Date(),
+            products: initialData?.products || [],
+            vendorId: initialData?.purchase.vendorId || "",
+            status: initialData?.purchase.status || PurchaseStatus.Pending,
+            notes: initialData?.purchase.notes || "",
+            totalAmount: initialData?.purchase.totalAmount || 0,
+            selectedProductId: "",
+          },
   });
 
-  const { fields, append, update, remove, replace } = useFieldArray({
+  const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "products",
   });
 
-  const selectedProductId = form.watch("selectedProduct");
+  const selectedProductId = form.watch("selectedProductId");
+  const watchedFields = fields.map((_, index) => ({
+    quantity: form.watch(`products.${index}.quantity`),
+  }));
+
+  const filteredProducts = products?.reduce(
+    (acc: Product[], product: ProductWithRelations) => {
+      if (!product?.product?.id || !product?.product?.productID) {
+        return acc;
+      }
+
+      const { product: pdt } = product;
+
+      const productQnty =
+        inventoryStock?.reduce(
+          (total: number, inv: InventoryStockWithRelations) => {
+            if (
+              !inv?.product?.id ||
+              !inv?.inventory?.quantity ||
+              !inv?.store?.id
+            ) {
+              return total;
+            }
+
+            if (
+              inv.product.id === pdt.id &&
+              inv.product.productID === pdt.productID &&
+              inv.inventory.quantity > 0
+            ) {
+              return total + inv.inventory.quantity;
+            }
+
+            return total;
+          },
+          0
+        ) || 0;
+
+      const updatedProduct = { ...pdt, quantity: productQnty };
+
+      // Apply search filter
+      if (searchQuery?.trim()) {
+        const query = searchQuery.toLowerCase().trim();
+        const matchesSearch =
+          updatedProduct.productID?.toLowerCase().includes(query) ||
+          updatedProduct.name?.toLowerCase().includes(query);
+
+        if (!matchesSearch) return acc;
+      }
+
+      acc.push(updatedProduct);
+      return acc;
+    },
+    []
+  );
 
   // Initialize edit mode data
   useEffect(() => {
-    const initializeEditMode = async () => {
-      if (
-        mode === "edit" &&
-        initialData &&
-        initialData?.products?.length > 0 &&
-        isLoadingEdit
-      ) {
-        try {
-          // Initialize form fields except products
-          Object.entries(initialData).forEach(([key, value]) => {
-            if (key !== "products") {
-              form.setValue(key as keyof PurchaseFormValues, value);
-            }
-          });
+    if (initialData && mode === "edit") {
+      setTimeout(() => {
+        form.reset({
+          purchaseOrderNumber: initialData?.purchase.purchaseOrderNumber || "",
+          purchaseDate: initialData?.purchase.purchaseDate
+            ? new Date(initialData?.purchase.purchaseDate)
+            : new Date(),
+          products: initialData?.products || [],
+          vendorId: initialData?.purchase.vendorId || "",
+          status: initialData?.purchase.status || PurchaseStatus.Pending,
+          notes: initialData?.purchase.notes || "",
+          totalAmount: initialData?.purchase.totalAmount || 0,
+          selectedProductId: "",
+        });
+      }, 100);
+    }
+  }, [mode, initialData, form]);
 
-          // Fetch and update product details
-          const updatedProducts = await Promise.all(
-            initialData.products.map(async (product: PurchaseProduct) => {
-              const productId =
-                typeof product.product === "object"
-                  ? product.product.id
-                  : product.product;
-
-              try {
-                const productDetails = await getProductById(productId);
-                return {
-                  ...product,
-                  product: productId,
-                  productName: productDetails.name,
-                  productLotNumber: productDetails.lotNumber,
-                  productUnit: productDetails.unit.code,
-                };
-              } catch (error) {
-                console.error(`Error fetching product ${productId}:`, error);
-                return product;
-              }
-            })
-          );
-
-          replace(updatedProducts as FormProduct[]);
-        } catch (error) {
-          console.error("Error initializing edit mode:", error);
-          toast.error("Error loading product details");
-        } finally {
-          setIsLoadingEdit(false);
-        }
-      } else {
-        setIsLoadingEdit(false);
-      }
-    };
-
-    initializeEditMode();
-  }, [mode, initialData, form, replace, isLoadingEdit]);
-
-  // Handle product selection
+  // Set purchaseOrder number
   useEffect(() => {
-    const updateSelectedProduct = async () => {
-      if (!selectedProductId || isLoadingEdit) return;
+    if (generatedPurchaseOrderNumber && mode === "create") {
+      form.setValue("purchaseOrderNumber", generatedPurchaseOrderNumber);
+    }
+  }, [generatedPurchaseOrderNumber, form, mode]);
 
+  // Update the refresh button handler
+  const handleRefreshPurchaseOrderNumber = async () => {
+    if (mode === "create") {
       try {
-        const product = await getProductById(selectedProductId);
-        setSelectedProductName(product.name);
-
-        if (editingIndex === null) {
-          // Only set default values when adding new product
-          form.setValue("tempQuantity", product.quantity);
-          form.setValue("tempPrice", product.costPrice);
+        await refetch();
+        if (generatedPurchaseOrderNumber) {
+          form.setValue("purchaseOrderNumber", generatedPurchaseOrderNumber);
         }
       } catch (error) {
-        console.error("Error fetching product:", error);
-        setSelectedProductName("");
-        form.setValue("tempQuantity", 0);
-        form.setValue("tempPrice", 0);
+        console.error("Error refreshing purchase order number:", error);
+        toast.error("Failed to refresh purchase order number");
       }
-    };
+    }
+  };
 
-    updateSelectedProduct();
-  }, [selectedProductId, editingIndex, form, isLoadingEdit]);
+  // cancel button handler
+  const handleCancel = () => {
+    if (mode === "create") {
+      form.reset(defaultValues);
+      refetch();
+    } else {
+      form.reset();
+    }
+  };
 
-  const handleAddProduct = async () => {
-    const currentProductId = form.getValues("selectedProduct");
-    if (!currentProductId) {
+  const handleAddProduct = () => {
+    if (!selectedProductId) {
       toast.error("Please select a product");
       return;
     }
 
-    // Check if the product is already in the list and is not being edited
-    const existingProduct = fields.find(
-      (product) => product.product === currentProductId
+    const selectedProduct: ProductWithRelations = products?.find(
+      (product: ProductWithRelations) =>
+        product.product.id === selectedProductId
     );
-    if (existingProduct && editingIndex === null) {
-      toast.error("Product already added");
+
+    if (!selectedProduct) {
+      toast.error("Selected product not found");
       return;
     }
 
-    try {
-      const selectedProduct = (await getProductById(
-        currentProductId
-      )) as ProductType;
-      if (!selectedProduct) {
-        throw new Error("Product not found");
-      }
-
-      const quantity =
-        form.getValues("tempQuantity") || selectedProduct.quantity;
-      const unitPrice =
-        form.getValues("tempPrice") || selectedProduct.costPrice;
-
-      const newProduct: FormProduct = {
-        product: selectedProduct.id,
-        quantity,
-        unitPrice,
-        totalPrice: unitPrice * quantity,
-        productName: selectedProduct.name,
-        productLotNumber: selectedProduct.lotNumber,
-        productUnit: selectedProduct.unit.code,
-      };
-
-      if (editingIndex !== null) {
-        update(editingIndex, newProduct);
-        setEditingIndex(null);
-      } else {
-        append(newProduct);
-      }
-
-      handleCancel();
-    } catch (error) {
-      console.error("Error adding product:", error);
-      toast.error("Error adding product");
+    if (fields.some((entry) => entry.productId === selectedProductId)) {
+      toast.error("This product is already added");
+      return;
     }
-  };
 
-  const handleEditEntry = (index: number) => {
-    const entry = fields[index];
-    form.setValue("selectedProduct", entry.product as string);
-    form.setValue("tempQuantity", entry.quantity);
-    form.setValue("tempPrice", entry.unitPrice);
-    setSelectedProductName(entry.productName || "");
-    setEditingIndex(index);
+    append({
+      productId: selectedProduct.product.id,
+      quantity: 0,
+      costPrice: selectedProduct.product.costPrice,
+      totalPrice: 0,
+      quantityReceived: 0,
+      productID: selectedProduct.product.productID,
+      productName: selectedProduct.product.name,
+    });
+    form.setValue("selectedProductId", "");
   };
 
   const handleDeleteEntry = (index: number) => {
     remove(index);
-    if (editingIndex === index) {
-      handleCancel();
-    }
   };
 
-  const handleCancel = () => {
-    form.setValue("selectedProduct", "");
-    form.setValue("tempQuantity", 0);
-    form.setValue("tempPrice", 0);
-    setEditingIndex(null);
-    setSelectedProductName("");
+  const validatePurchaseOrderNumber = (purchaseOrderNumber: string) => {
+    const existingPurchaseOrder = purchases?.find(
+      (purchase: PurchaseWithRelations) =>
+        purchase.purchase.purchaseOrderNumber === purchaseOrderNumber
+    );
+    if (mode === "create" && existingPurchaseOrder) return false;
+
+    if (
+      mode === "edit" &&
+      initialData?.purchase.purchaseOrderNumber !== purchaseOrderNumber &&
+      existingPurchaseOrder
+    )
+      return false;
+    return true;
   };
 
-  const calculateTotalAmount = () => {
-    return fields.reduce((sum, entry) => sum + entry.totalPrice, 0);
-  };
+  const calculateEntryTotalPrice = useCallback(
+    (index: number) => {
+      const quantity = form.watch(`products.${index}.quantity`) || 0;
+      const costPrice = form.watch(`products.${index}.costPrice`) || 0;
+      return quantity * costPrice;
+    },
+    [form]
+  );
+
+  const calculateTotalAmount = useCallback(() => {
+    let total = 0;
+    fields.forEach((_, index) => {
+      total += calculateEntryTotalPrice(index);
+    });
+    return total;
+  }, [fields, calculateEntryTotalPrice]);
 
   const handleSubmit = async () => {
     try {
-      setIsLoading(true);
       const values = form.getValues();
-      const totalAmount = calculateTotalAmount();
 
-      if (fields.length === 0) {
-        toast.error("At least one product is required");
-        return;
-      }
-
-      if (values.amountPaid > totalAmount) {
-        toast.error("Amount paid exceeds total amount");
-        return;
-      }
-
-      const existingPurchase = purchases?.find(
-        (purchase: Purchase) =>
-          purchase.purchaseOrderNumber === values.purchaseOrderNumber
-      );
-
-      if (existingPurchase && mode === "create") {
-        toast.error("Purchase order number already exists");
-        return;
-      }
-
-      if (
-        mode === "edit" &&
-        initialData?.purchaseOrderNumber !== values.purchaseOrderNumber
-      ) {
-        const existingPurchase = purchases?.find(
-          (purchase: Purchase) =>
-            purchase.purchaseOrderNumber === values.purchaseOrderNumber
+      if (!validatePurchaseOrderNumber(values.purchaseOrderNumber)) {
+        toast.error(
+          "A Purchase Order with the same Purchase Order number already exists."
         );
-        if (existingPurchase) {
-          toast.error("Purchase order number already exists");
-          return;
+        return;
+      }
+
+      if (mode === "create") {
+        await addPurchase(values, {
+          onSuccess: () => {
+            toast.success("Purchase order created successfully!");
+            form.reset();
+            router.push("/purchases");
+          },
+          onError: (error) => {
+            console.error("Create Purchase order error:", error);
+            toast.error("Failed to create Purchase order");
+          },
+        });
+      }
+      if (mode === "edit" && initialData) {
+        if (initialData?.purchase.id) {
+          await editPurchase(
+            {
+              id: initialData?.purchase.id,
+              data: values,
+            },
+            {
+              onSuccess: () => {
+                toast.success("Purchase order updated successfully!");
+                router.push("/purchases");
+              },
+              onError: (error) => {
+                console.error("Update purchase order error:", error);
+                toast.error("Failed to update purchase order");
+              },
+            }
+          );
         }
       }
-
-      await onSubmit({
-        ...values,
-        products: fields,
-        totalAmount,
-      });
     } catch (error) {
       console.error("Error submitting form:", error);
       toast.error("Error submitting form");
     } finally {
-      setIsLoading(false);
     }
   };
 
-  if (isLoadingEdit) {
-    return <Loading />;
-  }
+  useEffect(() => {
+    if (fields.length > 0) {
+      fields.forEach((field, index) => {
+        const entryTotalPrice = calculateEntryTotalPrice(index);
+
+        form.setValue(`products.${index}.totalPrice`, entryTotalPrice);
+      });
+
+      form.setValue("totalAmount", calculateTotalAmount());
+    }
+  }, [
+    watchedFields,
+    fields,
+    form,
+    calculateTotalAmount,
+    calculateEntryTotalPrice,
+  ]);
 
   return (
     <Form {...form}>
@@ -333,15 +376,33 @@ const PurchaseForm = ({ mode, initialData, onSubmit }: PurchaseFormProps) => {
         onSubmit={form.handleSubmit(handleSubmit)}
         className="space-y-5 text-dark-500"
       >
-        <div className="flex flex-col sm:flex-row gap-5">
-          <CustomFormField
-            fieldType={FormFieldType.INPUT}
-            control={form.control}
-            name="purchaseOrderNumber"
-            label="Purchase Order Number"
-            placeholder="Enter purchase order number"
-          />
-
+        <div className="w-full flex flex-col md:flex-row gap-5">
+          <div className="flex flex-1 flex-row gap-2 items-center">
+            <CustomFormField
+              fieldType={FormFieldType.INPUT}
+              control={form.control}
+              name="purchaseOrderNumber"
+              label="Purchase Order Number"
+              placeholder={
+                isLoading || isRefetching
+                  ? "Generating..."
+                  : "Enter purchase order number"
+              }
+            />
+            <Button
+              type="button"
+              size={"icon"}
+              onClick={handleRefreshPurchaseOrderNumber}
+              className="self-end shad-primary-btn px-5"
+              disabled={isLoading || isRefetching}
+            >
+              <RefreshCw
+                className={`h-5 w-5 ${
+                  isLoading || isRefetching ? "animate-spin" : ""
+                }`}
+              />
+            </Button>
+          </div>
           <CustomFormField
             fieldType={FormFieldType.DATE_PICKER}
             control={form.control}
@@ -350,6 +411,7 @@ const PurchaseForm = ({ mode, initialData, onSubmit }: PurchaseFormProps) => {
             dateFormat="MM/dd/yyyy"
           />
         </div>
+        <div className="flex flex-col sm:flex-row gap-5"></div>
 
         <div
           className={`space-y-5 ${
@@ -358,106 +420,173 @@ const PurchaseForm = ({ mode, initialData, onSubmit }: PurchaseFormProps) => {
               : ""
           }`}
         >
-          <div className="w-full sm:w-1/2">
-            <CustomFormField
-              fieldType={FormFieldType.SELECT}
-              control={form.control}
-              name="selectedProduct"
-              label="Select Product"
-              placeholder="Select product"
-              key={`product-select-${form.watch("selectedProduct") || ""}`}
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="w-full sm:w-1/2">
+              <CustomFormField
+                fieldType={FormFieldType.SELECT}
+                control={form.control}
+                name="selectedProductId"
+                label="Select Inventory"
+                placeholder={
+                  productsLoading ? "Loading..." : "Select inventory"
+                }
+                key={`inventory-select-${selectedProductId || ""}`}
+              >
+                <div className="py-3">
+                  <div className="relative flex items-center rounded-md border border-dark-700 bg-white">
+                    <Search className="ml-2 h-4 w-4 opacity-50" />
+                    <Input
+                      type="text"
+                      placeholder="Search by Product ID, Product Name"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
+                      disabled={productsLoading}
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery("")}
+                        className="absolute right-3 top-3 text-dark-700 hover:text-dark-600"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {productsLoading ? (
+                  <div className="py-4">
+                    <Loading />
+                  </div>
+                ) : filteredProducts && filteredProducts.length > 0 ? (
+                  <>
+                    <Table className="shad-table border border-light-200 rounded-lg">
+                      <TableHeader>
+                        <TableRow className="w-full bg-blue-800 text-white px-2 font-semibold">
+                          <TableHead>Product ID</TableHead>
+                          <TableHead>Product Name</TableHead>
+                          <TableHead>Qnty</TableHead>
+                          <TableHead></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody className="w-full bg-white">
+                        {filteredProducts.map((product: Product) => (
+                          <TableRow
+                            key={product.id}
+                            className="cursor-pointer hover:bg-blue-50"
+                            onClick={() => {
+                              form.setValue("selectedProductId", product.id);
+                              setPrevSelectedProductId(product.id);
+                              setSearchQuery("");
+                              // Find and click the hidden SelectItem with this value
+                              const selectItem = document.querySelector(
+                                `[data-value="${product.id}"]`
+                              ) as HTMLElement;
+                              if (selectItem) {
+                                selectItem.click();
+                              }
+                            }}
+                          >
+                            <TableCell>{product.productID}</TableCell>
+                            <TableCell>{product.name}</TableCell>
+                            <TableCell>{product.quantity}</TableCell>
+                            <TableCell className="w-10">
+                              {prevSelectedProductId === product.id && (
+                                <span className="text-blue-800">
+                                  <Check className="h-5 w-5" />
+                                </span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    {/* Hidden select options for form control */}
+                    <div className="hidden">
+                      {filteredProducts.map((product: Product) => (
+                        <SelectItem
+                          key={product.id}
+                          value={product.id}
+                          data-value={product.id}
+                        >
+                          {product.productID} -{product.name}
+                          {}
+                        </SelectItem>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <SelectItem value="null" disabled>
+                    <div>No inventory found</div>
+                  </SelectItem>
+                )}
+              </CustomFormField>
+            </div>
+            <Button
+              type="button"
+              onClick={handleAddProduct}
+              disabled={!selectedProductId}
+              className="self-end mb-1 shad-primary-btn"
             >
-              {products?.map((product: Product) => (
-                <SelectItem
-                  key={product.id}
-                  value={product.id}
-                  className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
-                >
-                  {product.name}
-                </SelectItem>
-              ))}
-            </CustomFormField>
-          </div>
-          <div className="flex flex-col justify-between sm:flex-row gap-4">
-            <div className="flex w-full flex-col sm:flex-row gap-5">
-              <div className="flex flex-1 flex-col gap-3">
-                <p className="text-14-medium text-blue-800">Product Name</p>
-                <p className="text-14-medium bg-white text-blue-800 border border-dark-700 h-[42px] rounded-md flex items-center px-3 w-full shadow-sm min-w-[200px]">
-                  {selectedProductName || "Select a product"}
-                </p>
-              </div>
-              <CustomFormField
-                fieldType={FormFieldType.NUMBER}
-                control={form.control}
-                name="tempQuantity"
-                label="Quantity"
-                placeholder="Enter quantity"
-              />
-
-              <CustomFormField
-                fieldType={FormFieldType.AMOUNT}
-                control={form.control}
-                name="tempPrice"
-                label="Unit Price"
-                placeholder="Enter unit price"
-              />
-            </div>
-            <div className="flex flex-row gap-2 justify-end">
-              <Button
-                type="button"
-                size={"icon"}
-                onClick={handleCancel}
-                className="self-end mb-1 shad-danger-btn"
-              >
-                <X />
-              </Button>
-
-              <Button
-                type="button"
-                onClick={handleAddProduct}
-                className="self-end mb-1 shad-primary-btn"
-              >
-                {editingIndex !== null ? "Update Product" : "Add Product"}
-              </Button>
-            </div>
+              Add Product
+            </Button>
           </div>
 
           <Table className="shad-table">
             <TableHeader>
               <TableRow className="w-full bg-blue-800 text-white px-2 font-semibold">
                 <TableHead>#</TableHead>
-                <TableHead>Product</TableHead>
-                <TableHead>Lot Number</TableHead>
+                <TableHead>PID</TableHead>
+                <TableHead>Product Description</TableHead>
                 <TableHead>Quantity</TableHead>
-                <TableHead>Amount</TableHead>
+                <TableHead>Cost Price</TableHead>
+                <TableHead>Sub-Total</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody className="w-full bg-white">
+            <TableBody className="w-full bg-white text-blue-800">
               {fields.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-4">
+                  <TableCell colSpan={11} className="text-center py-4">
                     No products added
                   </TableCell>
                 </TableRow>
               )}
               {fields.map((entry, index) => (
-                <TableRow key={`${entry.product}-${index}`}>
+                <TableRow
+                  key={`${entry.productId}-${index}`}
+                  className="w-full hover:bg-blue-50"
+                >
                   <TableCell>{index + 1}</TableCell>
+                  <TableCell>{entry.productID}</TableCell>
                   <TableCell>{entry.productName}</TableCell>
-                  <TableCell>{entry.productLotNumber}</TableCell>
-                  <TableCell>{entry.quantity}</TableCell>
+
                   <TableCell>
-                    <FormatNumber value={entry.totalPrice} />
+                    <CustomFormField
+                      fieldType={FormFieldType.NUMBER}
+                      control={form.control}
+                      name={`products.${index}.quantity`}
+                      label=""
+                      placeholder="Qty"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <CustomFormField
+                      fieldType={FormFieldType.AMOUNT}
+                      control={form.control}
+                      name={`products.${index}.costPrice`}
+                      label=""
+                      placeholder="Cost price"
+                    />
+                  </TableCell>
+
+                  <TableCell>
+                    <div className="flex items-center text-14-medium text-blue-800 rounded-md border bg-white px-3 border-dark-700 h-11">
+                      <FormatNumber value={calculateEntryTotalPrice(index)} />
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-row items-center">
-                      <span
-                        onClick={() => handleEditEntry(index)}
-                        className="text-[#475BE8] p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
-                      >
-                        <EditIcon className="h-5 w-5" />
-                      </span>
                       <span
                         onClick={() => handleDeleteEntry(index)}
                         className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
@@ -470,17 +599,22 @@ const PurchaseForm = ({ mode, initialData, onSubmit }: PurchaseFormProps) => {
               ))}
               {/* Total amount row */}
               {fields.length > 0 && (
-                <TableRow>
-                  <TableCell
-                    colSpan={5}
-                    className="text-right font-semibold text-blue-800 text-[17px] py-4"
-                  >
-                    Total Amount:
-                  </TableCell>
-                  <TableCell className="font-semibold text-blue-800 text-[17px] py-4">
-                    <FormatNumber value={calculateTotalAmount()} />
-                  </TableCell>
-                </TableRow>
+                <>
+                  <TableRow>
+                    <TableCell
+                      colSpan={5}
+                      className="text-right font-semibold text-blue-800 text-[17px] py-4"
+                    >
+                      {`Grand Total:`}
+                    </TableCell>
+                    <TableCell
+                      colSpan={2}
+                      className="font-semibold text-blue-800 text-[17px] py-4"
+                    >
+                      <FormatNumber value={calculateTotalAmount()} />
+                    </TableCell>
+                  </TableRow>
+                </>
               )}
             </TableBody>
           </Table>
@@ -490,43 +624,16 @@ const PurchaseForm = ({ mode, initialData, onSubmit }: PurchaseFormProps) => {
             </p>
           )}
         </div>
-        <div className="w-full flex flex-col sm:flex-row gap-5">
-          <CustomFormField
-            fieldType={FormFieldType.AMOUNT}
-            control={form.control}
-            name="amountPaid"
-            label="Amount Paid"
-            placeholder="Enter amount paid"
-          />
-
-          <CustomFormField
-            fieldType={FormFieldType.SELECT}
-            control={form.control}
-            name="paymentMethod"
-            label="Payment Method"
-            placeholder="Select payment method"
-            key={`payment-select-${form.watch("paymentMethod") || ""}`}
-          >
-            {Object.values(PaymentMethod).map((method) => (
-              <SelectItem
-                key={method}
-                value={method}
-                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
-              >
-                {method}
-              </SelectItem>
-            ))}
-          </CustomFormField>
-        </div>
 
         <div className="w-full flex flex-col sm:flex-row gap-5">
           <CustomFormField
             fieldType={FormFieldType.SELECT}
             control={form.control}
-            name="vendor"
+            name="vendorId"
             label="Vendor"
             placeholder="Select vendor"
-            key={`vendor-select-${form.watch("vendor") || ""}`}
+            key={`vendor-select-${form.watch("vendorId") || ""}`}
+            onAddNew={() => {}}
           >
             {vendors?.map((vendor: Vendor) => (
               <SelectItem
@@ -559,27 +666,6 @@ const PurchaseForm = ({ mode, initialData, onSubmit }: PurchaseFormProps) => {
           </CustomFormField>
         </div>
 
-        <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-5">
-          <CustomFormField
-            fieldType={FormFieldType.SELECT}
-            control={form.control}
-            name="deliveryStatus"
-            label="Delivery Status"
-            placeholder="Select delivery status"
-            key={`delivery-select-${form.watch("deliveryStatus") || ""}`}
-          >
-            {Object.values(DeliveryStatus).map((status) => (
-              <SelectItem
-                key={status}
-                value={status}
-                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
-              >
-                {status}
-              </SelectItem>
-            ))}
-          </CustomFormField>
-        </div>
-
         <CustomFormField
           fieldType={FormFieldType.TEXTAREA}
           control={form.control}
@@ -591,12 +677,15 @@ const PurchaseForm = ({ mode, initialData, onSubmit }: PurchaseFormProps) => {
         <div className="flex justify-end gap-4">
           <Button
             type="button"
-            onClick={() => form.reset()}
+            onClick={handleCancel}
             className="shad-danger-btn"
           >
             Cancel
           </Button>
-          <SubmitButton isLoading={isLoading} className="shad-primary-btn">
+          <SubmitButton
+            isLoading={isCreatingPurchase || isEditingPurchase}
+            className="shad-primary-btn"
+          >
             {mode === "create" ? "Create Purchase" : "Update Purchase"}
           </SubmitButton>
         </div>

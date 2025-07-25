@@ -124,36 +124,29 @@ export const PurchaseFormValidation = z.object({
     message: "Purchase date cannot be in the future",
   }),
   totalAmount: z.number().min(0, "Total amount must be 0 or more"),
-  amountPaid: z.number().min(0, "Amount paid must be 0 or more"),
-  vendor: z.string().nonempty("Vendor is required"),
+  vendorId: z.string().nonempty("Vendor is required"),
   status: z
     .enum(Object.values(PurchaseStatus) as [string, ...string[]])
     .default(PurchaseStatus.Pending),
-  paymentMethod: z
-    .enum(Object.values(PaymentMethod) as [string, ...string[]])
-    .default(PaymentMethod.Cash),
-  deliveryStatus: z
-    .enum(Object.values(DeliveryStatus) as [string, ...string[]])
-    .default(DeliveryStatus.Pending),
   notes: z.string().optional(),
   products: z
     .array(
       z.object({
-        product: z.string().nonempty("Product is required"),
-        quantity: z.number().int().min(0, "Quantity must be 0 or more"),
-        unitPrice: z.number().min(0, "Unit price must be 0 or more"),
+        productId: z.string().nonempty("Product is required"),
+        quantity: z.number().int().min(1, "Quantity must be more than 0"),
+        costPrice: z.number().min(0, "Cost price must be 0 or more"),
         totalPrice: z.number().min(0, "Total price must be 0 or more"),
-        productName: z.string().optional(),
-        productLotNumber: z.string().optional(),
-        productUnit: z.string().optional(),
+        quantityReceived: z
+          .number()
+          .int()
+          .min(0, "Quantity received must be 0 or more"),
+        productName: z.string(),
+        productID: z.string(),
       })
     )
     .min(1, "At least one product is required"),
 
-  // Temporary fields for product selection
-  selectedProduct: z.string().optional(),
-  tempQuantity: z.number().optional(),
-  tempPrice: z.number().optional(),
+  selectedProductId: z.string().optional(),
 });
 export type PurchaseFormValues = z.infer<typeof PurchaseFormValidation>;
 

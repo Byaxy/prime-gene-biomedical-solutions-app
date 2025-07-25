@@ -1,10 +1,9 @@
 import { useSales } from "@/hooks/useSales";
 import OverviewCard from "./OverviewCard";
-import { Purchase } from "@/types/appwrite.types";
 import { usePurchases } from "@/hooks/usePurchases";
 import { useExpenses } from "@/hooks/useExpenses";
 import ProductsOverview from "./ProductsOverview";
-import { Expense, SaleWithRelations } from "@/types";
+import { Expense, Purchase, SaleWithRelations } from "@/types";
 
 const Overview = () => {
   const { sales, isLoading } = useSales({ getAllSales: true });
@@ -33,13 +32,6 @@ const Overview = () => {
     ? sales.reduce(
         (sum: number, sale: SaleWithRelations) =>
           (sum += sale.sale.status === "cancelled" ? sale.sale.totalAmount : 0),
-        0
-      )
-    : 0;
-
-  const purchasesTotalPaid = purchases
-    ? purchases.reduce(
-        (sum: number, purchase: Purchase) => (sum += purchase.amountPaid),
         0
       )
     : 0;
@@ -87,14 +79,9 @@ const Overview = () => {
         title="Purchases"
         data={[
           {
-            name: "Pending",
-            value: purchasesTotalAmount - purchasesTotalPaid,
+            name: "Total Amount",
+            value: purchasesTotalAmount,
             color: "#EDF3F6",
-          },
-          {
-            name: "Paid",
-            value: purchasesTotalPaid,
-            color: "#72d9d6",
           },
         ]}
         total={purchasesTotalAmount}

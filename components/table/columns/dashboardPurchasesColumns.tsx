@@ -1,13 +1,13 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/table-core";
-import { Purchase } from "@/types/appwrite.types";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn, formatDateTime } from "@/lib/utils";
 import FormatNumber from "@/components/FormatNumber";
+import { PurchaseStatus, PurchaseWithRelations } from "@/types";
 
-export const dashboardPurchasesColumns: ColumnDef<Purchase>[] = [
+export const dashboardPurchasesColumns: ColumnDef<PurchaseWithRelations>[] = [
   {
     id: "index",
     header: "#",
@@ -21,7 +21,7 @@ export const dashboardPurchasesColumns: ColumnDef<Purchase>[] = [
     enableSorting: false,
   },
   {
-    accessorKey: "purchaseDate",
+    accessorKey: "purchase.purchaseDate",
     header: ({ column }) => {
       return (
         <Button
@@ -38,14 +38,14 @@ export const dashboardPurchasesColumns: ColumnDef<Purchase>[] = [
       const purchase = row.original;
       return (
         <p className="text-14-medium ">
-          {formatDateTime(purchase.purchaseDate).dateTime}
+          {formatDateTime(purchase.purchase.purchaseDate).dateTime}
         </p>
       );
     },
   },
   {
-    id: "name",
-    accessorKey: "purchaseOrderNumber",
+    id: "purchase.purchaseOrderNumber",
+    accessorKey: "purchase.purchaseOrderNumber",
     header: ({ column }) => {
       return (
         <Button
@@ -61,12 +61,27 @@ export const dashboardPurchasesColumns: ColumnDef<Purchase>[] = [
     cell: ({ row }) => {
       const purchase = row.original;
       return (
-        <p className="text-14-medium ">{purchase.purchaseOrderNumber || "-"}</p>
+        <p className="text-14-medium ">
+          {purchase.purchase.purchaseOrderNumber || "-"}
+        </p>
       );
     },
   },
   {
-    accessorKey: "status",
+    id: "vendor.name",
+    accessorKey: "vendor.name",
+    header: "Vendor",
+    cell: ({ row }) => {
+      const purchase = row.original;
+      return (
+        <p className="text-14-medium ">
+          {purchase.vendor ? purchase.vendor.name : "-"}
+        </p>
+      );
+    },
+  },
+  {
+    accessorKey: "purchase.status",
     header: "Status",
     cell: ({ row }) => {
       const purchase = row.original;
@@ -75,45 +90,22 @@ export const dashboardPurchasesColumns: ColumnDef<Purchase>[] = [
           <span
             className={cn(
               "text-14-medium capitalize",
-              purchase.status === "pending" &&
+              purchase.purchase.status === PurchaseStatus.Pending &&
                 "text-white bg-[#f59e0b] px-3 py-1 rounded-xl",
-              purchase.status === "completed" &&
+              purchase.purchase.status === PurchaseStatus.Completed &&
                 "bg-green-500 text-white px-3 py-1 rounded-xl",
-              purchase.status === "cancelled" &&
+              purchase.purchase.status === PurchaseStatus.Cancelled &&
                 "bg-red-600 text-white px-3 py-1 rounded-xl"
             )}
           >
-            {purchase.status}
+            {purchase.purchase.status}
           </span>
         </p>
       );
     },
   },
   {
-    accessorKey: "amountPaid",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="font-semibold px-0"
-        >
-          Paid
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      );
-    },
-    cell: ({ row }) => {
-      const purchase = row.original;
-      return (
-        <p className="text-14-medium ">
-          <FormatNumber value={purchase.amountPaid} />
-        </p>
-      );
-    },
-  },
-  {
-    accessorKey: "totalAmount",
+    accessorKey: "purchase.totalAmount",
     header: ({ column }) => {
       return (
         <Button
@@ -130,7 +122,7 @@ export const dashboardPurchasesColumns: ColumnDef<Purchase>[] = [
       const purchase = row.original;
       return (
         <p className="text-14-medium ">
-          <FormatNumber value={purchase.totalAmount} />
+          <FormatNumber value={purchase.purchase.totalAmount} />
         </p>
       );
     },

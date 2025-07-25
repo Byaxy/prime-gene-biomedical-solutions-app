@@ -1,98 +1,60 @@
 "use server";
 
-import { ID, Query, Models } from "node-appwrite";
 import { revalidatePath } from "next/cache";
 import { parseStringify } from "../utils";
-import {
-  databases,
-  DATABASE_ID,
-  NEXT_PUBLIC_PURCHASES_COLLECTION_ID,
-  NEXT_PUBLIC_PURCHASE_ITEMS_COLLECTION_ID,
-  NEXT_PUBLIC_PRODUCTS_COLLECTION_ID,
-} from "../appwrite-server";
 import { PurchaseFormValues } from "../validation";
-
-// Purchase item document interface
-interface PurchaseItemDocument extends Models.Document {
-  purchase: string;
-  product: string;
-  quantity: number;
-  unitPrice: number;
-  totalPrice: number;
-}
+import { db } from "@/drizzle/db";
+import {
+  purchaseItemsTable,
+  purchasesTable,
+  vendorsTable,
+} from "@/drizzle/schema";
+import { PurchaseStatus } from "@/types";
+import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { PurchaseFilters } from "@/hooks/usePurchases";
 
 // add purchase
 export const addPurchase = async (purchase: PurchaseFormValues) => {
   try {
-    // Create purchase
-    const purchaseData = {
-      purchaseOrderNumber: purchase.purchaseOrderNumber,
-      purchaseDate: purchase.purchaseDate,
-      totalAmount: purchase.totalAmount,
-      amountPaid: purchase.amountPaid,
-      vendor: purchase.vendor,
-      status: purchase.status,
-      paymentMethod: purchase.paymentMethod,
-      deliveryStatus: purchase.deliveryStatus,
-      notes: purchase.notes,
-    };
-    const createPurchaseResponse = await databases.createDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_PURCHASES_COLLECTION_ID!,
-      ID.unique(),
-      purchaseData
-    );
+    const result = await db.transaction(async (tx) => {
+      // Create main purchase order record
+      const [newPurchase] = await tx
+        .insert(purchasesTable)
+        .values({
+          purchaseOrderNumber: purchase.purchaseOrderNumber,
+          purchaseDate: purchase.purchaseDate,
+          totalAmount: purchase.totalAmount,
+          vendorId: purchase.vendorId,
+          status: purchase.status as PurchaseStatus,
+          notes: purchase.notes,
+        })
+        .returning();
 
-    // Create purchase items
-    const createPurchaseItemsPromises = purchase.products.map(
-      async (product) => {
-        const purchaseItemData = {
-          purchase: createPurchaseResponse.$id,
-          product: product.product,
-          quantity: product.quantity,
-          unitPrice: product.unitPrice,
-          totalPrice: product.totalPrice,
-        };
-
-        return databases.createDocument(
-          DATABASE_ID!,
-          NEXT_PUBLIC_PURCHASE_ITEMS_COLLECTION_ID!,
-          ID.unique(),
-          purchaseItemData
-        );
-      }
-    );
-
-    const response = await Promise.all(createPurchaseItemsPromises);
-
-    // Adjust product stock if delivery status is delivered
-    if (purchase.deliveryStatus === "delivered") {
-      await Promise.all(
+      // Create purchase items
+      const purchaseItems = await Promise.all(
         purchase.products.map(async (product) => {
-          const productData = await databases.getDocument(
-            DATABASE_ID!,
-            NEXT_PUBLIC_PRODUCTS_COLLECTION_ID!,
-            product.product
-          );
-
-          const updatedStock = productData.quantity + product.quantity;
-
-          // TO DO: Alert if stock is more than max stock level
-
-          return databases.updateDocument(
-            DATABASE_ID!,
-            NEXT_PUBLIC_PRODUCTS_COLLECTION_ID!,
-            product.product,
-            {
-              quantity: updatedStock,
-            }
-          );
+          const [newItem] = await tx
+            .insert(purchaseItemsTable)
+            .values({
+              purchaseId: newPurchase.id,
+              productId: product.productId,
+              quantity: product.quantity,
+              costPrice: product.costPrice,
+              totalPrice: product.totalPrice,
+              quantityReceived: product.quantityReceived,
+              productName: product.productName,
+              productID: product.productID,
+            })
+            .returning();
+          return newItem;
         })
       );
-    }
+
+      return { purchase: newPurchase, items: purchaseItems };
+    });
 
     revalidatePath("/purchases");
-    return parseStringify(response);
+    return parseStringify(result);
   } catch (error) {
     console.error("Error creating purchase:", error);
     throw error;
@@ -105,156 +67,161 @@ export const editPurchase = async (
   purchaseId: string
 ) => {
   try {
-    // Update main purchase record
-    const purchaseData = {
-      purchaseOrderNumber: purchase.purchaseOrderNumber,
-      purchaseDate: purchase.purchaseDate,
-      totalAmount: purchase.totalAmount,
-      amountPaid: purchase.amountPaid,
-      vendor: purchase.vendor,
-      status: purchase.status,
-      paymentMethod: purchase.paymentMethod,
-      deliveryStatus: purchase.deliveryStatus,
-      notes: purchase.notes,
-    };
+    const updatedPurchase = await db.transaction(async (tx) => {
+      // Update the main purchase record
+      const [updatedPurchase] = await tx
+        .update(purchasesTable)
+        .set({
+          purchaseOrderNumber: purchase.purchaseOrderNumber,
+          purchaseDate: purchase.purchaseDate,
+          totalAmount: purchase.totalAmount,
+          vendorId: purchase.vendorId,
+          status: purchase.status as PurchaseStatus,
+          notes: purchase.notes,
+        })
+        .where(eq(purchasesTable.id, purchaseId))
+        .returning();
 
-    // Get existing purchase items first
-    const existingItems = await databases.listDocuments<PurchaseItemDocument>(
-      DATABASE_ID!,
-      NEXT_PUBLIC_PURCHASE_ITEMS_COLLECTION_ID!,
-      [Query.equal("purchase", purchaseId)]
-    );
+      // Get the existing purchase and items
+      const [existingPurchase] = await tx
+        .select()
+        .from(purchasesTable)
+        .where(eq(purchasesTable.id, purchaseId));
 
-    const newProductIds = new Set(
-      purchase.products.map((product) => product.product)
-    );
+      if (!existingPurchase) throw new Error("Purchase not found");
 
-    // Find items to delete (exist in database but not in new products)
-    const itemsToDelete = existingItems.documents.filter(
-      (item) => !newProductIds.has(item.productId)
-    );
+      // Get existing quotation items
+      const existingItems = await tx
+        .select()
+        .from(purchaseItemsTable)
+        .where(eq(purchaseItemsTable.purchaseId, purchaseId));
 
-    // Delete removed items first
-    if (itemsToDelete.length > 0) {
-      await Promise.all(
-        itemsToDelete.map((item) =>
-          databases.deleteDocument(
-            DATABASE_ID!,
-            NEXT_PUBLIC_PURCHASE_ITEMS_COLLECTION_ID!,
-            item.$id
-          )
-        )
+      const newProductIds = new Set(
+        purchase.products.map((product) => product.productId)
       );
-    }
 
-    // Create a map of existing items for updates
-    const existingItemsMap = new Map(
-      existingItems.documents.map((item) => [item.product, item])
-    );
+      // Find items to delete (exist in database but not in new products)
+      const itemsToDelete = existingItems.filter(
+        (item) => !newProductIds.has(item.productId)
+      );
 
-    // Handle updates and additions after deletions are complete
-    await Promise.all(
-      purchase.products.map(async (product) => {
-        const existingItem = existingItemsMap.get(product.product);
-        const purchaseItemData = {
-          purchase: purchaseId,
-          product: product.product,
-          quantity: product.quantity,
-          unitPrice: product.unitPrice,
-          totalPrice: product.totalPrice,
-        };
+      // Delete removed items first
+      if (itemsToDelete.length > 0) {
+        await Promise.all(
+          itemsToDelete.map((item) =>
+            tx
+              .delete(purchaseItemsTable)
+              .where(eq(purchaseItemsTable.id, item.id))
+          )
+        );
+      }
 
-        if (existingItem) {
-          // Update existing item
-          return databases.updateDocument(
-            DATABASE_ID!,
-            NEXT_PUBLIC_PURCHASE_ITEMS_COLLECTION_ID!,
-            existingItem.$id,
-            purchaseItemData
-          );
-        } else {
-          // Create new item
-          return databases.createDocument(
-            DATABASE_ID!,
-            NEXT_PUBLIC_PURCHASE_ITEMS_COLLECTION_ID!,
-            ID.unique(),
-            purchaseItemData
-          );
-        }
-      })
-    );
+      // Create a map of existing items for updates
+      const existingItemsMap = new Map(
+        existingItems.map((item) => [item.productId, item])
+      );
 
-    // Adjust product stock if delivery status is delivered
-    const existingPurchase = await databases.getDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_PURCHASES_COLLECTION_ID!,
-      purchaseId
-    );
-
-    if (
-      purchase.deliveryStatus === "delivered" &&
-      existingPurchase.deliveryStatus !== "delivered"
-    ) {
-      await Promise.all(
+      // Process updates and additions
+      const updatedItems = await Promise.all(
         purchase.products.map(async (product) => {
-          const productData = await databases.getDocument(
-            DATABASE_ID!,
-            NEXT_PUBLIC_PRODUCTS_COLLECTION_ID!,
-            product.product
-          );
+          const existingItem = existingItemsMap.get(product.productId);
 
-          const updatedStock = productData.quantity + product.quantity;
-
-          // TO DO: Alert if stock is more than max stock level
-
-          return databases.updateDocument(
-            DATABASE_ID!,
-            NEXT_PUBLIC_PRODUCTS_COLLECTION_ID!,
-            product.product,
-            {
-              quantity: updatedStock,
-            }
-          );
+          if (existingItem) {
+            // Update existing item
+            const [updatedItem] = await tx
+              .update(purchaseItemsTable)
+              .set({
+                quantity: product.quantity,
+                totalPrice: product.totalPrice,
+                costPrice: product.costPrice,
+              })
+              .where(eq(purchaseItemsTable.id, existingItem.id))
+              .returning();
+            return updatedItem;
+          } else {
+            // Create new item
+            const [newItem] = await tx
+              .insert(purchaseItemsTable)
+              .values({
+                purchaseId: purchaseId,
+                productId: product.productId,
+                quantity: product.quantity,
+                totalPrice: product.totalPrice,
+                costPrice: product.costPrice,
+                quantityReceived: product.quantityReceived,
+                productName: product.productName,
+                productID: product.productID,
+              })
+              .returning();
+            return newItem;
+          }
         })
       );
-    }
 
-    // Update the main purchase record after all item operations are complete
-    const updatePurchaseResponse = await databases.updateDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_PURCHASES_COLLECTION_ID!,
-      purchaseId,
-      purchaseData
-    );
+      return {
+        purchase: updatedPurchase,
+        items: updatedItems,
+      };
+    });
 
     revalidatePath("/purchases");
     revalidatePath(`/purchases/edit-purchase/${purchaseId}`);
-    return parseStringify(updatePurchaseResponse);
+    return updatedPurchase;
   } catch (error) {
     console.error("Error updating purchase:", error);
-    throw error;
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to update purchase"
+    );
   }
 };
 
 // get purchase by id
 export const getPurchaseById = async (purchaseId: string) => {
   try {
-    const response = await databases.getDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_PURCHASES_COLLECTION_ID!,
-      purchaseId
-    );
+    const result = await db.transaction(async (tx) => {
+      // Get the main purchase record
+      const purchase = await tx
+        .select({
+          purchase: purchasesTable,
+          vendor: vendorsTable,
+        })
+        .from(purchasesTable)
+        .leftJoin(vendorsTable, eq(purchasesTable.vendorId, vendorsTable.id))
+        .where(
+          and(
+            eq(purchasesTable.id, purchaseId),
+            eq(purchasesTable.isActive, true)
+          )
+        )
+        .then((res) => res[0]);
 
-    // Get purchase items for the purchase
-    const items = await databases.listDocuments(
-      DATABASE_ID!,
-      NEXT_PUBLIC_PURCHASE_ITEMS_COLLECTION_ID!,
-      [Query.equal("purchase", purchaseId)]
-    );
+      if (!purchase) {
+        return null;
+      }
 
-    response.products = items.documents;
+      // Get all items for this purchase
+      const items = await tx
+        .select()
+        .from(purchaseItemsTable)
+        .where(
+          and(
+            eq(purchaseItemsTable.purchaseId, purchaseId),
+            eq(purchaseItemsTable.isActive, true)
+          )
+        );
 
-    return parseStringify(response);
+      // Combine the data
+      const purchaseWithItems = {
+        ...purchase,
+        products: items.map((item) => ({
+          ...item,
+        })),
+      };
+
+      return purchaseWithItems;
+    });
+
+    return result ? parseStringify(result) : null;
   } catch (error) {
     console.error("Error getting purchase:", error);
     throw error;
@@ -265,94 +232,113 @@ export const getPurchaseById = async (purchaseId: string) => {
 export const getPurchases = async (
   page: number = 0,
   limit: number = 10,
-  getAllPurchases: boolean = false
+  getAllPurchases: boolean = false,
+  filters?: PurchaseFilters
 ) => {
   try {
-    const queries = [
-      Query.equal("isActive", true),
-      Query.orderDesc("$createdAt"),
-    ];
-
-    if (!getAllPurchases) {
-      queries.push(Query.limit(limit));
-      queries.push(Query.offset(page * limit));
-
-      const response = await databases.listDocuments(
-        DATABASE_ID!,
-        NEXT_PUBLIC_PURCHASES_COLLECTION_ID!,
-        queries
-      );
-
-      // Get purchase items for each purchase
-      const purchasesWithItems = await Promise.all(
-        response.documents.map(async (purchase) => {
-          const items = await databases.listDocuments(
-            DATABASE_ID!,
-            NEXT_PUBLIC_PURCHASE_ITEMS_COLLECTION_ID!,
-            [Query.equal("purchase", purchase.$id)]
-          );
-
-          return {
-            ...purchase,
-            products: items.documents,
-          };
+    const result = await db.transaction(async (tx) => {
+      // Get the main purchases (all or paginated)
+      let purchasesQuery = tx
+        .select({
+          purchase: purchasesTable,
+          vendor: vendorsTable,
         })
-      );
+        .from(purchasesTable)
+        .leftJoin(vendorsTable, eq(purchasesTable.vendorId, vendorsTable.id))
+        .$dynamic();
 
-      return {
-        documents: parseStringify(purchasesWithItems),
-        total: response.total,
-      };
-    } else {
-      let allDocuments: Models.Document[] = [];
-      let offset = 0;
-      const batchSize = 100; // Maximum limit per request(appwrite's max)
+      // Create conditions array
+      const conditions = [eq(purchasesTable.isActive, true)];
 
-      while (true) {
-        const batchQueries = [
-          Query.equal("isActive", true),
-          Query.orderDesc("$createdAt"),
-          Query.limit(batchSize),
-          Query.offset(offset),
-        ];
-
-        const response = await databases.listDocuments(
-          DATABASE_ID!,
-          NEXT_PUBLIC_PURCHASES_COLLECTION_ID!,
-          batchQueries
-        );
-
-        // Get purchase items for each purchase
-        const purchasesWithItems = await Promise.all(
-          response.documents.map(async (purchase) => {
-            const items = await databases.listDocuments(
-              DATABASE_ID!,
-              NEXT_PUBLIC_PURCHASE_ITEMS_COLLECTION_ID!,
-              [Query.equal("purchase", purchase.$id)]
-            );
-
-            return {
-              ...purchase,
-              products: items.documents,
-            };
-          })
-        );
-
-        allDocuments = [...allDocuments, ...purchasesWithItems];
-
-        // If we got fewer documents than the batch size, we've reached the end
-        if (purchasesWithItems.length < batchSize) {
-          break;
+      // Apply filters if provided
+      if (filters) {
+        // Total Amount range
+        if (filters.totalAmount_min !== undefined) {
+          conditions.push(
+            gte(purchasesTable.totalAmount, filters.totalAmount_min)
+          );
+        }
+        if (filters.totalAmount_max !== undefined) {
+          conditions.push(
+            lte(purchasesTable.totalAmount, filters.totalAmount_max)
+          );
         }
 
-        offset += batchSize;
+        // Purchase date range
+        if (filters.purchaseDate_start) {
+          conditions.push(
+            gte(
+              purchasesTable.purchaseDate,
+              new Date(filters.purchaseDate_start)
+            )
+          );
+        }
+        if (filters.purchaseDate_end) {
+          conditions.push(
+            lte(purchasesTable.purchaseDate, new Date(filters.purchaseDate_end))
+          );
+        }
+
+        // Status filter
+        if (filters.status) {
+          conditions.push(
+            eq(purchasesTable.status, filters.status as PurchaseStatus)
+          );
+        }
       }
 
+      // Apply where conditions
+      purchasesQuery = purchasesQuery.where(and(...conditions));
+
+      // Apply order by
+      purchasesQuery = purchasesQuery.orderBy(desc(purchasesTable.createdAt));
+
+      if (!getAllPurchases) {
+        purchasesQuery.limit(limit).offset(page * limit);
+      }
+
+      const purchases = await purchasesQuery;
+
+      // Get all items for these purchases in a single query
+      const purchaseIds = purchases.map((q) => q.purchase.id);
+      const items = await tx
+        .select()
+        .from(purchaseItemsTable)
+        .where(
+          and(
+            inArray(purchaseItemsTable.purchaseId, purchaseIds),
+            eq(purchaseItemsTable.isActive, true)
+          )
+        );
+
+      // Combine the data
+      const purchasesWithItems = purchases.map((purchase) => ({
+        ...purchase,
+        products: items
+          .filter((item) => item.purchaseId === purchase.purchase.id)
+          .map((item) => ({
+            ...item,
+          })),
+      }));
+
+      // Get total count for pagination
+      const total = getAllPurchases
+        ? purchases.length
+        : await tx
+            .select({ count: sql<number>`count(*)` })
+            .from(purchasesTable)
+            .then((res) => res[0]?.count || 0);
+
       return {
-        documents: parseStringify(allDocuments),
-        total: allDocuments.length,
+        documents: purchasesWithItems,
+        total,
       };
-    }
+    });
+
+    return {
+      documents: parseStringify(result.documents),
+      total: result.total,
+    };
   } catch (error) {
     console.error("Error getting purchases:", error);
     throw error;
@@ -362,33 +348,23 @@ export const getPurchases = async (
 // permanently delete purchase
 export const deletePurchase = async (purchaseId: string) => {
   try {
-    // Get existing purchase items first
-    const existingItems = await databases.listDocuments<PurchaseItemDocument>(
-      DATABASE_ID!,
-      NEXT_PUBLIC_PURCHASE_ITEMS_COLLECTION_ID!,
-      [Query.equal("purchase", purchaseId)]
-    );
+    const result = await db.transaction(async (tx) => {
+      // Delete purchase items first
+      await tx
+        .delete(purchaseItemsTable)
+        .where(eq(purchaseItemsTable.purchaseId, purchaseId));
 
-    // Delete purchase items first
-    await Promise.all(
-      existingItems.documents.map((item) =>
-        databases.deleteDocument(
-          DATABASE_ID!,
-          NEXT_PUBLIC_PURCHASE_ITEMS_COLLECTION_ID!,
-          item.$id
-        )
-      )
-    );
+      // Delete the main purchase record
+      const [deletedPurchase] = await tx
+        .delete(purchasesTable)
+        .where(eq(purchasesTable.id, purchaseId))
+        .returning();
 
-    // Delete the main purchase record
-    const response = await databases.deleteDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_PURCHASES_COLLECTION_ID!,
-      purchaseId
-    );
+      return deletedPurchase;
+    });
 
     revalidatePath("/purchases");
-    return parseStringify(response);
+    return parseStringify(result);
   } catch (error) {
     console.error("Error deleting purchase:", error);
     throw error;
@@ -398,17 +374,63 @@ export const deletePurchase = async (purchaseId: string) => {
 // softe delete purchase
 export const softDeletePurchase = async (purchaseId: string) => {
   try {
-    const response = await databases.updateDocument(
-      DATABASE_ID!,
-      NEXT_PUBLIC_PURCHASES_COLLECTION_ID!,
-      purchaseId,
-      { isActive: false }
-    );
+    const result = await db.transaction(async (tx) => {
+      await tx
+        .update(purchaseItemsTable)
+        .set({ isActive: false })
+        .where(eq(purchaseItemsTable.purchaseId, purchaseId));
+
+      const [updatedPurchase] = await tx
+        .update(purchasesTable)
+        .set({ isActive: false })
+        .where(eq(purchasesTable.id, purchaseId))
+        .returning();
+
+      return updatedPurchase;
+    });
 
     revalidatePath("/purchases");
-    return parseStringify(response);
+    return parseStringify(result);
   } catch (error) {
     console.error("Error soft deleting purchase:", error);
+    throw error;
+  }
+};
+
+// Generate Purchase Order number
+export const generatePurchaseOrdereNumber = async (): Promise<string> => {
+  try {
+    const result = await db.transaction(async (tx) => {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+
+      const lastPurchaseOrder = await tx
+        .select({ purchaseOrderNumber: purchasesTable.purchaseOrderNumber })
+        .from(purchasesTable)
+        .where(sql`purchase_order_number LIKE ${`PO${year}/${month}/%`}`)
+        .orderBy(desc(purchasesTable.createdAt))
+        .limit(1);
+
+      let nextSequence = 1;
+      if (lastPurchaseOrder.length > 0) {
+        const lastPurchaseOrderNumber =
+          lastPurchaseOrder[0].purchaseOrderNumber;
+        const lastSequence = parseInt(
+          lastPurchaseOrderNumber.split("/").pop() || "0",
+          10
+        );
+        nextSequence = lastSequence + 1;
+      }
+
+      const sequenceNumber = String(nextSequence).padStart(4, "0");
+
+      return `PO${year}/${month}/${sequenceNumber}`;
+    });
+
+    return result;
+  } catch (error) {
+    console.error("Error generating purchaseOrder number:", error);
     throw error;
   }
 };

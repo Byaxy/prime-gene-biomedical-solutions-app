@@ -4,8 +4,15 @@ import PageWraper from "@/components/PageWraper";
 import { DataTable } from "@/components/table/DataTable";
 import { usePurchases } from "@/hooks/usePurchases";
 import { purchasesColumns } from "@/components/table/columns/purchasesColumns";
+import { useState } from "react";
+import { PurchaseStatus, PurchaseWithRelations } from "@/types";
+import { PurchaseDialog } from "@/components/purchases/PurchaseDialog";
 
 const Purchases = () => {
+  const [openDialog, setOpenDialog] = useState(false);
+  const [selectedPurchase, setSelectedPurchase] = useState(
+    {} as PurchaseWithRelations
+  );
   const {
     purchases,
     totalItems,
@@ -16,7 +23,34 @@ const Purchases = () => {
     isLoading,
     refetch,
     isRefetching,
+    filters,
+    onFilterChange,
+    defaultFilterValues,
   } = usePurchases({ initialPageSize: 10 });
+
+  const handleRowClick = (rowData: PurchaseWithRelations) => {
+    setSelectedPurchase(rowData);
+    setOpenDialog(true);
+  };
+
+  const purchaseFilters = {
+    totalAmount: {
+      type: "number" as const,
+      label: "Grand Total",
+    },
+    purchaseDate: {
+      type: "date" as const,
+      label: "Purchase Date",
+    },
+    status: {
+      type: "select" as const,
+      label: "Purchase Status",
+      options: Object.values(PurchaseStatus).map((item) => ({
+        label: item,
+        value: item,
+      })),
+    },
+  };
 
   return (
     <PageWraper
@@ -24,19 +58,32 @@ const Purchases = () => {
       buttonText="Add Purchase"
       buttonPath="/purchases/create-purchase"
     >
-      <DataTable
-        columns={purchasesColumns}
-        data={purchases || []}
-        isLoading={isLoading}
-        totalItems={totalItems}
-        page={page}
-        onPageChange={setPage}
-        pageSize={pageSize}
-        onPageSizeChange={setPageSize}
-        searchBy="purchaseOrderNumber"
-        refetch={refetch}
-        isRefetching={isRefetching}
-      />
+      <>
+        <DataTable
+          columns={purchasesColumns}
+          data={purchases || []}
+          isLoading={isLoading}
+          totalItems={totalItems}
+          page={page}
+          onPageChange={setPage}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
+          searchBy={["purchase.purchaseOrderNumber", "vendor.name"]}
+          refetch={refetch}
+          isRefetching={isRefetching}
+          filters={purchaseFilters}
+          filterValues={filters}
+          onFilterChange={onFilterChange}
+          defaultFilterValues={defaultFilterValues}
+          onRowClick={handleRowClick}
+        />
+        <PurchaseDialog
+          mode={"view"}
+          open={openDialog && !!selectedPurchase}
+          onOpenChange={setOpenDialog}
+          purchase={selectedPurchase}
+        />
+      </>
     </PageWraper>
   );
 };
