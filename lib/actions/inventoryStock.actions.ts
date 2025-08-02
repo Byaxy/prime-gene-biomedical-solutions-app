@@ -22,7 +22,7 @@ import { InventoryStockFilters } from "@/hooks/useInventoryStock";
 import { InventoryStock } from "@/types";
 
 // fulfill Backorders
-const fulfillBackorders = async (
+export const fulfillBackorders = async (
   productId: string,
   storeId: string,
   newInventoryId: string,

@@ -267,7 +267,7 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
 
     case FormFieldType.DATE_PICKER:
       return (
-        <div className="flex items-center rounded-md border border-dark-700 bg-white">
+        <div className="flex items-center rounded-md border border-dark-700 bg-white relative">
           <FormControl>
             <DatePicker
               selected={field.value}

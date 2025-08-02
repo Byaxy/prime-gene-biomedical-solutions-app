@@ -199,6 +199,11 @@ export const sidebarData: SidebarDataType[] = [
       },
       {
         id: generateId(),
+        title: "Received Inventory List",
+        path: "/purchases/received-inventory",
+      },
+      {
+        id: generateId(),
         title: "Bills Payment",
         path: "/purchases/bills-payment",
       },

@@ -401,19 +401,62 @@ export const receivingTable = pgTable("receiving", {
   purchaseId: uuid("purchase_id")
     .notNull()
     .references(() => purchasesTable.id, { onDelete: "cascade" }), // Foreign key to purchases
-  purchaseItemId: uuid("purchase_item_id")
+  vendorId: uuid("vendor_id")
     .notNull()
-    .references(() => purchaseItemsTable.id, { onDelete: "cascade" }), // Foreign key to purchase items
-  lotNumber: text("lot_number").notNull(),
-  quantityReceived: integer("quantity_received").notNull(),
-  costPrice: numeric("cost_price").notNull(),
-  manufactureDate: timestamp("manufacture_date"),
-  expiryDate: timestamp("expiry_date"),
-  receivedDate: timestamp("received_date").notNull(),
+    .references(() => vendorsTable.id, { onDelete: "set null" }), // Foreign key to vendors
+  storeId: uuid("store_id")
+    .notNull()
+    .references(() => storesTable.id, { onDelete: "cascade" }), // Foreign key to stores
+  receivingOrderNumber: text("receiving_order_number").notNull().unique(),
+  receivingDate: timestamp("receiving_date").notNull(),
+  totalAmount: numeric("total_amount").notNull(),
+  notes: text("notes"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+export const receivingItemsTable = pgTable("receiving_items", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  receivingId: uuid("receiving_id")
+    .notNull()
+    .references(() => receivingTable.id, { onDelete: "cascade" }), // Foreign key to receiving
+  productId: uuid("product_id")
+    .notNull()
+    .references(() => productsTable.id, { onDelete: "cascade" }), // Foreign key to products
+  purchaseItemId: uuid("purchase_item_id")
+    .notNull()
+    .references(() => purchaseItemsTable.id, { onDelete: "cascade" }), // Foreign key to purchase items
+  costPrice: numeric("cost_price").notNull(),
+  sellingPrice: numeric("selling_price").notNull(),
+  totalCost: numeric("total_cost").notNull(),
+  productName: text("product_name"),
+  productID: text("product_ID"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const receivingItemsInvetoryTable = pgTable(
+  "receiving_items_inventory",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    receivingItemId: uuid("receiving_item_id")
+      .notNull()
+      .references(() => receivingItemsTable.id, { onDelete: "cascade" }), // Foreign key to receiving
+    lotNumber: text("lot_number").notNull(),
+    quantity: integer("quantity").notNull(),
+    manufactureDate: timestamp("manufacture_date"),
+    expiryDate: timestamp("expiry_date"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  }
+);
 
 // Product transfers between stores
 export const transfersTable = pgTable("transfers", {

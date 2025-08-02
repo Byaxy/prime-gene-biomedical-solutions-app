@@ -543,6 +543,53 @@ export interface PromissoryNoteWithRelations {
   sale: Sale;
 }
 
+// Received Purchases
+export interface ReceivedPurchase {
+  id: string;
+  purchaseId: string;
+  vendorId: string;
+  storeId: string;
+  receivingOrderNumber: string;
+  receivingDate: Date;
+  totalAmount: number;
+  notes: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ReceivedPurchaseItem {
+  id: string;
+  receivingId: string;
+  productId: string;
+  purchaseItemId: string;
+  costPrice: number;
+  sellingPrice: number;
+  totalCost: number;
+  inventoryStock: ReceivedPurchaseItemStock[];
+  productName: string;
+  productID: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ReceivedPurchaseItemStock {
+  receivingItemId: string;
+  lotNumber: string;
+  quantity: number;
+  manufactureDate: Date | null;
+  expiryDate: Date | null;
+}
+
+export interface ReceivedPurchaseWithRelations {
+  receivedPurchase: ReceivedPurchase;
+  purchaseOrder: Purchase;
+  vendor: Vendor;
+  store: Store;
+  products: ReceivedPurchaseItem[];
+}
+
 // payment methods
 export enum PaymentMethod {
   Cash = "cash",
@@ -605,4 +652,17 @@ export enum PromissoryNoteStatus {
   Fulfiled = "fulfilled",
   Partial = "partial",
   Cancelled = "cancelled",
+}
+
+export enum InventoryTransactionType {
+  Purchase = "purchase",
+  Sale = "sale",
+  Loan = "loan",
+  "Sale Reversal" = "sale_reversal",
+  "Waybill Edite Reversal" = "waybill_edit_reversal",
+  "Waybill Edit" = "waybill_edit",
+  Transfer = "transfer",
+  Adjustment = "adjustment",
+  "Backorder Fulfillment" = "backorder_fulfillment",
+  "Waybill Deletion Restore" = "waybill_deletion_restore",
 }

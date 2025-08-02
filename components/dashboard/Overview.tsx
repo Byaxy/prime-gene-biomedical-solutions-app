@@ -3,7 +3,7 @@ import OverviewCard from "./OverviewCard";
 import { usePurchases } from "@/hooks/usePurchases";
 import { useExpenses } from "@/hooks/useExpenses";
 import ProductsOverview from "./ProductsOverview";
-import { Expense, Purchase, SaleWithRelations } from "@/types";
+import { Expense, PurchaseWithRelations, SaleWithRelations } from "@/types";
 
 const Overview = () => {
   const { sales, isLoading } = useSales({ getAllSales: true });
@@ -38,8 +38,11 @@ const Overview = () => {
 
   const purchasesTotalAmount = purchases
     ? purchases.reduce(
-        (sum: number, purchase: Purchase) =>
-          (sum += purchase.status === "cancelled" ? 0 : purchase.totalAmount),
+        (sum: number, purchase: PurchaseWithRelations) =>
+          (sum +=
+            purchase.purchase.status === "cancelled"
+              ? 0
+              : purchase.purchase.totalAmount),
         0
       )
     : 0;
@@ -81,7 +84,7 @@ const Overview = () => {
           {
             name: "Total Amount",
             value: purchasesTotalAmount,
-            color: "#EDF3F6",
+            color: "#002060",
           },
         ]}
         total={purchasesTotalAmount}

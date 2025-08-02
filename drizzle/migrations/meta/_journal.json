@@ -323,6 +323,20 @@
       "when": 1752929649023,
       "tag": "0045_wooden_wraith",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1753875208253,
+      "tag": "0046_hot_ulik",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1754067150716,
+      "tag": "0047_misty_quasar",
+      "breakpoints": true
     }
   ]
 }

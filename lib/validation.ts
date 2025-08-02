@@ -150,6 +150,97 @@ export const PurchaseFormValidation = z.object({
 });
 export type PurchaseFormValues = z.infer<typeof PurchaseFormValidation>;
 
+// Recieving Purchase Orders
+export const ReceivingPurchaseFormValidation = z.object({
+  purchaseId: z.string().nonempty("Purchase order is required"),
+  vendorId: z.string().nonempty("Vendor is required"),
+  storeId: z.string().nonempty("Store is required"),
+  receivingOrderNumber: z
+    .string()
+    .nonempty("Receiving order number is required"),
+  receivingDate: z.date().refine((date) => date <= new Date(), {
+    message: "Receiving date cannot be in the future",
+  }),
+  totalAmount: z.number().min(0, "Total amount must be 0 or more"),
+  notes: z.string().optional(),
+  products: z
+    .array(
+      z.object({
+        purchaseItemId: z.string().nonempty("Purchase item is required"),
+        productId: z.string().nonempty("Product is required"),
+        inventoryStock: z
+          .array(
+            z.object({
+              lotNumber: z.string().nonempty("Lot number is required"),
+              quantity: z.number().int().min(1, "Quantity must be more than 0"),
+              manufactureDate: z.date().optional(),
+              expiryDate: z.date().optional(),
+            })
+          )
+          .min(1, "At least one inventory stock is required"),
+        costPrice: z.number().min(0, "Cost price must be 0 or more"),
+        sellingPrice: z.number().min(0, "Selling price must be 0 or more"),
+        totalCost: z.number().min(0, "Total cost must be 0 or more"),
+        pendingQuantity: z
+          .number()
+          .int()
+          .min(0, "Quantity pending must be 0 or more"),
+        productName: z.string(),
+        productID: z.string(),
+      })
+    )
+    .min(1, "At least one product is required"),
+});
+
+export type ReceivingPurchaseFormValues = z.infer<
+  typeof ReceivingPurchaseFormValidation
+>;
+
+export const ReceivedInventoryStockValidation = z
+  .object({
+    inventoryStock: z
+      .array(
+        z.object({
+          lotNumber: z.string().nonempty("Lot number is required"),
+          quantity: z.number().int().min(1, "Quantity must be more than 0"),
+          manufactureDate: z.date().optional(),
+          expiryDate: z.date().optional(),
+        })
+      )
+      .min(1, "At least one inventory stock is required"),
+    totalCost: z.number().min(0, "Total cost must be 0 or more"),
+  })
+  .superRefine((data, ctx) => {
+    const lotNumberMap = new Map<string, number[]>();
+
+    data.inventoryStock.forEach((item, index) => {
+      const lotNumber = item.lotNumber?.trim();
+
+      if (lotNumber) {
+        if (!lotNumberMap.has(lotNumber)) {
+          lotNumberMap.set(lotNumber, []);
+        }
+        lotNumberMap.get(lotNumber)!.push(index);
+      }
+    });
+
+    lotNumberMap.forEach((indices, lotNumber) => {
+      if (indices.length > 1) {
+        // Add error to each duplicate row
+        indices.forEach((index) => {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Duplicate lot number "${lotNumber}" found`,
+            path: ["inventoryStock", index, "lotNumber"],
+          });
+        });
+      }
+    });
+  });
+export type ReceivedInventoryStockValues = z.infer<
+  typeof ReceivedInventoryStockValidation
+>;
+
 // Vendors
 export const VendorFormValidation = z.object({
   name: z.string().nonempty("Name is required"),
