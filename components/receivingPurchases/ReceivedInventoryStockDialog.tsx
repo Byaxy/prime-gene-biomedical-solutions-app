@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "../ui/table";
 import ViewReceivedLotNumbers from "./ViewReceivedLotNumbers";
-import { useState } from "react";
+import React, { useState } from "react";
 import { Eye } from "lucide-react";
 
 interface Props {
@@ -32,16 +32,18 @@ const ReceivedInventoryStockDialog = ({
 }: Props) => {
   const [openDialog, setOpenDialog] = useState(false);
   const [selectedRowIndex, setSelectedRowIndex] = useState<number | null>(null);
+
   if (purchase === null) {
     return null;
   }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[100rem] w-full bg-light-200 space-y-4 p-8">
         <DialogHeader>
           <DialogTitle className="pb-2">
-            Inventory Received against Purchase Order:{" "}
-            {purchase.purchaseOrder.purchaseOrderNumber}
+            Inventory Received against Purchase:{" "}
+            {purchase.purchase.purchaseNumber}
           </DialogTitle>
           <DialogDescription className="text-dark-600">
             Inventory stock Details
@@ -71,9 +73,8 @@ const ReceivedInventoryStockDialog = ({
                 </TableRow>
               )}
               {purchase.products.map((entry, index) => (
-                <>
+                <React.Fragment key={`${entry.productId}-${index}`}>
                   <TableRow
-                    key={`${entry.productId}-${index}`}
                     className={`w-full cursor-pointer ${
                       index % 2 === 1 ? "bg-blue-50" : ""
                     }`}
@@ -120,7 +121,7 @@ const ReceivedInventoryStockDialog = ({
                     purchase={entry}
                     onOpenChange={setOpenDialog}
                   />
-                </>
+                </React.Fragment>
               ))}
               {/* Total amount row */}
               {purchase.products.length > 0 && (

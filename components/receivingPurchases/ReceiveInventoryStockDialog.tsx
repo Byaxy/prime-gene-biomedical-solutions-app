@@ -26,6 +26,7 @@ interface RceiveInventoryStockDialogProps {
   onSave: (data: ReceivedInventoryStockValues) => void;
   costPrice: number;
   productID: string;
+  productName: string;
   pendingQuantity: number;
 }
 
@@ -35,6 +36,7 @@ const ReceiveInventoryStockDialog = ({
   costPrice,
   onSave,
   productID,
+  productName,
   pendingQuantity,
 }: RceiveInventoryStockDialogProps) => {
   const form = useForm<ReceivedInventoryStockValues>({
@@ -156,14 +158,14 @@ const ReceiveInventoryStockDialog = ({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[100rem] bg-light-200 overflow-visible">
-        <DialogHeader>
-          <DialogTitle className="pb-2">
-            Receiving Stock for {productID}
+        <DialogHeader className="pb-5">
+          <DialogTitle className="pb-5">
+            Receiving Stock for {productID} - {productName}
           </DialogTitle>
           <div className="bg-blue-50 rounded-md px-5 py-2 border shadow-sm">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
               <div>
-                <span className="text-dark-500">Pending Quantity:</span>
+                <span className="text-dark-500">Expected Quantity:</span>
                 <p className="font-semibold pt-1 text-blue-800">
                   {pendingQuantity}
                 </p>
@@ -267,6 +269,7 @@ const ReceiveInventoryStockDialog = ({
                               name={`inventoryStock.${index}.manufactureDate`}
                               label=""
                               dateFormat="MM/dd/yyyy"
+                              placeholder="MM/dd/yyyy"
                             />
                           </TableCell>
                           <TableCell>
@@ -276,6 +279,7 @@ const ReceiveInventoryStockDialog = ({
                               name={`inventoryStock.${index}.expiryDate`}
                               label=""
                               dateFormat="MM/dd/yyyy"
+                              placeholder="MM/dd/yyyy"
                             />
                           </TableCell>
                           <TableCell>

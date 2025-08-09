@@ -1,3 +1,4 @@
+import { PaymentStatus, ShippingStatus } from "@/types";
 import { sql } from "drizzle-orm";
 import {
   pgTable,
@@ -63,6 +64,12 @@ export const paymentStatusEnum = pgEnum("payment_status", [
   "partial",
   "paid",
   "due",
+]);
+
+export const shippingStatusEnum = pgEnum("shipping_status", [
+  "not_shipped",
+  "shipped",
+  "received",
 ]);
 
 export const productTransferStatusEnum = pgEnum("product_status", [
@@ -353,19 +360,83 @@ export const inventoryTransactionsTable = pgTable("inventory_transactions", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-// Purchases
-export const purchasesTable = pgTable("purchases", {
+// Purchase Orders
+export const purchaseOrdersTable = pgTable("purchase_orders", {
   id: uuid("id")
     .primaryKey()
     .default(sql`gen_random_uuid()`),
   purchaseOrderNumber: text("purchase_order_number").notNull().unique(),
   vendorId: uuid("vendor_id")
     .notNull()
-    .references(() => vendorsTable.id, { onDelete: "set null" }), // Foreign key to vendors
+    .references(() => vendorsTable.id, { onDelete: "cascade" }), // Foreign key to vendors
+  totalAmount: numeric("total_amount").notNull(),
+  purchaseOrderDate: timestamp("purchase_order_date").notNull(),
+  status: purchaseStatusEnum("status").notNull().default("pending"),
+  notes: text("notes"),
+  isConvertedToPurchase: boolean("is_converted_to_purchase")
+    .notNull()
+    .default(false),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const purchaseOrderItemsTable = pgTable("purchase_order_items", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  purchaseOrderId: uuid("purchase_order_id")
+    .notNull()
+    .references(() => purchaseOrdersTable.id, { onDelete: "cascade" }), // Foreign key to purchases
+  productId: uuid("product_id")
+    .notNull()
+    .references(() => productsTable.id, { onDelete: "cascade" }), // Foreign key to products
+  quantity: integer("quantity").notNull(),
+  costPrice: numeric("cost_price").notNull(),
+  totalPrice: numeric("total_price").notNull(),
+  productName: text("product_name"),
+  productID: text("product_ID"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Purchases
+export const purchasesTable = pgTable("purchases", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  purchaseNumber: text("purchase_number").notNull().unique(),
+  vendorInvoiceNumber: text("vendor_invoice_number").notNull(),
+  vendorId: uuid("vendor_id")
+    .notNull()
+    .references(() => vendorsTable.id, { onDelete: "cascade" }), // Foreign key to vendors
+  purchaseOrderId: uuid("purchase_order_id").references(
+    () => purchaseOrdersTable.id,
+    { onDelete: "set null" }
+  ), // Foreign key to purchase orders
   totalAmount: numeric("total_amount").notNull(),
   purchaseDate: timestamp("purchase_date").notNull(),
   status: purchaseStatusEnum("status").notNull().default("pending"),
+  shippingStatus: shippingStatusEnum("shipping_status")
+    .notNull()
+    .default(ShippingStatus["Not Shipped"]),
+  amountPaid: numeric("amount_paid").notNull(),
+  paymentStatus: paymentStatusEnum("payment_status")
+    .notNull()
+    .default(PaymentStatus.Pending),
   notes: text("notes"),
+  attachments: jsonb("attachments")
+    .$type<
+      Array<{
+        id: string;
+        url: string;
+        name: string;
+        size: number;
+        type: string;
+      }>
+    >()
+    .default([]),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -398,6 +469,7 @@ export const receivingTable = pgTable("receiving", {
   id: uuid("id")
     .primaryKey()
     .default(sql`gen_random_uuid()`),
+  vendorParkingListNumber: text("vendor_parking_list_number").notNull(),
   purchaseId: uuid("purchase_id")
     .notNull()
     .references(() => purchasesTable.id, { onDelete: "cascade" }), // Foreign key to purchases
@@ -407,10 +479,20 @@ export const receivingTable = pgTable("receiving", {
   storeId: uuid("store_id")
     .notNull()
     .references(() => storesTable.id, { onDelete: "cascade" }), // Foreign key to stores
-  receivingOrderNumber: text("receiving_order_number").notNull().unique(),
   receivingDate: timestamp("receiving_date").notNull(),
   totalAmount: numeric("total_amount").notNull(),
   notes: text("notes"),
+  attachments: jsonb("attachments")
+    .$type<
+      Array<{
+        id: string;
+        url: string;
+        name: string;
+        size: number;
+        type: string;
+      }>
+    >()
+    .default([]),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -608,7 +690,9 @@ export const salesTable = pgTable("sales", {
     .notNull()
     .default("pending"),
   notes: text("notes"),
-  quotationId: text("quotation_id").default(""),
+  quotationId: uuid("quotation_id").references(() => quotationsTable.id, {
+    onDelete: "set null",
+  }), // Foreign key to quotation
   attachments: jsonb("attachments")
     .$type<
       Array<{
@@ -767,12 +851,12 @@ export const deliveriesTable = pgTable("deliveries", {
   receivedBy: text("received_by").notNull(),
   customerId: uuid("customer_id")
     .notNull()
-    .references(() => customersTable.id, { onDelete: "set null" }), // Foreign key to customers
+    .references(() => customersTable.id, { onDelete: "cascade" }), // Foreign key to customers
   storeId: uuid("store_id")
     .notNull()
     .references(() => storesTable.id, { onDelete: "cascade" }), // Foreign key to stores
   saleId: uuid("sale_id").references(() => salesTable.id, {
-    onDelete: "set null",
+    onDelete: "cascade",
   }), // Foreign key to sales
   notes: text("notes"),
   deliveryAddress: jsonb("delivery_address")

@@ -3,7 +3,7 @@ import PageWraper from "@/components/PageWraper";
 
 const ReceiveInventory = () => {
   return (
-    <PageWraper title="Receive Inventory">
+    <PageWraper title="Receive Purchased Inventory">
       <section className="space-y-6">
         <RecievingPurchaseForm mode={"create"} />
       </section>

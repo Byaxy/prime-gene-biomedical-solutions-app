@@ -249,11 +249,17 @@ export interface InventoryTransactionWithRelations {
 // Purchases
 export interface Purchase {
   id: string;
-  purchaseOrderNumber: string;
+  purchaseNumber: string;
+  vendorInvoiceNumber: string;
   purchaseDate: Date;
   vendorId: string;
+  purchaseOrderId?: string;
   totalAmount: number;
+  amountPaid: number;
+  shippingStatus: ShippingStatus;
+  paymentStatus: PaymentStatus;
   status: PurchaseStatus;
+  attachments: Attachment[];
   notes: string;
   isActive: boolean;
   createdAt: Date;
@@ -278,6 +284,41 @@ export interface PurchaseWithRelations {
   purchase: Purchase;
   vendor: Vendor;
   products: PurchaseItem[];
+}
+
+// Purchase Orders
+export interface PurchaseOrder {
+  id: string;
+  purchaseOrderNumber: string;
+  vendorId: string;
+  totalAmount: number;
+  purchaseOrderDate: Date;
+  status: PurchaseStatus;
+  notes: string;
+  isConvertedToPurchase: boolean;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PurchaseOrderItem {
+  id: string;
+  purchaseOrderId: string;
+  productId: string;
+  quantity: number;
+  costPrice: number;
+  totalPrice: number;
+  productName: string;
+  productID: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PurchaseOrderWithRelations {
+  purchaseOrder: PurchaseOrder;
+  vendor: Vendor;
+  products: PurchaseOrderItem[];
 }
 
 // Quotations
@@ -356,7 +397,7 @@ export interface Sale {
   paymentStatus: PaymentStatus;
   paymentMethod: PaymentMethod;
   notes: string;
-  quotationId: string;
+  quotationId?: string;
   attachments: Attachment[];
   isDeliveryNoteCreated: boolean;
   isDeliveryAddressAdded: boolean;
@@ -549,10 +590,11 @@ export interface ReceivedPurchase {
   purchaseId: string;
   vendorId: string;
   storeId: string;
-  receivingOrderNumber: string;
+  vendorParkingListNumber: string;
   receivingDate: Date;
   totalAmount: number;
   notes: string;
+  attachments: Attachment[];
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -584,10 +626,22 @@ export interface ReceivedPurchaseItemStock {
 
 export interface ReceivedPurchaseWithRelations {
   receivedPurchase: ReceivedPurchase;
-  purchaseOrder: Purchase;
+  purchase: Purchase;
   vendor: Vendor;
   store: Store;
   products: ReceivedPurchaseItem[];
+}
+
+export interface GroupedReceivedPurchases {
+  id: string;
+  purchase: Purchase;
+  vendor: Vendor;
+  store: Store;
+  totalReceivedPurchases: number;
+  totalAmount: number;
+  receivedPurchases: ReceivedPurchaseWithRelations[];
+  latestReceivingDate: Date;
+  latestVendorParkingListNumber: string;
 }
 
 // payment methods
@@ -665,4 +719,10 @@ export enum InventoryTransactionType {
   Adjustment = "adjustment",
   "Backorder Fulfillment" = "backorder_fulfillment",
   "Waybill Deletion Restore" = "waybill_deletion_restore",
+}
+
+export enum ShippingStatus {
+  "Not Shipped" = "not_shipped",
+  Shipped = "shipped",
+  Received = "received",
 }

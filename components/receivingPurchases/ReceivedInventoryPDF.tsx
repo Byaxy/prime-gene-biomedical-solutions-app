@@ -11,12 +11,10 @@ import {
 } from "@react-pdf/renderer";
 import PDFHeader from "../pdf-template/PDFHeader";
 import PDFTittle from "../pdf-template/PDFTittle";
-import { ProductWithRelations, PurchaseWithRelations } from "@/types";
-import Address from "../pdf-template/Address";
 import { formatCurrency } from "@/lib/utils";
 import SignatureAndBankSection from "../pdf-template/SignatureAndBankSection";
 import PDFFooter from "../pdf-template/PDFFooter";
-
+import { ProductWithRelations, ReceivedPurchaseWithRelations } from "@/types";
 // styles
 const styles = StyleSheet.create({
   page: {
@@ -73,12 +71,12 @@ const styles = StyleSheet.create({
   },
 });
 
-const PurchaseOrderPDF = ({
+const ReceivedInventoryPDF = ({
   purchase,
   companySettings,
   allProducts,
 }: {
-  purchase: PurchaseWithRelations;
+  purchase: ReceivedPurchaseWithRelations;
   allProducts: ProductWithRelations[];
   companySettings: {
     name: string;
@@ -91,14 +89,14 @@ const PurchaseOrderPDF = ({
     currencySymbol: string;
   };
 }) => {
-  const { purchase: purchaseOrder, products } = purchase;
+  const { receivedPurchase, products } = purchase;
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         {/* Header */}
         <PDFHeader />
         {/* Title */}
-        <PDFTittle title="PURCHASE ORDER" />
+        <PDFTittle title="PURCHASE RECEIPT" />
 
         {/* Info */}
         <View
@@ -146,10 +144,10 @@ const PurchaseOrderPDF = ({
                   paddingVertical: 2,
                 }}
               >
-                PO #:
+                VPLN #:
               </Text>
               <Text style={{ ...styles.companyInfo, textAlign: "center" }}>
-                {purchaseOrder.purchaseOrderNumber || "N/A"}
+                {receivedPurchase.vendorParkingListNumber || "N/A"}
               </Text>
             </View>
             <View
@@ -170,40 +168,10 @@ const PurchaseOrderPDF = ({
                 Date:
               </Text>
               <Text style={{ ...styles.companyInfo, textAlign: "center" }}>
-                {new Date(purchaseOrder.purchaseDate).toLocaleDateString()}
+                {new Date(receivedPurchase.receivingDate).toLocaleDateString()}
               </Text>
             </View>
           </View>
-        </View>
-
-        {/* Address Info */}
-        <View
-          style={{
-            display: "flex",
-            flexDirection: "row",
-            marginBottom: 20,
-            gap: 40,
-          }}
-        >
-          <Address
-            addressTitle="Billing Address:"
-            name={companySettings.name}
-            address={companySettings.address}
-            phone={companySettings.phone}
-            email={companySettings.email}
-            city={companySettings.city}
-            country={companySettings.country}
-          />
-
-          <Address
-            addressTitle="Billing Address:"
-            name={companySettings.name}
-            address={companySettings.address}
-            phone={companySettings.phone}
-            email={companySettings.email}
-            city={companySettings.city}
-            country={companySettings.country}
-          />
         </View>
 
         {/* Products Table */}
@@ -230,7 +198,9 @@ const PurchaseOrderPDF = ({
               </Text>
               <Text style={styles.col2}>{product.productID}</Text>
               <Text style={styles.col3}>{product.productName}</Text>
-              <Text style={styles.col4}>{product.quantity}</Text>
+              <Text style={styles.col4}>
+                {product.inventoryStock.reduce((a, b) => a + b.quantity, 0)}
+              </Text>
               <Text style={styles.col5}>
                 {
                   allProducts.find((p) => p.product.id === product.productId)
@@ -245,7 +215,7 @@ const PurchaseOrderPDF = ({
               </Text>
               <Text style={styles.col7}>
                 {formatCurrency(
-                  String(product.totalPrice.toFixed(2)),
+                  String(product.totalCost.toFixed(2)),
                   companySettings.currencySymbol
                 )}
               </Text>
@@ -257,7 +227,7 @@ const PurchaseOrderPDF = ({
               <Text>Grand Total:</Text>
               <Text style={{ width: "40%" }}>
                 {formatCurrency(
-                  String(purchaseOrder.totalAmount.toFixed(2)),
+                  String(receivedPurchase.totalAmount.toFixed(2)),
                   companySettings.currencySymbol
                 )}
               </Text>
@@ -275,4 +245,4 @@ const PurchaseOrderPDF = ({
   );
 };
 
-export default PurchaseOrderPDF;
+export default ReceivedInventoryPDF;

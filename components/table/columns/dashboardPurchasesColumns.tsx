@@ -53,7 +53,7 @@ export const dashboardPurchasesColumns: ColumnDef<PurchaseWithRelations>[] = [
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           className="font-semibold px-0"
         >
-          Purchase Order Number
+          Purchase Number
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       );
@@ -62,7 +62,7 @@ export const dashboardPurchasesColumns: ColumnDef<PurchaseWithRelations>[] = [
       const purchase = row.original;
       return (
         <p className="text-14-medium ">
-          {purchase.purchase.purchaseOrderNumber || "-"}
+          {purchase.purchase.purchaseNumber || "-"}
         </p>
       );
     },

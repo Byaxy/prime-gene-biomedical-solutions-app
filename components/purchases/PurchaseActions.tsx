@@ -17,7 +17,7 @@ import {
 } from "../ui/dropdown-menu";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
 import { useProducts } from "@/hooks/useProducts";
-import PurchaseOrderPDF from "./PurchaseOrderPDF";
+import PurchasePDF from "./PurchasePDF";
 
 const PurchaseActions = ({ purchase }: { purchase: PurchaseWithRelations }) => {
   const [openDialog, setOpenDialog] = useState(false);
@@ -47,7 +47,7 @@ const PurchaseActions = ({ purchase }: { purchase: PurchaseWithRelations }) => {
         throw new Error("Purchase is required to generate PDF.");
       }
       const blob = await pdf(
-        <PurchaseOrderPDF
+        <PurchasePDF
           purchase={purchase}
           companySettings={{
             name: companySettings?.name ?? "",
@@ -65,8 +65,8 @@ const PurchaseActions = ({ purchase }: { purchase: PurchaseWithRelations }) => {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `purchase_order_${
-        purchase?.purchase.purchaseOrderNumber || Date.now()
+      link.download = `purchase_${
+        purchase?.purchase.purchaseNumber || Date.now()
       }.pdf`;
       document.body.appendChild(link);
       link.click();
@@ -91,8 +91,8 @@ const PurchaseActions = ({ purchase }: { purchase: PurchaseWithRelations }) => {
         return;
       }
 
-      const subject = `Purchase Order Reference Number: ${
-        purchase.purchase.purchaseOrderNumber || "N/A"
+      const subject = `Purchase Number: ${
+        purchase.purchase.purchaseNumber || "N/A"
       }`;
       const body = `Dear ${
         purchase.vendor.name || "Supplier"
@@ -144,7 +144,7 @@ const PurchaseActions = ({ purchase }: { purchase: PurchaseWithRelations }) => {
             className="text-[#475BE8] p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
             <EditIcon className="h-5 w-5" />
-            <span>Edit Purchase Order</span>
+            <span>Edit Purchase</span>
           </DropdownMenuItem>
 
           <DropdownMenuItem
@@ -160,7 +160,7 @@ const PurchaseActions = ({ purchase }: { purchase: PurchaseWithRelations }) => {
             className="text-dark-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
             <Mail className="h-5 w-5" />
-            <span>Email Purchase Order</span>
+            <span>Email Purchase</span>
           </DropdownMenuItem>
 
           <DropdownMenuItem
@@ -171,7 +171,7 @@ const PurchaseActions = ({ purchase }: { purchase: PurchaseWithRelations }) => {
             className="text-red-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
             <DeleteIcon className="h-5 w-5" />
-            <span>Delete Purchase Order</span>
+            <span>Delete Purchase</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

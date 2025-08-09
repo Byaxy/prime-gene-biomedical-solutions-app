@@ -17,7 +17,7 @@ import { Download } from "lucide-react";
 import { Mail } from "lucide-react";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
 import { useProducts } from "@/hooks/useProducts";
-import PurchaseOrderPDF from "./PurchaseOrderPDF";
+import PurchasePDF from "./PurchasePDF";
 
 interface PurchaseDialogProps {
   mode: "add" | "edit" | "delete" | "view";
@@ -66,7 +66,7 @@ export function PurchaseDialog({
         throw new Error("Purchase is required to generate PDF.");
       }
       const blob = await pdf(
-        <PurchaseOrderPDF
+        <PurchasePDF
           purchase={purchase}
           companySettings={{
             name: companySettings?.name ?? "",
@@ -84,8 +84,8 @@ export function PurchaseDialog({
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `purchase_order_${
-        purchase?.purchase.purchaseOrderNumber || Date.now()
+      link.download = `purchase_${
+        purchase?.purchase.purchaseNumber || Date.now()
       }.pdf`;
       document.body.appendChild(link);
       link.click();
@@ -110,8 +110,8 @@ export function PurchaseDialog({
         return;
       }
 
-      const subject = `Purchase Order Reference Number: ${
-        purchase?.purchase.purchaseOrderNumber || "N/A"
+      const subject = `Purchase Number: ${
+        purchase?.purchase.purchaseNumber || "N/A"
       }`;
       const body = `Dear ${
         purchase?.vendor.name || "Supplier"
@@ -156,7 +156,7 @@ export function PurchaseDialog({
               <p className="text-sm text-red-500">
                 Purchase:{" "}
                 <span className="font-semibold">
-                  {purchase?.purchase.purchaseOrderNumber}
+                  {purchase?.purchase.purchaseNumber}
                 </span>
               </p>
               <div className="flex justify-end gap-4">
@@ -194,7 +194,7 @@ export function PurchaseDialog({
             <div className="flex flex-col w-full h-full bg-light-200">
               <PDFViewer className="w-full h-full">
                 {purchase && (
-                  <PurchaseOrderPDF
+                  <PurchasePDF
                     purchase={purchase}
                     companySettings={{
                       name: companySettings?.name ?? "",
@@ -223,7 +223,7 @@ export function PurchaseDialog({
                   className="shad-primary-btn"
                 >
                   <EditIcon className="h-5 w-5" />
-                  Edit Purchase Order
+                  Edit Purchase
                 </Button>
                 <Button
                   type="button"
@@ -244,7 +244,7 @@ export function PurchaseDialog({
                   className="shad-gray-btn"
                 >
                   <Mail className="h-5 w-5" />
-                  Email Purchase Order
+                  Email Purchase
                 </Button>
                 <Button
                   type="button"
@@ -253,7 +253,7 @@ export function PurchaseDialog({
                   className="shad-danger-btn"
                 >
                   <DeleteIcon className="h-5 w-5" />
-                  Delete Purchase Order
+                  Delete Purchase
                 </Button>
               </div>
             </div>

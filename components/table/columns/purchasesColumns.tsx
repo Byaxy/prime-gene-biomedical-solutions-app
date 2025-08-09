@@ -6,7 +6,12 @@ import { Button } from "@/components/ui/button";
 import PurchaseActions from "@/components/purchases/PurchaseActions";
 import { cn, formatDateTime } from "@/lib/utils";
 import FormatNumber from "@/components/FormatNumber";
-import { PurchaseStatus, PurchaseWithRelations } from "@/types";
+import {
+  PaymentStatus,
+  PurchaseStatus,
+  PurchaseWithRelations,
+  ShippingStatus,
+} from "@/types";
 
 export const purchasesColumns: ColumnDef<PurchaseWithRelations>[] = [
   {
@@ -45,8 +50,8 @@ export const purchasesColumns: ColumnDef<PurchaseWithRelations>[] = [
     },
   },
   {
-    id: "purchase.purchaseOrderNumber",
-    accessorKey: "purchase.purchaseOrderNumber",
+    id: "purchase.purchaseNumber",
+    accessorKey: "purchase.purchaseNumber",
     header: ({ column }) => {
       return (
         <Button
@@ -54,7 +59,7 @@ export const purchasesColumns: ColumnDef<PurchaseWithRelations>[] = [
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           className="font-semibold px-0"
         >
-          Purchase Order Number
+          Purchase Number
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       );
@@ -63,7 +68,7 @@ export const purchasesColumns: ColumnDef<PurchaseWithRelations>[] = [
       const purchase = row.original;
       return (
         <p className="text-14-medium ">
-          {purchase.purchase.purchaseOrderNumber || "-"}
+          {purchase.purchase.purchaseNumber || "-"}
         </p>
       );
     },
@@ -124,6 +129,57 @@ export const purchasesColumns: ColumnDef<PurchaseWithRelations>[] = [
             )}
           >
             {purchase.purchase.status}
+          </span>
+        </p>
+      );
+    },
+  },
+  {
+    accessorKey: "purchase.paymentStatus",
+    header: "Payment Status",
+    cell: ({ row }) => {
+      const purchase = row.original;
+      return (
+        <p>
+          <span
+            className={cn(
+              "text-14-medium capitalize",
+              purchase.purchase.paymentStatus === PaymentStatus.Pending &&
+                "text-white bg-[#f59e0b] px-3 py-1 rounded-xl",
+              purchase.purchase.paymentStatus === PaymentStatus.Partial &&
+                "bg-blue-600 text-white px-3 py-1 rounded-xl",
+              purchase.purchase.paymentStatus === PaymentStatus.Paid &&
+                "bg-green-500 text-white px-3 py-1 rounded-xl",
+              purchase.purchase.paymentStatus === PaymentStatus.Due &&
+                "bg-red-600 text-white px-3 py-1 rounded-xl"
+            )}
+          >
+            {purchase.purchase.paymentStatus}
+          </span>
+        </p>
+      );
+    },
+  },
+  {
+    accessorKey: "purchase.shippingStatus",
+    header: "Shipping Status",
+    cell: ({ row }) => {
+      const purchase = row.original;
+      return (
+        <p>
+          <span
+            className={cn(
+              "text-14-medium capitalize",
+              purchase.purchase.shippingStatus === ShippingStatus.Shipped &&
+                "text-white bg-[#f59e0b] px-3 py-1 rounded-xl",
+              purchase.purchase.shippingStatus === ShippingStatus.Received &&
+                "bg-green-500 text-white px-3 py-1 rounded-xl",
+              purchase.purchase.shippingStatus ===
+                ShippingStatus["Not Shipped"] &&
+                "bg-red-600 text-white px-3 py-1 rounded-xl"
+            )}
+          >
+            {purchase.purchase.shippingStatus}
           </span>
         </p>
       );

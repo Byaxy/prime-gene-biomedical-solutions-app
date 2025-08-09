@@ -5,7 +5,6 @@ import { usePurchases } from "@/hooks/usePurchases";
 import { useReceivingPurchases } from "@/hooks/useReceivingPurchases";
 import { useStores } from "@/hooks/useStores";
 import { useVendors } from "@/hooks/useVendors";
-import { generateReceivingOrdereNumber } from "@/lib/actions/receivingPurchases.actions";
 import {
   ReceivedInventoryStockValues,
   ReceivingPurchaseFormValidation,
@@ -13,6 +12,7 @@ import {
   StoreFormValues,
 } from "@/lib/validation";
 import {
+  Attachment,
   ProductWithRelations,
   Purchase,
   PurchaseItem,
@@ -22,9 +22,8 @@ import {
   Vendor,
 } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import toast from "react-hot-toast";
 import VendorDialog from "../vendors/VendorDialog";
@@ -37,10 +36,9 @@ import {
   TableRow,
 } from "../ui/table";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { Form } from "../ui/form";
+import { Form, FormControl } from "../ui/form";
 import CustomFormField, { FormFieldType } from "../CustomFormField";
 import { Button } from "../ui/button";
-import { RefreshCw } from "lucide-react";
 import { Input } from "../ui/input";
 import { Search } from "lucide-react";
 import { X } from "lucide-react";
@@ -53,6 +51,7 @@ import { cn, formatDateTime } from "@/lib/utils";
 import { useProducts } from "@/hooks/useProducts";
 import StoreDialog from "../stores/StoreDialog";
 import ReceiveInventoryStockDialog from "../receivingPurchases/ReceiveInventoryStockDialog";
+import { FileUploader } from "../FileUploader";
 
 interface RecievingPurchaseFormProps {
   mode: "create" | "edit";
@@ -85,7 +84,6 @@ const RecievingPurchaseForm = ({
     getAllPurchases: true,
   });
   const {
-    receivedPurchases,
     addReceivedPurchase,
     editReceivedPurchase,
     isCreatingReceivedPurchase,
@@ -100,31 +98,16 @@ const RecievingPurchaseForm = ({
 
   const router = useRouter();
 
-  // Generate receiving order number
-  const {
-    data: generatedReceivingOrderNumber,
-    isLoading,
-    refetch,
-    isRefetching,
-  } = useQuery({
-    queryKey: ["receiving-order-number"],
-    queryFn: async () => {
-      if (mode !== "create") return null;
-      const result = await generateReceivingOrdereNumber();
-      return result;
-    },
-    enabled: mode === "create",
-  });
-
   const defaultValues = {
+    vendorParkingListNumber: "",
     purchaseId: "",
     vendorId: "",
     storeId: "",
-    receivingOrderNumber: generatedReceivingOrderNumber || "",
     receivingDate: new Date(),
     products: [],
     totalAmount: 0,
     notes: "",
+    attachments: [],
   };
 
   const form = useForm<ReceivingPurchaseFormValues>({
@@ -137,8 +120,8 @@ const RecievingPurchaseForm = ({
             purchaseId: initialData?.receivedPurchase.purchaseId || "",
             vendorId: initialData?.receivedPurchase.vendorId || "",
             storeId: initialData?.receivedPurchase.storeId || "",
-            receivingOrderNumber:
-              initialData?.receivedPurchase.receivingOrderNumber || "",
+            vendorParkingListNumber:
+              initialData?.receivedPurchase.vendorParkingListNumber || "",
             receivingDate: initialData?.receivedPurchase.receivingDate
               ? new Date(initialData?.receivedPurchase.receivingDate)
               : new Date(),
@@ -157,6 +140,7 @@ const RecievingPurchaseForm = ({
             })),
             totalAmount: initialData?.receivedPurchase.totalAmount || 0,
             notes: initialData?.receivedPurchase.notes || "",
+            attachments: initialData?.receivedPurchase.attachments || [],
           },
   });
 
@@ -172,8 +156,27 @@ const RecievingPurchaseForm = ({
     costPrice: form.watch(`products.${index}.costPrice`),
   }));
 
-  const filteredPurchases = purchases?.reduce(
-    (acc: Purchase[], purchase: PurchaseWithRelations) => {
+  // helper function to check if purchase has receivable products
+  const hasReceiveableProducts = (purchase: PurchaseWithRelations): boolean => {
+    if (!purchase?.products?.length) {
+      return false;
+    }
+
+    return purchase.products.some((product) => {
+      if (
+        !product?.productId ||
+        typeof product.quantityReceived !== "number" ||
+        typeof product.quantity !== "number"
+      ) {
+        return false;
+      }
+
+      return product.quantityReceived < product.quantity;
+    });
+  };
+
+  const filteredPurchases =
+    purchases?.reduce((acc: Purchase[], purchase: PurchaseWithRelations) => {
       if (!selectedVendorId || !purchase?.purchase.vendorId) {
         return acc;
       }
@@ -182,44 +185,62 @@ const RecievingPurchaseForm = ({
         return acc;
       }
 
-      // Apply search filter (optional - if you have a search query for purchases)
+      if (mode === "edit") {
+        acc.push(purchase.purchase);
+        return acc;
+      }
+
       if (searchQuery?.trim()) {
         const query = searchQuery.toLowerCase().trim();
         const matchesSearch =
-          purchase.purchase.purchaseOrderNumber
-            ?.toLowerCase()
-            .includes(query) ||
+          purchase.purchase.purchaseNumber?.toLowerCase().includes(query) ||
           purchase.vendor?.name?.toLowerCase().includes(query);
         if (!matchesSearch) return acc;
       }
 
+      if (!hasReceiveableProducts(purchase)) {
+        return acc;
+      }
+
       acc.push(purchase.purchase);
       return acc;
-    },
-    []
-  );
+    }, [] as Purchase[]) || [];
 
-  // Set receiving order number
+  // Initialize edit mode data
   useEffect(() => {
-    if (generatedReceivingOrderNumber && mode === "create") {
-      form.setValue("receivingOrderNumber", generatedReceivingOrderNumber);
-    }
-  }, [generatedReceivingOrderNumber, form, mode]);
+    if (initialData && mode === "edit") {
+      setTimeout(() => {
+        form.reset({
+          purchaseId: initialData?.receivedPurchase.purchaseId || "",
+          purchaseNumber: initialData.purchase.purchaseNumber || "",
+          vendorInvoiceNumber: initialData.purchase.vendorInvoiceNumber || "",
+          vendorId: initialData?.receivedPurchase.vendorId || "",
+          storeId: initialData?.receivedPurchase.storeId || "",
+          vendorParkingListNumber:
+            initialData?.receivedPurchase.vendorParkingListNumber || "",
+          receivingDate: initialData?.receivedPurchase.receivingDate
+            ? new Date(initialData?.receivedPurchase.receivingDate)
+            : new Date(),
+          products: initialData?.products?.map((product) => ({
+            ...product,
+            inventoryStock: product.inventoryStock?.map((stock) => ({
+              ...stock,
+              manufactureDate: stock?.manufactureDate
+                ? new Date(stock?.manufactureDate)
+                : undefined,
 
-  // refresh button handler
-  const handleRefreshReceivingOrderNumber = async () => {
-    if (mode === "create") {
-      try {
-        await refetch();
-        if (generatedReceivingOrderNumber) {
-          form.setValue("receivingOrderNumber", generatedReceivingOrderNumber);
-        }
-      } catch (error) {
-        console.error("Error refreshing receiving order number:", error);
-        toast.error("Failed to refresh receiving order number");
-      }
+              expiryDate: stock?.expiryDate
+                ? new Date(stock?.expiryDate)
+                : undefined,
+            })),
+          })),
+          totalAmount: initialData?.receivedPurchase.totalAmount || 0,
+          notes: initialData?.receivedPurchase.notes || "",
+          attachments: initialData?.receivedPurchase.attachments || [],
+        });
+      }, 100);
     }
-  };
+  }, [mode, initialData, form]);
 
   // handle close dialog
   const closeDialog = () => {
@@ -238,7 +259,6 @@ const RecievingPurchaseForm = ({
   const handleCancel = () => {
     if (mode === "create") {
       form.reset(defaultValues);
-      refetch();
     } else {
       form.reset();
     }
@@ -246,27 +266,6 @@ const RecievingPurchaseForm = ({
 
   const handleDeleteEntry = (index: number) => {
     remove(index);
-  };
-
-  const validateReceivingOrderNumber = (receivingOrderNumber: string) => {
-    if (!receivingOrderNumber) return false;
-    if (!receivedPurchases) return true;
-    if (receivedPurchases.length === 0) return true;
-
-    const existingPurchaseOrder = receivedPurchases?.find(
-      (purchase: ReceivedPurchaseWithRelations) =>
-        purchase?.receivedPurchase.receivingOrderNumber === receivingOrderNumber
-    );
-    if (mode === "create" && existingPurchaseOrder) return false;
-
-    if (
-      mode === "edit" &&
-      initialData?.receivedPurchase.receivingOrderNumber !==
-        receivingOrderNumber &&
-      existingPurchaseOrder
-    )
-      return false;
-    return true;
   };
 
   const handleAddStore = async (data: StoreFormValues): Promise<void> => {
@@ -287,7 +286,10 @@ const RecievingPurchaseForm = ({
     form.setValue("vendorId", value);
     form.setValue("purchaseId", "");
     form.setValue("products", []);
+    form.setValue("vendorInvoiceNumber", "");
     setPrevSelectedPurchaseId(null);
+
+    form.trigger("vendorId");
   };
 
   const handlePurchaseSelection = (selectedPurchaseId: string) => {
@@ -308,6 +310,11 @@ const RecievingPurchaseForm = ({
         purchase.purchase.id === selectedPurchaseId
     );
     if (selectedPurchase) {
+      form.setValue("purchaseNumber", selectedPurchase.purchase.purchaseNumber);
+      form.setValue(
+        "vendorInvoiceNumber",
+        selectedPurchase.purchase.vendorInvoiceNumber
+      );
       const products = selectedPurchase.products.map(
         (product: PurchaseItem) => {
           const mainPdt = mainProducts?.find(
@@ -339,13 +346,6 @@ const RecievingPurchaseForm = ({
         return;
       }
 
-      if (!validateReceivingOrderNumber(values.receivingOrderNumber)) {
-        toast.error(
-          "A Order with the same Receiving Order number already exists."
-        );
-        return;
-      }
-
       if (mode === "create") {
         await addReceivedPurchase(
           { data: values, userId: user.id },
@@ -363,7 +363,29 @@ const RecievingPurchaseForm = ({
         );
       }
       if (mode === "edit" && initialData) {
-        if (initialData?.receivedPurchase.id) {
+        if (initialData?.receivedPurchase.attachments?.length > 0) {
+          const prevIds = initialData?.receivedPurchase.attachments.map(
+            (attachment: Attachment) => attachment.id
+          );
+          await editReceivedPurchase(
+            {
+              id: initialData?.receivedPurchase.id,
+              data: values,
+              userId: user.id,
+              prevAttachmentIds: prevIds,
+            },
+            {
+              onSuccess: () => {
+                toast.success("Received Purchase order updated successfully!");
+                router.push("/purchases/receive-inventory");
+              },
+              onError: (error) => {
+                console.error("Update received purchase order error:", error);
+                toast.error("Failed to update purchase order");
+              },
+            }
+          );
+        } else {
           await editReceivedPurchase(
             {
               id: initialData?.receivedPurchase.id,
@@ -435,32 +457,32 @@ const RecievingPurchaseForm = ({
           className="space-y-5 text-dark-500"
         >
           <div className="w-full flex flex-col md:flex-row gap-5">
-            <div className="flex flex-1 flex-row gap-2 items-center">
-              <CustomFormField
-                fieldType={FormFieldType.INPUT}
-                control={form.control}
-                name="receivingOrderNumber"
-                label="Receiving Order Number"
-                placeholder={
-                  isLoading || isRefetching
-                    ? "Generating..."
-                    : "Enter receiving order number"
-                }
-              />
-              <Button
-                type="button"
-                size={"icon"}
-                onClick={handleRefreshReceivingOrderNumber}
-                className="self-end shad-primary-btn px-5"
-                disabled={isLoading || isRefetching}
-              >
-                <RefreshCw
-                  className={`h-5 w-5 ${
-                    isLoading || isRefetching ? "animate-spin" : ""
-                  }`}
-                />
-              </Button>
-            </div>
+            <CustomFormField
+              fieldType={FormFieldType.SELECT}
+              control={form.control}
+              name="vendorId"
+              label="Vendor"
+              placeholder="Select vendor"
+              onAddNew={() => setVendorDialogOpen(true)}
+              onValueChange={(value) => handleVendorChange(value)}
+              key={`vendor-select-${form.watch("vendorId") || ""}`}
+            >
+              {vendorsLoading && (
+                <div className="py-4">
+                  <Loading />
+                </div>
+              )}
+              {vendors?.map((vendor: Vendor) => (
+                <SelectItem
+                  key={vendor.id}
+                  value={vendor.id}
+                  className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
+                >
+                  {vendor.name}
+                </SelectItem>
+              ))}
+            </CustomFormField>
+
             <CustomFormField
               fieldType={FormFieldType.DATE_PICKER}
               control={form.control}
@@ -494,32 +516,13 @@ const RecievingPurchaseForm = ({
                 </SelectItem>
               ))}
             </CustomFormField>
-
             <CustomFormField
-              fieldType={FormFieldType.SELECT}
+              fieldType={FormFieldType.INPUT}
               control={form.control}
-              name="vendorId"
-              label="Vendor"
-              placeholder="Select vendor"
-              onAddNew={() => setVendorDialogOpen(true)}
-              onValueChange={(value) => handleVendorChange(value)}
-              key={`vendor-select-${form.watch("vendorId") || ""}`}
-            >
-              {vendorsLoading && (
-                <div className="py-4">
-                  <Loading />
-                </div>
-              )}
-              {vendors?.map((vendor: Vendor) => (
-                <SelectItem
-                  key={vendor.id}
-                  value={vendor.id}
-                  className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
-                >
-                  {vendor.name}
-                </SelectItem>
-              ))}
-            </CustomFormField>
+              name="vendorParkingListNumber"
+              label="Vendor Parking List Number"
+              placeholder={"Enter vendor parking list number"}
+            />
           </div>
 
           <div
@@ -529,106 +532,108 @@ const RecievingPurchaseForm = ({
                 : ""
             }`}
           >
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="w-full sm:w-1/2">
-                <CustomFormField
-                  fieldType={FormFieldType.SELECT}
-                  control={form.control}
-                  name="purchaseId"
-                  label="Select Purchase Order"
-                  placeholder={
-                    purchasesLoading
-                      ? "Loading..."
-                      : selectedVendorId
-                      ? "Select purchase order"
-                      : "Select vendor first"
-                  }
-                  key={`purchase-select-${form.watch("purchaseId") || ""}`}
-                  disabled={purchasesLoading || !selectedVendorId}
-                >
-                  <div className="py-3">
-                    <div className="relative flex items-center rounded-md border border-dark-700 bg-white">
-                      <Search className="ml-2 h-4 w-4 opacity-50" />
-                      <Input
-                        type="text"
-                        placeholder="Search by Product ID, Product Name"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
-                        disabled={purchasesLoading || !selectedVendorId}
-                      />
-                      {searchQuery && (
-                        <button
-                          type="button"
-                          onClick={() => setSearchQuery("")}
-                          className="absolute right-3 top-3 text-dark-700 hover:text-dark-600"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
+            <div className="flex flex-col sm:flex-row gap-5">
+              <CustomFormField
+                fieldType={FormFieldType.SELECT}
+                control={form.control}
+                name="purchaseId"
+                label="Select Purchase Order"
+                placeholder={
+                  purchasesLoading
+                    ? "Loading..."
+                    : selectedVendorId
+                    ? "Select purchase order"
+                    : "Select vendor first"
+                }
+                key={`purchase-select-${form.watch("purchaseId") || ""}`}
+                disabled={purchasesLoading || !selectedVendorId}
+              >
+                <div className="py-3">
+                  <div className="relative flex items-center rounded-md border border-dark-700 bg-white">
+                    <Search className="ml-2 h-4 w-4 opacity-50" />
+                    <Input
+                      type="text"
+                      placeholder="Search by Product ID, Product Name"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
+                      disabled={purchasesLoading || !selectedVendorId}
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery("")}
+                        className="absolute right-3 top-3 text-dark-700 hover:text-dark-600"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
-                  {purchasesLoading ? (
-                    <div className="py-4">
-                      <Loading />
-                    </div>
-                  ) : filteredPurchases && filteredPurchases.length > 0 ? (
-                    <>
-                      <Table className="shad-table border border-light-200 rounded-lg">
-                        <TableHeader>
-                          <TableRow className="w-full bg-blue-800 text-white px-2 font-semibold">
-                            <TableHead>Date</TableHead>
-                            <TableHead>Purchase Order Number</TableHead>
-                            <TableHead></TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody className="w-full bg-white">
-                          {filteredPurchases.map((purchase: Purchase) => (
-                            <TableRow
-                              key={purchase.id}
-                              className="cursor-pointer hover:bg-blue-50"
-                              onClick={() =>
-                                handlePurchaseSelection(purchase.id)
-                              }
-                            >
-                              <TableCell>
-                                {formatDateTime(purchase.purchaseDate).dateTime}
-                              </TableCell>
-                              <TableCell>
-                                {purchase.purchaseOrderNumber}
-                              </TableCell>
-                              <TableCell className="w-10">
-                                {prevSelectedPurchaseId === purchase.id && (
-                                  <span className="text-blue-800">
-                                    <Check className="h-5 w-5" />
-                                  </span>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                      {/* Hidden select options for form control */}
-                      <div className="hidden">
+                </div>
+                {purchasesLoading ? (
+                  <div className="py-4">
+                    <Loading />
+                  </div>
+                ) : filteredPurchases && filteredPurchases.length > 0 ? (
+                  <>
+                    <Table className="shad-table border border-light-200 rounded-lg">
+                      <TableHeader>
+                        <TableRow className="w-full bg-blue-800 text-white px-2 font-semibold">
+                          <TableHead>Date</TableHead>
+                          <TableHead>Purchase Number</TableHead>
+                          <TableHead></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody className="w-full bg-white">
                         {filteredPurchases.map((purchase: Purchase) => (
-                          <SelectItem
+                          <TableRow
                             key={purchase.id}
-                            value={purchase.id}
-                            data-value={purchase.id}
+                            className="cursor-pointer hover:bg-blue-50"
+                            onClick={() => handlePurchaseSelection(purchase.id)}
                           >
-                            {formatDateTime(purchase.purchaseDate).dateTime} -{" "}
-                            {purchase.purchaseOrderNumber}
-                          </SelectItem>
+                            <TableCell>
+                              {formatDateTime(purchase.purchaseDate).dateTime}
+                            </TableCell>
+                            <TableCell>{purchase.purchaseNumber}</TableCell>
+                            <TableCell className="w-10">
+                              {prevSelectedPurchaseId === purchase.id && (
+                                <span className="text-blue-800">
+                                  <Check className="h-5 w-5" />
+                                </span>
+                              )}
+                            </TableCell>
+                          </TableRow>
                         ))}
-                      </div>
-                    </>
-                  ) : (
-                    <SelectItem value="null" disabled>
-                      <div>No purchases found</div>
-                    </SelectItem>
-                  )}
-                </CustomFormField>
-              </div>
+                      </TableBody>
+                    </Table>
+                    {/* Hidden select options for form control */}
+                    <div className="hidden">
+                      {filteredPurchases.map((purchase: Purchase) => (
+                        <SelectItem
+                          key={purchase.id}
+                          value={purchase.id}
+                          data-value={purchase.id}
+                        >
+                          {formatDateTime(purchase.purchaseDate).dateTime} -{" "}
+                          {purchase.purchaseNumber}
+                        </SelectItem>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <SelectItem value="null" disabled>
+                    <div>No purchases found</div>
+                  </SelectItem>
+                )}
+              </CustomFormField>
+
+              <CustomFormField
+                fieldType={FormFieldType.INPUT}
+                control={form.control}
+                name="vendorInvoiceNumber"
+                label="Vendor Invoice Number"
+                placeholder={"Enter vendor invoice number"}
+              />
             </div>
 
             <Table className="shad-table">
@@ -637,7 +642,7 @@ const RecievingPurchaseForm = ({
                   <TableHead>#</TableHead>
                   <TableHead>PID</TableHead>
                   <TableHead>Product Description</TableHead>
-                  <TableHead>Qnty Pending</TableHead>
+                  <TableHead>Exp Qnty</TableHead>
                   <TableHead className="!max-w-60">Lot Numbers</TableHead>
                   <TableHead>Cost Price</TableHead>
                   <TableHead>Selling Price</TableHead>
@@ -654,7 +659,7 @@ const RecievingPurchaseForm = ({
                   </TableRow>
                 )}
                 {fields.map((entry, index) => (
-                  <>
+                  <React.Fragment key={entry.id}>
                     <TableRow
                       key={`${entry.productId}-${index}`}
                       className={`w-full ${
@@ -718,6 +723,7 @@ const RecievingPurchaseForm = ({
                           }}
                           costPrice={form.watch(`products.${index}.costPrice`)}
                           productID={entry.productID}
+                          productName={entry.productName}
                           pendingQuantity={entry.pendingQuantity}
                         />
                       </TableCell>
@@ -769,7 +775,7 @@ const RecievingPurchaseForm = ({
                           </TableCell>
                         </TableRow>
                       )}
-                  </>
+                  </React.Fragment>
                 ))}
                 {/* Total amount row */}
                 {fields.length > 0 && (
@@ -798,6 +804,30 @@ const RecievingPurchaseForm = ({
               </p>
             )}
           </div>
+          <div>
+            <CustomFormField
+              fieldType={FormFieldType.SKELETON}
+              control={form.control}
+              name="attachments"
+              label="Attachments"
+              renderSkeleton={(field) => (
+                <FormControl>
+                  <FileUploader
+                    files={field.value}
+                    onChange={field.onChange}
+                    mode={mode}
+                    maxFiles={5}
+                    accept={{
+                      "application/pdf": [".pdf"],
+                      "application/msword": [".doc"],
+                      "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                        [".docx"],
+                    }}
+                  />
+                </FormControl>
+              )}
+            />
+          </div>
 
           <CustomFormField
             fieldType={FormFieldType.TEXTAREA}
@@ -821,7 +851,9 @@ const RecievingPurchaseForm = ({
               }
               className="shad-primary-btn"
             >
-              {mode === "create" ? "Create Purchase" : "Update Purchase"}
+              {mode === "create"
+                ? "Receive Purchase"
+                : "Update Received Purchase"}
             </SubmitButton>
           </div>
         </form>

@@ -51,7 +51,7 @@ export const useQuotations = ({
 
   // Query for all Quotations
   const allQuotationsQuery = useQuery({
-    queryKey: ["quotations", "allQuotations", filters],
+    queryKey: ["quotations", "paginatedQuotations", filters],
     queryFn: async () => {
       const result = await getQuotations(0, 0, true, filters);
       return result.documents;
@@ -231,7 +231,9 @@ export const useQuotations = ({
   } = useMutation({
     mutationFn: (id: string) => softDeleteQuotation(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["quotations"] });
+      queryClient.invalidateQueries({
+        queryKey: ["quotations", "paginatedQuotations"],
+      });
     },
   });
 
@@ -239,7 +241,9 @@ export const useQuotations = ({
     useMutation({
       mutationFn: (id: string) => deleteQuotation(id),
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["quotations"] });
+        queryClient.invalidateQueries({
+          queryKey: ["quotations", "paginatedQuotations"],
+        });
         toast.success("Quotation deleted successfully");
       },
       onError: (error) => {

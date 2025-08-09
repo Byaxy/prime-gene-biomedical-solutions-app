@@ -86,7 +86,7 @@ export const addSale = async (sale: SaleFormValues) => {
             paymentMethod: sale.paymentMethod as PaymentMethod,
             paymentStatus: sale.paymentStatus as PaymentStatus,
             notes: sale.notes,
-            quotationId: sale.quotationId,
+            quotationId: sale.quotationId && sale.quotationId,
             attachments: sale.attachments,
             isDeliveryAddressAdded: sale.isDeliveryAddressAdded,
             deliveryAddress: sale.deliveryAddress
@@ -248,7 +248,7 @@ export const editSale = async (sale: SaleFormValues, saleId: string) => {
             paymentMethod: sale.paymentMethod as PaymentMethod,
             paymentStatus: sale.paymentStatus as PaymentStatus,
             notes: sale.notes,
-            quotationId: sale.quotationId,
+            quotationId: sale.quotationId && sale.quotationId,
             attachments: sale.attachments,
             isDeliveryAddressAdded: sale.isDeliveryAddressAdded,
             deliveryAddress: sale.deliveryAddress

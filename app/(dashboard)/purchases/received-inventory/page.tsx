@@ -1,17 +1,20 @@
 "use client";
 
 import PageWraper from "@/components/PageWraper";
-import ReceivedInventoryStockDialog from "@/components/receivingPurchases/ReceivedInventoryStockDialog";
-import { receivedPurchasesColumns } from "@/components/table/columns/receivedPurchasesColumns";
+import ReceivedPurchasesListDialog from "@/components/receivingPurchases/ReceivedPurchasesListDialog";
+import { groupedReceivedPurchasesColumns } from "@/components/table/columns/receivedPurchasesColumns";
 import { DataTable } from "@/components/table/DataTable";
 import { useReceivingPurchases } from "@/hooks/useReceivingPurchases";
-import { ReceivedPurchaseWithRelations } from "@/types";
-import { useState } from "react";
+import {
+  GroupedReceivedPurchases,
+  ReceivedPurchaseWithRelations,
+} from "@/types";
+import { useMemo, useState } from "react";
 
 const ReceivedInventory = () => {
   const [openDialog, setOpenDialog] = useState(false);
   const [selectedRow, setSelectedRow] =
-    useState<ReceivedPurchaseWithRelations | null>(null);
+    useState<GroupedReceivedPurchases | null>(null);
   const {
     receivedPurchases,
     isLoading,
@@ -38,7 +41,63 @@ const ReceivedInventory = () => {
     },
   };
 
-  const handleRowClick = (rowData: ReceivedPurchaseWithRelations) => {
+  const groupedReceivedPurchases = useMemo<GroupedReceivedPurchases[]>(() => {
+    if (!receivedPurchases || receivedPurchases.length === 0) {
+      return [];
+    }
+
+    const grouped = receivedPurchases.reduce(
+      (
+        acc: Record<string, GroupedReceivedPurchases>,
+        receivedPurchase: ReceivedPurchaseWithRelations
+      ) => {
+        const purchaseKey = receivedPurchase.purchase.purchaseNumber;
+
+        if (!acc[purchaseKey]) {
+          acc[purchaseKey] = {
+            id: purchaseKey,
+            purchase: receivedPurchase.purchase,
+            vendor: receivedPurchase.vendor,
+            store: receivedPurchase.store,
+            totalReceivedPurchases: 0,
+            totalAmount: 0,
+            receivedPurchases: [],
+            latestReceivingDate:
+              receivedPurchase.receivedPurchase.receivingDate,
+            latestVendorParkingListNumber:
+              receivedPurchase.receivedPurchase.vendorParkingListNumber,
+          };
+        }
+
+        const group = acc[purchaseKey];
+
+        // Add received purchase item
+        group.receivedPurchases.push(receivedPurchase);
+
+        // Update totals
+        group.totalReceivedPurchases += 1;
+        group.totalAmount += receivedPurchase.receivedPurchase.totalAmount;
+
+        // Update latest receiving date and parking list number
+        if (
+          receivedPurchase.receivedPurchase.receivingDate >
+          group.latestReceivingDate
+        ) {
+          group.latestReceivingDate =
+            receivedPurchase.receivedPurchase.receivingDate;
+          group.latestVendorParkingListNumber =
+            receivedPurchase.receivedPurchase.vendorParkingListNumber;
+        }
+
+        return acc;
+      },
+      {}
+    );
+
+    return Object.values(grouped);
+  }, [receivedPurchases]);
+
+  const handleRowClick = (rowData: GroupedReceivedPurchases) => {
     setSelectedRow(rowData);
     setOpenDialog(true);
   };
@@ -46,20 +105,20 @@ const ReceivedInventory = () => {
   const handleCloseDialog = (open: boolean) => {
     setOpenDialog(open);
     if (!open) {
-      setSelectedRow(null);
+      setSelectedRow({} as GroupedReceivedPurchases);
     }
   };
 
   return (
     <PageWraper
       title="Received Inventory"
-      buttonText="Receive Inventory"
-      buttonPath="/purchases/receive-inventory"
+      buttonText="Receive Purchased Inventory."
+      buttonPath="/purchases/receive-purchased-inventory"
     >
       <>
         <DataTable
-          columns={receivedPurchasesColumns}
-          data={receivedPurchases || []}
+          columns={groupedReceivedPurchasesColumns}
+          data={groupedReceivedPurchases || []}
           isLoading={isLoading}
           totalItems={totalItems}
           page={page}
@@ -67,8 +126,8 @@ const ReceivedInventory = () => {
           pageSize={pageSize}
           onPageSizeChange={setPageSize}
           searchBy={[
-            "receivedPurchase.receivingOrderNumber",
-            "purchaseOrder.purchaseOrderNumber",
+            "purchase.purchaseNumber",
+            "purchase.vendorInvoiceNumber",
             "vendor.name",
             "store.name",
           ]}
@@ -80,10 +139,10 @@ const ReceivedInventory = () => {
           defaultFilterValues={defaultFilterValues}
           onRowClick={handleRowClick}
         />
-        <ReceivedInventoryStockDialog
+        <ReceivedPurchasesListDialog
           open={openDialog && !!selectedRow}
           onOpenChange={handleCloseDialog}
-          purchase={selectedRow!}
+          receivedPurchases={selectedRow?.receivedPurchases || []}
         />
       </>
     </PageWraper>

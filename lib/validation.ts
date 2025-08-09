@@ -117,11 +117,11 @@ export const ExpenseFormValidation = z.object({
 });
 export type ExpenseFormValues = z.infer<typeof ExpenseFormValidation>;
 
-// Purchases
-export const PurchaseFormValidation = z.object({
+// Purchase Orders
+export const PurchaseOrderFormValidation = z.object({
   purchaseOrderNumber: z.string().nonempty("Purchase order number is required"),
-  purchaseDate: z.date().refine((date) => date <= new Date(), {
-    message: "Purchase date cannot be in the future",
+  purchaseOrderDate: z.date().refine((date) => date <= new Date(), {
+    message: "Purchase order date cannot be in the future",
   }),
   totalAmount: z.number().min(0, "Total amount must be 0 or more"),
   vendorId: z.string().nonempty("Vendor is required"),
@@ -136,10 +136,46 @@ export const PurchaseFormValidation = z.object({
         quantity: z.number().int().min(1, "Quantity must be more than 0"),
         costPrice: z.number().min(0, "Cost price must be 0 or more"),
         totalPrice: z.number().min(0, "Total price must be 0 or more"),
+        productName: z.string(),
+        productID: z.string(),
+      })
+    )
+    .min(1, "At least one product is required"),
+
+  selectedProductId: z.string().optional(),
+});
+export type PurchaseOrderFormValues = z.infer<
+  typeof PurchaseOrderFormValidation
+>;
+
+// Purchases
+export const PurchaseFormValidation = z.object({
+  purchaseNumber: z.string().nonempty("Purchase number is required"),
+  vendorInvoiceNumber: z.string().nonempty("Vendor invoice number is required"),
+  purchaseDate: z.date().refine((date) => date <= new Date(), {
+    message: "Purchase date cannot be in the future",
+  }),
+  totalAmount: z.number().min(0, "Total amount must be 0 or more"),
+  amountPaid: z.number().min(0, "Amount paid must be 0 or more"),
+  vendorId: z.string().nonempty("Vendor is required"),
+  purchaseOrderId: z.string().optional(),
+  status: z
+    .enum(Object.values(PurchaseStatus) as [string, ...string[]])
+    .default(PurchaseStatus.Pending),
+  notes: z.string().optional(),
+  attachments: z.any().optional(),
+  products: z
+    .array(
+      z.object({
+        productId: z.string().nonempty("Product is required"),
+        quantity: z.number().int().min(1, "Quantity must be more than 0"),
+        costPrice: z.number().min(0, "Cost price must be 0 or more"),
+        totalPrice: z.number().min(0, "Total price must be 0 or more"),
         quantityReceived: z
           .number()
           .int()
-          .min(0, "Quantity received must be 0 or more"),
+          .min(0, "Quantity received must be 0 or more")
+          .default(0),
         productName: z.string(),
         productID: z.string(),
       })
@@ -153,16 +189,19 @@ export type PurchaseFormValues = z.infer<typeof PurchaseFormValidation>;
 // Recieving Purchase Orders
 export const ReceivingPurchaseFormValidation = z.object({
   purchaseId: z.string().nonempty("Purchase order is required"),
+  purchaseNumber: z.string().nonempty("Purchase number is required"),
+  vendorInvoiceNumber: z.string().nonempty("Vendor invoice number is required"),
   vendorId: z.string().nonempty("Vendor is required"),
   storeId: z.string().nonempty("Store is required"),
-  receivingOrderNumber: z
+  vendorParkingListNumber: z
     .string()
-    .nonempty("Receiving order number is required"),
+    .nonempty("Vendor parking list number is required"),
   receivingDate: z.date().refine((date) => date <= new Date(), {
     message: "Receiving date cannot be in the future",
   }),
   totalAmount: z.number().min(0, "Total amount must be 0 or more"),
   notes: z.string().optional(),
+  attachments: z.any().optional(),
   products: z
     .array(
       z.object({

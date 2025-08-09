@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import {
@@ -7,8 +8,9 @@ import {
   getReceivedPurchases,
   softDeleteReceivedPurchase,
 } from "@/lib/actions/receivingPurchases.actions";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ReceivingPurchaseFormValues } from "@/lib/validation";
-import { ReceivedPurchaseWithRelations } from "@/types";
+import { Attachment, ReceivedPurchaseWithRelations } from "@/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
@@ -43,7 +45,7 @@ export const useReceivingPurchases = ({
 
   // Query for all Purchases
   const allReceivedPurchasesQuery = useQuery({
-    queryKey: ["receivedPurchases", "allReceivedPurchases", filters],
+    queryKey: ["receivedPurchases", filters],
     queryFn: async () => {
       const result = await getReceivedPurchases(0, 0, true, filters);
       return result.documents;
@@ -111,11 +113,50 @@ export const useReceivingPurchases = ({
       data: ReceivingPurchaseFormValues;
       userId: string;
     }) => {
-      return addReceivedPurchase(data, userId);
+      const supabase = createSupabaseBrowserClient();
+      const attachments: Attachment[] = [];
+
+      if (data.attachments && data.attachments.length > 0) {
+        try {
+          // Upload all files
+          await Promise.all(
+            data.attachments.map(async (file: any) => {
+              const fileId = `${Date.now()}-${file.name}`;
+              const { error: uploadError } = await supabase.storage
+                .from("images")
+                .upload(fileId, file);
+
+              if (uploadError) throw uploadError;
+
+              // Get the file URL
+              const { data: urlData } = supabase.storage
+                .from("images")
+                .getPublicUrl(fileId);
+
+              attachments.push({
+                id: fileId,
+                url: urlData.publicUrl,
+                name: file.name,
+                size: file.size,
+                type: file.type,
+              });
+            })
+          );
+        } catch (error) {
+          console.error("Error uploading files:", error);
+          throw new Error("Failed to upload attachments");
+        }
+      }
+
+      const dataWithAttachment = {
+        ...data,
+        attachments,
+      };
+      return addReceivedPurchase(dataWithAttachment, userId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["receivedPurchases"],
+        queryKey: ["receivedPurchases", "paginatedReceivedPurchases"],
       });
     },
     onError: (error) => {
@@ -131,16 +172,68 @@ export const useReceivingPurchases = ({
       id,
       data,
       userId,
+      prevAttachmentIds,
     }: {
       id: string;
       data: ReceivingPurchaseFormValues;
       userId: string;
+      prevAttachmentIds?: string[];
     }) => {
-      return editReceivedPurchase(data, id, userId);
+      const supabase = createSupabaseBrowserClient();
+      const attachments: Attachment[] = [];
+
+      // Delete previous attachments if needed
+      if (prevAttachmentIds && prevAttachmentIds.length > 0) {
+        const { error: deleteError } = await supabase.storage
+          .from("images")
+          .remove(prevAttachmentIds);
+
+        if (deleteError) {
+          console.warn("Failed to delete previous attachments:", deleteError);
+        }
+      }
+
+      // Upload new attachments
+      if (data.attachments && data.attachments.length > 0) {
+        try {
+          await Promise.all(
+            data.attachments.map(async (file: any) => {
+              const fileId = `${Date.now()}-${file.name}`;
+              const { error: uploadError } = await supabase.storage
+                .from("images")
+                .upload(fileId, file);
+
+              if (uploadError) throw uploadError;
+
+              // Get the file URL
+              const { data: urlData } = supabase.storage
+                .from("images")
+                .getPublicUrl(fileId);
+
+              attachments.push({
+                id: fileId,
+                url: urlData.publicUrl,
+                name: file.name,
+                size: file.size,
+                type: file.type,
+              });
+            })
+          );
+        } catch (error) {
+          console.error("Error uploading files:", error);
+          throw new Error("Failed to upload attachments");
+        }
+      }
+
+      const dataWithAttachments = {
+        ...data,
+        attachments,
+      };
+      return editReceivedPurchase(dataWithAttachments, id, userId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["receivedPurchases"],
+        queryKey: ["receivedPurchases", "paginatedReceivedPurchases"],
       });
     },
     onError: (error) => {
@@ -156,7 +249,7 @@ export const useReceivingPurchases = ({
       softDeleteReceivedPurchase(id, userId),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["receivedPurchases"],
+        queryKey: ["receivedPurchases", "paginatedReceivedPurchases"],
       });
     },
     onError: (error) => {
@@ -172,7 +265,7 @@ export const useReceivingPurchases = ({
       deleteReceivedPurchase(id, userId),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["receivedPurchases"],
+        queryKey: ["receivedPurchases", "paginatedReceivedPurchases"],
       });
     },
     onError: (error) => {

@@ -68,7 +68,7 @@ const Purchases = () => {
           onPageChange={setPage}
           pageSize={pageSize}
           onPageSizeChange={setPageSize}
-          searchBy={["purchase.purchaseOrderNumber", "vendor.name"]}
+          searchBy={["purchase.purchaseNumber", "vendor.name"]}
           refetch={refetch}
           isRefetching={isRefetching}
           filters={purchaseFilters}

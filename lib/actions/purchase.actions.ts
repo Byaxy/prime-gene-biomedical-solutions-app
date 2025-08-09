@@ -6,6 +6,7 @@ import { PurchaseFormValues } from "../validation";
 import { db } from "@/drizzle/db";
 import {
   purchaseItemsTable,
+  purchaseOrdersTable,
   purchasesTable,
   vendorsTable,
 } from "@/drizzle/schema";
@@ -21,12 +22,16 @@ export const addPurchase = async (purchase: PurchaseFormValues) => {
       const [newPurchase] = await tx
         .insert(purchasesTable)
         .values({
-          purchaseOrderNumber: purchase.purchaseOrderNumber,
+          purchaseNumber: purchase.purchaseNumber,
+          vendorInvoiceNumber: purchase.vendorInvoiceNumber,
           purchaseDate: purchase.purchaseDate,
           totalAmount: purchase.totalAmount,
+          amountPaid: purchase.amountPaid,
           vendorId: purchase.vendorId,
+          purchaseOrderId: purchase.purchaseOrderId && purchase.purchaseOrderId, // Link to purchase order if provided
           status: purchase.status as PurchaseStatus,
           notes: purchase.notes,
+          attachments: purchase.attachments,
         })
         .returning();
 
@@ -50,6 +55,21 @@ export const addPurchase = async (purchase: PurchaseFormValues) => {
         })
       );
 
+      if (purchase.purchaseOrderId) {
+        await tx
+          .update(purchaseOrdersTable)
+          .set({
+            isConvertedToPurchase: true,
+            status: PurchaseStatus.Completed,
+          })
+          .where(
+            and(
+              eq(purchaseOrdersTable.id, purchase.purchaseOrderId),
+              eq(purchaseOrdersTable.isActive, true)
+            )
+          );
+      }
+
       return { purchase: newPurchase, items: purchaseItems };
     });
 
@@ -72,12 +92,16 @@ export const editPurchase = async (
       const [updatedPurchase] = await tx
         .update(purchasesTable)
         .set({
-          purchaseOrderNumber: purchase.purchaseOrderNumber,
+          purchaseNumber: purchase.purchaseNumber,
+          vendorInvoiceNumber: purchase.vendorInvoiceNumber,
           purchaseDate: purchase.purchaseDate,
           totalAmount: purchase.totalAmount,
+          amountPaid: purchase.amountPaid,
           vendorId: purchase.vendorId,
+          purchaseOrderId: purchase.purchaseOrderId && purchase.purchaseOrderId,
           status: purchase.status as PurchaseStatus,
           notes: purchase.notes,
+          attachments: purchase.attachments,
         })
         .where(eq(purchasesTable.id, purchaseId))
         .returning();
@@ -157,6 +181,21 @@ export const editPurchase = async (
           }
         })
       );
+
+      if (purchase.purchaseOrderId) {
+        await tx
+          .update(purchaseOrdersTable)
+          .set({
+            isConvertedToPurchase: true,
+            status: PurchaseStatus.Completed,
+          })
+          .where(
+            and(
+              eq(purchaseOrdersTable.id, purchase.purchaseOrderId),
+              eq(purchaseOrdersTable.isActive, true)
+            )
+          );
+      }
 
       return {
         purchase: updatedPurchase,
@@ -398,7 +437,7 @@ export const softDeletePurchase = async (purchaseId: string) => {
 };
 
 // Generate Purchase Order number
-export const generatePurchaseOrdereNumber = async (): Promise<string> => {
+export const generatePurchaseNumber = async (): Promise<string> => {
   try {
     const result = await db.transaction(async (tx) => {
       const now = new Date();
@@ -406,18 +445,17 @@ export const generatePurchaseOrdereNumber = async (): Promise<string> => {
       const month = String(now.getMonth() + 1).padStart(2, "0");
 
       const lastPurchaseOrder = await tx
-        .select({ purchaseOrderNumber: purchasesTable.purchaseOrderNumber })
+        .select({ purchaseNumber: purchasesTable.purchaseNumber })
         .from(purchasesTable)
-        .where(sql`purchase_order_number LIKE ${`PO${year}/${month}/%`}`)
+        .where(sql`purchase_number LIKE ${`P-${year}/${month}/%`}`)
         .orderBy(desc(purchasesTable.createdAt))
         .limit(1);
 
       let nextSequence = 1;
       if (lastPurchaseOrder.length > 0) {
-        const lastPurchaseOrderNumber =
-          lastPurchaseOrder[0].purchaseOrderNumber;
+        const lastPurchaseNumber = lastPurchaseOrder[0].purchaseNumber;
         const lastSequence = parseInt(
-          lastPurchaseOrderNumber.split("/").pop() || "0",
+          lastPurchaseNumber.split("/").pop() || "0",
           10
         );
         nextSequence = lastSequence + 1;
@@ -425,12 +463,12 @@ export const generatePurchaseOrdereNumber = async (): Promise<string> => {
 
       const sequenceNumber = String(nextSequence).padStart(4, "0");
 
-      return `PO${year}/${month}/${sequenceNumber}`;
+      return `P-${year}/${month}/${sequenceNumber}`;
     });
 
     return result;
   } catch (error) {
-    console.error("Error generating purchaseOrder number:", error);
+    console.error("Error generating purchase number:", error);
     throw error;
   }
 };

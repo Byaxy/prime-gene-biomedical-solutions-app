@@ -184,18 +184,38 @@ export const sidebarData: SidebarDataType[] = [
     subCategories: [
       {
         id: generateId(),
+        title: "Create Purchase Order",
+        path: "/purchases/create-purchase-order",
+      },
+      {
+        id: generateId(),
+        title: "Purchase Order List",
+        path: "/purchases/purchase-orders",
+      },
+      {
+        id: generateId(),
         title: "Create Purchase",
         path: "/purchases/create-purchase",
       },
       {
         id: generateId(),
-        title: "Purchase Order List",
+        title: "Purchased List",
         path: "/purchases",
       },
       {
         id: generateId(),
-        title: "Receive Inventory",
-        path: "/purchases/receive-inventory",
+        title: "Manage Shipping",
+        path: "/purchases/manage-shipping",
+      },
+      {
+        id: generateId(),
+        title: "Shipping List",
+        path: "/purchases/shipping-list",
+      },
+      {
+        title: "Receive Purchased Inventory",
+        path: "/purchases/receive-purchased-inventory",
+        id: generateId(),
       },
       {
         id: generateId(),

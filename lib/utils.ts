@@ -18,7 +18,18 @@ export const generateId = () => {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const parseStringify = (value: any) => JSON.parse(JSON.stringify(value));
 
-export const convertFileToUrl = (file: File) => URL.createObjectURL(file);
+export const convertFileToUrl = (file: File | string) => {
+  if (typeof file === "string") {
+    return file;
+  }
+
+  if (file instanceof File) {
+    return URL.createObjectURL(file);
+  }
+
+  // Fallback for any other case
+  throw new Error("Invalid file type provided to convertFileToUrl");
+};
 
 // FORMAT DATE TIME
 export const formatDateTime = (dateString: Date | string) => {

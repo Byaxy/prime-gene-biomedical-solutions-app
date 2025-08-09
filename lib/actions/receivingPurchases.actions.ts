@@ -39,12 +39,13 @@ export const addReceivedPurchase = async (
         .insert(receivingTable)
         .values({
           purchaseId: data.purchaseId,
+          vendorParkingListNumber: data.vendorParkingListNumber,
           vendorId: data.vendorId,
           storeId: data.storeId,
-          receivingOrderNumber: data.receivingOrderNumber,
           receivingDate: data.receivingDate,
           totalAmount: data.totalAmount,
           notes: data.notes,
+          attachments: data.attachments,
         })
         .returning();
 
@@ -236,7 +237,7 @@ export const addReceivedPurchase = async (
       return { receivedPurchase: receivedPurchase, items: receivedItems };
     });
 
-    revalidatePath("/purchases/receive-inventory");
+    revalidatePath("/purchases/received-inventory");
     return parseStringify(result);
   } catch (error) {
     console.error("Error receiving purchase:", error);
@@ -249,10 +250,6 @@ export const validateReceivingData = async (
   data: ReceivingPurchaseFormValues
 ): Promise<string[]> => {
   const errors: string[] = [];
-
-  if (!data.receivingOrderNumber?.trim()) {
-    errors.push("Receiving order number is required");
-  }
 
   if (!data.purchaseId) {
     errors.push("Purchase order is required");
@@ -321,7 +318,7 @@ export const getReceivedPurchaseById = async (receivedPurchaseId: string) => {
       const receivedPurchase = await tx
         .select({
           receivedPurchase: receivingTable,
-          purchaseOrder: purchasesTable,
+          purchase: purchasesTable,
           vendor: vendorsTable,
           store: storesTable,
         })
@@ -450,7 +447,7 @@ export const getReceivedPurchases = async (
       let receivedPurchasesQuery = tx
         .select({
           receivedPurchase: receivingTable,
-          purchaseOrder: purchasesTable,
+          purchase: purchasesTable,
           vendor: vendorsTable,
           store: storesTable,
         })
@@ -639,7 +636,7 @@ export const editReceivedPurchase = async (
 ) => {
   try {
     const result = await db.transaction(async (tx) => {
-      // 1. FETCH: Get existing data upfront
+      // FETCH: Get existing data upfront
       const [existingReceiving] = await tx
         .select()
         .from(receivingTable)
@@ -706,29 +703,28 @@ export const editReceivedPurchase = async (
         }
       }
 
-      // 2. VALIDATION: Early validation
       const validationErrors = await validateReceivingData(data);
       if (validationErrors.length > 0) {
         throw new Error(`Validation failed: ${validationErrors.join(", ")}`);
       }
 
-      // 3. UPDATE: Main receiving record
+      // UPDATE: Main receiving record
       const [updatedReceiving] = await tx
         .update(receivingTable)
         .set({
           purchaseId: data.purchaseId,
+          vendorParkingListNumber: data.vendorParkingListNumber,
           vendorId: data.vendorId,
           storeId: data.storeId,
-          receivingOrderNumber: data.receivingOrderNumber,
           receivingDate: data.receivingDate,
           totalAmount: data.totalAmount,
           notes: data.notes,
+          attachments: data.attachments,
         })
         .where(eq(receivingTable.id, id))
         .returning();
 
-      // 4. PREPARE: Batch operations for complete replacement strategy
-      // We'll delete all existing records and recreate them (simpler and safer)
+      // PREPARE: Batch operations for complete replacement strategy
 
       const inventoryTransactions = [];
       const purchaseItemAdjustments = new Map();
@@ -852,8 +848,6 @@ export const editReceivedPurchase = async (
         );
       }
 
-      // 5. EXECUTE: Reversal operations
-
       // Reverse existing inventory and log transactions
       for (const transaction of inventoryTransactions.filter(
         (t) => t.isReversal
@@ -903,8 +897,6 @@ export const editReceivedPurchase = async (
         }
       }
 
-      // 6. DELETE: Existing receiving records
-
       // Delete existing receiving item inventories
       await tx
         .update(receivingItemsInvetoryTable)
@@ -930,8 +922,6 @@ export const editReceivedPurchase = async (
             )
           )
         );
-
-      // 7. CREATE: New records
 
       // Insert new receiving items
       const createdReceivingItems = await tx
@@ -996,7 +986,7 @@ export const editReceivedPurchase = async (
         inventoryIndex++;
       }
 
-      // 8. UPDATE: Purchase items and products with net adjustments
+      // UPDATE: Purchase items and products with net adjustments
 
       for (const [purchaseItemId, adjustment] of purchaseItemAdjustments) {
         if (adjustment !== 0) {
@@ -1025,7 +1015,7 @@ export const editReceivedPurchase = async (
         }
       }
 
-      // 9. FULFILL: Backorders for new inventory
+      // FULFILL: Backorders for new inventory
       for (const fulfillment of backorderFulfillments) {
         if (fulfillment.inventoryId) {
           await fulfillBackorders(
@@ -1044,8 +1034,8 @@ export const editReceivedPurchase = async (
       };
     });
 
-    revalidatePath("/purchases/receive-inventory");
-    revalidatePath(`/purchases/edit-received-purchase/${id}`);
+    revalidatePath("/purchases/received-inventory");
+    revalidatePath(`/purchases/edit-received-inventory/${id}`);
     return parseStringify(result);
   } catch (error) {
     console.error("Error updating received purchase:", error);
@@ -1057,43 +1047,6 @@ export const editReceivedPurchase = async (
   }
 };
 
-// Generate Receiving Order number
-export const generateReceivingOrdereNumber = async (): Promise<string> => {
-  try {
-    const result = await db.transaction(async (tx) => {
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, "0");
-
-      const lastReceivedOrder = await tx
-        .select({ receivingOrderNumber: receivingTable.receivingOrderNumber })
-        .from(receivingTable)
-        .where(sql`receiving_order_number LIKE ${`RO${year}/${month}/%`}`)
-        .orderBy(desc(receivingTable.createdAt))
-        .limit(1);
-
-      let nextSequence = 1;
-      if (lastReceivedOrder.length > 0) {
-        const lastReceivingOrderNumber =
-          lastReceivedOrder[0].receivingOrderNumber;
-        const lastSequence = parseInt(
-          lastReceivingOrderNumber.split("/").pop() || "0",
-          10
-        );
-        nextSequence = lastSequence + 1;
-      }
-
-      const sequenceNumber = String(nextSequence).padStart(4, "0");
-
-      return `RO${year}/${month}/${sequenceNumber}`;
-    });
-
-    return result;
-  } catch (error) {
-    console.error("Error generating Receiving Order number:", error);
-    throw error;
-  }
-};
 // permanently delete received purchase
 export const deleteReceivedPurchase = async (
   receivingId: string,
@@ -1101,7 +1054,7 @@ export const deleteReceivedPurchase = async (
 ) => {
   try {
     const result = await db.transaction(async (tx) => {
-      // 1. FETCH: Get all existing data upfront
+      // Get all existing data upfront
       const [existingReceiving] = await tx
         .select()
         .from(receivingTable)
@@ -1163,7 +1116,7 @@ export const deleteReceivedPurchase = async (
         }
       }
 
-      // 2. BATCH FETCH: Get all inventory records that need to be reversed
+      // Get all inventory records that need to be reversed
       const inventoryRecordsToProcess = [];
       for (const [productId, data] of productInventoryMap) {
         for (const stock of data.inventoryStocks) {
@@ -1190,7 +1143,7 @@ export const deleteReceivedPurchase = async (
         }
       }
 
-      // 3. PREPARE: Batch operations for inventory reversal
+      // Batch operations for inventory reversal
       const inventoryTransactions = [];
       const inventoryUpdates = [];
       const inventoriesToDelete = [];
@@ -1246,8 +1199,6 @@ export const deleteReceivedPurchase = async (
         );
       }
 
-      // 4. EXECUTE: Batch inventory reversal operations
-
       // Log all inventory transactions
       if (inventoryTransactions.length > 0) {
         await tx
@@ -1299,8 +1250,6 @@ export const deleteReceivedPurchase = async (
         }
       }
 
-      // 5. DELETE: Remove all receiving records
-
       // Delete receiving item inventories
       await tx.delete(receivingItemsInvetoryTable).where(
         inArray(
@@ -1342,7 +1291,7 @@ export const softDeleteReceivedPurchase = async (
 ) => {
   try {
     const result = await db.transaction(async (tx) => {
-      // 1. FETCH: Get all existing data upfront
+      // Get all existing data upfront
       const [existingReceiving] = await tx
         .select()
         .from(receivingTable)
@@ -1412,7 +1361,7 @@ export const softDeleteReceivedPurchase = async (
         }
       }
 
-      // 2. BATCH FETCH: Get all inventory records that need to be reversed
+      // Get all inventory records that need to be reversed
       const inventoryRecordsToProcess = [];
       for (const [productId, data] of productInventoryMap) {
         for (const stock of data.inventoryStocks) {
@@ -1439,7 +1388,7 @@ export const softDeleteReceivedPurchase = async (
         }
       }
 
-      // 3. PREPARE: Batch operations for inventory reversal
+      // PREPARE: Batch operations for inventory reversal
       const inventoryTransactions = [];
       const inventoryUpdates = [];
       const inventoriesToSoftDelete = [];
@@ -1495,8 +1444,6 @@ export const softDeleteReceivedPurchase = async (
         );
       }
 
-      // 4. EXECUTE: Batch inventory reversal operations
-
       // Log all inventory transactions
       if (inventoryTransactions.length > 0) {
         await tx
@@ -1550,8 +1497,6 @@ export const softDeleteReceivedPurchase = async (
             .where(eq(productsTable.id, productId));
         }
       }
-
-      // 5. SOFT DELETE: Mark all receiving records as inactive
 
       // Soft delete receiving item inventories
       await tx

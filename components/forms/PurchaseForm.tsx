@@ -2,7 +2,7 @@
 
 import SubmitButton from "../SubmitButton";
 import CustomFormField, { FormFieldType } from "../CustomFormField";
-import { Form } from "../ui/form";
+import { Form, FormControl } from "../ui/form";
 import { useFieldArray, useForm } from "react-hook-form";
 import { Button } from "../ui/button";
 import { SelectItem } from "../ui/select";
@@ -27,29 +27,37 @@ import FormatNumber from "@/components/FormatNumber";
 import { usePurchases } from "@/hooks/usePurchases";
 import { useVendors } from "@/hooks/useVendors";
 import {
+  Attachment,
   InventoryStockWithRelations,
   Product,
   ProductWithRelations,
+  PurchaseOrderWithRelations,
   PurchaseStatus,
   PurchaseWithRelations,
   Vendor,
 } from "@/types";
 import { useInventoryStock } from "@/hooks/useInventoryStock";
 import { useQuery } from "@tanstack/react-query";
-import { generatePurchaseOrdereNumber } from "@/lib/actions/purchase.actions";
+import { generatePurchaseNumber } from "@/lib/actions/purchase.actions";
 import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { Check } from "lucide-react";
 import { Search } from "lucide-react";
 import { Input } from "../ui/input";
 import VendorDialog from "../vendors/VendorDialog";
+import { FileUploader } from "../FileUploader";
 
 interface PurchaseFormProps {
   mode: "create" | "edit";
   initialData?: PurchaseWithRelations;
+  sourcePurchaseOrder?: PurchaseOrderWithRelations;
 }
 
-const PurchaseForm = ({ mode, initialData }: PurchaseFormProps) => {
+const PurchaseForm = ({
+  mode,
+  initialData,
+  sourcePurchaseOrder,
+}: PurchaseFormProps) => {
   const [vendorDialogOpen, setVendorDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [prevSelectedProductId, setPrevSelectedProductId] = useState<
@@ -58,7 +66,9 @@ const PurchaseForm = ({ mode, initialData }: PurchaseFormProps) => {
   const { products, isLoading: productsLoading } = useProducts({
     getAllProducts: true,
   });
-  const { vendors } = useVendors({ getAllVendors: true });
+  const { vendors, isLoading: vendorsLoading } = useVendors({
+    getAllVendors: true,
+  });
   const {
     purchases,
     addPurchase,
@@ -75,28 +85,32 @@ const PurchaseForm = ({ mode, initialData }: PurchaseFormProps) => {
 
   // Generate purchase order number
   const {
-    data: generatedPurchaseOrderNumber,
+    data: generatedPurchaseNumber,
     isLoading,
     refetch,
     isRefetching,
   } = useQuery({
-    queryKey: ["purchase-order-number"],
+    queryKey: ["purchase-number"],
     queryFn: async () => {
       if (mode !== "create") return null;
-      const result = await generatePurchaseOrdereNumber();
+      const result = await generatePurchaseNumber();
       return result;
     },
     enabled: mode === "create",
   });
 
   const defaultValues = {
-    purchaseOrderNumber: generatedPurchaseOrderNumber || "",
+    purchaseNumber: generatedPurchaseNumber || "",
+    vendorInvoiceNumber: "",
     purchaseDate: new Date(),
     products: [],
-    vendor: "",
+    vendorId: sourcePurchaseOrder?.purchaseOrder.vendorId || "",
+    purchaseOrderId: sourcePurchaseOrder?.purchaseOrder.id || undefined,
     status: PurchaseStatus.Pending as PurchaseStatus,
-    notes: "",
+    notes: sourcePurchaseOrder?.purchaseOrder.notes || "",
     totalAmount: 0,
+    amountPaid: 0,
+    attachments: [],
     selectedProductId: "",
   };
 
@@ -107,16 +121,21 @@ const PurchaseForm = ({ mode, initialData }: PurchaseFormProps) => {
       mode === "create"
         ? defaultValues
         : {
-            purchaseOrderNumber:
-              initialData?.purchase.purchaseOrderNumber || "",
+            purchaseNumber: initialData?.purchase.purchaseNumber || "",
+            vendorInvoiceNumber:
+              initialData?.purchase.vendorInvoiceNumber || "",
             purchaseDate: initialData?.purchase.purchaseDate
               ? new Date(initialData?.purchase.purchaseDate)
               : new Date(),
             products: initialData?.products || [],
             vendorId: initialData?.purchase.vendorId || "",
+            purchaseOrderId: initialData?.purchase.purchaseOrderId || undefined,
             status: initialData?.purchase.status || PurchaseStatus.Pending,
             notes: initialData?.purchase.notes || "",
             totalAmount: initialData?.purchase.totalAmount || 0,
+            amountPaid: initialData?.purchase.amountPaid || 0,
+            attachments: initialData?.purchase.attachments || [],
+
             selectedProductId: "",
           },
   });
@@ -186,39 +205,62 @@ const PurchaseForm = ({ mode, initialData }: PurchaseFormProps) => {
     if (initialData && mode === "edit") {
       setTimeout(() => {
         form.reset({
-          purchaseOrderNumber: initialData?.purchase.purchaseOrderNumber || "",
+          purchaseNumber: initialData?.purchase.purchaseNumber || "",
+          vendorInvoiceNumber: initialData?.purchase.vendorInvoiceNumber || "",
           purchaseDate: initialData?.purchase.purchaseDate
             ? new Date(initialData?.purchase.purchaseDate)
             : new Date(),
           products: initialData?.products || [],
           vendorId: initialData?.purchase.vendorId || "",
+          purchaseOrderId: initialData?.purchase.purchaseOrderId || undefined,
           status: initialData?.purchase.status || PurchaseStatus.Pending,
           notes: initialData?.purchase.notes || "",
           totalAmount: initialData?.purchase.totalAmount || 0,
+          amountPaid: initialData?.purchase.amountPaid || 0,
+          attachments: initialData?.purchase.attachments || [],
+
+          selectedProductId: "",
+        });
+      }, 100);
+    } else if (sourcePurchaseOrder) {
+      setTimeout(() => {
+        form.reset({
+          purchaseNumber: generatedPurchaseNumber || "",
+          vendorInvoiceNumber: "",
+          purchaseDate: new Date(),
+          products: sourcePurchaseOrder?.products || [],
+          vendorId: sourcePurchaseOrder?.purchaseOrder.vendorId || "",
+          purchaseOrderId: sourcePurchaseOrder?.purchaseOrder.id || undefined,
+          status: PurchaseStatus.Pending,
+          notes: sourcePurchaseOrder?.purchaseOrder.notes || "",
+          totalAmount: sourcePurchaseOrder?.purchaseOrder.totalAmount || 0,
+          amountPaid: 0,
+          attachments: [],
+
           selectedProductId: "",
         });
       }, 100);
     }
-  }, [mode, initialData, form]);
+  }, [mode, initialData, form, sourcePurchaseOrder, generatedPurchaseNumber]);
 
   // Set purchaseOrder number
   useEffect(() => {
-    if (generatedPurchaseOrderNumber && mode === "create") {
-      form.setValue("purchaseOrderNumber", generatedPurchaseOrderNumber);
+    if (generatedPurchaseNumber && mode === "create") {
+      form.setValue("purchaseNumber", generatedPurchaseNumber);
     }
-  }, [generatedPurchaseOrderNumber, form, mode]);
+  }, [generatedPurchaseNumber, form, mode]);
 
   // Update the refresh button handler
-  const handleRefreshPurchaseOrderNumber = async () => {
+  const handleRefreshPurchaseNumber = async () => {
     if (mode === "create") {
       try {
         await refetch();
-        if (generatedPurchaseOrderNumber) {
-          form.setValue("purchaseOrderNumber", generatedPurchaseOrderNumber);
+        if (generatedPurchaseNumber) {
+          form.setValue("purchaseNumber", generatedPurchaseNumber);
         }
       } catch (error) {
-        console.error("Error refreshing purchase order number:", error);
-        toast.error("Failed to refresh purchase order number");
+        console.error("Error refreshing purchase number:", error);
+        toast.error("Failed to refresh purchase number");
       }
     }
   };
@@ -281,17 +323,17 @@ const PurchaseForm = ({ mode, initialData }: PurchaseFormProps) => {
     remove(index);
   };
 
-  const validatePurchaseOrderNumber = (purchaseOrderNumber: string) => {
-    const existingPurchaseOrder = purchases?.find(
+  const validatePurchaseNumber = (purchaseNumber: string) => {
+    const existingPurchase = purchases?.find(
       (purchase: PurchaseWithRelations) =>
-        purchase.purchase.purchaseOrderNumber === purchaseOrderNumber
+        purchase.purchase.purchaseNumber === purchaseNumber
     );
-    if (mode === "create" && existingPurchaseOrder) return false;
+    if (mode === "create" && existingPurchase) return false;
 
     if (
       mode === "edit" &&
-      initialData?.purchase.purchaseOrderNumber !== purchaseOrderNumber &&
-      existingPurchaseOrder
+      initialData?.purchase.purchaseNumber !== purchaseNumber &&
+      existingPurchase
     )
       return false;
     return true;
@@ -318,7 +360,7 @@ const PurchaseForm = ({ mode, initialData }: PurchaseFormProps) => {
     try {
       const values = form.getValues();
 
-      if (!validatePurchaseOrderNumber(values.purchaseOrderNumber)) {
+      if (!validatePurchaseNumber(values.purchaseNumber)) {
         toast.error(
           "A Purchase Order with the same Purchase Order number already exists."
         );
@@ -339,7 +381,28 @@ const PurchaseForm = ({ mode, initialData }: PurchaseFormProps) => {
         });
       }
       if (mode === "edit" && initialData) {
-        if (initialData?.purchase.id) {
+        if (initialData?.purchase.attachments?.length > 0) {
+          const prevIds = initialData?.purchase.attachments.map(
+            (attachment: Attachment) => attachment.id
+          );
+          await editPurchase(
+            {
+              id: initialData?.purchase.id,
+              data: values,
+              prevAttachmentIds: prevIds,
+            },
+            {
+              onSuccess: () => {
+                toast.success("Purchase order updated successfully!");
+                router.push("/purchases");
+              },
+              onError: (error) => {
+                console.error("Update purchase order error:", error);
+                toast.error("Failed to update purchase order");
+              },
+            }
+          );
+        } else {
           await editPurchase(
             {
               id: initialData?.purchase.id,
@@ -391,22 +454,47 @@ const PurchaseForm = ({ mode, initialData }: PurchaseFormProps) => {
           className="space-y-5 text-dark-500"
         >
           <div className="w-full flex flex-col md:flex-row gap-5">
+            <CustomFormField
+              fieldType={FormFieldType.SELECT}
+              control={form.control}
+              name="vendorId"
+              label="Vendor"
+              placeholder="Select vendor"
+              key={`vendor-select-${form.watch("vendorId") || ""}`}
+              onAddNew={() => setVendorDialogOpen(true)}
+              disabled={!!sourcePurchaseOrder}
+            >
+              {vendorsLoading && (
+                <div className="py-4">
+                  <Loading />
+                </div>
+              )}
+              {vendors?.map((vendor: Vendor) => (
+                <SelectItem
+                  key={vendor.id}
+                  value={vendor.id}
+                  className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
+                >
+                  {vendor.name}
+                </SelectItem>
+              ))}
+            </CustomFormField>
             <div className="flex flex-1 flex-row gap-2 items-center">
               <CustomFormField
                 fieldType={FormFieldType.INPUT}
                 control={form.control}
-                name="purchaseOrderNumber"
-                label="Purchase Order Number"
+                name="purchaseNumber"
+                label="Purchase Number"
                 placeholder={
                   isLoading || isRefetching
                     ? "Generating..."
-                    : "Enter purchase order number"
+                    : "Enter purchase number"
                 }
               />
               <Button
                 type="button"
                 size={"icon"}
-                onClick={handleRefreshPurchaseOrderNumber}
+                onClick={handleRefreshPurchaseNumber}
                 className="self-end shad-primary-btn px-5"
                 disabled={isLoading || isRefetching}
               >
@@ -417,6 +505,8 @@ const PurchaseForm = ({ mode, initialData }: PurchaseFormProps) => {
                 />
               </Button>
             </div>
+          </div>
+          <div className="flex flex-col md:flex-row gap-5">
             <CustomFormField
               fieldType={FormFieldType.DATE_PICKER}
               control={form.control}
@@ -424,8 +514,14 @@ const PurchaseForm = ({ mode, initialData }: PurchaseFormProps) => {
               label="Purchase Date"
               dateFormat="MM/dd/yyyy"
             />
+            <CustomFormField
+              fieldType={FormFieldType.INPUT}
+              control={form.control}
+              name="vendorInvoiceNumber"
+              label="Vendor Proforma Invoice Number"
+              placeholder={"Enter vendor proforma invoice number"}
+            />
           </div>
-          <div className="flex flex-col sm:flex-row gap-5"></div>
 
           <div
             className={`space-y-5 ${
@@ -639,27 +735,7 @@ const PurchaseForm = ({ mode, initialData }: PurchaseFormProps) => {
             )}
           </div>
 
-          <div className="w-full flex flex-col sm:flex-row gap-5">
-            <CustomFormField
-              fieldType={FormFieldType.SELECT}
-              control={form.control}
-              name="vendorId"
-              label="Vendor"
-              placeholder="Select vendor"
-              key={`vendor-select-${form.watch("vendorId") || ""}`}
-              onAddNew={() => setVendorDialogOpen(true)}
-            >
-              {vendors?.map((vendor: Vendor) => (
-                <SelectItem
-                  key={vendor.id}
-                  value={vendor.id}
-                  className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
-                >
-                  {vendor.name}
-                </SelectItem>
-              ))}
-            </CustomFormField>
-
+          <div className="w-full flex flex-col md:flex-row-reverse md:items-end  gap-5 pt-5">
             <CustomFormField
               fieldType={FormFieldType.SELECT}
               control={form.control}
@@ -678,6 +754,28 @@ const PurchaseForm = ({ mode, initialData }: PurchaseFormProps) => {
                 </SelectItem>
               ))}
             </CustomFormField>
+            <CustomFormField
+              fieldType={FormFieldType.SKELETON}
+              control={form.control}
+              name="attachments"
+              label="Attachments"
+              renderSkeleton={(field) => (
+                <FormControl>
+                  <FileUploader
+                    files={field.value}
+                    onChange={field.onChange}
+                    mode={mode}
+                    maxFiles={5}
+                    accept={{
+                      "application/pdf": [".pdf"],
+                      "application/msword": [".doc"],
+                      "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                        [".docx"],
+                    }}
+                  />
+                </FormControl>
+              )}
+            />
           </div>
 
           <CustomFormField

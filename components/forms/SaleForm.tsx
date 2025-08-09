@@ -169,7 +169,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
       paymentStatus: PaymentStatus.Pending as PaymentStatus,
       notes: sourceQuotation?.quotation.notes || "",
       products: [],
-      quotationId: sourceQuotation?.quotation.id || "",
+      quotationId: sourceQuotation?.quotation.id || undefined,
       attachments: [],
       isDeliveryAddressAdded:
         sourceQuotation?.quotation.isDeliveryAddressAdded || false,
@@ -222,7 +222,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
           paymentMethod: initialData?.sale.paymentMethod || PaymentMethod.Cash,
           paymentStatus:
             initialData?.sale.paymentStatus || PaymentStatus.Pending,
-          quotationId: initialData?.sale.quotationId || "",
+          quotationId: initialData?.sale.quotationId || undefined,
           selectedProductId: "",
         }
       : defaultValues,
@@ -352,7 +352,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
           paymentMethod: initialData?.sale.paymentMethod || PaymentMethod.Cash,
           paymentStatus:
             initialData?.sale.paymentStatus || PaymentStatus.Pending,
-          quotationId: initialData?.sale.quotationId || "",
+          quotationId: initialData?.sale.quotationId || undefined,
           selectedProductId: "",
         });
       }, 100);

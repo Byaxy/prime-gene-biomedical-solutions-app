@@ -27,12 +27,10 @@ const ViewReceivedLotNumbers = ({ open, onOpenChange, purchase }: Props) => {
       <DialogContent className="max-w-6xl w-full bg-light-200 space-y-4 p-8">
         <DialogHeader>
           <DialogTitle className="pb-2">
-            Product ID: {purchase.productID} - Stock Batches (
-            {purchase.inventoryStock.length})
+            Product: {purchase.productID} - {purchase.productName}
           </DialogTitle>
           <DialogDescription className="text-dark-600">
-            Inventory stock Details for {purchase.productID} -{" "}
-            {purchase.productName}
+            Inventory Stock Batches ({purchase.inventoryStock.length})
           </DialogDescription>
         </DialogHeader>
         <div>

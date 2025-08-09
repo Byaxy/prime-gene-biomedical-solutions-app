@@ -84,7 +84,9 @@ export const deliveriesColumns: ColumnDef<DeliveryWithRelations>[] = [
     cell: ({ row }) => {
       const delivery = row.original;
       return (
-        <p className="text-14-medium ">{delivery.sale.invoiceNumber || "-"}</p>
+        <p className="text-14-medium ">
+          {delivery?.sale ? delivery.sale.invoiceNumber : "-"}
+        </p>
       );
     },
   },
