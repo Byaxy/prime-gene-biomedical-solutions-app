@@ -222,11 +222,6 @@ export const sidebarData: SidebarDataType[] = [
         title: "Received Inventory List",
         path: "/purchases/received-inventory",
       },
-      {
-        id: generateId(),
-        title: "Bills Payment",
-        path: "/purchases/bills-payment",
-      },
     ],
   },
   {

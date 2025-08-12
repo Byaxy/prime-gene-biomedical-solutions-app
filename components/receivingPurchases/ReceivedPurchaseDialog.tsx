@@ -19,6 +19,7 @@ import { PDFViewer } from "@react-pdf/renderer";
 import ReceivedInventoryPDF from "./ReceivedInventoryPDF";
 import { useProducts } from "@/hooks/useProducts";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 interface Props {
   mode: "add" | "edit" | "delete" | "view";
@@ -40,6 +41,7 @@ const ReceivedPurchaseDialog = ({
   const { user } = useAuth();
 
   const router = useRouter();
+  const supabase = createSupabaseBrowserClient();
 
   const handleDelete = async () => {
     try {
@@ -146,6 +148,61 @@ const ReceivedPurchaseDialog = ({
     }
   };
 
+  const handleDownloadRFQ = async () => {
+    try {
+      if (
+        !purchase?.receivedPurchase.attachments ||
+        purchase?.receivedPurchase.attachments.length === 0
+      ) {
+        toast.error("No attachments found");
+        return;
+      }
+
+      // Download attachments
+      await Promise.all(
+        purchase.receivedPurchase.attachments.map(async (attachment) => {
+          try {
+            // Get the file extension from the original filename
+            const fileExtension = attachment.name.split(".").pop();
+
+            const { data, error } = await supabase.storage
+              .from("images")
+              .download(attachment.id);
+
+            if (error) throw error;
+            if (!data) throw new Error("No data received");
+
+            const url = window.URL.createObjectURL(data);
+            const link = document.createElement("a");
+            link.href = url;
+
+            // Preserve the original filename and extension
+            link.download =
+              attachment.name ||
+              `attachment_${Date.now()}.${fileExtension || ""}`;
+
+            document.body.appendChild(link);
+            link.click();
+
+            // Clean up
+            setTimeout(() => {
+              document.body.removeChild(link);
+              window.URL.revokeObjectURL(url);
+            }, 100);
+
+            toast.success(`Downloading ${attachment.name}`);
+          } catch (error) {
+            console.error(`Error downloading ${attachment.name}:`, error);
+            toast.error(`Failed to download ${attachment.name}`);
+          }
+        })
+      );
+    } catch (error) {
+      console.error("Error downloading attachments:", error);
+      toast.error("Failed to download attachments");
+    }
+  };
+
   return (
     <div>
       {mode === "delete" && (
@@ -245,6 +302,18 @@ const ReceivedPurchaseDialog = ({
                 >
                   <Download className="h-5 w-5" />
                   Download as PDF
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    handleDownloadRFQ();
+                    onOpenChange(false);
+                  }}
+                  className="shad-gray-btn"
+                >
+                  <Download className="h-5 w-5" />
+                  Download Attachments
                 </Button>
                 <Button
                   type="button"

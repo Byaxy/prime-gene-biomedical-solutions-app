@@ -46,6 +46,19 @@ export const purchaseOrderColumns: ColumnDef<PurchaseOrderWithRelations>[] = [
     },
   },
   {
+    id: "vendor.name",
+    accessorKey: "vendor.name",
+    header: "Vendor",
+    cell: ({ row }) => {
+      const purchaseOrder = row.original;
+      return (
+        <p className="text-14-medium ">
+          {purchaseOrder.vendor ? purchaseOrder.vendor.name : "-"}
+        </p>
+      );
+    },
+  },
+  {
     id: "purchaseOrder.purchaseOrderNumber",
     accessorKey: "purchaseOrder.purchaseOrderNumber",
     header: ({ column }) => {
@@ -92,7 +105,7 @@ export const purchaseOrderColumns: ColumnDef<PurchaseOrderWithRelations>[] = [
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           className="font-semibold px-0"
         >
-          Total
+          Total Amount
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       );
@@ -132,7 +145,7 @@ export const purchaseOrderColumns: ColumnDef<PurchaseOrderWithRelations>[] = [
   },
   {
     accessorKey: "purchaseOrder.isConvertedToPurchase",
-    header: "Converted To Purchase",
+    header: "Converted To Purchase?",
     cell: ({ row }) => {
       const purchaseOrder = row.original;
       return (
@@ -153,19 +166,6 @@ export const purchaseOrderColumns: ColumnDef<PurchaseOrderWithRelations>[] = [
     },
   },
 
-  {
-    id: "vendor.name",
-    accessorKey: "vendor.name",
-    header: "Vendor",
-    cell: ({ row }) => {
-      const purchaseOrder = row.original;
-      return (
-        <p className="text-14-medium ">
-          {purchaseOrder.vendor ? purchaseOrder.vendor.name : "-"}
-        </p>
-      );
-    },
-  },
   {
     id: "actions",
     header: "Actions",

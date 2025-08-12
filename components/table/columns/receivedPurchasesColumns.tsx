@@ -356,6 +356,16 @@ export const groupedReceivedPurchasesColumns: ColumnDef<GroupedReceivedPurchases
       },
     },
     {
+      accessorKey: "totalReceivedPurchases",
+      header: "Batches",
+      cell: ({ row }) => {
+        const purchase = row.original;
+        return (
+          <p className="text-14-medium ">{purchase.totalReceivedPurchases}</p>
+        );
+      },
+    },
+    {
       header: "Total Quantity",
       cell: ({ row }) => {
         const purchase = row.original;

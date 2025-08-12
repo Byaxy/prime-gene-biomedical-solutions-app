@@ -46,6 +46,8 @@ import { Search } from "lucide-react";
 import { Input } from "../ui/input";
 import VendorDialog from "../vendors/VendorDialog";
 import { FileUploader } from "../FileUploader";
+import PendingPurchaseOrdersDialog from "../purchaseOrders/PendingPurchaseOrdersDialog";
+import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 
 interface PurchaseFormProps {
   mode: "create" | "edit";
@@ -59,9 +61,13 @@ const PurchaseForm = ({
   sourcePurchaseOrder,
 }: PurchaseFormProps) => {
   const [vendorDialogOpen, setVendorDialogOpen] = useState(false);
+  const [purchaseOrderDialogOpen, setPurchaseOrderDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [prevSelectedProductId, setPrevSelectedProductId] = useState<
     string | null
+  >(null);
+  const [pendingPurchaseOrders, setPendingPurchaseOrders] = useState<
+    PurchaseOrderWithRelations[] | null
   >(null);
   const { products, isLoading: productsLoading } = useProducts({
     getAllProducts: true,
@@ -76,6 +82,7 @@ const PurchaseForm = ({
     isCreatingPurchase,
     isEditingPurchase,
   } = usePurchases({ getAllPurchases: true });
+  const { purchaseOrders } = usePurchaseOrders({ getAllPurchaseOrders: true });
 
   const { inventoryStock } = useInventoryStock({
     getAllInventoryStocks: true,
@@ -146,6 +153,7 @@ const PurchaseForm = ({
   });
 
   const selectedProductId = form.watch("selectedProductId");
+  const selectedVendorId = form.watch("vendorId");
   const watchedFields = fields.map((_, index) => ({
     quantity: form.watch(`products.${index}.quantity`),
   }));
@@ -268,6 +276,7 @@ const PurchaseForm = ({
   // handle close dialog
   const closeDialog = () => {
     setVendorDialogOpen(false);
+    setPurchaseOrderDialogOpen(false);
 
     setTimeout(() => {
       const stuckSection = document.querySelector(".MuiBox-root.css-0");
@@ -429,6 +438,21 @@ const PurchaseForm = ({
   };
 
   useEffect(() => {
+    if (selectedVendorId && purchaseOrders) {
+      setPendingPurchaseOrders(null);
+
+      const pendingOrders = purchaseOrders.filter(
+        (order: PurchaseOrderWithRelations) =>
+          order.vendor.id === selectedVendorId &&
+          order.purchaseOrder.isConvertedToPurchase === false
+      );
+      if (pendingOrders.length > 0) {
+        setPendingPurchaseOrders(pendingOrders);
+      }
+    }
+  }, [selectedVendorId, purchaseOrders]);
+
+  useEffect(() => {
     if (fields.length > 0) {
       fields.forEach((field, index) => {
         const entryTotalPrice = calculateEntryTotalPrice(index);
@@ -455,6 +479,13 @@ const PurchaseForm = ({
         >
           <div className="w-full flex flex-col md:flex-row gap-5">
             <CustomFormField
+              fieldType={FormFieldType.DATE_PICKER}
+              control={form.control}
+              name="purchaseDate"
+              label="Purchase Date"
+              dateFormat="MM/dd/yyyy"
+            />
+            <CustomFormField
               fieldType={FormFieldType.SELECT}
               control={form.control}
               name="vendorId"
@@ -479,6 +510,8 @@ const PurchaseForm = ({
                 </SelectItem>
               ))}
             </CustomFormField>
+          </div>
+          <div className="flex flex-col md:flex-row gap-5">
             <div className="flex flex-1 flex-row gap-2 items-center">
               <CustomFormField
                 fieldType={FormFieldType.INPUT}
@@ -505,15 +538,6 @@ const PurchaseForm = ({
                 />
               </Button>
             </div>
-          </div>
-          <div className="flex flex-col md:flex-row gap-5">
-            <CustomFormField
-              fieldType={FormFieldType.DATE_PICKER}
-              control={form.control}
-              name="purchaseDate"
-              label="Purchase Date"
-              dateFormat="MM/dd/yyyy"
-            />
             <CustomFormField
               fieldType={FormFieldType.INPUT}
               control={form.control}
@@ -641,6 +665,30 @@ const PurchaseForm = ({
                 Add Product
               </Button>
             </div>
+
+            {selectedVendorId && (pendingPurchaseOrders?.length ?? 0) > 0 && (
+              <div className="flex flex-col items-center justify-center gap-2 bg-red-600/10 p-5 rounded-md border border-red-600 text-center">
+                <Button
+                  type="button"
+                  className="shad-danger-btn w-fit"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setPurchaseOrderDialogOpen(true);
+                  }}
+                >
+                  View Pending Purchase Orders
+                </Button>
+                <p className="text-red-600 text-sm">
+                  ⚠️ Pending Purchase Orders Found for this vendor:{" "}
+                  {
+                    vendors?.find(
+                      (vendor: Vendor) => vendor.id === selectedVendorId
+                    )?.name
+                  }
+                </p>
+              </div>
+            )}
 
             <Table className="shad-table">
               <TableHeader>
@@ -808,6 +856,16 @@ const PurchaseForm = ({
         mode="add"
         open={vendorDialogOpen}
         onOpenChange={closeDialog}
+      />
+
+      <PendingPurchaseOrdersDialog
+        open={
+          !!purchaseOrderDialogOpen &&
+          !!pendingPurchaseOrders &&
+          pendingPurchaseOrders.length > 0
+        }
+        onOpenChange={closeDialog}
+        purchaseOrders={pendingPurchaseOrders || []}
       />
     </>
   );
