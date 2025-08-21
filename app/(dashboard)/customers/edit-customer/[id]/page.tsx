@@ -1,37 +1,20 @@
-"use client";
-
-import CustomerForm from "@/components/forms/CustomerForm";
-import Loading from "@/components/loading";
+import Loading from "@/app/(dashboard)/loading";
+import EditCustomerPage from "@/components/customers/EditCustomerPage";
 import PageWraper from "@/components/PageWraper";
-import { getCustomerById } from "@/lib/actions/customer.actions";
-import { useQuery } from "@tanstack/react-query";
-import { useParams } from "next/navigation";
+import { Suspense, use } from "react";
 
-const EditCustomer = () => {
-  const { id } = useParams();
+interface Props {
+  params: Promise<{ id: string }>;
+}
 
-  const { data: customer, isLoading } = useQuery({
-    queryKey: [id],
-    queryFn: async () => {
-      if (!id) return null;
-      return await getCustomerById(id as string);
-    },
-    enabled: !!id,
-    staleTime: 0,
-  });
-
-  if (isLoading) {
-    return <Loading />;
-  }
+const EditCustomer = ({ params }: Props) => {
+  const { id } = use(params);
 
   return (
     <PageWraper title="Edit Customer">
-      <section className="space-y-6">
-        <CustomerForm
-          mode={"edit"}
-          initialData={customer ? customer : undefined}
-        />
-      </section>
+      <Suspense fallback={<Loading />}>
+        <EditCustomerPage customerId={id} />
+      </Suspense>
     </PageWraper>
   );
 };

@@ -26,7 +26,7 @@ import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { InventoryStockWithRelations, WaybillInventoryStock } from "@/types";
 import { useInventoryStock } from "@/hooks/useInventoryStock";
-import Loading from "../loading";
+import Loading from "../../app/(dashboard)/loading";
 import { AlertTriangle, Plus, Search, X } from "lucide-react";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useState, useEffect, useCallback, useMemo } from "react";

@@ -1,0 +1,171 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { addShipment, getShipments } from "@/lib/actions/shipment.actions";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { ShipmentFormValues } from "@/lib/validation";
+import { Attachment, ShipmentStatus, ShippingMode } from "@/types";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+
+interface UseShipmentsOptions {
+  getAllShipments?: boolean;
+  initialPageSize?: number;
+}
+
+export interface ShipmentFilters {
+  trackingNumber?: string;
+  shippingDate_start?: Date;
+  shippingDate_end?: Date;
+  carrierName?: string;
+  shippingMode?: ShippingMode;
+  status?: ShipmentStatus;
+}
+
+export const defaultShipmentFilters: ShipmentFilters = {
+  trackingNumber: undefined,
+  shippingDate_start: undefined,
+  shippingDate_end: undefined,
+  carrierName: undefined,
+  shippingMode: undefined,
+  status: undefined,
+};
+
+export const useShipments = ({
+  getAllShipments = false,
+  initialPageSize = 10,
+}: UseShipmentsOptions = {}) => {
+  const queryClient = useQueryClient();
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(initialPageSize);
+  const [filters, setFilters] = useState<ShipmentFilters>(
+    defaultShipmentFilters
+  );
+
+  // Query for all Shipments
+  const allShipmentsQuery = useQuery({
+    queryKey: ["shipments", filters],
+    queryFn: async () => {
+      const result = await getShipments(0, 0, true, filters);
+      return result.documents;
+    },
+    enabled: getAllShipments,
+  });
+
+  // Query for paginated Shipments
+  const paginatedShipmentsQuery = useQuery({
+    queryKey: ["shipments", "paginatedShipments", page, pageSize, filters],
+    queryFn: async () => {
+      const result = await getShipments(page, pageSize, false, filters);
+      return result;
+    },
+    enabled: !getAllShipments,
+  });
+
+  // Prefetch next page for table view
+  useEffect(() => {
+    if (
+      !getAllShipments &&
+      paginatedShipmentsQuery.data &&
+      page * pageSize < paginatedShipmentsQuery.data.total - pageSize
+    ) {
+      queryClient.prefetchQuery({
+        queryKey: [
+          "shipments",
+          "paginatedShipments",
+          page + 1,
+          pageSize,
+          filters,
+        ],
+        queryFn: () => getShipments(page + 1, pageSize, false, filters),
+      });
+    }
+  }, [
+    page,
+    pageSize,
+    paginatedShipmentsQuery.data,
+    queryClient,
+    getAllShipments,
+    filters,
+  ]);
+
+  // Handle filter changes
+  const handleFilterChange = (newFilters: ShipmentFilters) => {
+    setFilters(newFilters);
+    setPage(0);
+  };
+
+  const { mutate: addShipmentMutation, status: addShipmentStatus } =
+    useMutation({
+      mutationFn: async (data: ShipmentFormValues) => {
+        const supabase = createSupabaseBrowserClient();
+        const attachments: Attachment[] = [];
+
+        if (data.attachments && data.attachments.length > 0) {
+          try {
+            // Upload all files
+            await Promise.all(
+              data.attachments.map(async (file: any) => {
+                const fileId = `${Date.now()}-${file.name}`;
+                const { error: uploadError } = await supabase.storage
+                  .from("images")
+                  .upload(fileId, file);
+
+                if (uploadError) throw uploadError;
+
+                // Get the file URL
+                const { data: urlData } = supabase.storage
+                  .from("images")
+                  .getPublicUrl(fileId);
+
+                attachments.push({
+                  id: fileId,
+                  url: urlData.publicUrl,
+                  name: file.name,
+                  size: file.size,
+                  type: file.type,
+                });
+              })
+            );
+          } catch (error) {
+            console.error("Error uploading files:", error);
+            throw new Error("Failed to upload attachments");
+          }
+        }
+
+        const dataWithAttachment = {
+          ...data,
+          attachments,
+        };
+        return addShipment(dataWithAttachment);
+      },
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: ["shipments", "paginatedShipments"],
+        });
+      },
+      onError: (error) => {
+        console.error("Error creating shipment:", error);
+      },
+    });
+
+  return {
+    shipments: getAllShipments
+      ? allShipmentsQuery.data
+      : paginatedShipmentsQuery.data?.documents || [],
+    totalItems: paginatedShipmentsQuery.data?.total || 0,
+    isLoading: getAllShipments
+      ? allShipmentsQuery.isLoading
+      : paginatedShipmentsQuery.isLoading,
+    error: getAllShipments
+      ? allShipmentsQuery.error
+      : paginatedShipmentsQuery.error,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    filters,
+    onFilterChange: handleFilterChange,
+    defaultFilterValues: defaultShipmentFilters,
+    addShipment: addShipmentMutation,
+    isCreatingShipment: addShipmentStatus === "pending",
+  };
+};

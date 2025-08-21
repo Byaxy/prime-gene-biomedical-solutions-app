@@ -22,7 +22,7 @@ import { X } from "lucide-react";
 import { PurchaseFormValidation, PurchaseFormValues } from "@/lib/validation";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import Loading from "@/components/loading";
+import Loading from "@/app/(dashboard)/loading";
 import FormatNumber from "@/components/FormatNumber";
 import { usePurchases } from "@/hooks/usePurchases";
 import { useVendors } from "@/hooks/useVendors";

@@ -49,7 +49,7 @@ import { generateInvoiceNumber } from "@/lib/actions/sale.actions";
 import { RefreshCw } from "lucide-react";
 import { useTaxes } from "@/hooks/useTaxes";
 import TaxDialog from "../taxes/TaxDialog";
-import Loading from "../loading";
+import Loading from "../../app/(dashboard)/loading";
 import { FileUploader } from "../FileUploader";
 import ProductSheet from "../products/ProductSheet";
 import { Country, State, City } from "country-state-city";
@@ -1182,9 +1182,9 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                   return (
                     <TableRow
                       key={`${entry.productId}-${index}`}
-                      className={`w-full ${
-                        index % 2 === 1 ? "bg-blue-50" : ""
-                      }`}
+                      className={cn("w-full", {
+                        "bg-blue-50": index % 2 === 1,
+                      })}
                     >
                       <TableCell>{index + 1}</TableCell>
                       <TableCell>{entry.productID}</TableCell>

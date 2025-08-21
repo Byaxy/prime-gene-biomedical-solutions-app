@@ -1,6 +1,6 @@
 import { getCategoryById } from "@/lib/actions/category.actions";
 import { useQuery } from "@tanstack/react-query";
-import Loading from "../loading";
+import Loading from "../../app/(dashboard)/loading";
 
 const SingleCategory = ({ categoryId }: { categoryId: string }) => {
   const { data: category, isLoading } = useQuery({

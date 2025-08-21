@@ -3,7 +3,7 @@
 import { useCompanySettings } from "@/hooks/useCompanySettings";
 import CompanySettingsForm from "../forms/CompanySettingsForm";
 import { CompanySettingsFormValues } from "@/lib/validation";
-import Loading from "@/components/loading";
+import Loading from "@/app/(dashboard)/loading";
 import { useAuth } from "@/hooks/useAuth";
 
 const CompanySettings = () => {

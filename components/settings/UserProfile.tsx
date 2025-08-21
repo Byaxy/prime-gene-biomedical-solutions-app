@@ -1,6 +1,6 @@
 "use client";
 
-import Loading from "@/components/loading";
+import Loading from "@/app/(dashboard)/loading";
 import { useUsers } from "@/hooks/useUsers";
 import { UserFormValues } from "@/lib/validation";
 import UserProfileForm from "../forms/UserProfileForm";

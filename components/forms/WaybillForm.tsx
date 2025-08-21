@@ -37,7 +37,7 @@ import { Form } from "../ui/form";
 import CustomFormField, { FormFieldType } from "../CustomFormField";
 import { Button } from "../ui/button";
 import { RefreshCw } from "lucide-react";
-import Loading from "../loading";
+import Loading from "../../app/(dashboard)/loading";
 import { SelectItem } from "../ui/select";
 import { Search } from "lucide-react";
 import { Input } from "../ui/input";
@@ -1527,38 +1527,42 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
                               </TableRow>
                             </TableHeader>
                             <TableBody className="w-full bg-white">
-                              {filteredProducts.map((product: Product) => (
-                                <TableRow
-                                  key={product.id}
-                                  className="cursor-pointer hover:bg-blue-50"
-                                  onClick={() => {
-                                    form.setValue(
-                                      "selectedProductId",
-                                      product.id
-                                    );
-                                    setPrevSelectedProductId(product.id);
-                                    setSearchQuery("");
-                                    // Find and click the hidden SelectItem with this value
-                                    const selectItem = document.querySelector(
-                                      `[data-value="${product.id}"]`
-                                    ) as HTMLElement;
-                                    if (selectItem) {
-                                      selectItem.click();
-                                    }
-                                  }}
-                                >
-                                  <TableCell>{product.productID}</TableCell>
-                                  <TableCell>{product.name}</TableCell>
-                                  <TableCell>{product.quantity}</TableCell>
-                                  <TableCell className="w-10">
-                                    {prevSelectedProductId === product.id && (
-                                      <span className="text-blue-800">
-                                        <Check className="h-5 w-5" />
-                                      </span>
-                                    )}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
+                              {filteredProducts.map(
+                                (product: Product, index: number) => (
+                                  <TableRow
+                                    key={product.id}
+                                    className={cn("cursor-pointer", {
+                                      "bg-blue-50": index % 2 === 1,
+                                    })}
+                                    onClick={() => {
+                                      form.setValue(
+                                        "selectedProductId",
+                                        product.id
+                                      );
+                                      setPrevSelectedProductId(product.id);
+                                      setSearchQuery("");
+                                      // Find and click the hidden SelectItem with this value
+                                      const selectItem = document.querySelector(
+                                        `[data-value="${product.id}"]`
+                                      ) as HTMLElement;
+                                      if (selectItem) {
+                                        selectItem.click();
+                                      }
+                                    }}
+                                  >
+                                    <TableCell>{product.productID}</TableCell>
+                                    <TableCell>{product.name}</TableCell>
+                                    <TableCell>{product.quantity}</TableCell>
+                                    <TableCell className="w-10">
+                                      {prevSelectedProductId === product.id && (
+                                        <span className="text-blue-800">
+                                          <Check className="h-5 w-5" />
+                                        </span>
+                                      )}
+                                    </TableCell>
+                                  </TableRow>
+                                )
+                              )}
                             </TableBody>
                           </Table>
                           {/* Hidden select options for form control */}

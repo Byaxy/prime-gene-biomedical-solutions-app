@@ -1,7 +1,7 @@
 "use client";
 
 import QuotationForm from "@/components/forms/QuotationForm";
-import Loading from "@/components/loading";
+import Loading from "@/app/(dashboard)/loading";
 import PageWraper from "@/components/PageWraper";
 import { getQuotationById } from "@/lib/actions/quotation.actions";
 import { useQuery } from "@tanstack/react-query";

@@ -1,7 +1,7 @@
 "use client";
 
 import PurchaseOrderForm from "@/components/forms/PurchaseOrderForm";
-import Loading from "@/components/loading";
+import Loading from "@/app/(dashboard)/loading";
 import PageWraper from "@/components/PageWraper";
 import { getPurchaseOrderById } from "@/lib/actions/purchaseOrder.actions";
 import { useQuery } from "@tanstack/react-query";

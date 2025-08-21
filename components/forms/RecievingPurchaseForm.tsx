@@ -45,7 +45,7 @@ import { X } from "lucide-react";
 import { SelectItem } from "../ui/select";
 import FormatNumber from "../FormatNumber";
 import SubmitButton from "../SubmitButton";
-import Loading from "../loading";
+import Loading from "../../app/(dashboard)/loading";
 import { Check } from "lucide-react";
 import { cn, formatDateTime } from "@/lib/utils";
 import { useProducts } from "@/hooks/useProducts";

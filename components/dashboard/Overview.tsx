@@ -1,3 +1,5 @@
+"use client";
+
 import { useSales } from "@/hooks/useSales";
 import OverviewCard from "./OverviewCard";
 import { usePurchases } from "@/hooks/usePurchases";

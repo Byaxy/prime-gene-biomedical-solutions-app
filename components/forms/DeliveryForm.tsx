@@ -26,7 +26,7 @@ import { Button } from "../ui/button";
 import SubmitButton from "../SubmitButton";
 import CustomFormField, { FormFieldType } from "../CustomFormField";
 import { RefreshCw } from "lucide-react";
-import Loading from "../loading";
+import Loading from "../../app/(dashboard)/loading";
 import { SelectItem } from "../ui/select";
 import { useStores } from "@/hooks/useStores";
 import { useCustomers } from "@/hooks/useCustomers";

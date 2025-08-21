@@ -1,5 +1,5 @@
 import FormatNumber from "@/components/FormatNumber";
-import Loading from "@/components/loading";
+import Loading from "@/app/(dashboard)/loading";
 import ReceivedPurchaseActions from "@/components/receivingPurchases/ReceivedPurchaseActions";
 import { Button } from "@/components/ui/button";
 import { getPurchaseById } from "@/lib/actions/purchase.actions";

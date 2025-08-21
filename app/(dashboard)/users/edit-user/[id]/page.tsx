@@ -1,7 +1,7 @@
 "use client";
 
 import UserForm from "@/components/forms/UserForm";
-import Loading from "@/components/loading";
+import Loading from "@/app/(dashboard)/loading";
 import PageWraper from "@/components/PageWraper";
 import { useUsers } from "@/hooks/useUsers";
 import { getUserById } from "@/lib/actions/user.actions";

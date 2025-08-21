@@ -1,7 +1,7 @@
 "use client";
 
 import ConvertLoanWaybillForm from "@/components/forms/ConvertLoanWaybillForm";
-import Loading from "@/components/loading";
+import Loading from "@/app/(dashboard)/loading";
 import PageWraper from "@/components/PageWraper";
 import { getSaleById } from "@/lib/actions/sale.actions";
 import { getWaybillById } from "@/lib/actions/waybill.actions";

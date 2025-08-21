@@ -29,7 +29,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import Loading from "../loading";
+import Loading from "../../app/(dashboard)/loading";
 import {
   DropdownMenu,
   DropdownMenuContent,

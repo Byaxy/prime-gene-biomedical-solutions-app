@@ -31,7 +31,7 @@ import {
 } from "../ui/table";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { X } from "lucide-react";
-import Loading from "@/components/loading";
+import Loading from "@/app/(dashboard)/loading";
 import FormatNumber from "@/components/FormatNumber";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";

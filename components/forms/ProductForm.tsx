@@ -22,7 +22,7 @@ import { FileUploader } from "../FileUploader";
 import { usePathname, useRouter } from "next/navigation";
 import { useBrands } from "@/hooks/useBrands";
 import { getFlattenedCategories } from "./CategoriesForm";
-import Loading from "../loading";
+import Loading from "../../app/(dashboard)/loading";
 import {
   Brand,
   Product,

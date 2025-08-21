@@ -1,7 +1,7 @@
 "use client";
 
 import ProductForm from "@/components/forms/ProductForm";
-import Loading from "@/components/loading";
+import Loading from "@/app/(dashboard)/loading";
 import PageWraper from "@/components/PageWraper";
 import { getProductById } from "@/lib/actions/product.actions";
 import { ProductWithRelations } from "@/types";

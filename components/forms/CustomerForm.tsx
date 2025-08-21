@@ -41,20 +41,35 @@ const CustomerForm = ({ mode, initialData, onCancel }: CustomerFormProps) => {
   const { addCustomer, isAddingCustomer, editCustomer, isEditingCustomer } =
     useCustomers();
 
+  const defaultValues = {
+    name: "",
+    email: "",
+    phone: "",
+    address: {
+      addressName: "",
+      address: "",
+      city: "",
+      state: "",
+      country: "",
+    },
+  };
+
   const form = useForm<CustomerFormValues>({
     resolver: zodResolver(CustomerFormValidation),
-    defaultValues: initialData || {
-      name: "",
-      email: "",
-      phone: "",
-      address: {
-        addressName: "",
-        address: "",
-        city: "",
-        state: "",
-        country: "",
-      },
-    },
+    defaultValues: initialData
+      ? {
+          name: initialData.name || "",
+          email: initialData.email || "",
+          phone: initialData.phone || "",
+          address: {
+            addressName: initialData.address.addressName || "",
+            address: initialData.address.address || "",
+            city: initialData.address.city || "",
+            state: initialData.address.state || "",
+            country: initialData.address.country || "",
+          },
+        }
+      : defaultValues,
   });
 
   const selectedCountry = form.watch("address.country");
@@ -101,7 +116,6 @@ const CustomerForm = ({ mode, initialData, onCancel }: CustomerFormProps) => {
 
   // Set initial values for the form
   useEffect(() => {
-    // Editing an existing sale
     if (initialData) {
       if (initialData.address?.country) {
         const countryStates =
@@ -251,6 +265,7 @@ const CustomerForm = ({ mode, initialData, onCancel }: CustomerFormProps) => {
             }
             onValueChange={handleStateChange}
             disabled={!selectedCountry}
+            key={`state-${form.watch("address.state") || ""}`}
           >
             {states.map((state) => (
               <SelectItem
@@ -276,6 +291,7 @@ const CustomerForm = ({ mode, initialData, onCancel }: CustomerFormProps) => {
               form.trigger("address.city");
             }}
             disabled={!selectedState}
+            key={`city-${form.watch("address.city") || ""}`}
           >
             {cities.map((city) => (
               <SelectItem
@@ -294,7 +310,6 @@ const CustomerForm = ({ mode, initialData, onCancel }: CustomerFormProps) => {
             type="button"
             onClick={() => {
               form.reset();
-              form.setValue("address.country", "");
               onCancel?.();
             }}
             className="shad-danger-btn"

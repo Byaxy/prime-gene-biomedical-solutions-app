@@ -644,6 +644,82 @@ export interface GroupedReceivedPurchases {
   latestVendorParkingListNumber: string;
 }
 
+// Shipments
+export interface Shipment {
+  id: string;
+  shipmentRefNumber: string;
+  numberOfPackages: number;
+  totalItems: number;
+  shippingMode: ShippingMode;
+  shipperType: ShipperType;
+  shippingVendorId?: string;
+  shipperName?: string;
+  shipperAddress?: string;
+  carrierType: CarrierType;
+  carrierName: string;
+  trackingNumber: string;
+  shippingDate: Date;
+  estimatedArrivalDate: Date | null;
+  dateShipped: Date | null;
+  actualArrivalDate: Date | null;
+  totalAmount: number;
+  status: ShipmentStatus;
+  originPort: string;
+  destinationPort: string;
+  containerNumber: string | null;
+  flightNumber: string | null;
+  notes: string | null;
+  attachments: Attachment[];
+  purchaseIds: string[];
+  vendorIds: string[];
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ParcelItem {
+  id: string;
+  parcelId: string;
+  productId: string;
+  productName: string;
+  productID: string;
+  productUnit: string;
+  quantity: number;
+  isPurchaseItem: boolean;
+  purchaseReference?: string;
+  netWeight: number;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Parcel {
+  id: string;
+  shipmentId: string;
+  parcelNumber: string;
+  packageType: PackageType;
+  length: number;
+  width: number;
+  height: number;
+  netWeight: number;
+  grossWeight: number;
+  volumetricWeight: number;
+  chargeableWeight: number;
+  volumetricDivisor: number;
+  description?: string;
+  items: ParcelItem[];
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Extending ShipmentWithRelations to include parcels
+export interface ShipmentWithRelations {
+  shipment: Shipment;
+  purchases: PurchaseWithRelations[];
+  parcels: Parcel[];
+}
+
 // payment methods
 export enum PaymentMethod {
   Cash = "cash",
@@ -725,4 +801,38 @@ export enum ShippingStatus {
   "Not Shipped" = "not_shipped",
   Shipped = "shipped",
   Received = "received",
+}
+
+export enum ShippingMode {
+  Express = "express",
+  Air = "air",
+  Sea = "sea",
+}
+
+export enum ShipperType {
+  Vendor = "vendor",
+  Courier = "courier",
+}
+
+export enum ShipmentStatus {
+  Pending = "pending",
+  InTransit = "in_transit",
+  Delivered = "delivered",
+  Cancelled = "cancelled",
+}
+
+export enum PackageType {
+  Box = "Box",
+  Carton = "Carton",
+  Crate = "Crate",
+  Pallet = "Pallet",
+  Bag = "Bag",
+  Drum = "Drum",
+  Roll = "Roll",
+}
+
+export enum CarrierType {
+  ExpressCargo = "ExpressCargo",
+  AirCargo = "AirCargo",
+  SeaCargo = "SeaCargo",
 }

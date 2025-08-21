@@ -1,7 +1,7 @@
 "use client";
 
 import WaybillForm from "@/components/forms/WaybillForm";
-import Loading from "@/components/loading";
+import Loading from "@/app/(dashboard)/loading";
 import PageWraper from "@/components/PageWraper";
 import { getSaleById } from "@/lib/actions/sale.actions";
 import { useQuery } from "@tanstack/react-query";

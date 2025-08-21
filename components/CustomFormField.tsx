@@ -33,6 +33,12 @@ import {
 } from "react";
 import { Search } from "lucide-react";
 import { Switch } from "./ui/switch";
+import {
+  MultiSelect,
+  MultiSelectGroup,
+  MultiSelectOption,
+  MultiSelectProps,
+} from "./ui/multi-select";
 
 export enum FormFieldType {
   INPUT = "input",
@@ -47,6 +53,7 @@ export enum FormFieldType {
   SKELETON = "skeleton",
   COLOR_PICKER = "colorPicker",
   SWITCH = "switch",
+  MULTI_SELECT = "multiSelect",
 }
 
 interface CustomProps {
@@ -63,6 +70,10 @@ interface CustomProps {
   onValueChange?: (value: any) => void;
   onAddNew?: () => void;
   hideSearch?: boolean;
+  min?: number;
+  max?: number;
+  options?: MultiSelectOption[] | MultiSelectGroup[]; // Options for MultiSelect
+  multiSelectProps?: Partial<MultiSelectProps>; // Allows passing any MultiSelect prop
 }
 
 const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
@@ -170,6 +181,8 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
               onValueChange={(values) => field.onChange(values.floatValue)}
               className="shad-input border-0"
               disabled={props.disabled}
+              min={props.min}
+              max={props.max}
             />
           </FormControl>
         </div>
@@ -191,6 +204,8 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
               onValueChange={(values) => field.onChange(values.floatValue)}
               className="shad-input border-0"
               disabled={props.disabled}
+              min={props.min}
+              max={props.max}
             />
           </FormControl>
         </div>
@@ -367,6 +382,29 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
               />
             </div>
           </div>
+        </FormControl>
+      );
+
+    case FormFieldType.MULTI_SELECT:
+      if (!props.options) {
+        console.error("MultiSelect component requires 'options' prop.");
+        return null;
+      }
+      return (
+        <FormControl>
+          <MultiSelect
+            options={props.options}
+            onValueChange={
+              props.onValueChange
+                ? props.onValueChange
+                : (values) => field.onChange(values)
+            }
+            defaultValue={field.value || []}
+            placeholder={props.placeholder || "Select options..."}
+            disabled={props.disabled}
+            className="flex rounded-md border border-dark-700 bg-white h-11 text-blue-800"
+            {...props.multiSelectProps}
+          />
         </FormControl>
       );
 

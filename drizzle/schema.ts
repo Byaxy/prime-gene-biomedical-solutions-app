@@ -117,6 +117,37 @@ export const waybillTypeEnum = pgEnum("waybill_type", [
   "conversion",
 ]);
 
+export const shipperTypeEnum = pgEnum("shipper_type", ["vendor", "courier"]);
+
+export const shippingModeEnum = pgEnum("shipping_mode", [
+  "express",
+  "air",
+  "sea",
+]);
+
+export const carrierTypeEnum = pgEnum("carrier_type", [
+  "ExpressCargo",
+  "AirCargo",
+  "SeaCargo",
+]);
+
+export const shipmentStatusEnum = pgEnum("shipment_status", [
+  "pending",
+  "in_transit",
+  "delivered",
+  "cancelled",
+]);
+
+export const packageTypeEnum = pgEnum("package_type", [
+  "Box",
+  "Carton",
+  "Crate",
+  "Pallet",
+  "Bag",
+  "Drum",
+  "Roll",
+]);
+
 // Users
 export const usersTable = pgTable(
   "users",
@@ -1442,5 +1473,133 @@ export const taxRatesTable = pgTable(
   },
   (table) => ({
     taxRatesActiveIndex: index("tax_rates_active_idx").on(table.isActive),
+  })
+);
+
+// shippments
+export const shipmentsTable = pgTable(
+  "shipments",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    shipmentRefNumber: text("shipment_ref_number").notNull().unique(),
+    numberOfPackages: integer("number_of_packages").notNull(),
+    totalItems: integer("total_items").notNull(),
+    shippingMode: shippingModeEnum("shipping_mode").notNull(),
+    shipperType: shipperTypeEnum("shipper_type").notNull(),
+    shippingVendorId: uuid("shipping_vendor_id").references(
+      () => vendorsTable.id,
+      { onDelete: "set null" }
+    ),
+    shipperName: text("shipper_name"),
+    shipperAddress: text("shipper_address"),
+    carrierType: carrierTypeEnum("carrier_type").notNull(),
+    carrierName: text("carrier_name").notNull(),
+    trackingNumber: text("tracking_number").notNull(),
+    shippingDate: timestamp("shipping_date").notNull(),
+    estimatedArrivalDate: timestamp("estimated_arrival_date"),
+    dateShipped: timestamp("date_shipped"),
+    actualArrivalDate: timestamp("actual_arrival_date"),
+    totalAmount: numeric("total_amount").notNull(),
+    status: shipmentStatusEnum("status").notNull().default("pending"),
+    originPort: text("origin_port"),
+    destinationPort: text("destination_port"),
+    containerNumber: text("container_number"),
+    flightNumber: text("flight_number"),
+    notes: text("notes"),
+    attachments: jsonb("attachments")
+      .$type<
+        Array<{
+          id: string;
+          url: string;
+          name: string;
+          size: number;
+          type: string;
+        }>
+      >()
+      .default([]),
+    purchaseIds: uuid("purchase_ids").array(),
+    vendorIds: uuid("vendor_ids").array(),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    shipmentsActiveIndex: index("shippments_active_idx").on(table.isActive),
+    shipmentsPurchaseIdsIndex: index("shippments_purchase_ids_idx").on(
+      table.purchaseIds
+    ),
+    shipmentsVendorIdsIndex: index("shippments_vendor_ids_idx").on(
+      table.vendorIds
+    ),
+  })
+);
+
+// Parcels
+export const parcelsTable = pgTable(
+  "parcels",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    shipmentId: uuid("shipment_id").references(() => shipmentsTable.id, {
+      onDelete: "cascade",
+    }),
+    parcelNumber: text("parcel_number").notNull(),
+    packageType: packageTypeEnum("package_type").notNull(),
+    length: numeric("length").notNull(),
+    width: numeric("width").notNull(),
+    height: numeric("height").notNull(),
+    netWeight: numeric("net_weight").notNull(),
+    grossWeight: numeric("gross_weight").notNull(),
+    volumetricWeight: numeric("volumetric_weight").notNull(),
+    chargeableWeight: numeric("chargeable_weight").notNull(),
+    volumetricDivisor: numeric("volumetric_divisor").notNull(),
+    unitPricePerKg: numeric("unit_price_per_kg").notNull(),
+    totalAmount: numeric("total_amount").notNull(),
+    description: text("description"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    parcelsActiveIndex: index("parcels_active_idx").on(table.isActive),
+    parcelsShipmentIdIndex: index("parcels_shipment_id_idx").on(
+      table.shipmentId
+    ),
+  })
+);
+
+export const parcelItemsTable = pgTable(
+  "parcel_items",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    parcelId: uuid("parcel_id").references(() => parcelsTable.id, {
+      onDelete: "cascade",
+    }),
+    productId: uuid("product_id").references(() => productsTable.id, {
+      onDelete: "set null",
+    }),
+    quantity: integer("quantity").notNull(),
+    productName: text("product_name"),
+    productID: text("product_ID"),
+    productUnit: text("product_unit"),
+    netWeight: numeric("net_weight").notNull(),
+    isPurchaseItem: boolean("is_purchase_item").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    parcelItemsActiveIndex: index("parcel_items_active_idx").on(table.isActive),
+    parcelItemsParcelIdIndex: index("parcel_items_parcel_id_idx").on(
+      table.parcelId
+    ),
+    parcelItemsProductIdIndex: index("parcel_items_product_id_idx").on(
+      table.productId
+    ),
   })
 );

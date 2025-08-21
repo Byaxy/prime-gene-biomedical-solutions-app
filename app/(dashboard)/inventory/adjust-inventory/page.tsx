@@ -9,7 +9,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Menu, X } from "lucide-react";
-import Loading from "@/components/loading";
+import Loading from "@/app/(dashboard)/loading";
 import NewStockForm from "@/components/forms/NewStockForm";
 import AdjustStockForm from "@/components/forms/AdjustStockForm";
 

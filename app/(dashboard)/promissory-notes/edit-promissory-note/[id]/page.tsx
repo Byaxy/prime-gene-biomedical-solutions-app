@@ -1,7 +1,7 @@
 "use client";
 
 import PromissoryNoteForm from "@/components/forms/PromissoryNoteForm";
-import Loading from "@/components/loading";
+import Loading from "@/app/(dashboard)/loading";
 import PageWraper from "@/components/PageWraper";
 import { getPromissoryNoteById } from "@/lib/actions/promissoryNote.actions";
 import { useQuery } from "@tanstack/react-query";

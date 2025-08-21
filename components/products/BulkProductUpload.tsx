@@ -7,7 +7,7 @@ import { Button } from "../ui/button";
 import { useProducts } from "@/hooks/useProducts";
 import { read, utils } from "xlsx";
 import { useRouter } from "next/navigation";
-import Loading from "../loading";
+import Loading from "../../app/(dashboard)/loading";
 
 const requiredHeaders = [
   "id",

@@ -20,7 +20,7 @@ import { Button } from "../ui/button";
 import { RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
 import { useCustomers } from "@/hooks/useCustomers";
-import Loading from "../loading";
+import Loading from "../../app/(dashboard)/loading";
 import { SelectItem } from "../ui/select";
 import { useSales } from "@/hooks/useSales";
 import { Search } from "lucide-react";

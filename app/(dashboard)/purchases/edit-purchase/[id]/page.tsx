@@ -1,7 +1,7 @@
 "use client";
 
 import PurchaseForm from "@/components/forms/PurchaseForm";
-import Loading from "@/components/loading";
+import Loading from "@/app/(dashboard)/loading";
 import PageWraper from "@/components/PageWraper";
 import { getPurchaseById } from "@/lib/actions/purchase.actions";
 import { useQuery } from "@tanstack/react-query";

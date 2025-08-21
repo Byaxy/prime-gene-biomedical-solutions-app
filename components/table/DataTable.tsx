@@ -25,7 +25,7 @@ import {
 import { HeaderGroup, Header } from "@tanstack/react-table";
 import { useState } from "react";
 import { Input } from "../ui/input";
-import Loading from "@/components/loading";
+import Loading from "@/app/(dashboard)/loading";
 import {
   Select,
   SelectContent,

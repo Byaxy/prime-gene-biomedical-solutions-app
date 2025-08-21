@@ -1,10 +1,15 @@
 import {
+  CarrierType,
   DeliveryStatus,
+  PackageType,
   PaymentMethod,
   PaymentStatus,
   PurchaseStatus,
   QuotationStatus,
   SaleStatus,
+  ShipmentStatus,
+  ShipperType,
+  ShippingMode,
   WaybillType,
 } from "@/types";
 import { z } from "zod";
@@ -1115,3 +1120,229 @@ export const PromissoryNoteFormValidation = z.object({
 export type PromissoryNoteFormValues = z.infer<
   typeof PromissoryNoteFormValidation
 >;
+
+// Schema for individual item within a parcel
+const PercelItemSchema = z.object({
+  productId: z.string().optional(),
+  productName: z.string().nonempty("Product name is required"),
+  productID: z.string().nonempty("Product ID is required"),
+  productUnit: z.string().nonempty("Product unit is required"),
+  quantity: z.number().int().min(1, "Quantity must be more than 0"),
+  isPurchaseItem: z.boolean(),
+  purchaseReference: z.string().optional(),
+  netWeight: z.number().min(0.001, "Net weight must be greater than 0"),
+});
+
+// Schema for a single parcel/package
+const ParcelSchema = z.object({
+  parcelNumber: z.string().min(1, "Package number is required"),
+  packageType: z.nativeEnum(PackageType, {
+    errorMap: () => ({ message: "Package type is required" }),
+  }),
+  length: z.number().min(0.1, "Length must be greater than 0"),
+  width: z.number().min(0.1, "Width must be greater than 0"),
+  height: z.number().min(0.1, "Height must be greater than 0"),
+  netWeight: z.number().min(0.001, "Net weight must be greater than 0"),
+  grossWeight: z.number().min(0.001, "Gross weight must be greater than 0"),
+  volumetricWeight: z.number(),
+  chargeableWeight: z.number(),
+  volumetricDivisor: z
+    .number()
+    .int()
+    .min(1000, "Volumetric divisor must be at least 1000"),
+  description: z.string().optional(),
+  items: z
+    .array(PercelItemSchema)
+    .min(1, "At least one item is required in a package"),
+  unitPricePerKg: z.number().min(0, "Unit price per kg must be 0 or more"),
+  totalAmount: z.number().min(0, "Total amount must be 0 or more"),
+});
+
+// Main shipment validation schema
+export const ShipmentFormValidation = z
+  .object({
+    shipmentRefNumber: z.string().min(1, "Shipment number is required"),
+    numberOfPackages: z
+      .number()
+      .int()
+      .min(0, "Number of packages cannot be negative"),
+    totalItems: z.number().int().min(0, "Number of items cannot be negative"),
+
+    shippingMode: z.nativeEnum(ShippingMode, {
+      errorMap: () => ({ message: "Shipping mode is required" }),
+    }),
+    shipperType: z.nativeEnum(ShipperType, {
+      errorMap: () => ({ message: "Shipped by field is required" }),
+    }),
+    carrierType: z.nativeEnum(CarrierType, {
+      errorMap: () => ({ message: "Carrier type is required" }),
+    }),
+    carrierName: z.string().min(1, "Carrier name is required"),
+    trackingNumber: z.string().nonempty("Tracking number is required"),
+    shippingVendorId: z.string().optional(),
+    shipperName: z.string().optional(),
+    shipperAddress: z.string().optional(),
+    shippingDate: z
+      .date({
+        required_error: "Shipping date is required",
+        invalid_type_error: "Invalid date format",
+      })
+      .refine((date) => date <= new Date(), {
+        message: "Shipping date cannot be in the future",
+      }),
+    dateShipped: z
+      .date({
+        invalid_type_error: "Invalid date format",
+      })
+      .nullable()
+      .optional(),
+    estimatedArrivalDate: z
+      .date({
+        invalid_type_error: "Invalid date format",
+      })
+      .nullable()
+      .optional(),
+    actualArrivalDate: z
+      .date({
+        invalid_type_error: "Invalid date format",
+      })
+      .nullable()
+      .optional(),
+
+    totalAmount: z.number().min(0, "Total amount cannot be negative"),
+    status: z.nativeEnum(ShipmentStatus, {
+      errorMap: () => ({ message: "Shipment status is required" }),
+    }),
+
+    vendorIds: z
+      .array(z.string())
+      .min(1, "At least one vendor must be selected"),
+    purchaseIds: z
+      .array(z.string())
+      .min(1, "At least one purchase order must be selected"),
+
+    originPort: z.string().optional().or(z.literal("")),
+    destinationPort: z.string().optional().or(z.literal("")),
+    containerNumber: z.string().optional().or(z.literal("")),
+    flightNumber: z.string().optional().or(z.literal("")),
+
+    notes: z.string().optional().or(z.literal("")),
+    attachments: z.any().optional(),
+    parcels: z
+      .array(ParcelSchema)
+      .min(1, "At least one package (parcel) must be added to the shipment"),
+
+    // temporary fields
+    tempParcelNumber: z.string().optional(),
+    tempPackageType: z.nativeEnum(PackageType).default(PackageType.Box),
+    tempLength: z.number().optional(),
+    tempWidth: z.number().optional(),
+    tempHeight: z.number().optional(),
+    tempNetWeight: z.number().optional(),
+    tempGrossWeight: z.number().optional(),
+    tempVolumetricDivisor: z.number().optional(),
+    tempDescription: z.string().optional(),
+    tempUnitPricePerKg: z.number().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.shipperType === ShipperType.Vendor && !data.shippingVendorId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Shipping vendor is required",
+        path: ["shippingVendorId"],
+      });
+    }
+    if (data.shipperType === ShipperType.Courier && !data.shipperName) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Shipper name is required",
+        path: ["shipperName"],
+      });
+    }
+
+    if (data.shipperType === ShipperType.Courier && !data.shipperAddress) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Shipper address is required",
+        path: ["shipperAddress"],
+      });
+    }
+    // Validate shipping method specific fields and their carrier types
+    if (data.shippingMode === ShippingMode.Air) {
+      if (!data.originPort) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Origin Airport is required for air shipments",
+          path: ["originPort"],
+        });
+      }
+      if (!data.destinationPort) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Destination Airport is required for air shipments",
+          path: ["destinationPort"],
+        });
+      }
+      if (!data.flightNumber) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Flight number is required for air shipments",
+          path: ["flightNumber"],
+        });
+      }
+    } else if (data.shippingMode === ShippingMode.Sea) {
+      if (!data.originPort) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Origin Port is required for sea shipments",
+          path: ["originPort"],
+        });
+      }
+      if (!data.destinationPort) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Destination Port is required for sea shipments",
+          path: ["destinationPort"],
+        });
+      }
+      if (!data.containerNumber) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Container number is required for sea shipments",
+          path: ["containerNumber"],
+        });
+      }
+      // Ensure carrier type is valid for Sea
+      if (data.carrierType !== CarrierType.SeaCargo) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Invalid carrier type for Sea Freight",
+          path: ["carrierType"],
+        });
+      }
+    } else if (data.shippingMode === ShippingMode.Express) {
+      if (!data.originPort) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Origin Airport is required for air shipments",
+          path: ["originPort"],
+        });
+      }
+      if (!data.destinationPort) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Destination Airport is required for air shipments",
+          path: ["destinationPort"],
+        });
+      }
+      if (!data.flightNumber) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Flight number is required for air shipments",
+          path: ["flightNumber"],
+        });
+      }
+    }
+  });
+
+export type ShipmentFormValues = z.infer<typeof ShipmentFormValidation>;

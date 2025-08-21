@@ -1,36 +1,19 @@
-"use client";
-
-import DeliveryForm from "@/components/forms/DeliveryForm";
-import Loading from "@/components/loading";
+import Loading from "@/app/(dashboard)/loading";
+import EditDeliveryPage from "@/components/deliveries/EditDeliveryPage";
 import PageWraper from "@/components/PageWraper";
-import { getDeliveryById } from "@/lib/actions/delivery.actions";
-import { useQuery } from "@tanstack/react-query";
-import { useParams } from "next/navigation";
+import { Suspense, use } from "react";
 
-const EditDelivery = () => {
-  const { id } = useParams();
+interface Props {
+  params: Promise<{ id: string }>;
+}
 
-  const { data: delivery, isLoading } = useQuery({
-    queryKey: ["deliveries"],
-    queryFn: async () => {
-      if (!id) return null;
-      return await getDeliveryById(id as string);
-    },
-    enabled: !!id,
-    staleTime: 0,
-  });
-
-  if (isLoading) {
-    return <Loading />;
-  }
+const EditDelivery = ({ params }: Props) => {
+  const { id } = use(params);
   return (
     <PageWraper title="Edit Delivery Note">
-      <section className="space-y-6">
-        <DeliveryForm
-          mode={"edit"}
-          initialData={delivery ? delivery : undefined}
-        />
-      </section>
+      <Suspense fallback={<Loading />}>
+        <EditDeliveryPage deliveryId={id} />
+      </Suspense>
     </PageWraper>
   );
 };

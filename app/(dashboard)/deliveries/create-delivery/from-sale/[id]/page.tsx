@@ -1,41 +1,19 @@
-"use client";
-
-import DeliveryForm from "@/components/forms/DeliveryForm";
-import Loading from "@/components/loading";
+import Loading from "@/app/(dashboard)/loading";
+import CreateDeliveryFromSalePage from "@/components/deliveries/CreateDeliveryFromSalePage";
 import PageWraper from "@/components/PageWraper";
-import { getSaleById } from "@/lib/actions/sale.actions";
-import { useQuery } from "@tanstack/react-query";
-import { useParams } from "next/navigation";
+import { Suspense, use } from "react";
 
-const CreateDeliveryFromSale = () => {
-  const { id } = useParams();
+interface Props {
+  params: Promise<{ id: string }>;
+}
 
-  const { data: sale, isLoading } = useQuery({
-    queryKey: ["sales"],
-    queryFn: async () => {
-      if (!id) return null;
-      return await getSaleById(id as string);
-    },
-    enabled: !!id,
-    staleTime: 0,
-    refetchOnMount: true,
-    refetchOnWindowFocus: true,
-  });
-
-  if (isLoading) {
-    return <Loading />;
-  }
-
+const CreateDeliveryFromSale = ({ params }: Props) => {
+  const { id } = use(params);
   return (
     <PageWraper title="Create Delivery">
-      <section className="space-y-6">
-        <div className="bg-blue-50 px-5 py-4 rounded-md">
-          <p className="text-blue-800 font-medium">
-            Creating for Sale: {sale.sale.invoiceNumber}
-          </p>
-        </div>
-        <DeliveryForm mode="create" sourceSale={sale} />
-      </section>
+      <Suspense fallback={<Loading />}>
+        <CreateDeliveryFromSalePage saleId={id} />
+      </Suspense>
     </PageWraper>
   );
 };

@@ -1,7 +1,7 @@
 "use client";
 
 import VendorForm from "@/components/forms/VendorForm";
-import Loading from "@/components/loading";
+import Loading from "@/app/(dashboard)/loading";
 import PageWraper from "@/components/PageWraper";
 import { getVendorById } from "@/lib/actions/vendor.actions";
 import { useQuery } from "@tanstack/react-query";

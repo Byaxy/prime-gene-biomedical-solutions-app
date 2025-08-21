@@ -1,9 +1,11 @@
+"use client";
+
 import React from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
 import { formatCurrency, formatNumber } from "@/lib/utils";
-import Loading from "../loading";
+import Loading from "../../app/(dashboard)/loading";
 
 interface OverviewCardProps {
   title: string;

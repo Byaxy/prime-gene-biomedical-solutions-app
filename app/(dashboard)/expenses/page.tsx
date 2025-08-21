@@ -1,44 +1,18 @@
-"use client";
-
+import ExpensesTable from "@/components/expenses/ExpensesTable";
 import PageWraper from "@/components/PageWraper";
-import { useExpenses } from "@/hooks/useExpenses";
-import { DataTable } from "@/components/table/DataTable";
-import { expensesColumns } from "@/components/table/columns/expensesColumns";
+import { Suspense } from "react";
+import Loading from "../loading";
 
 const Expenses = () => {
-  const {
-    expenses,
-    isLoading,
-    totalItems,
-    page,
-    setPage,
-    pageSize,
-    setPageSize,
-    refetch,
-    isRefetching,
-  } = useExpenses({
-    initialPageSize: 10,
-  });
-
   return (
     <PageWraper
       title="Expenses"
       buttonText="Add Expense"
       buttonPath="/expenses/add-expense"
     >
-      <DataTable
-        columns={expensesColumns}
-        data={expenses || []}
-        isLoading={isLoading}
-        totalItems={totalItems}
-        page={page}
-        onPageChange={setPage}
-        pageSize={pageSize}
-        onPageSizeChange={setPageSize}
-        searchBy="title"
-        refetch={refetch}
-        isRefetching={isRefetching}
-      />
+      <Suspense fallback={<Loading />}>
+        <ExpensesTable />
+      </Suspense>
     </PageWraper>
   );
 };

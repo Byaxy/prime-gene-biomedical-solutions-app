@@ -1,6 +1,8 @@
+"use client";
+
 import { useProducts } from "@/hooks/useProducts";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import Loading from "../loading";
+import Loading from "../../app/(dashboard)/loading";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { formatNumber } from "@/lib/utils";
 

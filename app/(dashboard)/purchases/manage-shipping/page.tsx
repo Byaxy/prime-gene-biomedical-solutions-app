@@ -1,5 +1,12 @@
-const ManageShipping = () => {
-  return <div>ManageShipping</div>;
+import ShipmentForm from "@/components/forms/ShipmentForm";
+import PageWraper from "@/components/PageWraper";
+
+const ManageShippingPage = () => {
+  return (
+    <PageWraper title="Create New Shipment">
+      <ShipmentForm mode="create" />
+    </PageWraper>
+  );
 };
 
-export default ManageShipping;
+export default ManageShippingPage;

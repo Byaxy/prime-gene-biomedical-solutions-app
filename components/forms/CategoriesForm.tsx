@@ -9,7 +9,7 @@ import { Button } from "../ui/button";
 import { SelectItem } from "../ui/select";
 import { useCategories } from "@/hooks/useCategories";
 import { usePathname, useRouter } from "next/navigation";
-import Loading from "../loading";
+import Loading from "../../app/(dashboard)/loading";
 import { Category } from "@/types";
 
 interface CategoryFormProps {

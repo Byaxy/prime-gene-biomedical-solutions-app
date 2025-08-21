@@ -16,7 +16,7 @@ import { Button } from "../ui/button";
 import SubmitButton from "../SubmitButton";
 import { useStores } from "@/hooks/useStores";
 import { useAuth } from "@/hooks/useAuth";
-import Loading from "../loading";
+import Loading from "../../app/(dashboard)/loading";
 import {
   Table,
   TableBody,

@@ -4,9 +4,7 @@ import PageWraper from "@/components/PageWraper";
 const CreateDelivery = () => {
   return (
     <PageWraper title="Create Delivery Note">
-      <section className="space-y-6">
-        <DeliveryForm mode={"create"} />
-      </section>
+      <DeliveryForm mode={"create"} />
     </PageWraper>
   );
 };
