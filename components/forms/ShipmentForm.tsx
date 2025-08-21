@@ -362,7 +362,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
       if (purchase) {
         purchase.products.forEach((item: PurchaseItem) => {
           const quantityToShip = item.quantity - item.quantityReceived;
-          const unit = products.find(
+          const unit = products?.find(
             (p: ProductWithRelations) =>
               p.product.id == item.productId &&
               p.product.productID === item.productID
@@ -373,7 +373,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
               productId: item.productId,
               productName: item.productName,
               productID: item.productID,
-              productUnit: unit.code,
+              productUnit: unit?.code || "",
               quantity: quantityToShip,
               purchaseNumber: purchase.purchase.purchaseNumber,
             });
@@ -425,9 +425,14 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
         );
         return;
       }
-      const selectedItem = getAvailablePurchaseItems().find(
+      const selectedItem = getAvailablePurchaseItems()?.find(
         (item) => item.id === newItemForm.selectedPurchaseItem
       );
+      if (!selectedItem) {
+        toast.error("Selected purchase item not found or invalid.");
+        return;
+      }
+
       if (!selectedItem || newItemForm.quantity > selectedItem.quantity) {
         toast.error(
           "Quantity exceeds available quantity for this purchase item."
@@ -1773,7 +1778,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                                         value={newItemForm.selectedPurchaseItem}
                                         onChange={(e) => {
                                           const item =
-                                            getAvailablePurchaseItems().find(
+                                            getAvailablePurchaseItems()?.find(
                                               (item) =>
                                                 item.id === e.target.value
                                             );
@@ -1793,7 +1798,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                                         >
                                           Select an item...
                                         </option>
-                                        {getAvailablePurchaseItems().map(
+                                        {getAvailablePurchaseItems()?.map(
                                           (item) => (
                                             <option
                                               key={item.id}
@@ -1818,7 +1823,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                                         type="number"
                                         min="1"
                                         max={
-                                          getAvailablePurchaseItems().find(
+                                          getAvailablePurchaseItems()?.find(
                                             (item) =>
                                               item.id ===
                                               newItemForm.selectedPurchaseItem
