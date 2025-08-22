@@ -1,0 +1,1 @@
+ALTER TABLE "parcel_items" ADD COLUMN "purchase_reference" text;

@@ -4,7 +4,6 @@
 import {
   parcelItemsTable,
   parcelsTable,
-  purchasesTable,
   shipmentsTable,
   vendorsTable,
 } from "@/drizzle/schema";
@@ -112,7 +111,7 @@ export const addShipment = async (shipment: ShipmentFormValues) => {
         ...shipmentDataForInsert,
         containerNumber: shipmentDataForInsert.containerNumber || null,
         flightNumber: shipmentDataForInsert.flightNumber || null,
-        notes: shipmentDataForInsert.notes || null,
+        notes: shipmentDataForInsert.notes || "",
         purchaseIds:
           shipmentDataForInsert.purchaseIds &&
           shipmentDataForInsert.purchaseIds.length > 0
@@ -171,7 +170,7 @@ export const addShipment = async (shipment: ShipmentFormValues) => {
               volumetricWeight: parcel.volumetricWeight,
               chargeableWeight: parcel.chargeableWeight,
               volumetricDivisor: parcel.volumetricDivisor,
-              description: parcel.description || null,
+              description: parcel.description || "",
               unitPricePerKg: parcel.unitPricePerKg,
               totalAmount: parcel.totalAmount,
             })
@@ -194,6 +193,7 @@ export const addShipment = async (shipment: ShipmentFormValues) => {
                   quantity: item.quantity,
                   netWeight: item.netWeight,
                   isPurchaseItem: item.isPurchaseItem,
+                  purchaseReference: item.purchaseReference || null,
                 })
                 .returning();
               return newParcelItem;
@@ -206,7 +206,7 @@ export const addShipment = async (shipment: ShipmentFormValues) => {
       return { shipment: newShipment, parcels: createdParcels };
     });
 
-    revalidatePath("/shipments");
+    revalidatePath("/purchases/shipments");
     return parseStringify(result);
   } catch (error) {
     console.error("Error creating shipment:", error);
@@ -311,8 +311,8 @@ export const editShipment = async (
       return { shipment: mainShipmentUpdate, parcels: updatedParcels };
     });
 
-    revalidatePath("/shipments");
-    revalidatePath(`/shipments/edit-shipment/${shipmentId}`);
+    revalidatePath("/purchases/shipments");
+    revalidatePath(`/purchases/shipments/edit-shipment/${shipmentId}`);
     return parseStringify(updatedShipment);
   } catch (error) {
     console.error("Error updating shipment:", error);
@@ -326,10 +326,14 @@ export const editShipment = async (
 export const getShipmentById = async (shipmentId: string) => {
   try {
     const result = await db.transaction(async (tx) => {
-      // Get main shipment record
-      const shipment = await tx
-        .select()
+      // Get main shipment record with shipping vendor
+      const shipmentWithVendor = await tx
+        .select({ shipment: shipmentsTable, shippingVendor: vendorsTable })
         .from(shipmentsTable)
+        .leftJoin(
+          vendorsTable,
+          eq(shipmentsTable.shippingVendorId, vendorsTable.id)
+        )
         .where(
           and(
             eq(shipmentsTable.id, shipmentId),
@@ -338,9 +342,26 @@ export const getShipmentById = async (shipmentId: string) => {
         )
         .then((res) => res[0]);
 
-      if (!shipment) {
+      if (!shipmentWithVendor) {
         return null;
       }
+
+      const { shipment } = shipmentWithVendor;
+
+      // Get all vendors for this shipment
+      const vendorIds = shipment.vendorIds || [];
+      const vendors =
+        vendorIds.length > 0
+          ? await tx
+              .select()
+              .from(vendorsTable)
+              .where(
+                and(
+                  inArray(vendorsTable.id, vendorIds),
+                  eq(vendorsTable.isActive, true)
+                )
+              )
+          : [];
 
       // Get all parcels for this shipment
       const parcels = await tx
@@ -381,26 +402,10 @@ export const getShipmentById = async (shipmentId: string) => {
         items: parcelItems.filter((item) => item.parcelId === parcel.id),
       }));
 
-      // Optionally, fetch related purchase details
-      let relatedPurchases: {
-        purchase: typeof purchasesTable.$inferSelect;
-        vendor: typeof vendorsTable.$inferSelect | null;
-      }[] = [];
-      if (shipment.purchaseIds && shipment.purchaseIds.length > 0) {
-        relatedPurchases = await tx
-          .select({
-            purchase: purchasesTable,
-            vendor: vendorsTable,
-          })
-          .from(purchasesTable)
-          .leftJoin(vendorsTable, eq(purchasesTable.vendorId, vendorsTable.id))
-          .where(inArray(purchasesTable.id, shipment.purchaseIds));
-      }
-
       const combinedShipment = {
-        shipment: shipment,
+        ...shipmentWithVendor,
+        vendors: vendors,
         parcels: parcelsWithItems,
-        purchases: relatedPurchases,
       };
 
       return combinedShipment;
@@ -424,7 +429,14 @@ export const getShipments = async (
 ) => {
   try {
     const result = await db.transaction(async (tx) => {
-      let shipmentsQuery = tx.select().from(shipmentsTable).$dynamic();
+      let shipmentsQuery = tx
+        .select({ shipment: shipmentsTable, shippingVendor: vendorsTable })
+        .from(shipmentsTable)
+        .leftJoin(
+          vendorsTable,
+          eq(shipmentsTable.shippingVendorId, vendorsTable.id)
+        )
+        .$dynamic();
 
       const conditions = [eq(shipmentsTable.isActive, true)];
 
@@ -466,6 +478,77 @@ export const getShipments = async (
 
       const shipments = await shipmentsQuery;
 
+      const shipmentIds = shipments.map((s) => s.shipment.id);
+      const vendorIds = shipments.map((s) => s.shipment.vendorIds);
+
+      // Get all unique vendor IDs from all shipments
+      const allVendorIds = Array.from(
+        new Set(
+          vendorIds.flat().filter((id): id is string => typeof id === "string")
+        )
+      );
+      // Fetch all vendors at once
+      const vendors =
+        allVendorIds.length > 0
+          ? await tx
+              .select()
+              .from(vendorsTable)
+              .where(
+                and(
+                  inArray(vendorsTable.id, allVendorIds),
+                  eq(vendorsTable.isActive, true)
+                )
+              )
+          : [];
+
+      const parcels = await tx
+        .select()
+        .from(parcelsTable)
+        .where(
+          and(
+            inArray(parcelsTable.shipmentId, shipmentIds),
+            eq(parcelsTable.isActive, true)
+          )
+        );
+
+      const parcelIds = parcels.map((p) => p.id);
+      const parcelItems = await tx
+        .select()
+        .from(parcelItemsTable)
+        .where(
+          and(
+            inArray(parcelItemsTable.parcelId, parcelIds),
+            eq(parcelItemsTable.isActive, true)
+          )
+        );
+
+      const parcelsWithItems = parcels.map((parcel) => ({
+        ...parcel,
+        items: parcelItems
+          .filter((item) => item.parcelId === parcel.id)
+          .map((item) => ({
+            ...item,
+          })),
+      }));
+
+      const shipmentsWithParcelsAndVendors = shipments.map((shipment) => {
+        // Get vendors for this specific shipment
+        const shipmentVendorIds = shipment.shipment.vendorIds || [];
+        const shipmentVendors = vendors.filter((vendor) =>
+          shipmentVendorIds.includes(vendor.id)
+        );
+
+        return {
+          ...shipment,
+          vendors: shipmentVendors,
+          parcels: parcelsWithItems
+            .filter((parcel) => parcel.shipmentId === shipment.shipment.id)
+            .map((p) => ({
+              ...p,
+            })),
+        };
+      });
+
       const total = getAllShipments
         ? shipments.length
         : await tx
@@ -475,7 +558,7 @@ export const getShipments = async (
             .then((res) => res[0]?.count || 0);
 
       return {
-        documents: shipments,
+        documents: shipmentsWithParcelsAndVendors,
         total,
       };
     });
@@ -526,7 +609,7 @@ export const deleteShipment = async (shipmentId: string) => {
       return deletedShipment;
     });
 
-    revalidatePath("/shipments");
+    revalidatePath("/purchases/shipments");
     return parseStringify(result);
   } catch (error) {
     console.error("Error deleting shipment:", error);
@@ -574,7 +657,7 @@ export const softDeleteShipment = async (shipmentId: string) => {
       return updatedShipment;
     });
 
-    revalidatePath("/shipments");
+    revalidatePath("/purchases/shipments");
     return parseStringify(result);
   } catch (error) {
     console.error("Error soft deleting shipment:", error);

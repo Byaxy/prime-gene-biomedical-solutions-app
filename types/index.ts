@@ -706,6 +706,8 @@ export interface Parcel {
   volumetricWeight: number;
   chargeableWeight: number;
   volumetricDivisor: number;
+  unitPricePerKg: number;
+  totalAmount: number;
   description?: string;
   items: ParcelItem[];
   isActive: boolean;
@@ -716,7 +718,8 @@ export interface Parcel {
 // Extending ShipmentWithRelations to include parcels
 export interface ShipmentWithRelations {
   shipment: Shipment;
-  purchases: PurchaseWithRelations[];
+  shippingVendor: Vendor | null;
+  vendors: Vendor[];
   parcels: Parcel[];
 }
 

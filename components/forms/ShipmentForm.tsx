@@ -42,6 +42,7 @@ import {
   Vendor,
   PurchaseItem,
   ProductWithRelations,
+  Attachment,
 } from "@/types";
 import { useQuery } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
@@ -146,7 +147,13 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
     getAllPurchases: true,
   });
   const { products } = useProducts({ getAllProducts: true });
-  const { shipments, addShipment, isCreatingShipment } = useShipments({
+  const {
+    shipments,
+    addShipment,
+    isCreatingShipment,
+    editShipment,
+    isEditingShipment,
+  } = useShipments({
     getAllShipments: true,
   });
 
@@ -790,13 +797,54 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
           onSuccess: () => {
             toast.success("Shipment created successfully!");
             form.reset();
-            router.push("/purchases/shipping-list");
+            router.push("/purchases/shipments");
           },
           onError: (error) => {
             console.error("Create shipment order error:", error);
             toast.error("Failed to create shipment order");
           },
         });
+      }
+      if (mode === "edit" && initialData) {
+        if (initialData?.shipment.attachments?.length > 0) {
+          const prevIds = initialData?.shipment.attachments.map(
+            (attachment: Attachment) => attachment.id
+          );
+          await editShipment(
+            {
+              id: initialData?.shipment.id,
+              data: values,
+              prevAttachmentIds: prevIds,
+            },
+            {
+              onSuccess: () => {
+                toast.success("Shipment order updated successfully!");
+                router.push("/purchases/shipments");
+              },
+              onError: (error) => {
+                console.error("Update shipment error:", error);
+                toast.error("Failed to update shipment order");
+              },
+            }
+          );
+        } else {
+          await editShipment(
+            {
+              id: initialData?.shipment.id,
+              data: values,
+            },
+            {
+              onSuccess: () => {
+                toast.success("Shipment updated successfully!");
+                router.push("/purchases/shipments");
+              },
+              onError: (error) => {
+                console.error("Update shipment order error:", error);
+                toast.error("Failed to update shipment order");
+              },
+            }
+          );
+        }
       }
     } catch (error) {
       console.error("Error submitting form:", error);
@@ -915,6 +963,8 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
     tempUnitPricePerKg > 0 && chargeableWeightInCurrentParcel > 0
       ? tempUnitPricePerKg * chargeableWeightInCurrentParcel
       : 0;
+
+  console.log("Form errors:", form.formState.errors);
 
   return (
     <>
@@ -2225,7 +2275,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
               Cancel
             </Button>
             <SubmitButton
-              isLoading={isCreatingShipment}
+              isLoading={isCreatingShipment || isEditingShipment}
               className="shad-primary-btn"
             >
               {mode === "create" ? "Create Shipment" : "Update Shipment"}

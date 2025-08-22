@@ -210,7 +210,7 @@ export const sidebarData: SidebarDataType[] = [
       {
         id: generateId(),
         title: "Shipping List",
-        path: "/purchases/shipping-list",
+        path: "/purchases/shipments",
       },
       {
         title: "Receive Purchased Inventory",

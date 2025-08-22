@@ -1507,7 +1507,7 @@ export const shipmentsTable = pgTable(
     destinationPort: text("destination_port"),
     containerNumber: text("container_number"),
     flightNumber: text("flight_number"),
-    notes: text("notes"),
+    notes: text("notes").default(""),
     attachments: jsonb("attachments")
       .$type<
         Array<{
@@ -1558,7 +1558,7 @@ export const parcelsTable = pgTable(
     volumetricDivisor: numeric("volumetric_divisor").notNull(),
     unitPricePerKg: numeric("unit_price_per_kg").notNull(),
     totalAmount: numeric("total_amount").notNull(),
-    description: text("description"),
+    description: text("description").default(""),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -1589,6 +1589,7 @@ export const parcelItemsTable = pgTable(
     productUnit: text("product_unit"),
     netWeight: numeric("net_weight").notNull(),
     isPurchaseItem: boolean("is_purchase_item").notNull(),
+    purchaseReference: text("purchase_reference"),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
