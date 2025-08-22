@@ -159,7 +159,7 @@ export const shipmentsColumns: ColumnDef<ShipmentWithRelations>[] = [
         0
       );
 
-      return <p className="text-14-medium ">{grossWeight ?? "-"}</p>;
+      return <p className="text-14-medium ">{grossWeight.toFixed(2) ?? "-"}</p>;
     },
   },
   {
@@ -171,7 +171,7 @@ export const shipmentsColumns: ColumnDef<ShipmentWithRelations>[] = [
         0
       );
 
-      return <p className="text-14-medium ">{volWeight ?? "-"}</p>;
+      return <p className="text-14-medium ">{volWeight.toFixed(2) ?? "-"}</p>;
     },
   },
   {
