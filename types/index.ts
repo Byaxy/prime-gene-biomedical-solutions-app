@@ -708,6 +708,7 @@ export interface Parcel {
   volumetricDivisor: number;
   unitPricePerKg: number;
   totalAmount: number;
+  totalItems: number;
   description?: string;
   items: ParcelItem[];
   isActive: boolean;

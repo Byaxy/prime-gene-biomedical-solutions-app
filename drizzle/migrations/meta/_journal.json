@@ -428,6 +428,13 @@
       "when": 1755877764138,
       "tag": "0060_stiff_slapstick",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1755940792725,
+      "tag": "0061_yielding_valkyrie",
+      "breakpoints": true
     }
   ]
 }

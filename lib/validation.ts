@@ -1156,6 +1156,7 @@ const ParcelSchema = z.object({
     .min(1, "At least one item is required in a package"),
   unitPricePerKg: z.number().min(0, "Unit price per kg must be 0 or more"),
   totalAmount: z.number().min(0, "Total amount must be 0 or more"),
+  totalItems: z.number().int().min(1, "Total items must be at least 1"),
 });
 
 // Main shipment validation schema
@@ -1182,32 +1183,12 @@ export const ShipmentFormValidation = z
     shippingVendorId: z.string().optional(),
     shipperName: z.string().optional(),
     shipperAddress: z.string().optional(),
-    shippingDate: z
-      .date({
-        required_error: "Shipping date is required",
-        invalid_type_error: "Invalid date format",
-      })
-      .refine((date) => date <= new Date(), {
-        message: "Shipping date cannot be in the future",
-      }),
-    dateShipped: z
-      .date({
-        invalid_type_error: "Invalid date format",
-      })
-      .nullable()
-      .optional(),
-    estimatedArrivalDate: z
-      .date({
-        invalid_type_error: "Invalid date format",
-      })
-      .nullable()
-      .optional(),
-    actualArrivalDate: z
-      .date({
-        invalid_type_error: "Invalid date format",
-      })
-      .nullable()
-      .optional(),
+    shippingDate: z.date().refine((date) => date <= new Date(), {
+      message: "Shipping date cannot be in the future",
+    }),
+    dateShipped: z.date().nullable().optional(),
+    estimatedArrivalDate: z.date().nullable().optional(),
+    actualArrivalDate: z.date().nullable().optional(),
 
     totalAmount: z.number().min(0, "Total amount cannot be negative"),
     status: z.nativeEnum(ShipmentStatus, {

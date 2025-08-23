@@ -1558,6 +1558,7 @@ export const parcelsTable = pgTable(
     volumetricDivisor: numeric("volumetric_divisor").notNull(),
     unitPricePerKg: numeric("unit_price_per_kg").notNull(),
     totalAmount: numeric("total_amount").notNull(),
+    totalItems: integer("total_items").notNull(),
     description: text("description").default(""),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at").defaultNow().notNull(),

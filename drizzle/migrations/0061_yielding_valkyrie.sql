@@ -1,0 +1,1 @@
+ALTER TABLE "parcels" ADD COLUMN "total_items" integer NOT NULL;

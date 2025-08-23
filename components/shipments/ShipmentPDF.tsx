@@ -75,6 +75,14 @@ const styles = StyleSheet.create({
   pageBreakAvoidContainer: {
     marginTop: "auto",
   },
+  parcelCard: {
+    border: "1px solid #E0E0E0",
+    borderLeftWidth: 3,
+    borderLeftColor: "#4CAF50",
+    marginBottom: 15,
+    backgroundColor: "#FAFAFA",
+    borderRadius: 6,
+  },
 });
 
 const ShipmentPDF = ({ shipment, companySettings }: Props) => {
@@ -340,14 +348,8 @@ const ShipmentPDF = ({ shipment, companySettings }: Props) => {
               {shipment.parcels.map((parcel, index) => (
                 <View
                   key={parcel.id || index}
-                  style={{
-                    border: "1px solid #E0E0E0",
-                    borderLeftWidth: 3,
-                    borderLeftColor: "#4CAF50",
-                    marginBottom: 15,
-                    backgroundColor: "#FAFAFA",
-                    borderRadius: 6,
-                  }}
+                  style={styles.parcelCard}
+                  break={false}
                 >
                   {/* Package Header */}
                   <View

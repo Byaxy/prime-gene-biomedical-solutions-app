@@ -32,75 +32,6 @@ import { ShipmentFilters } from "@/hooks/useShipments";
 
 type NewShipment = InferInsertModel<typeof shipmentsTable>;
 
-// Helper to determine what to do with nested items (add, update, delete)
-async function syncNestedItems<
-  TExisting extends { id: string },
-  TIncoming extends { id?: string | undefined },
-  TTable extends typeof parcelsTable | typeof parcelItemsTable
->(
-  tx: any,
-  existingItems: TExisting[],
-  incomingItems: TIncoming[],
-  table: TTable,
-  foreignKeyName: string,
-  foreignKeyValue: string
-) {
-  const existingItemIds = new Set(existingItems.map((item) => item.id));
-  const incomingItemIds = new Set(
-    incomingItems.map((item) => item.id).filter(Boolean)
-  );
-
-  // Items to delete (exist in DB but not in incoming)
-  const itemsToDelete = existingItems.filter(
-    (existingItem) => !incomingItemIds.has(existingItem.id)
-  );
-
-  if (itemsToDelete.length > 0) {
-    await tx.delete(table).where(
-      inArray(
-        table.id,
-        itemsToDelete.map((item) => item.id)
-      )
-    );
-  }
-
-  // Items to add or update
-  const results = await Promise.all(
-    incomingItems.map(async (item) => {
-      if (item.id && existingItemIds.has(item.id)) {
-        // Update existing item
-        // Filter out `id` and the foreign key from the update payload
-        const updatePayload = {
-          ...item,
-        };
-        delete (updatePayload as any).id; // Remove id from update payload
-        delete (updatePayload as any)[foreignKeyName]; // Remove foreign key from update payload
-
-        const [updatedItem] = await tx
-          .update(table)
-          .set(updatePayload)
-          .where(eq(table.id, item.id))
-          .returning();
-        return updatedItem;
-      } else {
-        // Add new item
-        const createPayload = {
-          ...item,
-          [foreignKeyName]: foreignKeyValue, // Add the foreign key
-        };
-        delete (createPayload as any).id; // Ensure new items don't have an ID for insert
-
-        const [newItem] = await tx
-          .insert(table)
-          .values(createPayload)
-          .returning();
-        return newItem;
-      }
-    })
-  );
-  return results;
-}
-
 // Add Shipment
 export const addShipment = async (shipment: ShipmentFormValues) => {
   try {
@@ -173,6 +104,7 @@ export const addShipment = async (shipment: ShipmentFormValues) => {
               description: parcel.description || "",
               unitPricePerKg: parcel.unitPricePerKg,
               totalAmount: parcel.totalAmount,
+              totalItems: parcel.totalItems,
             })
             .returning();
 
@@ -223,35 +155,51 @@ export const editShipment = async (
 ) => {
   try {
     const updatedShipment = await db.transaction(async (tx) => {
+      const { parcels, ...shipmentDataForUpdate } = data;
+
       // 1. Update main shipment record
       const [mainShipmentUpdate] = await tx
         .update(shipmentsTable)
         .set({
-          shipmentRefNumber: data.shipmentRefNumber,
-          numberOfPackages: data.numberOfPackages,
-          totalItems: data.totalItems,
-          shippingMode: data.shippingMode,
-          shipperType: data.shipperType,
-          shippingVendorId: data.shippingVendorId,
-          shipperName: data.shipperName,
-          shipperAddress: data.shipperAddress,
-          carrierType: data.carrierType,
-          carrierName: data.carrierName,
-          trackingNumber: data.trackingNumber,
-          shippingDate: data.shippingDate,
-          estimatedArrivalDate: data.estimatedArrivalDate,
-          dateShipped: data.dateShipped,
-          actualArrivalDate: data.actualArrivalDate,
-          totalAmount: data.totalAmount,
-          status: data.status,
-          originPort: data.originPort,
-          destinationPort: data.destinationPort,
-          containerNumber: data.containerNumber || null,
-          flightNumber: data.flightNumber || null,
-          notes: data.notes || null,
-          attachments: data.attachments,
-          purchaseIds: data.purchaseIds,
-          vendorIds: data.vendorIds,
+          shipmentRefNumber: shipmentDataForUpdate.shipmentRefNumber,
+          numberOfPackages: shipmentDataForUpdate.numberOfPackages,
+          totalItems: shipmentDataForUpdate.totalItems,
+          shippingMode: shipmentDataForUpdate.shippingMode as ShippingMode,
+          shipperType: shipmentDataForUpdate.shipperType as ShipperType,
+          shippingVendorId: shipmentDataForUpdate.shippingVendorId,
+          shipperName: shipmentDataForUpdate.shipperName,
+          shipperAddress: shipmentDataForUpdate.shipperAddress,
+          carrierType: shipmentDataForUpdate.carrierType as CarrierType,
+          carrierName: shipmentDataForUpdate.carrierName,
+          trackingNumber: shipmentDataForUpdate.trackingNumber,
+          shippingDate: shipmentDataForUpdate.shippingDate
+            ? new Date(shipmentDataForUpdate.shippingDate)
+            : undefined,
+          estimatedArrivalDate: shipmentDataForUpdate.estimatedArrivalDate
+            ? new Date(shipmentDataForUpdate.estimatedArrivalDate)
+            : undefined,
+          dateShipped: shipmentDataForUpdate.dateShipped
+            ? new Date(shipmentDataForUpdate.dateShipped)
+            : undefined,
+          actualArrivalDate: shipmentDataForUpdate.actualArrivalDate
+            ? new Date(shipmentDataForUpdate.actualArrivalDate)
+            : undefined,
+          totalAmount: shipmentDataForUpdate.totalAmount,
+          status: shipmentDataForUpdate.status as ShipmentStatus,
+          originPort: shipmentDataForUpdate.originPort,
+          destinationPort: shipmentDataForUpdate.destinationPort,
+          containerNumber: shipmentDataForUpdate.containerNumber || null,
+          flightNumber: shipmentDataForUpdate.flightNumber || null,
+          notes: shipmentDataForUpdate.notes || null,
+          attachments: shipmentDataForUpdate.attachments || [],
+          purchaseIds:
+            shipmentDataForUpdate.purchaseIds?.length > 0
+              ? shipmentDataForUpdate.purchaseIds
+              : null,
+          vendorIds:
+            shipmentDataForUpdate.vendorIds?.length > 0
+              ? shipmentDataForUpdate.vendorIds
+              : null,
           updatedAt: new Date(),
         })
         .where(eq(shipmentsTable.id, shipmentId))
@@ -261,50 +209,209 @@ export const editShipment = async (
         throw new Error("Shipment not found for update.");
       }
 
-      // 2. Sync Parcels (add, update, delete)
-      // Fetch existing parcels for this shipment
-      const existingParcels = await tx
-        .select()
+      // 2. Get existing parcels with their items in a single query for efficiency
+      const existingParcelsWithItems = await tx
+        .select({
+          parcel: parcelsTable,
+          item: parcelItemsTable,
+        })
         .from(parcelsTable)
+        .leftJoin(
+          parcelItemsTable,
+          eq(parcelsTable.id, parcelItemsTable.parcelId)
+        )
         .where(eq(parcelsTable.shipmentId, shipmentId));
 
-      const updatedParcels = await syncNestedItems(
-        tx,
-        existingParcels,
-        data.parcels.map((parcel: any) => ({
-          ...parcel,
-          id: parcel.id ?? undefined,
-        })),
-        parcelsTable,
-        "shipmentId",
-        shipmentId
+      // Group parcels with their items
+      const existingParcelsMap = new Map<
+        string,
+        {
+          parcel: typeof parcelsTable.$inferSelect;
+          items: (typeof parcelItemsTable.$inferSelect)[];
+        }
+      >();
+
+      existingParcelsWithItems.forEach(({ parcel, item }) => {
+        if (!existingParcelsMap.has(parcel.id)) {
+          existingParcelsMap.set(parcel.id, { parcel, items: [] });
+        }
+        if (item) {
+          existingParcelsMap.get(parcel.id)!.items.push(item);
+        }
+      });
+
+      const existingParcels = Array.from(existingParcelsMap.values()).map(
+        (p) => p.parcel
       );
 
-      // 3. Sync Parcel Items for each updated/added parcel
-      await Promise.all(
-        updatedParcels.map(async (parcel) => {
-          // Find the corresponding incoming parcel to get its items
-          const incomingParcel = data.parcels.find(
-            (p) => p.parcelNumber === parcel.parcelNumber
-          );
-          if (incomingParcel) {
-            const existingParcelItems = await tx
-              .select()
-              .from(parcelItemsTable)
-              .where(eq(parcelItemsTable.parcelId, parcel.id));
+      // Create sets for efficient lookup
+      const newParcelNumbers = new Set(parcels.map((p) => p.parcelNumber));
+      const existingParcelNumbersMap = new Map(
+        existingParcels.map((p) => [p.parcelNumber, p])
+      );
 
-            await syncNestedItems(
-              tx,
-              existingParcelItems,
-              incomingParcel.items.map((item: any) => ({
-                ...item,
-                id: item.id ?? undefined,
-              })),
-              parcelItemsTable,
-              "parcelId",
-              parcel.id
+      // 3. Find parcels to delete (exist in database but not in new parcels)
+      const parcelsToDelete = existingParcels.filter(
+        (parcel) => !newParcelNumbers.has(parcel.parcelNumber)
+      );
+
+      // Delete removed parcels and their items (cascade should handle items, but explicit delete for clarity)
+      if (parcelsToDelete.length > 0) {
+        const parcelIdsToDelete = parcelsToDelete.map((p) => p.id);
+
+        // Delete parcel items first
+        await tx
+          .delete(parcelItemsTable)
+          .where(inArray(parcelItemsTable.parcelId, parcelIdsToDelete));
+
+        // Delete parcels
+        await tx
+          .delete(parcelsTable)
+          .where(inArray(parcelsTable.id, parcelIdsToDelete));
+      }
+
+      // 4. Process parcels (updates and additions)
+      const updatedParcels = await Promise.all(
+        parcels.map(async (parcelData) => {
+          const existingParcel = existingParcelNumbersMap.get(
+            parcelData.parcelNumber
+          );
+
+          let currentParcel;
+
+          if (existingParcel) {
+            // Update existing parcel
+            const [updatedParcel] = await tx
+              .update(parcelsTable)
+              .set({
+                packageType: parcelData.packageType,
+                length: parcelData.length,
+                width: parcelData.width,
+                height: parcelData.height,
+                netWeight: parcelData.netWeight,
+                grossWeight: parcelData.grossWeight,
+                volumetricWeight: parcelData.volumetricWeight,
+                chargeableWeight: parcelData.chargeableWeight,
+                volumetricDivisor: parcelData.volumetricDivisor,
+                description: parcelData.description || "",
+                unitPricePerKg: parcelData.unitPricePerKg,
+                totalAmount: parcelData.totalAmount,
+                totalItems: parcelData.totalItems,
+                updatedAt: new Date(),
+              })
+              .where(eq(parcelsTable.id, existingParcel.id))
+              .returning();
+            currentParcel = updatedParcel;
+          } else {
+            // Create new parcel
+            const [newParcel] = await tx
+              .insert(parcelsTable)
+              .values({
+                shipmentId: shipmentId,
+                parcelNumber: parcelData.parcelNumber,
+                packageType: parcelData.packageType,
+                length: parcelData.length,
+                width: parcelData.width,
+                height: parcelData.height,
+                netWeight: parcelData.netWeight,
+                grossWeight: parcelData.grossWeight,
+                volumetricWeight: parcelData.volumetricWeight,
+                chargeableWeight: parcelData.chargeableWeight,
+                volumetricDivisor: parcelData.volumetricDivisor,
+                description: parcelData.description || "",
+                unitPricePerKg: parcelData.unitPricePerKg,
+                totalAmount: parcelData.totalAmount,
+                totalItems: parcelData.totalItems,
+              })
+              .returning();
+            currentParcel = newParcel;
+          }
+
+          if (!currentParcel) {
+            throw new Error(
+              `Failed to process parcel ${parcelData.parcelNumber}.`
             );
           }
+
+          // 5. Handle parcel items
+          const existingParcelData = existingParcelsMap.get(currentParcel.id);
+          const existingItems = existingParcelData?.items || [];
+
+          // Create identifier for items (using productID + productName for uniqueness)
+          const newItemIdentifiers = new Set(
+            parcelData.items.map(
+              (item) => `${item.productID}_${item.productName}`
+            )
+          );
+
+          const existingItemsMap = new Map(
+            existingItems.map((item) => [
+              `${item.productID}_${item.productName}`,
+              item,
+            ])
+          );
+
+          // Find items to delete
+          const itemsToDelete = existingItems.filter(
+            (item) =>
+              !newItemIdentifiers.has(`${item.productID}_${item.productName}`)
+          );
+
+          // Delete removed items
+          if (itemsToDelete.length > 0) {
+            await tx.delete(parcelItemsTable).where(
+              inArray(
+                parcelItemsTable.id,
+                itemsToDelete.map((item) => item.id)
+              )
+            );
+          }
+
+          // Process items (updates and additions)
+          const updatedItems = await Promise.all(
+            parcelData.items.map(async (itemData) => {
+              const itemIdentifier = `${itemData.productID}_${itemData.productName}`;
+              const existingItem = existingItemsMap.get(itemIdentifier);
+
+              if (existingItem) {
+                // Update existing item
+                const [updatedItem] = await tx
+                  .update(parcelItemsTable)
+                  .set({
+                    productId: itemData.productId || null,
+                    productName: itemData.productName,
+                    productUnit: itemData.productUnit,
+                    quantity: itemData.quantity,
+                    netWeight: itemData.netWeight,
+                    isPurchaseItem: itemData.isPurchaseItem,
+                    purchaseReference: itemData.purchaseReference || null,
+                    updatedAt: new Date(),
+                  })
+                  .where(eq(parcelItemsTable.id, existingItem.id))
+                  .returning();
+                return updatedItem;
+              } else {
+                // Create new item
+                const [newItem] = await tx
+                  .insert(parcelItemsTable)
+                  .values({
+                    parcelId: currentParcel.id,
+                    productId: itemData.productId || null,
+                    productName: itemData.productName,
+                    productID: itemData.productID,
+                    productUnit: itemData.productUnit,
+                    quantity: itemData.quantity,
+                    netWeight: itemData.netWeight,
+                    isPurchaseItem: itemData.isPurchaseItem,
+                    purchaseReference: itemData.purchaseReference || null,
+                  })
+                  .returning();
+                return newItem;
+              }
+            })
+          );
+
+          return { ...currentParcel, items: updatedItems };
         })
       );
 

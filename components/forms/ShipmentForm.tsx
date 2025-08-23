@@ -6,7 +6,7 @@ import { Form, FormControl } from "../ui/form";
 import { useFieldArray, useForm } from "react-hook-form";
 import { Button } from "../ui/button";
 import { SelectItem } from "../ui/select";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Table,
   TableBody,
@@ -299,9 +299,64 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
       ? 5000
       : 6000;
 
+  // Initialize edit mode data
   useEffect(() => {
-    form.setValue("numberOfPackages", parcelFields.length);
-  }, [parcelFields.length, form]);
+    if (initialData && mode === "edit") {
+      setTimeout(() => {
+        form.reset({
+          shipmentRefNumber: initialData?.shipment.shipmentRefNumber || "",
+          numberOfPackages: initialData?.shipment?.numberOfPackages || 0,
+          totalItems: initialData?.shipment.totalItems || 0,
+          shippingMode: initialData?.shipment.shippingMode || ShippingMode.Air,
+          shipperType: initialData?.shipment.shipperType || ShipperType.Vendor,
+          shippingVendorId: initialData?.shipment.shippingVendorId || undefined,
+          shipperName: initialData?.shipment.shipperName || undefined,
+          shipperAddress: initialData?.shipment.shipperAddress || undefined,
+          carrierType:
+            initialData?.shipment.carrierType || CarrierType.AirCargo,
+          carrierName: initialData?.shipment.carrierName || "",
+          trackingNumber: initialData?.shipment.trackingNumber || "",
+          shippingDate: initialData?.shipment.shippingDate
+            ? new Date(initialData?.shipment.shippingDate)
+            : new Date(),
+          dateShipped: initialData?.shipment.dateShipped
+            ? new Date(initialData?.shipment.dateShipped)
+            : null,
+          estimatedArrivalDate: initialData?.shipment.estimatedArrivalDate
+            ? new Date(initialData?.shipment.estimatedArrivalDate)
+            : null,
+          actualArrivalDate: initialData?.shipment.actualArrivalDate
+            ? new Date(initialData?.shipment.actualArrivalDate)
+            : null,
+          totalAmount: initialData?.shipment.totalAmount || 0,
+          status: initialData?.shipment.status || ShipmentStatus.Pending,
+          originPort: initialData?.shipment.originPort || "",
+          destinationPort: initialData?.shipment.destinationPort || "",
+          containerNumber: initialData?.shipment.containerNumber || "",
+          flightNumber: initialData?.shipment.flightNumber || "",
+          notes: initialData?.shipment.notes || "",
+          attachments: initialData?.shipment.attachments || [],
+          parcels: initialData?.parcels || [],
+          purchaseIds: initialData?.shipment.purchaseIds || [],
+          vendorIds: initialData?.shipment.vendorIds || [],
+          tempParcelNumber: "",
+          tempPackageType: PackageType.Box,
+          tempLength: 0,
+          tempWidth: 0,
+          tempHeight: 0,
+          tempNetWeight: 0,
+          tempGrossWeight: 0,
+          tempVolumetricDivisor:
+            initialData?.shipment.shippingMode === ShippingMode.Air ||
+            initialData?.shipment.shippingMode === ShippingMode.Express
+              ? 5000
+              : 6000,
+          tempUnitPricePerKg: 0,
+          tempDescription: "",
+        });
+      }, 100);
+    }
+  }, [form, initialData, mode]);
 
   useEffect(() => {
     if (generatedShipmentRefNumber && mode === "create") {
@@ -321,16 +376,27 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
       const hasRemainingQuantity = purchase.products.some(
         (product) => product.quantity - product.quantityReceived > 0
       );
+
+      const isAlreadySelected =
+        mode === "edit" && selectedPurchaseIds?.includes(purchase.purchase.id);
+
       const matchesSelectedVendor =
         selectedVendorIds.length === 0 ||
-        selectedVendorIds.includes(purchase.purchase.vendorId);
-      return hasRemainingQuantity && matchesSelectedVendor;
+        selectedVendorIds.includes(purchase.purchase.vendorId) ||
+        isAlreadySelected;
+
+      return (
+        (hasRemainingQuantity || isAlreadySelected) && matchesSelectedVendor
+      );
     });
-  }, [purchases, selectedVendorIds]);
+  }, [purchases, selectedVendorIds, selectedPurchaseIds, mode]);
 
   // Validate and update selectedPurchaseIds when selectedVendorIds change
   useEffect(() => {
     if (!selectedPurchaseIds || selectedPurchaseIds.length === 0) return;
+
+    // Skip validation in edit mode to preserve initially selected purchases
+    if (mode === "edit") return;
 
     const validPurchaseIds = new Set(
       availablePurchases()?.map((p: PurchaseWithRelations) => p.purchase.id)
@@ -346,9 +412,8 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
       form.setValue("purchaseIds", newSelectedPurchaseIds, {
         shouldValidate: true,
       });
-      toast.error("Some selected purchases were removed due to vendor filter.");
     }
-  }, [selectedVendorIds, availablePurchases, form, selectedPurchaseIds]);
+  }, [selectedVendorIds, availablePurchases, form, selectedPurchaseIds, mode]);
 
   // Get available purchase items for adding to parcels
   const getAvailablePurchaseItems = useCallback(() => {
@@ -398,11 +463,48 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
       label: vendor.name,
     })) || [];
 
-  const purchaseOptions: MultiSelectOption[] =
-    availablePurchases()?.map((purchase: PurchaseWithRelations) => ({
-      value: purchase.purchase.id,
-      label: `${purchase.purchase.purchaseNumber} - ${purchase.purchase.vendorInvoiceNumber}`,
-    })) || [];
+  const purchaseOptions: MultiSelectOption[] = useMemo(() => {
+    if (mode === "edit" && selectedPurchaseIds?.length > 0) {
+      const allRelevantPurchases = purchases?.filter(
+        (purchase: PurchaseWithRelations) => {
+          const hasRemainingQuantity = purchase.products.some(
+            (product) => product.quantity - product.quantityReceived > 0
+          );
+          const isAlreadySelected = selectedPurchaseIds.includes(
+            purchase.purchase.id
+          );
+          const matchesSelectedVendor =
+            selectedVendorIds.length === 0 ||
+            selectedVendorIds.includes(purchase.purchase.vendorId);
+
+          return (
+            (hasRemainingQuantity && matchesSelectedVendor) || isAlreadySelected
+          );
+        }
+      );
+
+      return (
+        allRelevantPurchases?.map((purchase: PurchaseWithRelations) => ({
+          value: purchase.purchase.id,
+          label: `${purchase.purchase.purchaseNumber} - ${purchase.purchase.vendorInvoiceNumber}`,
+        })) || []
+      );
+    }
+
+    // For create mode, use the existing logic
+    return (
+      availablePurchases()?.map((purchase: PurchaseWithRelations) => ({
+        value: purchase.purchase.id,
+        label: `${purchase.purchase.purchaseNumber} - ${purchase.purchase.vendorInvoiceNumber}`,
+      })) || []
+    );
+  }, [
+    availablePurchases,
+    purchases,
+    selectedPurchaseIds,
+    selectedVendorIds,
+    mode,
+  ]);
 
   const handleRefreshShipmentRefNumber = async () => {
     if (mode === "create") {
@@ -593,6 +695,10 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
     const volumetricWeight = (len * wid * hgt) / volDivisor;
     const chargeableWeight = Math.max(grossW, volumetricWeight);
     const totalAmount = unitPricePerKg * chargeableWeight;
+    const totalItems = currentParcelItems.reduce(
+      (sum, item) => sum + item.quantity,
+      0
+    );
 
     const parcelData = {
       parcelNumber: parcelNum,
@@ -607,6 +713,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
       volumetricDivisor: volDivisor,
       unitPricePerKg,
       totalAmount,
+      totalItems,
       description: desc || "",
       items: currentParcelItems.map((item) => ({
         productId: item.productId || "",
@@ -719,17 +826,13 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
       0
     );
     const totalItems = parcelFields.reduce(
-      (total, parcel) => total + parcel.items.length,
+      (total, parcel) => total + parcel.totalItems,
       0
     );
     const totalShipmentAmount = parcelFields.reduce(
       (total, parcel) => total + (parcel.totalAmount || 0),
       0
     );
-
-    form.setValue("numberOfPackages", parcelFields.length);
-    form.setValue("totalAmount", totalShipmentAmount);
-    form.setValue("totalItems", totalItems);
 
     return {
       totalNetWeight,
@@ -739,14 +842,22 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
       totalItems,
       totalShipmentAmount,
     };
-  }, [form, parcelFields]);
+  }, [parcelFields]);
 
   const totals = calculateTotals();
 
-  // Update totalAmount in the form when parcels change
+  // Update totals
   useEffect(() => {
     form.setValue("totalAmount", totals.totalShipmentAmount);
-  }, [totals.totalShipmentAmount, form]);
+    form.setValue("numberOfPackages", parcelFields.length);
+    form.setValue("totalAmount", totals.totalShipmentAmount);
+    form.setValue("totalItems", totals.totalItems);
+  }, [
+    totals.totalShipmentAmount,
+    form,
+    totals.totalItems,
+    parcelFields.length,
+  ]);
 
   const getCarrierOptions = () => {
     if (shippingMode === ShippingMode.Air) {
@@ -807,7 +918,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
       }
       if (mode === "edit" && initialData) {
         if (initialData?.shipment.attachments?.length > 0) {
-          const prevIds = initialData?.shipment.attachments.map(
+          const prevIds = initialData?.shipment?.attachments.map(
             (attachment: Attachment) => attachment.id
           );
           await editShipment(
@@ -823,7 +934,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
               },
               onError: (error) => {
                 console.error("Update shipment error:", error);
-                toast.error("Failed to update shipment order");
+                toast.error("Failed to update shipment");
               },
             }
           );
@@ -839,8 +950,8 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                 router.push("/purchases/shipments");
               },
               onError: (error) => {
-                console.error("Update shipment order error:", error);
-                toast.error("Failed to update shipment order");
+                console.error("Update shipment error:", error);
+                toast.error("Failed to update shipment");
               },
             }
           );
@@ -921,7 +1032,6 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
         setEditingParcelIndex(null);
       }
     }
-    toast.error("Form changes discarded.");
   };
 
   const closeDialog = () => {
@@ -963,8 +1073,6 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
     tempUnitPricePerKg > 0 && chargeableWeightInCurrentParcel > 0
       ? tempUnitPricePerKg * chargeableWeightInCurrentParcel
       : 0;
-
-  console.log("Form errors:", form.formState.errors);
 
   return (
     <>
@@ -1476,7 +1584,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                         </p>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm pt-4">
+                    <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-sm pt-4">
                       <div className="flex flex-col gap-2">
                         <Label className="text-blue-800 font-medium">
                           Volumetric Weight
@@ -1515,6 +1623,14 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                         </Label>
                         <p className="font-semibold text-blue-800">
                           {parcel.totalAmount.toFixed(2)}
+                        </p>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Label className="text-blue-800 font-medium">
+                          Total Items
+                        </Label>
+                        <p className="font-semibold text-blue-800">
+                          {parcel.totalItems}
                         </p>
                       </div>
                     </div>
@@ -2200,7 +2316,12 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
             </CardHeader>
             <CardContent className="space-y-5">
               <div className="w-full flex flex-col md:flex-row-reverse md:items-end  gap-5 pt-5">
-                <div className="flex flex-col md:flex-row gap-5 flex-1">
+                <div
+                  className={cn(
+                    "flex flex-col md:flex-row gap-5 flex-1",
+                    mode === "edit" && "flex-[1.5]"
+                  )}
+                >
                   <CustomFormField
                     fieldType={FormFieldType.SELECT}
                     control={form.control}
@@ -2219,16 +2340,15 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                     ))}
                   </CustomFormField>
 
-                  {mode === "edit" &&
-                    initialData?.shipment.actualArrivalDate && (
-                      <CustomFormField
-                        fieldType={FormFieldType.DATE_PICKER}
-                        control={form.control}
-                        name="actualArrivalDate"
-                        label="Actual Arrival Date"
-                        dateFormat="MM/dd/yyyy"
-                      />
-                    )}
+                  {mode === "edit" && (
+                    <CustomFormField
+                      fieldType={FormFieldType.DATE_PICKER}
+                      control={form.control}
+                      name="actualArrivalDate"
+                      label="Actual Arrival Date"
+                      dateFormat="MM/dd/yyyy"
+                    />
+                  )}
                 </div>
 
                 <CustomFormField
