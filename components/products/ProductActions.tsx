@@ -72,7 +72,7 @@ const ProductActions = ({ product }: { product: ProductWithRelations }) => {
             className="text-[#475BE8] p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
             <EditIcon className="h-5 w-5" />
-            <span>Edit Purchase</span>
+            <span>Edit Product</span>
           </DropdownMenuItem>
 
           {product.product.isActive && (
