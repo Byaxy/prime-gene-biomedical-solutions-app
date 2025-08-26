@@ -134,10 +134,10 @@ export interface Product {
 // Product with relations
 export interface ProductWithRelations {
   product: Product;
-  category: { id: string; name: string };
-  brand: { id: string; name: string };
-  type: { id: string; name: string };
-  unit: { id: string; name: string; code: string };
+  category: Category;
+  brand: Brand;
+  type: ProductType;
+  unit: Unit;
 }
 
 export interface Expense {

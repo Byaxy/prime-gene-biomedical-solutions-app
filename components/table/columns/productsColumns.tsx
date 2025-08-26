@@ -88,7 +88,7 @@ export const productsColumns: ColumnDef<ProductWithRelations>[] = [
     header: "Cost Price",
     cell: ({ row }) => {
       const product = row.original;
-      return <FormatNumber value={product.product.sellingPrice} />;
+      return <FormatNumber value={product.product.costPrice} />;
     },
   },
   {

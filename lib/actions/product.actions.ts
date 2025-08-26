@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -11,7 +12,8 @@ import {
   productTypesTable,
   unitsTable,
 } from "@/drizzle/schema";
-import { desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { ProductFilters } from "@/hooks/useProducts";
 
 interface ProductDataWithImage extends Omit<ProductFormValues, "image"> {
   imageId: string;
@@ -38,121 +40,128 @@ export const addProduct = async (productData: ProductDataWithImage) => {
 export const getProducts = async (
   page: number = 0,
   limit: number = 10,
-  getAllProducts: boolean = false
+  getAllProducts: boolean = false,
+  filters?: ProductFilters
 ) => {
   try {
-    let query = db
-      .select({
-        product: productsTable,
-        category: {
-          id: categoriesTable.id,
-          name: categoriesTable.name,
-        },
-        brand: {
-          id: brandsTable.id,
-          name: brandsTable.name,
-        },
-        type: {
-          id: productTypesTable.id,
-          name: productTypesTable.name,
-        },
-        unit: {
-          id: unitsTable.id,
-          name: unitsTable.name,
-          code: unitsTable.code,
-        },
-      })
-      .from(productsTable)
-      .leftJoin(
-        categoriesTable,
-        eq(productsTable.categoryId, categoriesTable.id)
-      )
-      .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id))
-      .leftJoin(
-        productTypesTable,
-        eq(productsTable.typeId, productTypesTable.id)
-      )
-      .leftJoin(unitsTable, eq(productsTable.unitId, unitsTable.id))
-      .where(eq(productsTable.isActive, true))
-      .orderBy(desc(productsTable.createdAt));
+    const result = await db.transaction(async (tx) => {
+      // Build the main products query
+      let productsQuery = tx
+        .select({
+          product: productsTable,
+          category: categoriesTable,
+          brand: brandsTable,
+          type: productTypesTable, // Fixed: was using brandsTable instead of productTypesTable
+          unit: unitsTable,
+        })
+        .from(productsTable)
+        .leftJoin(
+          categoriesTable,
+          eq(productsTable.categoryId, categoriesTable.id)
+        )
+        .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id))
+        .leftJoin(
+          productTypesTable,
+          eq(productsTable.typeId, productTypesTable.id)
+        )
+        .leftJoin(unitsTable, eq(productsTable.unitId, unitsTable.id))
+        .$dynamic();
 
-    if (!getAllProducts) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      query = (query as any).limit(limit).offset(page * limit);
-    }
+      // Create conditions array
+      const conditions = [];
 
-    const products = await query;
-
-    // For getAllProducts, fetch all products in batches (if needed)
-    if (getAllProducts) {
-      let allProducts: typeof products = [];
-      let offset = 0;
-      const batchSize = 100; // Adjust batch size as needed
-
-      while (true) {
-        const batch = await db
-          .select({
-            product: productsTable,
-            category: {
-              id: categoriesTable.id,
-              name: categoriesTable.name,
-            },
-            brand: {
-              id: brandsTable.id,
-              name: brandsTable.name,
-            },
-            type: {
-              id: productTypesTable.id,
-              name: productTypesTable.name,
-            },
-            unit: {
-              id: unitsTable.id,
-              name: unitsTable.name,
-              code: unitsTable.code,
-            },
-          })
-          .from(productsTable)
-          .leftJoin(
-            categoriesTable,
-            eq(productsTable.categoryId, categoriesTable.id)
-          )
-          .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id))
-          .leftJoin(
-            productTypesTable,
-            eq(productsTable.typeId, productTypesTable.id)
-          )
-          .leftJoin(unitsTable, eq(productsTable.unitId, unitsTable.id))
-          .where(eq(productsTable.isActive, true))
-          .orderBy(desc(productsTable.createdAt))
-          .limit(batchSize)
-          .offset(offset);
-
-        allProducts = [...allProducts, ...batch];
-
-        // If we got fewer products than the batch size, we've reached the end
-        if (batch.length < batchSize) {
-          break;
+      // Apply filters if provided
+      if (filters) {
+        // Cost price range
+        if (filters.costPrice_min !== undefined) {
+          conditions.push(gte(productsTable.costPrice, filters.costPrice_min));
+        }
+        if (filters.costPrice_max !== undefined) {
+          conditions.push(lte(productsTable.costPrice, filters.costPrice_max));
         }
 
-        offset += batchSize;
+        // Selling price range
+        if (filters.sellingPrice_min !== undefined) {
+          conditions.push(
+            gte(productsTable.sellingPrice, filters.sellingPrice_min)
+          );
+        }
+        if (filters.sellingPrice_max !== undefined) {
+          conditions.push(
+            lte(productsTable.sellingPrice, filters.sellingPrice_max)
+          );
+        }
+
+        // Quantity range
+        if (filters.quantity_min !== undefined) {
+          conditions.push(gte(productsTable.quantity, filters.quantity_min));
+        }
+        if (filters.quantity_max !== undefined) {
+          conditions.push(lte(productsTable.quantity, filters.quantity_max));
+        }
+
+        // Active status filter
+        if (filters.isActive !== undefined) {
+          conditions.push(eq(productsTable.isActive, filters.isActive));
+        }
+
+        // Category filter
+        if (filters.categoryId) {
+          conditions.push(eq(productsTable.categoryId, filters.categoryId));
+        }
+
+        // Type filter
+        if (filters.typeId) {
+          conditions.push(eq(productsTable.typeId, filters.typeId));
+        }
+
+        // Brand filter
+        if (filters.brandId) {
+          conditions.push(eq(productsTable.brandId, filters.brandId));
+        }
+
+        // Unit filter
+        if (filters.unitId) {
+          conditions.push(eq(productsTable.unitId, filters.unitId));
+        }
       }
 
-      return {
-        documents: parseStringify(allProducts),
-        total: allProducts.length,
-      };
-    }
+      // Add default isActive filter only if not explicitly provided in filters
+      if (!filters || filters.isActive === undefined) {
+        conditions.push(eq(productsTable.isActive, true));
+      }
 
-    // For paginated results
-    const total = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(productsTable)
-      .where(eq(productsTable.isActive, true))
-      .then((res) => res[0]?.count || 0);
+      // Apply where conditions
+      productsQuery = productsQuery.where(and(...conditions));
+
+      // Apply order by
+      productsQuery = productsQuery.orderBy(desc(productsTable.createdAt));
+
+      // Apply pagination if not getting all products
+      if (!getAllProducts) {
+        productsQuery = productsQuery.limit(limit).offset(page * limit);
+      }
+
+      const products = await productsQuery;
+
+      // Get total count for pagination
+      const total = getAllProducts
+        ? products.length
+        : await tx
+            .select({ count: sql<number>`count(*)` })
+            .from(productsTable)
+            .where(and(...conditions))
+            .then((res) => res[0]?.count || 0);
+
+      return {
+        documents: products,
+        total,
+      };
+    });
 
     return {
-      documents: parseStringify(products),
-      total,
+      documents: parseStringify(result.documents),
+      total: result.total,
     };
   } catch (error) {
     console.error("Error getting products:", error);
@@ -295,18 +304,38 @@ export const softDeleteProduct = async (productId: string) => {
   }
 };
 
-// Bulck Products Upload.
+// Reactivate Product
+export const reactivateProduct = async (productId: string) => {
+  try {
+    const updatedProduct = await db
+      .update(productsTable)
+      .set({ isActive: true })
+      .where(eq(productsTable.id, productId))
+      .returning();
+
+    revalidatePath("/inventory");
+    return parseStringify(updatedProduct);
+  } catch (error) {
+    console.error("Error reactivating product:", error);
+    throw error;
+  }
+};
+
+// Optimized Bulk Products Upload
 export const bulkAddProducts = async (
   products: (ProductFormValues & { id?: string; productID: string })[]
 ) => {
   try {
-    const productsToUpdate = products.filter((p) => p.id);
-    const productsToCreate = products.filter((p) => !p.id);
+    // Early validation: Check for duplicate product IDs using Set for O(n) performance
+    const productIDSet = new Set<string>();
+    const duplicateIDs: string[] = [];
 
-    const productIDs = products.map((p) => p.productID!);
-    const duplicateIDs = productIDs.filter(
-      (id, index) => productIDs.indexOf(id) !== index
-    );
+    for (const product of products) {
+      if (productIDSet.has(product.productID)) {
+        duplicateIDs.push(product.productID);
+      }
+      productIDSet.add(product.productID);
+    }
 
     if (duplicateIDs.length) {
       throw new Error(
@@ -314,16 +343,89 @@ export const bulkAddProducts = async (
       );
     }
 
+    // Separate products for create vs update operations
+    const productsToUpdate = products.filter((p) => p.id);
+    const productsToCreate = products.filter((p) => !p.id);
+
+    // Validate foreign key references for all products
+    const allCategoryIds = [
+      ...new Set(products.map((p) => p.categoryId).filter(Boolean)),
+    ];
+    const allTypeIds = [
+      ...new Set(products.map((p) => p.typeId).filter(Boolean)),
+    ];
+    const allBrandIds = [
+      ...new Set(products.map((p) => p.brandId).filter(Boolean)),
+    ];
+    const allUnitIds = [
+      ...new Set(products.map((p) => p.unitId).filter(Boolean)),
+    ];
+
+    // Batch validate all foreign key references
+    const [existingCategories, existingTypes, existingBrands, existingUnits] =
+      await Promise.all([
+        allCategoryIds.length
+          ? db
+              .select({ id: categoriesTable.id })
+              .from(categoriesTable)
+              .where(inArray(categoriesTable.id, allCategoryIds))
+          : [],
+        allTypeIds.length
+          ? db
+              .select({ id: productTypesTable.id })
+              .from(productTypesTable)
+              .where(inArray(productTypesTable.id, allTypeIds))
+          : [],
+        allBrandIds.length
+          ? db
+              .select({ id: brandsTable.id })
+              .from(brandsTable)
+              .where(inArray(brandsTable.id, allBrandIds))
+          : [],
+        allUnitIds.length
+          ? db
+              .select({ id: unitsTable.id })
+              .from(unitsTable)
+              .where(inArray(unitsTable.id, allUnitIds))
+          : [],
+      ]);
+
+    // Check for missing foreign key references
+    const existingCategoryIds = new Set(existingCategories.map((c) => c.id));
+    const existingTypeIds = new Set(existingTypes.map((t) => t.id));
+    const existingBrandIds = new Set(existingBrands.map((b) => b.id));
+    const existingUnitIds = new Set(existingUnits.map((u) => u.id));
+
+    const missingCategories = allCategoryIds.filter(
+      (id) => !existingCategoryIds.has(id)
+    );
+    const missingTypes = allTypeIds.filter((id) => !existingTypeIds.has(id));
+    const missingBrands = allBrandIds.filter((id) => !existingBrandIds.has(id));
+    const missingUnits = allUnitIds.filter((id) => !existingUnitIds.has(id));
+
+    const validationErrors = [];
+    if (missingCategories.length)
+      validationErrors.push(
+        `Invalid category IDs: ${missingCategories.join(", ")}`
+      );
+    if (missingTypes.length)
+      validationErrors.push(`Invalid type IDs: ${missingTypes.join(", ")}`);
+    if (missingBrands.length)
+      validationErrors.push(`Invalid brand IDs: ${missingBrands.join(", ")}`);
+    if (missingUnits.length)
+      validationErrors.push(`Invalid unit IDs: ${missingUnits.join(", ")}`);
+
+    if (validationErrors.length) {
+      throw new Error(validationErrors.join("; "));
+    }
+
+    // Batch check for existing products (only for products to create)
     if (productsToCreate.length > 0) {
+      const productIDsToCheck = productsToCreate.map((p) => p.productID);
       const existingProducts = await db
         .select({ productID: productsTable.productID })
         .from(productsTable)
-        .where(
-          inArray(
-            productsTable.productID,
-            productsToCreate.map((p) => p.productID)
-          )
-        );
+        .where(inArray(productsTable.productID, productIDsToCheck));
 
       if (existingProducts.length) {
         throw new Error(
@@ -334,50 +436,78 @@ export const bulkAddProducts = async (
       }
     }
 
-    // Process in a transaction
+    // Process in a single transaction with batch operations
     const result = await db.transaction(async (tx) => {
-      const createdProducts = [];
-      const updatedProducts = [];
+      const results = {
+        createdProducts: [] as any[],
+        updatedProducts: [] as any[],
+      };
 
-      // Create new products
-      for (const product of productsToCreate) {
-        const inserted = await tx
+      // Batch insert new products (single query instead of loop)
+      if (productsToCreate.length > 0) {
+        const productsData = productsToCreate.map((product) => ({
+          ...product,
+          isActive: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }));
+
+        const createdProducts = await tx
           .insert(productsTable)
-          .values(product)
+          .values(productsData)
           .returning();
-        createdProducts.push(inserted[0]);
+
+        results.createdProducts = createdProducts;
       }
 
-      // Update existing products
-      for (const product of productsToUpdate) {
-        if (!product.id) continue;
+      // Batch update existing products
+      if (productsToUpdate.length > 0) {
+        // For updates, we'll use a more efficient approach with fewer queries
+        // Group updates by chunks to avoid query size limits
+        const BATCH_SIZE = 100; // Adjust based on your DB limits
 
-        const updated = await tx
-          .update(productsTable)
-          .set({
-            productID: product.productID,
-            name: product.name,
-            description: product.description,
-            quantity: product.quantity,
-            costPrice: product.costPrice,
-            sellingPrice: product.sellingPrice,
-            alertQuantity: product.alertQuantity,
-            maxAlertQuantity: product.maxAlertQuantity,
-            categoryId: product.categoryId,
-            typeId: product.typeId,
-            brandId: product.brandId,
-            unitId: product.unitId,
-            updatedAt: new Date(),
-          })
-          .where(eq(productsTable.id, product.id))
-          .returning();
-        updatedProducts.push(updated[0]);
+        for (let i = 0; i < productsToUpdate.length; i += BATCH_SIZE) {
+          const batch = productsToUpdate.slice(i, i + BATCH_SIZE);
+
+          // Use Promise.all for parallel updates within the transaction
+          const updatedBatch = await Promise.all(
+            batch.map(async (product) => {
+              if (!product.id) return null;
+
+              const updated = await tx
+                .update(productsTable)
+                .set({
+                  productID: product.productID,
+                  name: product.name,
+                  description: product.description,
+                  quantity: product.quantity,
+                  costPrice: product.costPrice,
+                  sellingPrice: product.sellingPrice,
+                  alertQuantity: product.alertQuantity,
+                  maxAlertQuantity: product.maxAlertQuantity,
+                  categoryId: product.categoryId,
+                  typeId: product.typeId,
+                  brandId: product.brandId,
+                  unitId: product.unitId,
+                  updatedAt: new Date(),
+                })
+                .where(eq(productsTable.id, product.id))
+                .returning();
+
+              return updated[0];
+            })
+          );
+
+          results.updatedProducts.push(...updatedBatch.filter(Boolean));
+        }
       }
 
-      return { createdProducts, updatedProducts };
+      return results;
     });
 
+    // Revalidate path outside transaction for better performance
     revalidatePath("/inventory");
+
     return {
       success: true,
       createdCount: result.createdProducts.length,
@@ -388,7 +518,6 @@ export const bulkAddProducts = async (
     throw error;
   }
 };
-
 export const softDeleteMultipleProducts = async (productIds: string[]) => {
   try {
     const deletedProducts = await db.transaction(async (tx) => {

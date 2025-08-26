@@ -3,9 +3,19 @@
 import PageWraper from "@/components/PageWraper";
 import { productsColumns } from "@/components/table/columns/productsColumns";
 import { DataTable } from "@/components/table/DataTable";
+import { useBrands } from "@/hooks/useBrands";
+import { useCategories } from "@/hooks/useCategories";
 import { useProducts } from "@/hooks/useProducts";
+import { useTypes } from "@/hooks/useTypes";
+import { useUnits } from "@/hooks/useUnits";
 import { exportToExcel, transformProductsForExport } from "@/lib/utils";
-import { ProductWithRelations } from "@/types";
+import {
+  Brand,
+  Category,
+  ProductType,
+  ProductWithRelations,
+  Unit,
+} from "@/types";
 import { useState } from "react";
 import toast from "react-hot-toast";
 
@@ -24,9 +34,34 @@ const Inventory = () => {
     isSoftDeletingMultipleProducts,
     refetch,
     isRefetching,
+    filters,
+    onFilterChange,
+    defaultFilterValues,
   } = useProducts({
     initialPageSize: 10,
   });
+
+  const { categories } = useCategories({ getAllCategories: true });
+  const { brands } = useBrands({ getAllBrands: true });
+  const { types } = useTypes({ getAllTypes: true });
+  const { units } = useUnits({ getAllUnits: true });
+  const categoryOptions = categories?.map((category: Category) => ({
+    label: category.name,
+    value: category.id,
+  }));
+
+  const brandOptions = brands?.map((brand: Brand) => ({
+    label: brand.name,
+    value: brand.id,
+  }));
+  const typeOptions = types?.map((type: ProductType) => ({
+    label: type.name,
+    value: type.id,
+  }));
+  const unitOptions = units?.map((unit: Unit) => ({
+    label: unit.name,
+    value: unit.id,
+  }));
 
   const handleDeleteSelected = async (
     selectedItems: ProductWithRelations[]
@@ -58,6 +93,45 @@ const Inventory = () => {
     }
   };
 
+  const productFilters = {
+    costPrice: {
+      type: "number" as const,
+      label: "Cost Price",
+    },
+    sellingPrice: {
+      type: "number" as const,
+      label: "Selling Price",
+    },
+    quantity: {
+      type: "number" as const,
+      label: "Quantity",
+    },
+    categoryId: {
+      type: "select" as const,
+      label: "Category",
+      options: categoryOptions || [],
+    },
+    brandId: {
+      type: "select" as const,
+      label: "Brand / Vendor",
+      options: brandOptions || [],
+    },
+    typeId: {
+      type: "select" as const,
+      label: "Type",
+      options: typeOptions || [],
+    },
+    unitId: {
+      type: "select" as const,
+      label: "Unit",
+      options: unitOptions || [],
+    },
+    isActive: {
+      type: "boolean" as const,
+      label: "Is Active?",
+    },
+  };
+
   return (
     <PageWraper
       title="Inventory List"
@@ -87,6 +161,10 @@ const Inventory = () => {
         onDownloadSelected={handleDownloadSelected}
         refetch={refetch}
         isRefetching={isRefetching}
+        filters={productFilters}
+        filterValues={filters}
+        onFilterChange={onFilterChange}
+        defaultFilterValues={defaultFilterValues}
       />
     </PageWraper>
   );

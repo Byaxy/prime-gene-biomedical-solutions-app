@@ -6,18 +6,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ProductFormValues } from "@/lib/validation";
 import { ProductWithRelations } from "@/types";
 import BulkProductUpload from "./BulkProductUpload";
 import ProductDetails from "./ProductDetails";
+import { useProducts } from "@/hooks/useProducts";
 
 interface ProductDialogProps {
-  mode: "add" | "edit" | "delete" | "view";
+  mode: "add" | "edit" | "delete" | "view" | "reactivate" | "deactivate";
   open: boolean;
   onOpenChange: (open: boolean) => void;
   isLoading?: boolean;
   product?: ProductWithRelations;
-  onSubmit?: (data: ProductFormValues) => Promise<void>;
   isBulkProductUpload?: boolean;
 }
 
@@ -26,31 +25,50 @@ export function ProductDialog({
   open,
   onOpenChange,
   product,
-  isLoading,
-  onSubmit,
   isBulkProductUpload,
 }: ProductDialogProps) {
+  const {
+    softDeleteProduct,
+    isSoftDeletingProduct,
+    deleteProduct,
+    isDeletingProduct,
+    reactivateProduct,
+    isReactivatingProduct,
+  } = useProducts();
+
   const handleDelete = async () => {
     try {
-      if (onSubmit) {
-        await onSubmit({
-          productID: product?.product?.id || "",
-          name: product?.product?.name || "",
-          costPrice: product?.product?.costPrice || 0,
-          sellingPrice: product?.product?.sellingPrice || 0,
-          description: product?.product?.description || "",
-          alertQuantity: product?.product?.alertQuantity || 0,
-          maxAlertQuantity: product?.product?.maxAlertQuantity || 0,
-          quantity: product?.product?.quantity || 0,
-          categoryId: product?.product?.categoryId || "",
-          typeId: product?.product?.typeId || "",
-          unitId: product?.product?.unitId || "",
-          brandId: product?.product?.brandId || "",
+      if (mode === "delete" && product) {
+        await deleteProduct(product.product.id, {
+          onSuccess: () => onOpenChange(false),
         });
-        onOpenChange(false);
       }
     } catch (error) {
-      console.error("Error deleting product:", error);
+      console.error("Error:", error);
+    }
+  };
+
+  const handleDeactivate = async () => {
+    try {
+      if (mode === "deactivate" && product) {
+        await softDeleteProduct(product.product.id, {
+          onSuccess: () => onOpenChange(false),
+        });
+      }
+    } catch (error) {
+      console.error("Error:", error);
+    }
+  };
+
+  const handleReactivate = async () => {
+    try {
+      if (mode === "reactivate" && product) {
+        await reactivateProduct(product.product.id, {
+          onSuccess: () => onOpenChange(false),
+        });
+      }
+    } catch (error) {
+      console.error("Error:", error);
     }
   };
 
@@ -79,7 +97,7 @@ export function ProductDialog({
                   type="button"
                   variant="outline"
                   onClick={() => onOpenChange(false)}
-                  disabled={isLoading}
+                  disabled={isDeletingProduct}
                   className="shad-primary-btn"
                 >
                   Cancel
@@ -88,10 +106,94 @@ export function ProductDialog({
                   type="button"
                   variant="destructive"
                   onClick={handleDelete}
-                  disabled={isLoading}
+                  disabled={isDeletingProduct}
                   className="shad-danger-btn"
                 >
                   Delete
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {mode === "deactivate" && (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <DialogContent className="sm:max-w-2xl bg-light-200 mx-2 sm:mx-0">
+            <DialogHeader className="space-y-2">
+              <DialogTitle className="text-xl text-blue-800">
+                Deactivate Inventory
+              </DialogTitle>
+              <DialogDescription className="text-dark-500">
+                Are you sure you want to deactivate this inventory?
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="flex flex-col gap-4">
+              <p className="text-sm text-red-500">
+                Inventory:{" "}
+                <span className="font-semibold">{product?.product?.name}</span>
+              </p>
+              <div className="flex justify-end gap-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                  disabled={isSoftDeletingProduct}
+                  className="shad-primary-btn"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={handleDeactivate}
+                  disabled={isSoftDeletingProduct}
+                  className="shad-danger-btn"
+                >
+                  Deactivate
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {mode === "reactivate" && (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <DialogContent className="sm:max-w-2xl bg-light-200 mx-2 sm:mx-0">
+            <DialogHeader className="space-y-2">
+              <DialogTitle className="text-xl text-blue-800">
+                Reactivate Inventory
+              </DialogTitle>
+              <DialogDescription className="text-dark-500">
+                Are you sure you want to reactivate this inventory?
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="flex flex-col gap-4">
+              <p className="text-sm text-green-500">
+                Inventory:{" "}
+                <span className="font-semibold">{product?.product?.name}</span>
+              </p>
+              <div className="flex justify-end gap-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                  disabled={isSoftDeletingProduct}
+                  className="shad-danger-btn"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={handleReactivate}
+                  disabled={isReactivatingProduct}
+                  className="shad-primary-btn"
+                >
+                  Reactivate
                 </Button>
               </div>
             </div>
@@ -118,7 +220,6 @@ export function ProductDialog({
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
-                disabled={isLoading}
                 className="shad-danger-btn"
               >
                 Close
@@ -147,7 +248,6 @@ export function ProductDialog({
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
-                disabled={isLoading}
                 className="shad-danger-btn"
               >
                 Close
