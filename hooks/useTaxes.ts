@@ -23,6 +23,10 @@ export const useTaxes = ({
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(initialPageSize);
 
+  const shouldFetchAll = getAllTaxes;
+
+  const isShowAllMode = pageSize === 0;
+
   // Query for all Taxs
   const allTaxesQuery = useQuery({
     queryKey: ["taxes", "allTaxes"],
@@ -30,7 +34,7 @@ export const useTaxes = ({
       const result = await getTaxes(0, 0, true);
       return result.documents;
     },
-    enabled: getAllTaxes,
+    enabled: shouldFetchAll || isShowAllMode,
   });
 
   // Query for paginated Taxs
@@ -40,13 +44,20 @@ export const useTaxes = ({
       const result = await getTaxes(page, pageSize, false);
       return result;
     },
-    enabled: !getAllTaxes,
+    enabled: !shouldFetchAll || !isShowAllMode,
   });
+
+  // Determine which query data to use
+  const activeQuery =
+    shouldFetchAll || isShowAllMode ? allTaxesQuery : paginatedTaxesQuery;
+  const taxes = activeQuery.data?.documents || [];
+  const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view
   useEffect(() => {
     if (
-      !getAllTaxes &&
+      !shouldFetchAll &&
+      !isShowAllMode &&
       paginatedTaxesQuery.data &&
       page * pageSize < paginatedTaxesQuery.data.total - pageSize
     ) {
@@ -55,7 +66,20 @@ export const useTaxes = ({
         queryFn: () => getTaxes(page + 1, pageSize, false),
       });
     }
-  }, [page, pageSize, paginatedTaxesQuery.data, queryClient, getAllTaxes]);
+  }, [
+    page,
+    pageSize,
+    paginatedTaxesQuery.data,
+    queryClient,
+    shouldFetchAll,
+    isShowAllMode,
+  ]);
+
+  // Handle page size changes
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
+    setPage(0);
+  };
 
   // Add Tax mutation
   const { mutate: addTaxMutation, status: addTaxStatus } = useMutation({
@@ -112,18 +136,16 @@ export const useTaxes = ({
   });
 
   return {
-    taxes: getAllTaxes
-      ? allTaxesQuery.data
-      : paginatedTaxesQuery.data?.documents || [],
-    totalItems: paginatedTaxesQuery.data?.total || 0,
-    isLoading: getAllTaxes
-      ? allTaxesQuery.isLoading
-      : paginatedTaxesQuery.isLoading,
-    error: getAllTaxes ? allTaxesQuery.error : paginatedTaxesQuery.error,
+    taxes,
+    totalItems,
+    isLoading: activeQuery.isLoading,
+    error: activeQuery.error,
+    setPageSize: handlePageSizeChange,
+    refetch: activeQuery.refetch,
+    isRefetching: activeQuery.isRefetching,
     page,
     setPage,
     pageSize,
-    setPageSize,
     addTax: addTaxMutation,
     isAddingTax: addTaxStatus === "pending",
     editTax: editTaxMutation,
@@ -132,9 +154,5 @@ export const useTaxes = ({
     isSoftDeletingTax: softDeleteTaxStatus === "pending",
     deleteTax: deleteTaxMutation,
     isDeletingTax: deleteTaxStatus === "pending",
-    refetch: getAllTaxes ? allTaxesQuery.refetch : paginatedTaxesQuery.refetch,
-    isRefetching: getAllTaxes
-      ? allTaxesQuery.isRefetching
-      : paginatedTaxesQuery.isRefetching,
   };
 };

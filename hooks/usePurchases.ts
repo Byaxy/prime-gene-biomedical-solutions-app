@@ -47,6 +47,10 @@ export const usePurchases = ({
     defaultPurchaseFilters
   );
 
+  const shouldFetchAll = getAllPurchases;
+
+  const isShowAllMode = pageSize === 0;
+
   // Query for all Purchases
   const allPurchasesQuery = useQuery({
     queryKey: ["purchases", filters],
@@ -54,7 +58,7 @@ export const usePurchases = ({
       const result = await getPurchases(0, 0, true, filters);
       return result.documents;
     },
-    enabled: getAllPurchases,
+    enabled: shouldFetchAll || isShowAllMode,
   });
 
   // Query for paginated Purchases
@@ -64,13 +68,22 @@ export const usePurchases = ({
       const result = await getPurchases(page, pageSize, false, filters);
       return result;
     },
-    enabled: !getAllPurchases,
+    enabled: !shouldFetchAll && !isShowAllMode,
   });
+
+  // Determine which query data to use
+  const activeQuery =
+    shouldFetchAll || isShowAllMode
+      ? allPurchasesQuery
+      : paginatedPurchasesQuery;
+  const purchases = activeQuery.data?.documents || [];
+  const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view
   useEffect(() => {
     if (
-      !getAllPurchases &&
+      !shouldFetchAll &&
+      !isShowAllMode &&
       paginatedPurchasesQuery.data &&
       page * pageSize < paginatedPurchasesQuery.data.total - pageSize
     ) {
@@ -90,13 +103,20 @@ export const usePurchases = ({
     pageSize,
     paginatedPurchasesQuery.data,
     queryClient,
-    getAllPurchases,
+    shouldFetchAll,
+    isShowAllMode,
     filters,
   ]);
 
   // Handle filter changes
   const handleFilterChange = (newFilters: PurchaseFilters) => {
     setFilters(newFilters);
+    setPage(0);
+  };
+
+  // Handle page size changes
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
     setPage(0);
   };
 
@@ -257,20 +277,14 @@ export const usePurchases = ({
     });
 
   return {
-    purchases: getAllPurchases
-      ? allPurchasesQuery.data
-      : paginatedPurchasesQuery.data?.documents || [],
-    totalItems: paginatedPurchasesQuery.data?.total || 0,
-    isLoading: getAllPurchases
-      ? allPurchasesQuery.isLoading
-      : paginatedPurchasesQuery.isLoading,
-    error: getAllPurchases
-      ? allPurchasesQuery.error
-      : paginatedPurchasesQuery.error,
+    purchases,
+    totalItems,
+    isLoading: activeQuery.isLoading,
+    error: activeQuery.error,
     page,
     setPage,
     pageSize,
-    setPageSize,
+    setPageSize: handlePageSizeChange,
     filters,
     onFilterChange: handleFilterChange,
     defaultFilterValues: defaultPurchaseFilters,
@@ -282,11 +296,7 @@ export const usePurchases = ({
     isSoftDeletingPurchase: softDeletePurchaseStatus === "pending",
     deletePurchase: deletePurchaseMutation,
     isDeletingPurchase: deletePurchaseStatus === "pending",
-    refetch: getAllPurchases
-      ? allPurchasesQuery.refetch
-      : paginatedPurchasesQuery.refetch,
-    isRefetching: getAllPurchases
-      ? allPurchasesQuery.isRefetching
-      : paginatedPurchasesQuery.isRefetching,
+    refetch: activeQuery.refetch,
+    isRefetching: activeQuery.isRefetching,
   };
 };

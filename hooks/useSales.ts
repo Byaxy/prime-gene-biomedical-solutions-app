@@ -10,7 +10,7 @@ import {
 } from "@/lib/actions/sale.actions";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { SaleFormValues } from "@/lib/validation";
-import { Attachment, SaleWithRelations } from "@/types";
+import { Attachment } from "@/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -51,6 +51,10 @@ export const useSales = ({
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [filters, setFilters] = useState<SaleFilters>(defaultSaleFilters);
 
+  const shouldFetchAll = getAllSales;
+
+  const isShowAllMode = pageSize === 0;
+
   // Query for all Sales
   const allSalesQuery = useQuery({
     queryKey: ["sales", "allSales", filters],
@@ -58,7 +62,7 @@ export const useSales = ({
       const result = await getSales(0, 0, true, filters);
       return result.documents;
     },
-    enabled: getAllSales,
+    enabled: shouldFetchAll || isShowAllMode,
   });
 
   // Query for paginated Sales
@@ -68,13 +72,20 @@ export const useSales = ({
       const result = await getSales(page, pageSize, false, filters);
       return result;
     },
-    enabled: !getAllSales,
+    enabled: !shouldFetchAll || !isShowAllMode,
   });
+
+  // Determine which query data to use
+  const activeQuery =
+    shouldFetchAll || isShowAllMode ? allSalesQuery : paginatedSalesQuery;
+  const sales = activeQuery.data?.documents || [];
+  const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view
   useEffect(() => {
     if (
-      !getAllSales &&
+      !shouldFetchAll &&
+      !isShowAllMode &&
       paginatedSalesQuery.data &&
       page * pageSize < paginatedSalesQuery.data.total - pageSize
     ) {
@@ -88,13 +99,20 @@ export const useSales = ({
     pageSize,
     paginatedSalesQuery.data,
     queryClient,
-    getAllSales,
+    shouldFetchAll,
+    isShowAllMode,
     filters,
   ]);
 
   // Handle filter changes
   const handleFilterChange = (newFilters: SaleFilters) => {
     setFilters(newFilters);
+    setPage(0);
+  };
+
+  // Handle page size changes
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
     setPage(0);
   };
 
@@ -242,18 +260,16 @@ export const useSales = ({
     });
 
   return {
-    sales: getAllSales
-      ? allSalesQuery.data
-      : paginatedSalesQuery.data?.documents || ([] as SaleWithRelations[]),
-    totalItems: paginatedSalesQuery.data?.total || 0,
-    isLoading: getAllSales
-      ? allSalesQuery.isLoading
-      : paginatedSalesQuery.isLoading,
-    error: getAllSales ? allSalesQuery.error : paginatedSalesQuery.error,
+    sales,
+    totalItems,
+    isLoading: activeQuery.isLoading,
+    error: activeQuery.error,
+    setPageSize: handlePageSizeChange,
+    refetch: activeQuery.refetch,
+    isRefetching: activeQuery.isRefetching,
     page,
     setPage,
     pageSize,
-    setPageSize,
     filters,
     onFilterChange: handleFilterChange,
     defaultFilterValues: defaultSaleFilters,
@@ -265,9 +281,5 @@ export const useSales = ({
     isDeletingSale: deleteSaleStatus === "pending",
     softDeleteSale: softDeleteSaleMutation,
     isSoftDeletingSale: softDeleteSaleStatus === "pending",
-    refetch: getAllSales ? allSalesQuery.refetch : paginatedSalesQuery.refetch,
-    isRefetching: getAllSales
-      ? allSalesQuery.isRefetching
-      : paginatedSalesQuery.isRefetching,
   };
 };

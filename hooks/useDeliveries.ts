@@ -8,7 +8,6 @@ import {
   softDeleteDelivery,
 } from "@/lib/actions/delivery.actions";
 import { DeliveryFormValues } from "@/lib/validation";
-import { DeliveryWithRelations } from "@/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -41,14 +40,18 @@ export const useDeliveries = ({
     defaultDeliveryFilters
   );
 
+  const shouldFetchAll = getAllDeliveries;
+
+  const isShowAllMode = pageSize === 0;
+
   // Query for all Deliveries
   const allDeliveriesQuery = useQuery({
-    queryKey: ["deliveries", "allDeliveries", filters],
+    queryKey: ["deliveries", filters],
     queryFn: async () => {
       const result = await getDeliveries(0, 0, true, filters);
       return result.documents;
     },
-    enabled: getAllDeliveries,
+    enabled: shouldFetchAll || isShowAllMode,
   });
 
   // Query for paginated Deliveries
@@ -58,13 +61,22 @@ export const useDeliveries = ({
       const result = await getDeliveries(page, pageSize, false, filters);
       return result;
     },
-    enabled: !getAllDeliveries,
+    enabled: !shouldFetchAll && !isShowAllMode,
   });
+
+  // Determine which query data to use
+  const activeQuery =
+    shouldFetchAll || isShowAllMode
+      ? allDeliveriesQuery
+      : paginatedDeliveriesQuery;
+  const deliveries = activeQuery.data?.documents || [];
+  const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view
   useEffect(() => {
     if (
-      !getAllDeliveries &&
+      !shouldFetchAll &&
+      !isShowAllMode &&
       paginatedDeliveriesQuery.data &&
       page * pageSize < paginatedDeliveriesQuery.data.total - pageSize
     ) {
@@ -84,7 +96,8 @@ export const useDeliveries = ({
     pageSize,
     paginatedDeliveriesQuery.data,
     queryClient,
-    getAllDeliveries,
+    shouldFetchAll,
+    isShowAllMode,
     filters,
   ]);
   // Handle filter changes
@@ -93,6 +106,11 @@ export const useDeliveries = ({
     setPage(0);
   };
 
+  // Handle page size changes
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
+    setPage(0);
+  };
   // Add Delivery Mutation
   const { mutate: addDeliveryMutation, status: addDeliveryStatus } =
     useMutation({
@@ -148,21 +166,16 @@ export const useDeliveries = ({
   });
 
   return {
-    deliveries: getAllDeliveries
-      ? allDeliveriesQuery.data
-      : paginatedDeliveriesQuery.data?.documents ||
-        ([] as DeliveryWithRelations[]),
-    totalItems: paginatedDeliveriesQuery.data?.total || 0,
-    isLoading: getAllDeliveries
-      ? allDeliveriesQuery.isLoading
-      : paginatedDeliveriesQuery.isLoading,
-    error: getAllDeliveries
-      ? allDeliveriesQuery.error
-      : paginatedDeliveriesQuery.error,
+    deliveries,
+    totalItems,
+    isLoading: activeQuery.isLoading,
+    error: activeQuery.error,
+    setPageSize: handlePageSizeChange,
+    refetch: activeQuery.refetch,
+    isRefetching: activeQuery.isRefetching,
     page,
     setPage,
     pageSize,
-    setPageSize,
     filters,
     onFilterChange: handleFilterChange,
     defaultFilterValues: defaultDeliveryFilters,
@@ -174,11 +187,5 @@ export const useDeliveries = ({
     isDeletingDelivery: deleteDeliveryStatus === "pending",
     softDeleteDelivery: softDeleteDeliveryMutation,
     isSoftDeletingDelivery: softDeleteDeliveryStatus === "pending",
-    refetch: getAllDeliveries
-      ? allDeliveriesQuery.refetch
-      : paginatedDeliveriesQuery.refetch,
-    isRefetching: getAllDeliveries
-      ? allDeliveriesQuery.isRefetching
-      : paginatedDeliveriesQuery.isRefetching,
   };
 };

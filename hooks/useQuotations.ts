@@ -10,7 +10,7 @@ import {
 } from "@/lib/actions/quotation.actions";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { QuotationFormValues } from "@/lib/validation";
-import { Attachment, QuotationWithRelations } from "@/types";
+import { Attachment } from "@/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -49,6 +49,10 @@ export const useQuotations = ({
     defaultQuotationFilters
   );
 
+  const shouldFetchAll = getAllQuotations;
+
+  const isShowAllMode = pageSize === 0;
+
   // Query for all Quotations
   const allQuotationsQuery = useQuery({
     queryKey: ["quotations", "paginatedQuotations", filters],
@@ -56,7 +60,7 @@ export const useQuotations = ({
       const result = await getQuotations(0, 0, true, filters);
       return result.documents;
     },
-    enabled: getAllQuotations,
+    enabled: shouldFetchAll || isShowAllMode,
   });
 
   // Query for paginated Quotations
@@ -66,13 +70,22 @@ export const useQuotations = ({
       const result = await getQuotations(page, pageSize, false, filters);
       return result;
     },
-    enabled: !getAllQuotations,
+    enabled: !shouldFetchAll || !isShowAllMode,
   });
+
+  // Determine which query data to use
+  const activeQuery =
+    shouldFetchAll || isShowAllMode
+      ? allQuotationsQuery
+      : paginatedQuotationsQuery;
+  const quotations = activeQuery.data?.documents || [];
+  const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view
   useEffect(() => {
     if (
-      !getAllQuotations &&
+      !shouldFetchAll &&
+      !isShowAllMode &&
       paginatedQuotationsQuery.data &&
       page * pageSize < paginatedQuotationsQuery.data.total - pageSize
     ) {
@@ -92,13 +105,20 @@ export const useQuotations = ({
     pageSize,
     paginatedQuotationsQuery.data,
     queryClient,
-    getAllQuotations,
+    shouldFetchAll,
+    isShowAllMode,
     filters,
   ]);
 
   // Handle filter changes
   const handleFilterChange = (newFilters: QuotationFilters) => {
     setFilters(newFilters);
+    setPage(0);
+  };
+
+  // Handle page size changes
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
     setPage(0);
   };
 
@@ -253,21 +273,16 @@ export const useQuotations = ({
     });
 
   return {
-    quotations: getAllQuotations
-      ? allQuotationsQuery.data
-      : paginatedQuotationsQuery.data?.documents ||
-        ([] as QuotationWithRelations[]),
-    totalItems: paginatedQuotationsQuery.data?.total || 0,
-    isLoading: getAllQuotations
-      ? allQuotationsQuery.isLoading
-      : paginatedQuotationsQuery.isLoading,
-    error: getAllQuotations
-      ? allQuotationsQuery.error
-      : paginatedQuotationsQuery.error,
+    quotations,
+    totalItems,
+    isLoading: activeQuery.isLoading,
+    error: activeQuery.error,
+    setPageSize: handlePageSizeChange,
+    refetch: activeQuery.refetch,
+    isRefetching: activeQuery.isRefetching,
     page,
     setPage,
     pageSize,
-    setPageSize,
     filters,
     onFilterChange: handleFilterChange,
     defaultFilterValues: defaultQuotationFilters,
@@ -279,11 +294,5 @@ export const useQuotations = ({
     isDeletingQuotation: deleteQuotationStatus === "pending",
     softDeleteQuotation: softDeleteQuotationMutation,
     isSoftDeletingQuotation: softDeleteQuotationStatus === "pending",
-    refetch: getAllQuotations
-      ? allQuotationsQuery.refetch
-      : paginatedQuotationsQuery.refetch,
-    isRefetching: getAllQuotations
-      ? allQuotationsQuery.isRefetching
-      : paginatedQuotationsQuery.isRefetching,
   };
 };

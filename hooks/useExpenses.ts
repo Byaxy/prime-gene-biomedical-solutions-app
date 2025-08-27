@@ -25,14 +25,18 @@ export const useExpenses = ({
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(initialPageSize);
 
+  const shouldFetchAll = getAllExpenses;
+
+  const isShowAllMode = pageSize === 0;
+
   // Query for all Expenses
   const allExpensesQuery = useQuery({
-    queryKey: ["expenses", "allExpenses"],
+    queryKey: ["expenses"],
     queryFn: async () => {
       const result = await getExpenses(0, 0, true);
       return result.documents;
     },
-    enabled: getAllExpenses,
+    enabled: shouldFetchAll || isShowAllMode,
   });
 
   // Query for paginated Expenses
@@ -42,13 +46,20 @@ export const useExpenses = ({
       const result = await getExpenses(page, pageSize, false);
       return result;
     },
-    enabled: !getAllExpenses,
+    enabled: !shouldFetchAll && !isShowAllMode,
   });
+
+  // Determine which query data to use
+  const activeQuery =
+    shouldFetchAll || isShowAllMode ? allExpensesQuery : paginatedExpensesQuery;
+  const expenses = activeQuery.data?.documents || [];
+  const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view
   useEffect(() => {
     if (
-      !getAllExpenses &&
+      !shouldFetchAll &&
+      !isShowAllMode &&
       paginatedExpensesQuery.data &&
       page * pageSize < paginatedExpensesQuery.data.total - pageSize
     ) {
@@ -62,8 +73,16 @@ export const useExpenses = ({
     pageSize,
     paginatedExpensesQuery.data,
     queryClient,
-    getAllExpenses,
+    shouldFetchAll,
+    isShowAllMode,
   ]);
+
+  // Handle page size changes
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
+    setPage(0);
+  };
+
   // Add expense mutation
   const { mutate: addExpenseMutation, status: addExpenseStatus } = useMutation({
     mutationFn: (data: ExpenseFormValues) => addExpense(data),
@@ -121,20 +140,16 @@ export const useExpenses = ({
     });
 
   return {
-    expenses: getAllExpenses
-      ? allExpensesQuery.data
-      : paginatedExpensesQuery.data?.documents || [],
-    totalItems: paginatedExpensesQuery.data?.total || 0,
-    isLoading: getAllExpenses
-      ? allExpensesQuery.isLoading
-      : paginatedExpensesQuery.isLoading,
-    error: getAllExpenses
-      ? allExpensesQuery.error
-      : paginatedExpensesQuery.error,
+    expenses,
+    totalItems,
+    isLoading: activeQuery.isLoading,
+    error: activeQuery.error,
+    setPageSize: handlePageSizeChange,
+    refetch: activeQuery.refetch,
+    isRefetching: activeQuery.isRefetching,
     page,
     setPage,
     pageSize,
-    setPageSize,
     addExpense: addExpenseMutation,
     editExpense: editExpenseMutation,
     softDeleteExpense: softDeleteExpenseMutation,
@@ -143,11 +158,5 @@ export const useExpenses = ({
     isEditingExpense: editExpenseStatus === "pending",
     isDeletingExpense: deleteExpenseStatus === "pending",
     isSoftDeletingExpense: softDeleteExpenseStatus === "pending",
-    refetch: getAllExpenses
-      ? allExpensesQuery.refetch
-      : paginatedExpensesQuery.refetch,
-    isRefetching: getAllExpenses
-      ? allExpensesQuery.isRefetching
-      : paginatedExpensesQuery.isRefetching,
   };
 };

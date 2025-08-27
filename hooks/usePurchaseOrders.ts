@@ -42,6 +42,10 @@ export const usePurchaseOrders = ({
     defaultPurchaseOrderFilters
   );
 
+  const shouldFetchAll = getAllPurchaseOrders;
+
+  const isShowAllMode = pageSize === 0;
+
   // Query for all Purchase orders
   const allPurchaseOrdersQuery = useQuery({
     queryKey: ["purchaseOrders", filters],
@@ -49,7 +53,7 @@ export const usePurchaseOrders = ({
       const result = await getPurchaseOrders(0, 0, true, filters);
       return result.documents;
     },
-    enabled: getAllPurchaseOrders,
+    enabled: shouldFetchAll || isShowAllMode,
   });
 
   // Query for paginated Purchase orders
@@ -65,13 +69,22 @@ export const usePurchaseOrders = ({
       const result = await getPurchaseOrders(page, pageSize, false, filters);
       return result;
     },
-    enabled: !getAllPurchaseOrders,
+    enabled: !shouldFetchAll || !isShowAllMode,
   });
+
+  // Determine which query data to use
+  const activeQuery =
+    shouldFetchAll || isShowAllMode
+      ? allPurchaseOrdersQuery
+      : paginatedPurchaseOrdersQuery;
+  const purchaseOrders = activeQuery.data?.documents || [];
+  const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view
   useEffect(() => {
     if (
-      !getAllPurchaseOrders &&
+      !shouldFetchAll &&
+      !isShowAllMode &&
       paginatedPurchaseOrdersQuery.data &&
       page * pageSize < paginatedPurchaseOrdersQuery.data.total - pageSize
     ) {
@@ -91,13 +104,20 @@ export const usePurchaseOrders = ({
     pageSize,
     paginatedPurchaseOrdersQuery.data,
     queryClient,
-    getAllPurchaseOrders,
+    shouldFetchAll,
+    isShowAllMode,
     filters,
   ]);
 
   // Handle filter changes
   const handleFilterChange = (newFilters: PurchaseOrderFilters) => {
     setFilters(newFilters);
+    setPage(0);
+  };
+
+  // Handle page size changes
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
     setPage(0);
   };
 
@@ -169,20 +189,16 @@ export const usePurchaseOrders = ({
   });
 
   return {
-    purchaseOrders: getAllPurchaseOrders
-      ? allPurchaseOrdersQuery.data
-      : paginatedPurchaseOrdersQuery.data?.documents || [],
-    totalItems: paginatedPurchaseOrdersQuery.data?.total || 0,
-    isLoading: getAllPurchaseOrders
-      ? allPurchaseOrdersQuery.isLoading
-      : paginatedPurchaseOrdersQuery.isLoading,
-    error: getAllPurchaseOrders
-      ? allPurchaseOrdersQuery.error
-      : paginatedPurchaseOrdersQuery.error,
+    purchaseOrders,
+    totalItems,
+    isLoading: activeQuery.isLoading,
+    error: activeQuery.error,
+    setPageSize: handlePageSizeChange,
+    refetch: activeQuery.refetch,
+    isRefetching: activeQuery.isRefetching,
     page,
     setPage,
     pageSize,
-    setPageSize,
     filters,
     onFilterChange: handleFilterChange,
     defaultFilterValues: defaultPurchaseOrderFilters,
@@ -194,11 +210,5 @@ export const usePurchaseOrders = ({
     isSoftDeletingPurchaseOrder: softDeletePurchaseOrderStatus === "pending",
     deletePurchaseOrder: deletePurchaseOrderMutation,
     isDeletingPurchaseOrder: deletePurchaseOrderStatus === "pending",
-    refetch: getAllPurchaseOrders
-      ? allPurchaseOrdersQuery.refetch
-      : paginatedPurchaseOrdersQuery.refetch,
-    isRefetching: getAllPurchaseOrders
-      ? allPurchaseOrdersQuery.isRefetching
-      : paginatedPurchaseOrdersQuery.isRefetching,
   };
 };

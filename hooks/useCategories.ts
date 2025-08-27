@@ -23,14 +23,18 @@ export const useCategories = ({
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(initialPageSize);
 
+  const shouldFetchAll = getAllCategories;
+
+  const isShowAllMode = pageSize === 0;
+
   // Query for all categories
   const allCategoriesQuery = useQuery({
-    queryKey: ["categories", "allCategories"],
+    queryKey: ["categories"],
     queryFn: async () => {
       const result = await getCategories(0, 0, true);
       return result.documents;
     },
-    enabled: getAllCategories,
+    enabled: shouldFetchAll || isShowAllMode,
   });
 
   // Query for paginated categories
@@ -40,13 +44,22 @@ export const useCategories = ({
       const result = await getCategories(page, pageSize, false);
       return result;
     },
-    enabled: !getAllCategories,
+    enabled: !shouldFetchAll && !isShowAllMode,
   });
+
+  // Determine which query data to use
+  const activeQuery =
+    shouldFetchAll || isShowAllMode
+      ? allCategoriesQuery
+      : paginatedCategoriesQuery;
+  const categories = activeQuery.data?.documents || [];
+  const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view
   useEffect(() => {
     if (
-      !getAllCategories &&
+      !shouldFetchAll &&
+      !isShowAllMode &&
       paginatedCategoriesQuery.data &&
       page * pageSize < paginatedCategoriesQuery.data.total - pageSize
     ) {
@@ -60,8 +73,15 @@ export const useCategories = ({
     pageSize,
     paginatedCategoriesQuery.data,
     queryClient,
-    getAllCategories,
+    shouldFetchAll,
+    isShowAllMode,
   ]);
+
+  // Handle page size changes
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
+    setPage(0);
+  };
 
   // Add category mutation
   const { mutate: addCategoryMutation, status: addCategoryStatus } =
@@ -123,20 +143,16 @@ export const useCategories = ({
     });
 
   return {
-    categories: getAllCategories
-      ? allCategoriesQuery.data
-      : paginatedCategoriesQuery.data?.documents || [],
-    totalItems: paginatedCategoriesQuery.data?.total || 0,
-    isLoading: getAllCategories
-      ? allCategoriesQuery.isLoading
-      : paginatedCategoriesQuery.isLoading,
-    error: getAllCategories
-      ? allCategoriesQuery.error
-      : paginatedCategoriesQuery.error,
+    categories,
+    totalItems,
+    isLoading: activeQuery.isLoading,
+    error: activeQuery.error,
+    setPageSize: handlePageSizeChange,
+    refetch: activeQuery.refetch,
+    isRefetching: activeQuery.isRefetching,
     page,
     setPage,
     pageSize,
-    setPageSize,
     addCategory: addCategoryMutation,
     editCategory: editCategoryMutation,
     softDeleteCategory: softDeleteCategoryMutation,
@@ -145,11 +161,5 @@ export const useCategories = ({
     isEditingCategory: editCategoryStatus === "pending",
     isDeletingCategory: deleteCategoryStatus === "pending",
     isSoftDeletingCategory: softDeleteCategoryStatus === "pending",
-    refetch: getAllCategories
-      ? allCategoriesQuery.refetch
-      : paginatedCategoriesQuery.refetch,
-    isRefetching: getAllCategories
-      ? allCategoriesQuery.isRefetching
-      : paginatedCategoriesQuery.isRefetching,
   };
 };

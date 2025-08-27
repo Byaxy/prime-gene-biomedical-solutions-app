@@ -22,6 +22,10 @@ export const useVendors = ({
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(initialPageSize);
 
+  const shouldFetchAll = getAllVendors;
+
+  const isShowAllMode = pageSize === 0;
+
   // Query for all Vendors
   const allVendorsQuery = useQuery({
     queryKey: ["vendors", "allVendors"],
@@ -29,7 +33,7 @@ export const useVendors = ({
       const result = await getVendors(0, 0, true);
       return result.documents;
     },
-    enabled: getAllVendors,
+    enabled: shouldFetchAll || isShowAllMode,
   });
 
   // Query for paginated Vendors
@@ -39,13 +43,20 @@ export const useVendors = ({
       const result = await getVendors(page, pageSize, false);
       return result;
     },
-    enabled: !getAllVendors,
+    enabled: !shouldFetchAll || !isShowAllMode,
   });
+
+  // Determine which query data to use
+  const activeQuery =
+    shouldFetchAll || isShowAllMode ? allVendorsQuery : paginatedVendorsQuery;
+  const vendors = activeQuery.data?.documents || [];
+  const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view
   useEffect(() => {
     if (
-      !getAllVendors &&
+      !shouldFetchAll &&
+      !isShowAllMode &&
       paginatedVendorsQuery.data &&
       page * pageSize < paginatedVendorsQuery.data.total - pageSize
     ) {
@@ -54,7 +65,20 @@ export const useVendors = ({
         queryFn: () => getVendors(page + 1, pageSize, false),
       });
     }
-  }, [page, pageSize, paginatedVendorsQuery.data, queryClient, getAllVendors]);
+  }, [
+    page,
+    pageSize,
+    paginatedVendorsQuery.data,
+    queryClient,
+    shouldFetchAll,
+    isShowAllMode,
+  ]);
+
+  // Handle page size changes
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
+    setPage(0);
+  };
 
   // Add vendor mutation
   const { mutate: addVendorMutation, status: addVendorStatus } = useMutation({
@@ -104,18 +128,16 @@ export const useVendors = ({
     });
 
   return {
-    vendors: getAllVendors
-      ? allVendorsQuery.data
-      : paginatedVendorsQuery.data?.documents || [],
-    totalItems: paginatedVendorsQuery.data?.total || 0,
-    isLoading: getAllVendors
-      ? allVendorsQuery.isLoading
-      : paginatedVendorsQuery.isLoading,
-    error: getAllVendors ? allVendorsQuery.error : paginatedVendorsQuery.error,
+    vendors,
+    totalItems,
+    isLoading: activeQuery.isLoading,
+    error: activeQuery.error,
+    setPageSize: handlePageSizeChange,
+    refetch: activeQuery.refetch,
+    isRefetching: activeQuery.isRefetching,
     page,
     setPage,
     pageSize,
-    setPageSize,
     addVendor: addVendorMutation,
     isAddingVendor: addVendorStatus === "pending",
     editVendor: editVendorMutation,
@@ -124,11 +146,5 @@ export const useVendors = ({
     isSoftDeletingVendor: softDeleteVendorStatus === "pending",
     deleteVendor: deleteVendorMutation,
     isDeletingVendor: deleteVendorStatus === "pending",
-    refetch: getAllVendors
-      ? allVendorsQuery.refetch
-      : paginatedVendorsQuery.refetch,
-    isRefetching: getAllVendors
-      ? allVendorsQuery.isRefetching
-      : paginatedVendorsQuery.isRefetching,
   };
 };

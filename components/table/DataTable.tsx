@@ -156,6 +156,8 @@ export function DataTable<TData, TValue>({
     }
   };
 
+  const isShowingAll = pageSize === totalItems || pageSize === 0;
+
   return (
     <div>
       <div className="w-full flex flex-col sm:flex-row sm:items-center justify-between gap-x-4 pb-5 sm:pb-0">
@@ -363,18 +365,24 @@ export function DataTable<TData, TValue>({
               Rows per page:
             </span>
             <Select
-              value={String(pageSize)}
+              value={isShowingAll ? "all" : String(pageSize)}
               onValueChange={(value) => {
-                const newPageSize = Number(value);
-                onPageSizeChange?.(newPageSize);
-                onPageChange?.(0);
+                if (value === "all") {
+                  // Set pageSize to totalItems or 0 to indicate "show all"
+                  onPageSizeChange?.(totalItems || 0);
+                  onPageChange?.(0);
+                } else {
+                  const newPageSize = Number(value);
+                  onPageSizeChange?.(newPageSize);
+                  onPageChange?.(0);
+                }
               }}
             >
               <SelectTrigger className="w-16 text-dark-600">
                 <SelectValue placeholder="10" />
               </SelectTrigger>
               <SelectContent className="bg-white">
-                {[5, 10, 15, 20, 25, 30].map((size) => (
+                {[5, 10, 25, 30, 50, 100].map((size) => (
                   <SelectItem
                     key={size}
                     value={String(size)}
@@ -383,11 +391,21 @@ export function DataTable<TData, TValue>({
                     {size}
                   </SelectItem>
                 ))}
+                <SelectItem
+                  value="all"
+                  className="text-dark-600 hover:text-white hover:bg-blue-800 cursor-pointer rounded-md"
+                >
+                  All
+                </SelectItem>
               </SelectContent>
             </Select>
             <span className="text-xs sm:text-sm text-dark-600">
-              {page * pageSize + 1}-
-              {Math.min((page + 1) * pageSize, totalItems)} of {totalItems}
+              {isShowingAll
+                ? `Showing all ${totalItems} items`
+                : `${page * pageSize + 1}-${Math.min(
+                    (page + 1) * pageSize,
+                    totalItems
+                  )} of ${totalItems}`}
             </span>
           </div>
           <div className="w-full flex flex-row items-center justify-between sm:justify-end gap-2">
@@ -395,7 +413,7 @@ export function DataTable<TData, TValue>({
               variant="outline"
               size="sm"
               onClick={() => onPageChange?.(page - 1)}
-              disabled={page === 0}
+              disabled={page === 0 || isShowingAll}
               className="shad-primary-btn border-0"
             >
               <KeyboardArrowLeftIcon />
@@ -404,7 +422,9 @@ export function DataTable<TData, TValue>({
               variant="outline"
               size="sm"
               onClick={() => onPageChange?.(page + 1)}
-              disabled={page >= Math.ceil(totalItems / pageSize) - 1}
+              disabled={
+                page >= Math.ceil(totalItems / pageSize) - 1 || isShowingAll
+              }
               className="shad-primary-btn border-0"
             >
               <KeyboardArrowRightIcon />

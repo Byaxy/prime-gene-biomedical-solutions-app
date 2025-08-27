@@ -28,6 +28,7 @@ export const addProduct = async (productData: ProductDataWithImage) => {
       .values({
         ...productData,
         typeId: productData.typeId && productData.typeId,
+        isActive: false,
       })
       .returning();
 

@@ -10,7 +10,6 @@ import {
   ConvertLoanWaybillFormValues,
   WaybillFormValues,
 } from "@/lib/validation";
-import { WaybillWithRelations } from "@/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -47,6 +46,10 @@ export const useWaybills = ({
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [filters, setFilters] = useState<WaybillFilters>(defaultWaybillFilters);
 
+  const shouldFetchAll = getAllWaybills;
+
+  const isShowAllMode = pageSize === 0;
+
   // Query for all Waybills
   const allWaybillsQuery = useQuery({
     queryKey: ["waybills", "allWaybills", filters],
@@ -54,7 +57,7 @@ export const useWaybills = ({
       const result = await getWaybills(0, 0, true, filters);
       return result.documents;
     },
-    enabled: getAllWaybills,
+    enabled: shouldFetchAll || isShowAllMode,
   });
 
   // Query for paginated Waybills
@@ -64,13 +67,20 @@ export const useWaybills = ({
       const result = await getWaybills(page, pageSize, false, filters);
       return result;
     },
-    enabled: !getAllWaybills,
+    enabled: !shouldFetchAll || !isShowAllMode,
   });
+
+  // Determine which query data to use
+  const activeQuery =
+    shouldFetchAll || isShowAllMode ? allWaybillsQuery : paginatedWaybillsQuery;
+  const waybills = activeQuery.data?.documents || [];
+  const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view
   useEffect(() => {
     if (
-      !getAllWaybills &&
+      !shouldFetchAll &&
+      !isShowAllMode &&
       paginatedWaybillsQuery.data &&
       page * pageSize < paginatedWaybillsQuery.data.total - pageSize
     ) {
@@ -90,12 +100,19 @@ export const useWaybills = ({
     pageSize,
     paginatedWaybillsQuery.data,
     queryClient,
-    getAllWaybills,
+    shouldFetchAll,
+    isShowAllMode,
     filters,
   ]);
   // Handle filter changes
   const handleFilterChange = (newFilters: WaybillFilters) => {
     setFilters(newFilters);
+    setPage(0);
+  };
+
+  // Handle page size changes
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
     setPage(0);
   };
 
@@ -177,21 +194,16 @@ export const useWaybills = ({
     });
 
   return {
-    waybills: getAllWaybills
-      ? allWaybillsQuery.data
-      : paginatedWaybillsQuery.data?.documents ||
-        ([] as WaybillWithRelations[]),
-    totalItems: paginatedWaybillsQuery.data?.total || 0,
-    isLoading: getAllWaybills
-      ? allWaybillsQuery.isLoading
-      : paginatedWaybillsQuery.isLoading,
-    error: getAllWaybills
-      ? allWaybillsQuery.error
-      : paginatedWaybillsQuery.error,
+    waybills,
+    totalItems,
+    isLoading: activeQuery.isLoading,
+    error: activeQuery.error,
+    setPageSize: handlePageSizeChange,
+    refetch: activeQuery.refetch,
+    isRefetching: activeQuery.isRefetching,
     page,
     setPage,
     pageSize,
-    setPageSize,
     filters,
     onFilterChange: handleFilterChange,
     defaultFilterValues: defaultWaybillFilters,
@@ -205,11 +217,5 @@ export const useWaybills = ({
     isSoftDeletingWaybill: softDeleteWaybillStatus === "pending",
     convertLoanWaybill: convertLoanWaybillMutation,
     isConvertingLoanWaybill: convertLoanWaybillStatus === "pending",
-    refetch: getAllWaybills
-      ? allWaybillsQuery.refetch
-      : paginatedWaybillsQuery.refetch,
-    isRefetching: getAllWaybills
-      ? allWaybillsQuery.isRefetching
-      : paginatedWaybillsQuery.isRefetching,
   };
 };

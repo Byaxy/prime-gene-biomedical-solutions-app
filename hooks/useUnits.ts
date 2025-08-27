@@ -23,6 +23,10 @@ export const useUnits = ({
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(initialPageSize);
 
+  const shouldFetchAll = getAllUnits;
+
+  const isShowAllMode = pageSize === 0;
+
   // Query for all Units
   const allUnitsQuery = useQuery({
     queryKey: ["units", "allUnits"],
@@ -30,7 +34,7 @@ export const useUnits = ({
       const result = await getUnits(0, 0, true);
       return result.documents;
     },
-    enabled: getAllUnits,
+    enabled: shouldFetchAll || isShowAllMode,
   });
 
   // Query for paginated Units
@@ -40,13 +44,20 @@ export const useUnits = ({
       const result = await getUnits(page, pageSize, false);
       return result;
     },
-    enabled: !getAllUnits,
+    enabled: !shouldFetchAll || !isShowAllMode,
   });
+
+  // Determine which query data to use
+  const activeQuery =
+    shouldFetchAll || isShowAllMode ? allUnitsQuery : paginatedUnitsQuery;
+  const units = activeQuery.data?.documents || [];
+  const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view
   useEffect(() => {
     if (
-      !getAllUnits &&
+      !shouldFetchAll &&
+      !isShowAllMode &&
       paginatedUnitsQuery.data &&
       page * pageSize < paginatedUnitsQuery.data.total - pageSize
     ) {
@@ -55,7 +66,20 @@ export const useUnits = ({
         queryFn: () => getUnits(page + 1, pageSize, false),
       });
     }
-  }, [page, pageSize, paginatedUnitsQuery.data, queryClient, getAllUnits]);
+  }, [
+    page,
+    pageSize,
+    paginatedUnitsQuery.data,
+    queryClient,
+    shouldFetchAll,
+    isShowAllMode,
+  ]);
+
+  // Handle page size changes
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
+    setPage(0);
+  };
 
   // Add unit mutation
   const { mutate: addUnitMutation, status: addUnitStatus } = useMutation({
@@ -112,18 +136,16 @@ export const useUnits = ({
   });
 
   return {
-    units: getAllUnits
-      ? allUnitsQuery.data
-      : paginatedUnitsQuery.data?.documents || [],
-    totalItems: paginatedUnitsQuery.data?.total || 0,
-    isLoading: getAllUnits
-      ? allUnitsQuery.isLoading
-      : paginatedUnitsQuery.isLoading,
-    error: getAllUnits ? allUnitsQuery.error : paginatedUnitsQuery.error,
+    units,
+    totalItems,
+    isLoading: activeQuery.isLoading,
+    error: activeQuery.error,
+    setPageSize: handlePageSizeChange,
+    refetch: activeQuery.refetch,
+    isRefetching: activeQuery.isRefetching,
     page,
     setPage,
     pageSize,
-    setPageSize,
     addUnit: addUnitMutation,
     isAddingUnit: addUnitStatus === "pending",
     editUnit: editUnitMutation,
@@ -132,9 +154,5 @@ export const useUnits = ({
     isSoftDeletingUnit: softDeleteUnitStatus === "pending",
     deleteUnit: deleteUnitMutation,
     isDeletingUnit: deleteUnitStatus === "pending",
-    refetch: getAllUnits ? allUnitsQuery.refetch : paginatedUnitsQuery.refetch,
-    isRefetching: getAllUnits
-      ? allUnitsQuery.isRefetching
-      : paginatedUnitsQuery.isRefetching,
   };
 };

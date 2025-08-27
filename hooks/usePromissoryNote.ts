@@ -8,7 +8,6 @@ import {
   softDeletePromissoryNote,
 } from "@/lib/actions/promissoryNote.actions";
 import { PromissoryNoteFormValues } from "@/lib/validation";
-import { PromissoryNoteWithRelations } from "@/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -41,14 +40,18 @@ export const usePromissoryNote = ({
     defaultPromissoryNoteFilters
   );
 
+  const shouldFetchAll = getAllPromissoryNotes;
+
+  const isShowAllMode = pageSize === 0;
+
   // Query for all PromissoryNotes
   const allPromissoryNotesQuery = useQuery({
-    queryKey: ["promissoryNotes", "allPromissoryNotes", filters],
+    queryKey: ["promissoryNotes", filters],
     queryFn: async () => {
       const result = await getPromissoryNotes(0, 0, true, filters);
       return result.documents;
     },
-    enabled: getAllPromissoryNotes,
+    enabled: shouldFetchAll || isShowAllMode,
   });
 
   // Query for paginated PromissoryNotes
@@ -64,13 +67,22 @@ export const usePromissoryNote = ({
       const result = await getPromissoryNotes(page, pageSize, false, filters);
       return result;
     },
-    enabled: !getAllPromissoryNotes,
+    enabled: !shouldFetchAll && !isShowAllMode,
   });
+
+  // Determine which query data to use
+  const activeQuery =
+    shouldFetchAll || isShowAllMode
+      ? allPromissoryNotesQuery
+      : paginatedPromissoryNotesQuery;
+  const promissoryNotes = activeQuery.data?.documents || [];
+  const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view
   useEffect(() => {
     if (
-      !getAllPromissoryNotes &&
+      !shouldFetchAll &&
+      !isShowAllMode &&
       paginatedPromissoryNotesQuery.data &&
       page * pageSize < paginatedPromissoryNotesQuery.data.total - pageSize
     ) {
@@ -90,12 +102,19 @@ export const usePromissoryNote = ({
     pageSize,
     paginatedPromissoryNotesQuery.data,
     queryClient,
-    getAllPromissoryNotes,
+    shouldFetchAll,
+    isShowAllMode,
     filters,
   ]);
   // Handle filter changes
   const handleFilterChange = (newFilters: PromissoryNoteFilters) => {
     setFilters(newFilters);
+    setPage(0);
+  };
+
+  // Handle page size changes
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
     setPage(0);
   };
 
@@ -158,21 +177,16 @@ export const usePromissoryNote = ({
   });
 
   return {
-    promissoryNotes: getAllPromissoryNotes
-      ? allPromissoryNotesQuery.data
-      : paginatedPromissoryNotesQuery.data?.documents ||
-        ([] as PromissoryNoteWithRelations[]),
-    totalItems: paginatedPromissoryNotesQuery.data?.total || 0,
-    isLoading: getAllPromissoryNotes
-      ? allPromissoryNotesQuery.isLoading
-      : paginatedPromissoryNotesQuery.isLoading,
-    error: getAllPromissoryNotes
-      ? allPromissoryNotesQuery.error
-      : paginatedPromissoryNotesQuery.error,
+    promissoryNotes,
+    totalItems,
+    isLoading: activeQuery.isLoading,
+    error: activeQuery.error,
+    setPageSize: handlePageSizeChange,
+    refetch: activeQuery.refetch,
+    isRefetching: activeQuery.isRefetching,
     page,
     setPage,
     pageSize,
-    setPageSize,
     filters,
     onFilterChange: handleFilterChange,
     defaultFilterValues: defaultPromissoryNoteFilters,
@@ -184,11 +198,5 @@ export const usePromissoryNote = ({
     isDeletingPromissoryNote: deletePromissoryNoteStatus === "pending",
     softDeletePromissoryNote: softDeletePromissoryNoteMutation,
     isSoftDeletingPromissoryNote: softDeletePromissoryNoteStatus === "pending",
-    refetch: getAllPromissoryNotes
-      ? allPromissoryNotesQuery.refetch
-      : paginatedPromissoryNotesQuery.refetch,
-    isRefetching: getAllPromissoryNotes
-      ? allPromissoryNotesQuery.isRefetching
-      : paginatedPromissoryNotesQuery.isRefetching,
   };
 };

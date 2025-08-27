@@ -10,7 +10,7 @@ import {
 } from "@/lib/actions/receivingPurchases.actions";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ReceivingPurchaseFormValues } from "@/lib/validation";
-import { Attachment, ReceivedPurchaseWithRelations } from "@/types";
+import { Attachment } from "@/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
@@ -43,6 +43,10 @@ export const useReceivingPurchases = ({
   const [filters, setFilters] =
     useState<ReceivedPurchaseFilters>(defaultFilters);
 
+  const shouldFetchAll = getAllReceivedPurchases;
+
+  const isShowAllMode = pageSize === 0;
+
   // Query for all Purchases
   const allReceivedPurchasesQuery = useQuery({
     queryKey: ["receivedPurchases", filters],
@@ -50,7 +54,7 @@ export const useReceivingPurchases = ({
       const result = await getReceivedPurchases(0, 0, true, filters);
       return result.documents;
     },
-    enabled: getAllReceivedPurchases,
+    enabled: shouldFetchAll || isShowAllMode,
   });
 
   // Query for paginated Purchases
@@ -66,13 +70,22 @@ export const useReceivingPurchases = ({
       const result = await getReceivedPurchases(page, pageSize, false, filters);
       return result;
     },
-    enabled: !getAllReceivedPurchases,
+    enabled: !shouldFetchAll || !isShowAllMode,
   });
+
+  // Determine which query data to use
+  const activeQuery =
+    shouldFetchAll || isShowAllMode
+      ? allReceivedPurchasesQuery
+      : paginatedReceivedPurchasesQuery;
+  const receivedPurchases = activeQuery.data?.documents || [];
+  const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view
   useEffect(() => {
     if (
-      !getAllReceivedPurchases &&
+      !shouldFetchAll &&
+      !isShowAllMode &&
       paginatedReceivedPurchasesQuery.data &&
       page * pageSize < paginatedReceivedPurchasesQuery.data.total - pageSize
     ) {
@@ -92,13 +105,20 @@ export const useReceivingPurchases = ({
     pageSize,
     paginatedReceivedPurchasesQuery.data,
     queryClient,
-    getAllReceivedPurchases,
+    shouldFetchAll,
+    isShowAllMode,
     filters,
   ]);
 
   // Handle filter changes
   const handleFilterChange = (newFilters: ReceivedPurchaseFilters) => {
     setFilters(newFilters);
+    setPage(0);
+  };
+
+  // Handle page size changes
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
     setPage(0);
   };
 
@@ -274,21 +294,16 @@ export const useReceivingPurchases = ({
   });
 
   return {
-    receivedPurchases: getAllReceivedPurchases
-      ? allReceivedPurchasesQuery.data
-      : paginatedReceivedPurchasesQuery.data?.documents ||
-        ([] as ReceivedPurchaseWithRelations[]),
-    totalItems: paginatedReceivedPurchasesQuery.data?.total || 0,
-    isLoading: getAllReceivedPurchases
-      ? allReceivedPurchasesQuery.isLoading
-      : paginatedReceivedPurchasesQuery.isLoading,
-    error: getAllReceivedPurchases
-      ? allReceivedPurchasesQuery.error
-      : paginatedReceivedPurchasesQuery.error,
+    receivedPurchases,
+    totalItems,
+    isLoading: activeQuery.isLoading,
+    error: activeQuery.error,
+    setPageSize: handlePageSizeChange,
+    refetch: activeQuery.refetch,
+    isRefetching: activeQuery.isRefetching,
     page,
     setPage,
     pageSize,
-    setPageSize,
     filters,
     onFilterChange: handleFilterChange,
     defaultFilterValues: defaultFilters,
@@ -301,11 +316,5 @@ export const useReceivingPurchases = ({
       softDeleteReceivedPurchaseStatus === "pending",
     deleteReceivedPurchase: deleteReceivedPurchaseMutation,
     isDeletingReceivedPurchase: deleteReceivedPurchaseStatus === "pending",
-    refetch: getAllReceivedPurchases
-      ? allReceivedPurchasesQuery.refetch
-      : paginatedReceivedPurchasesQuery.refetch,
-    isRefetching: getAllReceivedPurchases
-      ? allReceivedPurchasesQuery.isRefetching
-      : paginatedReceivedPurchasesQuery.isRefetching,
   };
 };

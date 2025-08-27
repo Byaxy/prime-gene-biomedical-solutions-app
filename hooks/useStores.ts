@@ -23,6 +23,10 @@ export const useStores = ({
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(initialPageSize);
 
+  const shouldFetchAll = getAllStores;
+
+  const isShowAllMode = pageSize === 0;
+
   // Query for all Stores
   const allStoresQuery = useQuery({
     queryKey: ["stores", "allStores"],
@@ -30,7 +34,7 @@ export const useStores = ({
       const result = await getStores(0, 0, true);
       return result.documents;
     },
-    enabled: getAllStores,
+    enabled: shouldFetchAll || isShowAllMode,
   });
 
   // Query for paginated Stores
@@ -40,13 +44,20 @@ export const useStores = ({
       const result = await getStores(page, pageSize, false);
       return result;
     },
-    enabled: !getAllStores,
+    enabled: !shouldFetchAll || !isShowAllMode,
   });
+
+  // Determine which query data to use
+  const activeQuery =
+    shouldFetchAll || isShowAllMode ? allStoresQuery : paginatedStoresQuery;
+  const stores = activeQuery.data?.documents || [];
+  const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view
   useEffect(() => {
     if (
-      !getAllStores &&
+      !shouldFetchAll &&
+      !isShowAllMode &&
       paginatedStoresQuery.data &&
       page * pageSize < paginatedStoresQuery.data.total - pageSize
     ) {
@@ -55,7 +66,20 @@ export const useStores = ({
         queryFn: () => getStores(page + 1, pageSize, false),
       });
     }
-  }, [page, pageSize, paginatedStoresQuery.data, queryClient, getAllStores]);
+  }, [
+    page,
+    pageSize,
+    paginatedStoresQuery.data,
+    queryClient,
+    shouldFetchAll,
+    isShowAllMode,
+  ]);
+
+  // Handle page size changes
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
+    setPage(0);
+  };
 
   // Add Store mutation
   const { mutate: addStoreMutation, status: addStoreStatus } = useMutation({
@@ -113,18 +137,16 @@ export const useStores = ({
     });
 
   return {
-    stores: getAllStores
-      ? allStoresQuery.data
-      : paginatedStoresQuery.data?.documents || [],
-    totalItems: paginatedStoresQuery.data?.total || 0,
-    isLoading: getAllStores
-      ? allStoresQuery.isLoading
-      : paginatedStoresQuery.isLoading,
-    error: getAllStores ? allStoresQuery.error : paginatedStoresQuery.error,
+    stores,
+    totalItems,
+    isLoading: activeQuery.isLoading,
+    error: activeQuery.error,
+    setPageSize: handlePageSizeChange,
+    refetch: activeQuery.refetch,
+    isRefetching: activeQuery.isRefetching,
     page,
     setPage,
     pageSize,
-    setPageSize,
     addStore: addStoreMutation,
     isAddingStore: addStoreStatus === "pending",
     editStore: editStoreMutation,
@@ -133,11 +155,5 @@ export const useStores = ({
     isSoftDeletingStore: softDeleteStoreStatus === "pending",
     deleteStore: deleteStoreMutation,
     isDeletingStore: deleteStoreStatus === "pending",
-    refetch: getAllStores
-      ? allStoresQuery.refetch
-      : paginatedStoresQuery.refetch,
-    isRefetching: getAllStores
-      ? allStoresQuery.isRefetching
-      : paginatedStoresQuery.isRefetching,
   };
 };

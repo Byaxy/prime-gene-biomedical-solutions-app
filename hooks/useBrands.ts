@@ -24,6 +24,10 @@ export const useBrands = ({
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(initialPageSize);
 
+  const shouldFetchAll = getAllBrands;
+
+  const isShowAllMode = pageSize === 0;
+
   // Query for all Brands
   const allBrandsQuery = useQuery({
     queryKey: ["brands", "allBrands"],
@@ -31,7 +35,7 @@ export const useBrands = ({
       const result = await getBrands(0, 0, true);
       return result.documents;
     },
-    enabled: getAllBrands,
+    enabled: shouldFetchAll || isShowAllMode,
   });
 
   // Query for paginated Brands
@@ -41,13 +45,20 @@ export const useBrands = ({
       const result = await getBrands(page, pageSize, false);
       return result;
     },
-    enabled: !getAllBrands,
+    enabled: !shouldFetchAll && !isShowAllMode,
   });
+
+  // Determine which query data to use
+  const activeQuery =
+    shouldFetchAll || isShowAllMode ? allBrandsQuery : paginatedBrandsQuery;
+  const brands = activeQuery.data?.documents || [];
+  const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view
   useEffect(() => {
     if (
-      !getAllBrands &&
+      !shouldFetchAll &&
+      !isShowAllMode &&
       paginatedBrandsQuery.data &&
       page * pageSize < paginatedBrandsQuery.data.total - pageSize
     ) {
@@ -56,7 +67,20 @@ export const useBrands = ({
         queryFn: () => getBrands(page + 1, pageSize, false),
       });
     }
-  }, [page, pageSize, paginatedBrandsQuery.data, queryClient, getAllBrands]);
+  }, [
+    page,
+    pageSize,
+    paginatedBrandsQuery.data,
+    queryClient,
+    shouldFetchAll,
+    isShowAllMode,
+  ]);
+
+  // Handle page size changes
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
+    setPage(0);
+  };
 
   // Add Brand mutation
   const { mutate: addBrandMutation, status: addBrandStatus } = useMutation({
@@ -201,18 +225,14 @@ export const useBrands = ({
     });
 
   return {
-    brands: getAllBrands
-      ? allBrandsQuery.data
-      : paginatedBrandsQuery.data?.documents || [],
-    totalItems: paginatedBrandsQuery.data?.total || 0,
-    isLoading: getAllBrands
-      ? allBrandsQuery.isLoading
-      : paginatedBrandsQuery.isLoading,
-    error: getAllBrands ? allBrandsQuery.error : paginatedBrandsQuery.error,
+    brands,
+    totalItems,
+    isLoading: activeQuery.isLoading,
+    error: activeQuery.error,
     page,
     setPage,
     pageSize,
-    setPageSize,
+    setPageSize: handlePageSizeChange,
     addBrand: addBrandMutation,
     editBrand: editBrandMutation,
     softDeleteBrand: softDeleteBrandMutation,
@@ -221,11 +241,7 @@ export const useBrands = ({
     isEditingBrand: editBrandStatus === "pending",
     isDeletingBrand: deleteBrandStatus === "pending",
     isSoftDeletingBrand: softDeleteBrandStatus === "pending",
-    refetch: getAllBrands
-      ? allBrandsQuery.refetch
-      : paginatedBrandsQuery.refetch,
-    isRefetching: getAllBrands
-      ? allBrandsQuery.isRefetching
-      : paginatedBrandsQuery.isRefetching,
+    refetch: activeQuery.refetch,
+    isRefetching: activeQuery.isRefetching,
   };
 };

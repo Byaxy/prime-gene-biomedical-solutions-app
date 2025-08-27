@@ -16,7 +16,6 @@ import {
 } from "@/lib/actions/product.actions";
 import { useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { ProductWithRelations } from "@/types";
 
 interface UseProductsOptions {
   getAllProducts?: boolean;
@@ -60,6 +59,10 @@ export const useProducts = ({
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [filters, setFilters] = useState<ProductFilters>(defaultProductFilters);
 
+  const shouldFetchAll = getAllProducts;
+
+  const isShowAllMode = pageSize === 0;
+
   // Query for all Products
   const allProductsQuery = useQuery({
     queryKey: ["products", filters],
@@ -67,7 +70,7 @@ export const useProducts = ({
       const result = await getProducts(0, 0, true, filters);
       return result.documents;
     },
-    enabled: getAllProducts,
+    enabled: shouldFetchAll || isShowAllMode,
   });
 
   // Query for paginated Products
@@ -77,13 +80,20 @@ export const useProducts = ({
       const result = await getProducts(page, pageSize, false, filters);
       return result;
     },
-    enabled: !getAllProducts,
+    enabled: !shouldFetchAll && !isShowAllMode,
   });
+
+  // Determine which query data to use
+  const activeQuery =
+    shouldFetchAll || isShowAllMode ? allProductsQuery : paginatedProductsQuery;
+  const products = activeQuery.data?.documents || [];
+  const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view
   useEffect(() => {
     if (
-      !getAllProducts &&
+      !shouldFetchAll &&
+      !isShowAllMode &&
       paginatedProductsQuery.data &&
       page * pageSize < paginatedProductsQuery.data.total - pageSize
     ) {
@@ -103,13 +113,20 @@ export const useProducts = ({
     pageSize,
     paginatedProductsQuery.data,
     queryClient,
-    getAllProducts,
+    shouldFetchAll,
+    isShowAllMode,
     filters,
   ]);
 
   // Handle filter changes
   const handleFilterChange = (newFilters: ProductFilters) => {
     setFilters(newFilters);
+    setPage(0);
+  };
+
+  // Handle page size changes
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
     setPage(0);
   };
 
@@ -334,21 +351,16 @@ export const useProducts = ({
     });
 
   return {
-    products: getAllProducts
-      ? allProductsQuery.data
-      : paginatedProductsQuery.data?.documents ||
-        ([] as ProductWithRelations[]),
-    totalItems: paginatedProductsQuery.data?.total || 0,
-    isLoading: getAllProducts
-      ? allProductsQuery.isLoading
-      : paginatedProductsQuery.isLoading,
-    error: getAllProducts
-      ? allProductsQuery.error
-      : paginatedProductsQuery.error,
+    products,
+    totalItems,
+    isLoading: activeQuery.isLoading,
+    error: activeQuery.error,
+    setPageSize: handlePageSizeChange,
+    refetch: activeQuery.refetch,
+    isRefetching: activeQuery.isRefetching,
     page,
     setPage,
     pageSize,
-    setPageSize,
     filters,
     onFilterChange: handleFilterChange,
     defaultFilterValues: defaultProductFilters,
@@ -369,12 +381,5 @@ export const useProducts = ({
       softDeleteMultipleProductsStatus === "pending",
     reactivateProduct: reactivateProductMutation,
     isReactivatingProduct: reactivateProductStatus === "pending",
-
-    refetch: getAllProducts
-      ? allProductsQuery.refetch
-      : paginatedProductsQuery.refetch,
-    isRefetching: getAllProducts
-      ? allProductsQuery.isRefetching
-      : paginatedProductsQuery.isRefetching,
   };
 };

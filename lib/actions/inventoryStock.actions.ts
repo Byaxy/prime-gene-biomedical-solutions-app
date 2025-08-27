@@ -18,7 +18,10 @@ import {
 import { eq, and, desc, sql, gte, lte, asc, gt } from "drizzle-orm";
 import { ExistingStockAdjustmentFormValues } from "../validation";
 import { ExtendedStockAdjustmentFormValues } from "@/components/forms/NewStockForm";
-import { InventoryStockFilters } from "@/hooks/useInventoryStock";
+import {
+  InventoryStockFilters,
+  InventoryTransactionsFilters,
+} from "@/hooks/useInventoryStock";
 import { InventoryStock } from "@/types";
 
 // fulfill Backorders
@@ -665,13 +668,7 @@ export const getInventoryTransactions = async (
   page: number = 0,
   limit: number = 10,
   getAllTransactions: boolean = false,
-  filters?: {
-    productId?: string;
-    storeId?: string;
-    transactionType?: string;
-    startDate?: Date;
-    endDate?: Date;
-  }
+  filters?: InventoryTransactionsFilters
 ) => {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -702,20 +699,21 @@ export const getInventoryTransactions = async (
       )
       .orderBy(desc(inventoryTransactionsTable.transactionDate));
 
+    const conditions = [eq(inventoryTransactionsTable.isActive, true)];
+
     // Apply filters if provided
     if (filters) {
-      const conditions = [];
-      if (filters.productId) {
+      if (filters.productId !== undefined) {
         conditions.push(
           eq(inventoryTransactionsTable.productId, filters.productId)
         );
       }
-      if (filters.storeId) {
+      if (filters.storeId !== undefined) {
         conditions.push(
           eq(inventoryTransactionsTable.storeId, filters.storeId)
         );
       }
-      if (filters.transactionType) {
+      if (filters.transactionType !== undefined) {
         conditions.push(
           eq(
             inventoryTransactionsTable.transactionType,
@@ -727,18 +725,25 @@ export const getInventoryTransactions = async (
           )
         );
       }
-      if (filters.startDate && filters.endDate) {
+      if (filters.startDate !== undefined) {
         conditions.push(
-          and(
-            gte(inventoryTransactionsTable.transactionDate, filters.startDate),
-            lte(inventoryTransactionsTable.transactionDate, filters.endDate)
+          gte(
+            inventoryTransactionsTable.transactionDate,
+            new Date(filters.startDate)
           )
         );
       }
-      if (conditions.length > 0) {
-        query = query.where(and(...conditions));
+      if (filters.endDate !== undefined) {
+        conditions.push(
+          lte(
+            inventoryTransactionsTable.transactionDate,
+            new Date(filters.endDate)
+          )
+        );
       }
     }
+
+    query = query.where(and(...conditions));
 
     if (!getAllTransactions) {
       query = query.limit(Number(limit)).offset(Number(page) * Number(limit));

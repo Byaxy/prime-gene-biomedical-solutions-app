@@ -23,6 +23,10 @@ export const useTypes = ({
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(initialPageSize);
 
+  const shouldFetchAll = getAllTypes;
+
+  const isShowAllMode = pageSize === 0;
+
   // Query for all Types
   const allTypesQuery = useQuery({
     queryKey: ["types", "allTypes"],
@@ -30,7 +34,7 @@ export const useTypes = ({
       const result = await getTypes(0, 0, true);
       return result.documents;
     },
-    enabled: getAllTypes,
+    enabled: shouldFetchAll || isShowAllMode,
   });
 
   // Query for paginated Types
@@ -40,13 +44,20 @@ export const useTypes = ({
       const result = await getTypes(page, pageSize, false);
       return result;
     },
-    enabled: !getAllTypes,
+    enabled: !shouldFetchAll || !isShowAllMode,
   });
+
+  // Determine which query data to use
+  const activeQuery =
+    shouldFetchAll || isShowAllMode ? allTypesQuery : paginatedTypesQuery;
+  const types = activeQuery.data?.documents || [];
+  const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view
   useEffect(() => {
     if (
-      !getAllTypes &&
+      !shouldFetchAll &&
+      !isShowAllMode &&
       paginatedTypesQuery.data &&
       page * pageSize < paginatedTypesQuery.data.total - pageSize
     ) {
@@ -55,7 +66,20 @@ export const useTypes = ({
         queryFn: () => getTypes(page + 1, pageSize, false),
       });
     }
-  }, [page, pageSize, paginatedTypesQuery.data, queryClient, getAllTypes]);
+  }, [
+    page,
+    pageSize,
+    paginatedTypesQuery.data,
+    queryClient,
+    shouldFetchAll,
+    isShowAllMode,
+  ]);
+
+  // Handle page size changes
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
+    setPage(0);
+  };
 
   // Add type mutation
   const { mutate: addTypeMutation, status: addTypeStatus } = useMutation({
@@ -112,18 +136,16 @@ export const useTypes = ({
   });
 
   return {
-    types: getAllTypes
-      ? allTypesQuery.data
-      : paginatedTypesQuery.data?.documents || [],
-    totalItems: paginatedTypesQuery.data?.total || 0,
-    isLoading: getAllTypes
-      ? allTypesQuery.isLoading
-      : paginatedTypesQuery.isLoading,
-    error: getAllTypes ? allTypesQuery.error : paginatedTypesQuery.error,
+    types,
+    totalItems,
+    isLoading: activeQuery.isLoading,
+    error: activeQuery.error,
+    setPageSize: handlePageSizeChange,
+    refetch: activeQuery.refetch,
+    isRefetching: activeQuery.isRefetching,
     page,
     setPage,
     pageSize,
-    setPageSize,
     addType: addTypeMutation,
     isAddingType: addTypeStatus === "pending",
     editType: editTypeMutation,
@@ -132,9 +154,5 @@ export const useTypes = ({
     isSoftDeletingType: softDeleteTypeStatus === "pending",
     deleteType: deleteTypeMutation,
     isDeletingType: deleteTypeStatus === "pending",
-    refetch: getAllTypes ? allTypesQuery.refetch : paginatedTypesQuery.refetch,
-    isRefetching: getAllTypes
-      ? allTypesQuery.isRefetching
-      : paginatedTypesQuery.isRefetching,
   };
 };

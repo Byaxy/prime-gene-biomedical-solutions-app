@@ -8,12 +8,12 @@ import { useInventoryStock } from "@/hooks/useInventoryStock";
 const InventoryAdjustmentList = () => {
   const {
     inventoryTransactions,
-    totalItems,
+    totalTransactions: totalItems,
     page,
     setPage,
     pageSize,
     setPageSize,
-    isFetchingTransactions,
+    isTransactionsLoading,
     refetch,
     isRefetching,
   } = useInventoryStock({ initialPageSize: 10 });
@@ -22,7 +22,7 @@ const InventoryAdjustmentList = () => {
       <DataTable
         columns={inventoryTransactionsColumns}
         data={inventoryTransactions || []}
-        isLoading={isFetchingTransactions}
+        isLoading={isTransactionsLoading}
         totalItems={totalItems}
         page={page}
         onPageChange={setPage}

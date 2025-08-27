@@ -31,6 +31,10 @@ export const useUsers = ({
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(initialPageSize);
 
+  const shouldFetchAll = getAllUsers;
+
+  const isShowAllMode = pageSize === 0;
+
   // Query for all Users
   const allUsersQuery = useQuery({
     queryKey: ["users", "allUsers"],
@@ -38,7 +42,7 @@ export const useUsers = ({
       const result = await getUsers(0, 0, true);
       return result.documents;
     },
-    enabled: getAllUsers,
+    enabled: shouldFetchAll || isShowAllMode,
   });
 
   // Query for paginated Users
@@ -48,13 +52,20 @@ export const useUsers = ({
       const result = await getUsers(page, pageSize, false);
       return result;
     },
-    enabled: !getAllUsers,
+    enabled: !shouldFetchAll || !isShowAllMode,
   });
+
+  // Determine which query data to use
+  const activeQuery =
+    shouldFetchAll || isShowAllMode ? allUsersQuery : paginatedUsersQuery;
+  const users = activeQuery.data?.documents || [];
+  const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view
   useEffect(() => {
     if (
-      !getAllUsers &&
+      !shouldFetchAll &&
+      !isShowAllMode &&
       paginatedUsersQuery.data &&
       page * pageSize < paginatedUsersQuery.data.total - pageSize
     ) {
@@ -63,7 +74,20 @@ export const useUsers = ({
         queryFn: () => getUsers(page + 1, pageSize, false),
       });
     }
-  }, [page, pageSize, paginatedUsersQuery.data, queryClient, getAllUsers]);
+  }, [
+    page,
+    pageSize,
+    paginatedUsersQuery.data,
+    queryClient,
+    shouldFetchAll,
+    isShowAllMode,
+  ]);
+
+  // Handle page size changes
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
+    setPage(0);
+  };
 
   // Create user mutation
   const { mutate: addUserMutation, status: addUserStatus } = useMutation({
@@ -239,18 +263,16 @@ export const useUsers = ({
   });
 
   return {
-    users: getAllUsers
-      ? allUsersQuery.data
-      : paginatedUsersQuery.data?.documents || [],
-    totalItems: paginatedUsersQuery.data?.total || 0,
-    isLoading: getAllUsers
-      ? allUsersQuery.isLoading
-      : paginatedUsersQuery.isLoading,
-    error: getAllUsers ? allUsersQuery.error : paginatedUsersQuery.error,
+    users,
+    totalItems,
+    isLoading: activeQuery.isLoading,
+    error: activeQuery.error,
+    setPageSize: handlePageSizeChange,
+    refetch: activeQuery.refetch,
+    isRefetching: activeQuery.isRefetching,
     page,
     setPage,
     pageSize,
-    setPageSize,
     addUser: addUserMutation,
     isCreatingUser: addUserStatus === "pending",
     editUser: editUserMutation,
@@ -259,9 +281,5 @@ export const useUsers = ({
     isDeletingUser: deleteUserStatus === "pending",
     updatePassword: updatePasswordMutation,
     isUpdatingPassword: updatePasswordStatus === "pending",
-    refetch: getAllUsers ? allUsersQuery.refetch : paginatedUsersQuery.refetch,
-    isRefetching: getAllUsers
-      ? allUsersQuery.isRefetching
-      : paginatedUsersQuery.isRefetching,
   };
 };

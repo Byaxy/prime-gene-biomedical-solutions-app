@@ -25,14 +25,18 @@ export const useCustomers = ({
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(initialPageSize);
 
+  const shouldFetchAll = getAllCustomers;
+
+  const isShowAllMode = pageSize === 0;
+
   // Query for all customers
   const allCustomersQuery = useQuery({
-    queryKey: ["customers", "allCustomers"],
+    queryKey: ["customers"],
     queryFn: async () => {
       const result = await getCustomers(0, 0, true);
       return result.documents;
     },
-    enabled: getAllCustomers,
+    enabled: shouldFetchAll || isShowAllMode,
   });
 
   // Query for paginated Customers
@@ -42,13 +46,22 @@ export const useCustomers = ({
       const result = await getCustomers(page, pageSize, false);
       return result;
     },
-    enabled: !getAllCustomers,
+    enabled: !shouldFetchAll && !isShowAllMode,
   });
+
+  // Determine which query data to use
+  const activeQuery =
+    shouldFetchAll || isShowAllMode
+      ? allCustomersQuery
+      : paginatedCustomersQuery;
+  const customers = activeQuery.data?.documents || [];
+  const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view
   useEffect(() => {
     if (
-      !getAllCustomers &&
+      !shouldFetchAll &&
+      !isShowAllMode &&
       paginatedCustomersQuery.data &&
       page * pageSize < paginatedCustomersQuery.data.total - pageSize
     ) {
@@ -62,8 +75,15 @@ export const useCustomers = ({
     pageSize,
     paginatedCustomersQuery.data,
     queryClient,
-    getAllCustomers,
+    shouldFetchAll,
+    isShowAllMode,
   ]);
+
+  // Handle page size changes
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
+    setPage(0);
+  };
 
   // Add customer mutation
   const { mutate: addCustomerMutation, status: addCustomerStatus } =
@@ -115,20 +135,16 @@ export const useCustomers = ({
     });
 
   return {
-    customers: getAllCustomers
-      ? allCustomersQuery.data
-      : paginatedCustomersQuery.data?.documents || [],
-    totalItems: paginatedCustomersQuery.data?.total || 0,
-    isLoading: getAllCustomers
-      ? allCustomersQuery.isLoading
-      : paginatedCustomersQuery.isLoading,
-    error: getAllCustomers
-      ? allCustomersQuery.error
-      : paginatedCustomersQuery.error,
+    customers,
+    totalItems,
+    isLoading: activeQuery.isLoading,
+    error: activeQuery.error,
+    setPageSize: handlePageSizeChange,
+    refetch: activeQuery.refetch,
+    isRefetching: activeQuery.isRefetching,
     page,
     setPage,
     pageSize,
-    setPageSize,
     addCustomer: addCustomerMutation,
     isAddingCustomer: addCustomerStatus === "pending",
     editCustomer: editCustomerMutation,
@@ -137,11 +153,5 @@ export const useCustomers = ({
     isSoftDeletingCustomer: softDeleteCustomerStatus === "pending",
     deleteCustomer: deleteCustomerMutation,
     isDeletingCustomer: deleteCustomerStatus === "pending",
-    refetch: getAllCustomers
-      ? allCustomersQuery.refetch
-      : paginatedCustomersQuery.refetch,
-    isRefetching: getAllCustomers
-      ? allCustomersQuery.isRefetching
-      : paginatedCustomersQuery.isRefetching,
   };
 };

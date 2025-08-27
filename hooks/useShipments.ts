@@ -47,6 +47,10 @@ export const useShipments = ({
     defaultShipmentFilters
   );
 
+  const shouldFetchAll = getAllShipments;
+
+  const isShowAllMode = pageSize === 0;
+
   // Query for all Shipments
   const allShipmentsQuery = useQuery({
     queryKey: ["shipments", filters],
@@ -54,7 +58,7 @@ export const useShipments = ({
       const result = await getShipments(0, 0, true, filters);
       return result.documents;
     },
-    enabled: getAllShipments,
+    enabled: shouldFetchAll || isShowAllMode,
   });
 
   // Query for paginated Shipments
@@ -64,13 +68,22 @@ export const useShipments = ({
       const result = await getShipments(page, pageSize, false, filters);
       return result;
     },
-    enabled: !getAllShipments,
+    enabled: !shouldFetchAll || !isShowAllMode,
   });
+
+  // Determine which query data to use
+  const activeQuery =
+    shouldFetchAll || isShowAllMode
+      ? allShipmentsQuery
+      : paginatedShipmentsQuery;
+  const shipments = activeQuery.data?.documents || [];
+  const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view
   useEffect(() => {
     if (
-      !getAllShipments &&
+      !shouldFetchAll &&
+      !isShowAllMode &&
       paginatedShipmentsQuery.data &&
       page * pageSize < paginatedShipmentsQuery.data.total - pageSize
     ) {
@@ -90,13 +103,20 @@ export const useShipments = ({
     pageSize,
     paginatedShipmentsQuery.data,
     queryClient,
-    getAllShipments,
+    shouldFetchAll,
+    isShowAllMode,
     filters,
   ]);
 
   // Handle filter changes
   const handleFilterChange = (newFilters: ShipmentFilters) => {
     setFilters(newFilters);
+    setPage(0);
+  };
+
+  // Handle page size changes
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
     setPage(0);
   };
 
@@ -257,20 +277,16 @@ export const useShipments = ({
     });
 
   return {
-    shipments: getAllShipments
-      ? allShipmentsQuery.data
-      : paginatedShipmentsQuery.data?.documents || [],
-    totalItems: paginatedShipmentsQuery.data?.total || 0,
-    isLoading: getAllShipments
-      ? allShipmentsQuery.isLoading
-      : paginatedShipmentsQuery.isLoading,
-    error: getAllShipments
-      ? allShipmentsQuery.error
-      : paginatedShipmentsQuery.error,
+    shipments,
+    totalItems,
+    isLoading: activeQuery.isLoading,
+    error: activeQuery.error,
+    setPageSize: handlePageSizeChange,
+    refetch: activeQuery.refetch,
+    isRefetching: activeQuery.isRefetching,
     page,
     setPage,
     pageSize,
-    setPageSize,
     filters,
     onFilterChange: handleFilterChange,
     defaultFilterValues: defaultShipmentFilters,
@@ -282,11 +298,5 @@ export const useShipments = ({
     isSoftDeletingShipment: softDeleteShipmentStatus === "pending",
     deleteShipment: deleteShipmentMutation,
     isDeletingShipment: deleteShipmentStatus === "pending",
-    refetch: getAllShipments
-      ? allShipmentsQuery.refetch
-      : paginatedShipmentsQuery.refetch,
-    isRefetching: getAllShipments
-      ? allShipmentsQuery.isRefetching
-      : paginatedShipmentsQuery.isRefetching,
   };
 };
