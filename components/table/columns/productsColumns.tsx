@@ -4,7 +4,7 @@ import { ColumnDef } from "@tanstack/table-core";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ProductActions from "@/components/products/ProductActions";
-import { formatNumber } from "@/lib/utils";
+import { cn, formatNumber } from "@/lib/utils";
 import { ProductWithRelations } from "@/types";
 import PreviewImage from "@/components/PreviewImage";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -105,7 +105,11 @@ export const productsColumns: ColumnDef<ProductWithRelations>[] = [
     header: "Vendor/Brand",
     cell: ({ row }) => {
       const product = row.original;
-      return <p className="text-14-medium ">{product.brand.name || "-"}</p>;
+      return (
+        <p className="text-14-medium ">
+          {product?.brand ? product?.brand.name : "-"}
+        </p>
+      );
     },
   },
   {
@@ -114,7 +118,11 @@ export const productsColumns: ColumnDef<ProductWithRelations>[] = [
     header: "Type",
     cell: ({ row }) => {
       const product = row.original;
-      return <p className="text-14-medium ">{product.type.name || "-"}</p>;
+      return (
+        <p className="text-14-medium ">
+          {product?.type ? product?.type.name : "-"}
+        </p>
+      );
     },
   },
   {
@@ -123,7 +131,11 @@ export const productsColumns: ColumnDef<ProductWithRelations>[] = [
     header: "Category",
     cell: ({ row }) => {
       const product = row.original;
-      return <p className="text-14-medium ">{product.category.name || "-"}</p>;
+      return (
+        <p className="text-14-medium ">
+          {product?.category ? product?.category.name : "-"}
+        </p>
+      );
     },
   },
   {
@@ -142,7 +154,7 @@ export const productsColumns: ColumnDef<ProductWithRelations>[] = [
           }`}
         >
           <span>{product.product.quantity || 0}</span>
-          <span>{product.unit.code || "-"}</span>
+          <span>{product?.unit ? product?.unit.code : "-"}</span>
         </div>
       );
     },
@@ -158,6 +170,28 @@ export const productsColumns: ColumnDef<ProductWithRelations>[] = [
             {formatNumber(String(product.product.alertQuantity))}
           </p>
         </>
+      );
+    },
+  },
+  {
+    accessorKey: "product.isActive",
+    header: "Status",
+    cell: ({ row }) => {
+      const product = row.original;
+      return (
+        <p>
+          <span
+            className={cn(
+              "text-14-medium capitalize",
+              product.product.isActive &&
+                "bg-green-500 text-white px-3 py-1 rounded-xl",
+              !product.product.isActive &&
+                "bg-red-600 text-white px-3 py-1 rounded-xl"
+            )}
+          >
+            {product.product.isActive ? "Active" : "Inactive"}
+          </span>
+        </p>
       );
     },
   },

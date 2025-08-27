@@ -20,7 +20,6 @@ const requiredHeaders = [
   "alertQuantity",
   "maxAlertQuantity",
   "categoryId",
-  "typeId",
   "brandId",
   "unitId",
 ];
@@ -62,7 +61,7 @@ const BulkProductUpload = ({ closeDialog }: { closeDialog?: () => void }) => {
         alertQuantity: Number(row.alertQuantity),
         maxAlertQuantity: Number(row.maxAlertQuantity),
         categoryId: String(row.categoryId),
-        typeId: String(row.typeId),
+        typeId: row?.typeId ? String(row.typeId) : undefined,
         brandId: String(row.brandId),
         unitId: String(row.unitId),
         image: [],

@@ -145,14 +145,15 @@ export const transformProductsForExport = (
       costPrice: product.costPrice,
       sellingPrice: product.sellingPrice,
       alertQuantity: product.alertQuantity,
-      Category: item.category.name,
-      categoryId: product.categoryId,
-      Brand: item.brand.name,
-      brandId: product.brandId,
-      Type: item.type.name,
-      typeId: product.typeId,
-      Unit: item.unit.name,
-      unitId: product.unitId,
+      maxAlertQuantity: product.maxAlertQuantity,
+      Category: item?.category ? item.category.name : "",
+      categoryId: product?.categoryId ? product.categoryId : "",
+      Brand: item?.brand ? item?.brand.name : "",
+      brandId: product?.brandId ? product.brandId : "",
+      Type: item?.type ? item.type.name : "",
+      typeId: product?.typeId ? product.typeId : "",
+      Unit: item?.unit ? item.unit.name : "",
+      unitId: product?.unitId ? product.unitId : "",
     };
   });
 };

@@ -95,7 +95,7 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
       alertQuantity: 1,
       maxAlertQuantity: 1,
       categoryId: "",
-      typeId: "",
+      typeId: undefined,
       brandId: "",
       unitId: "",
       description: "",

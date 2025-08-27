@@ -25,7 +25,10 @@ export const addProduct = async (productData: ProductDataWithImage) => {
   try {
     const insertedProduct = await db
       .insert(productsTable)
-      .values(productData)
+      .values({
+        ...productData,
+        typeId: productData.typeId && productData.typeId,
+      })
       .returning();
 
     revalidatePath("/inventory");
@@ -51,7 +54,7 @@ export const getProducts = async (
           product: productsTable,
           category: categoriesTable,
           brand: brandsTable,
-          type: productTypesTable, // Fixed: was using brandsTable instead of productTypesTable
+          type: productTypesTable,
           unit: unitsTable,
         })
         .from(productsTable)
@@ -67,7 +70,6 @@ export const getProducts = async (
         .leftJoin(unitsTable, eq(productsTable.unitId, unitsTable.id))
         .$dynamic();
 
-      // Create conditions array
       const conditions = [];
 
       // Apply filters if provided
@@ -175,23 +177,10 @@ export const getProductById = async (productId: string) => {
     const response = await db
       .select({
         product: productsTable,
-        category: {
-          id: categoriesTable.id,
-          name: categoriesTable.name,
-        },
-        brand: {
-          id: brandsTable.id,
-          name: brandsTable.name,
-        },
-        type: {
-          id: productTypesTable.id,
-          name: productTypesTable.name,
-        },
-        unit: {
-          id: unitsTable.id,
-          name: unitsTable.name,
-          code: unitsTable.code,
-        },
+        category: categoriesTable,
+        brand: brandsTable,
+        type: productTypesTable,
+        unit: unitsTable,
       })
       .from(productsTable)
       .leftJoin(
@@ -233,7 +222,7 @@ export const editProduct = async (
         sellingPrice: productData.sellingPrice,
         categoryId: productData.categoryId,
         brandId: productData.brandId,
-        typeId: productData.typeId,
+        typeId: productData.typeId && productData.typeId,
         unitId: productData.unitId,
         description: productData.description,
         imageId: productData.imageId,
@@ -250,7 +239,7 @@ export const editProduct = async (
         sellingPrice: productData.sellingPrice,
         categoryId: productData.categoryId,
         brandId: productData.brandId,
-        typeId: productData.typeId,
+        typeId: productData.typeId && productData.typeId,
         unitId: productData.unitId,
         description: productData.description,
       };
@@ -374,7 +363,14 @@ export const bulkAddProducts = async (
           ? db
               .select({ id: productTypesTable.id })
               .from(productTypesTable)
-              .where(inArray(productTypesTable.id, allTypeIds))
+              .where(
+                inArray(
+                  productTypesTable.id,
+                  allTypeIds.filter(
+                    (id): id is string => typeof id === "string"
+                  )
+                )
+              )
           : [],
         allBrandIds.length
           ? db
@@ -399,7 +395,9 @@ export const bulkAddProducts = async (
     const missingCategories = allCategoryIds.filter(
       (id) => !existingCategoryIds.has(id)
     );
-    const missingTypes = allTypeIds.filter((id) => !existingTypeIds.has(id));
+    const missingTypes = allTypeIds
+      .filter((id): id is string => typeof id === "string")
+      .filter((id) => !existingTypeIds.has(id));
     const missingBrands = allBrandIds.filter((id) => !existingBrandIds.has(id));
     const missingUnits = allUnitIds.filter((id) => !existingUnitIds.has(id));
 
@@ -447,6 +445,7 @@ export const bulkAddProducts = async (
       if (productsToCreate.length > 0) {
         const productsData = productsToCreate.map((product) => ({
           ...product,
+          typeId: product.typeId && product.typeId,
           isActive: false,
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -486,7 +485,7 @@ export const bulkAddProducts = async (
                   alertQuantity: product.alertQuantity,
                   maxAlertQuantity: product.maxAlertQuantity,
                   categoryId: product.categoryId,
-                  typeId: product.typeId,
+                  typeId: product.typeId && product.typeId,
                   brandId: product.brandId,
                   unitId: product.unitId,
                   updatedAt: new Date(),

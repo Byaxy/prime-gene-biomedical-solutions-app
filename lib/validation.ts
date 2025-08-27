@@ -98,7 +98,7 @@ export const ProductFormValidation = z.object({
     .int()
     .min(1, "Max reoder level must be 1 or more"),
   categoryId: z.string().nonempty("Category is required"),
-  typeId: z.string().nonempty("Type is required"),
+  typeId: z.string().optional(),
   brandId: z.string().nonempty("Brand is required"),
   unitId: z.string().nonempty("Unit is required"),
   image: z.any().optional(),

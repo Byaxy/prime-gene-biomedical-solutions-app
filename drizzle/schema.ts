@@ -368,9 +368,9 @@ export const productsTable = pgTable(
     categoryId: uuid("category_id")
       .notNull()
       .references(() => categoriesTable.id, { onDelete: "set null" }), // Foreign key to categories
-    typeId: uuid("type_id")
-      .notNull()
-      .references(() => productTypesTable.id, { onDelete: "set null" }), // Foreign key to product types
+    typeId: uuid("type_id").references(() => productTypesTable.id, {
+      onDelete: "set null",
+    }), // Foreign key to product types
     brandId: uuid("brand_id")
       .notNull()
       .references(() => brandsTable.id, { onDelete: "set null" }), // Foreign key to brands
