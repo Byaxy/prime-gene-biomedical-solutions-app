@@ -98,7 +98,7 @@ const ProductActions = ({ product }: { product: ProductWithRelations }) => {
                 className="text-green-500 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
               >
                 <FileText className="h-5 w-5" />
-                <span>Reactivate</span>
+                <span>Activate</span>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => {

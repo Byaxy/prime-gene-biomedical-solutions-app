@@ -253,12 +253,12 @@ export function DataTable<TData, TValue>({
                       height={20}
                       className="animate-spin"
                     />
-                    Reactivating...
+                    Activating...
                   </div>
                 ) : (
                   <>
                     <FileText className="h-4 w-4" />
-                    Reactivate
+                    Activate
                   </>
                 )}
               </Button>
