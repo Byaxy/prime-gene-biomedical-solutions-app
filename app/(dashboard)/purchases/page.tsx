@@ -7,6 +7,7 @@ import { purchasesColumns } from "@/components/table/columns/purchasesColumns";
 import { useState } from "react";
 import { PurchaseStatus, PurchaseWithRelations } from "@/types";
 import { PurchaseDialog } from "@/components/purchases/PurchaseDialog";
+import PurchasesOverview from "@/components/purchases/PurchasesOverview";
 
 const Purchases = () => {
   const [openDialog, setOpenDialog] = useState(false);
@@ -27,6 +28,11 @@ const Purchases = () => {
     onFilterChange,
     defaultFilterValues,
   } = usePurchases({ initialPageSize: 10 });
+
+  const { purchases: allPurchases, isLoading: isLoadingAllPurchases } =
+    usePurchases({
+      getAllPurchases: true,
+    });
 
   const handleRowClick = (rowData: PurchaseWithRelations) => {
     setSelectedPurchase(rowData);
@@ -59,6 +65,11 @@ const Purchases = () => {
       buttonPath="/purchases/create-purchase"
     >
       <>
+        <PurchasesOverview
+          purchases={allPurchases || []}
+          isLoading={isLoadingAllPurchases}
+        />
+
         <DataTable
           columns={purchasesColumns}
           data={purchases || []}

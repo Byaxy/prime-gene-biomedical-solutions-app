@@ -27,6 +27,10 @@ const Sales = () => {
     isRefetching,
   } = useSales({ initialPageSize: 10 });
 
+  const { sales: allSales, isLoading: isLoadingAllSales } = useSales({
+    getAllSales: true,
+  });
+
   const handleRowClick = (rowData: SaleWithRelations) => {
     setSelectedSale(rowData);
     setOpenDialog(true);
@@ -70,7 +74,7 @@ const Sales = () => {
       buttonPath="/sales/create-invoice"
     >
       <>
-        <SalesOverview sales={sales || []} isLoading={isLoading} />
+        <SalesOverview sales={allSales || []} isLoading={isLoadingAllSales} />
 
         <DataTable
           columns={salesColumns}

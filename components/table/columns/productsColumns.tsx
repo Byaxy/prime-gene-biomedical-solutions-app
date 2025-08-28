@@ -9,6 +9,8 @@ import { ProductWithRelations } from "@/types";
 import PreviewImage from "@/components/PreviewImage";
 import { Checkbox } from "@/components/ui/checkbox";
 import FormatNumber from "@/components/FormatNumber";
+import CategoryPath from "@/components/categories/CategoryPath";
+import SingleCategory from "@/components/categories/SingleCategory";
 
 export const productsColumns: ColumnDef<ProductWithRelations>[] = [
   {
@@ -132,9 +134,19 @@ export const productsColumns: ColumnDef<ProductWithRelations>[] = [
     cell: ({ row }) => {
       const product = row.original;
       return (
-        <p className="text-14-medium ">
-          {product?.category ? product?.category.name : "-"}
-        </p>
+        <div className="text-14-medium ">
+          {product?.category ? (
+            product?.category.parentId ? (
+              <CategoryPath
+                categoryPath={`${product.category.path}/${product.category.id}`}
+              />
+            ) : (
+              <SingleCategory categoryId={product.category.id} />
+            )
+          ) : (
+            "-"
+          )}
+        </div>
       );
     },
   },

@@ -6,8 +6,8 @@ import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import CategoryActions from "@/components/categories/CategoryActions";
 import { Category } from "@/types";
-import SingleCategory from "@/components/categories/SingleCategory";
 import { Checkbox } from "@/components/ui/checkbox";
+import CategoryPath from "@/components/categories/CategoryPath";
 
 export const categoriesColumns: ColumnDef<Category>[] = [
   {
@@ -68,12 +68,12 @@ export const categoriesColumns: ColumnDef<Category>[] = [
   },
   {
     accessorKey: "parentId",
-    header: "Parent Category",
+    header: "Parent Category Path",
 
     cell: ({ row }) => {
       const category = row.original;
       return category.parentId ? (
-        <SingleCategory categoryId={category.parentId} />
+        <CategoryPath categoryPath={category.path} />
       ) : (
         <span>Null</span>
       );

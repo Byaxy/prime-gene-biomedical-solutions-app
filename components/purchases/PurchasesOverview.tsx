@@ -4,93 +4,122 @@ import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import {
-  TrendingUp,
   DollarSign,
   ShoppingCart,
   CreditCard,
-  Users,
+  Package,
   AlertCircle,
+  FileText,
+  CheckCircle,
+  Clock,
 } from "lucide-react";
-import { SaleWithRelations, PaymentStatus, SaleStatus } from "@/types";
+import { PurchaseWithRelations, PurchaseStatus, ShippingStatus } from "@/types";
 import StatCard from "../StatCard";
 
-interface SalesOverviewProps {
-  sales: SaleWithRelations[];
+interface PurchasesOverviewProps {
+  purchases: PurchaseWithRelations[];
   isLoading?: boolean;
 }
 
-const SalesOverview = ({ sales, isLoading }: SalesOverviewProps) => {
+const PurchasesOverview = ({
+  purchases,
+  isLoading,
+}: PurchasesOverviewProps) => {
   const statistics = useMemo(() => {
-    if (!sales?.length) {
+    if (!purchases?.length) {
       return {
-        totalRevenue: 0,
-        totalSales: 0,
-        totalPaid: 0,
+        totalPurchaseAmount: 0,
+        totalPurchases: 0,
+        totalAmountPaid: 0,
         outstandingBalance: 0,
-        uniqueCustomers: 0,
-        averageOrderValue: 0,
-        completedSales: 0,
-        pendingSales: 0,
-        cancelledSales: 0,
-        paidSales: 0,
-        partialPaidSales: 0,
-        unpaidSales: 0,
-        dueSales: 0,
+        uniqueVendors: 0,
+        averagePurchaseValue: 0,
+        completedPurchases: 0,
+        pendingPurchases: 0,
+        cancelledPurchases: 0,
+        totalPurchaseOrdersCreated: 0,
+        totalPurchasesReceived: 0,
+        totalPurchasesWaitingToBeReceived: 0,
       };
     }
 
-    const totalRevenue = sales.reduce(
-      (sum, sale) => sum + sale.sale.totalAmount,
+    const totalPurchaseAmount = purchases.reduce(
+      (sum, purchase) => sum + purchase.purchase.totalAmount,
       0
     );
-    const totalPaid = sales.reduce(
-      (sum, sale) => sum + sale.sale.amountPaid,
+    const totalAmountPaid = purchases.reduce(
+      (sum, purchase) => sum + purchase.purchase.amountPaid,
       0
     );
-    const outstandingBalance = totalRevenue - totalPaid;
-    const uniqueCustomers = new Set(
-      sales.map((sale) => sale.customer?.id).filter(Boolean)
+    const outstandingBalance = totalPurchaseAmount - totalAmountPaid;
+    const uniqueVendors = new Set(
+      purchases.map((purchase) => purchase.vendor?.id).filter(Boolean)
     ).size;
-    const averageOrderValue = totalRevenue / sales.length;
+    const averagePurchaseValue = totalPurchaseAmount / purchases.length;
 
-    const statusCounts = sales.reduce((acc, sale) => {
-      acc[sale.sale.status] = (acc[sale.sale.status] || 0) + 1;
+    const statusCounts = purchases.reduce((acc, purchase) => {
+      acc[purchase.purchase.status] = (acc[purchase.purchase.status] || 0) + 1;
       return acc;
-    }, {} as Record<SaleStatus, number>);
+    }, {} as Record<PurchaseStatus, number>);
 
-    const paymentStatusCounts = sales.reduce((acc, sale) => {
-      acc[sale.sale.paymentStatus] = (acc[sale.sale.paymentStatus] || 0) + 1;
-      return acc;
-    }, {} as Record<PaymentStatus, number>);
+    // Calculate shipping-based statistics
+    const totalPurchasesReceived = purchases.filter(
+      (purchase) => purchase.purchase.shippingStatus === ShippingStatus.Received
+    ).length;
+
+    const totalPurchasesWaitingToBeReceived = purchases.filter(
+      (purchase) =>
+        purchase.purchase.shippingStatus === ShippingStatus["Not Shipped"] ||
+        purchase.purchase.shippingStatus === ShippingStatus.Shipped
+    ).length;
+
+    // Note: Purchase orders would typically come from a separate hook/data source
+    // For now, we'll estimate based on purchase order IDs being present
+    const totalPurchaseOrdersCreated = purchases.filter(
+      (purchase) => purchase.purchase.purchaseOrderId
+    ).length;
 
     return {
-      totalRevenue,
-      totalSales: sales.length,
-      totalPaid,
+      totalPurchaseAmount,
+      totalPurchases: purchases.length,
+      totalAmountPaid,
       outstandingBalance,
-      uniqueCustomers,
-      averageOrderValue,
-      completedSales: statusCounts.completed || 0,
-      pendingSales: statusCounts.pending || 0,
-      cancelledSales: statusCounts.cancelled || 0,
-      paidSales: paymentStatusCounts.paid || 0,
-      partialPaidSales: paymentStatusCounts.partial || 0,
-      unpaidSales: paymentStatusCounts.pending || 0,
-      dueSales: paymentStatusCounts.due || 0,
+      uniqueVendors,
+      averagePurchaseValue,
+      completedPurchases: statusCounts.completed || 0,
+      pendingPurchases: statusCounts.pending || 0,
+      cancelledPurchases: statusCounts.cancelled || 0,
+      totalPurchaseOrdersCreated,
+      totalPurchasesReceived,
+      totalPurchasesWaitingToBeReceived,
     };
-  }, [sales]);
+  }, [purchases]);
 
   const statusData = [
-    { name: "Completed", value: statistics.completedSales, color: "#10b981" },
-    { name: "Pending", value: statistics.pendingSales, color: "#f59e0b" },
-    { name: "Cancelled", value: statistics.cancelledSales, color: "#ef4444" },
+    {
+      name: "Completed",
+      value: statistics.completedPurchases,
+      color: "#10b981",
+    },
+    { name: "Pending", value: statistics.pendingPurchases, color: "#f59e0b" },
+    {
+      name: "Cancelled",
+      value: statistics.cancelledPurchases,
+      color: "#ef4444",
+    },
   ].filter((item) => item.value > 0);
 
-  const paymentStatusData = [
-    { name: "Paid", value: statistics.paidSales, color: "#10b981" },
-    { name: "Partial", value: statistics.partialPaidSales, color: "#2563eb" },
-    { name: "Pending", value: statistics.unpaidSales, color: "#f59e0b" },
-    { name: "Due", value: statistics.dueSales, color: "#ef4444" },
+  const shippingStatusData = [
+    {
+      name: "Received",
+      value: statistics.totalPurchasesReceived,
+      color: "#10b981",
+    },
+    {
+      name: "Waiting to Receive",
+      value: statistics.totalPurchasesWaitingToBeReceived,
+      color: "#f59e0b",
+    },
   ].filter((item) => item.value > 0);
 
   if (isLoading) {
@@ -112,25 +141,25 @@ const SalesOverview = ({ sales, isLoading }: SalesOverviewProps) => {
   return (
     <div className="space-y-6 my-6">
       {/* Key Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         <StatCard
-          title="Total Revenue"
-          value={statistics.totalRevenue}
+          title="Total Purchase Amount"
+          value={statistics.totalPurchaseAmount}
           icon={DollarSign}
           color="text-green-600"
           bgColor="bg-green-50"
           isCurrency
         />
         <StatCard
-          title="Total Sales"
-          value={statistics.totalSales}
+          title="Total Purchases"
+          value={statistics.totalPurchases}
           icon={ShoppingCart}
           color="text-blue-600"
           bgColor="bg-blue-50"
         />
         <StatCard
           title="Amount Paid"
-          value={statistics.totalPaid}
+          value={statistics.totalAmountPaid}
           icon={CreditCard}
           color="text-emerald-600"
           bgColor="bg-emerald-50"
@@ -145,29 +174,42 @@ const SalesOverview = ({ sales, isLoading }: SalesOverviewProps) => {
           isCurrency
         />
         <StatCard
-          title="Unique Customers"
-          value={statistics.uniqueCustomers}
-          icon={Users}
+          title="Purchase Orders Created"
+          value={statistics.totalPurchaseOrdersCreated}
+          icon={FileText}
           color="text-purple-600"
           bgColor="bg-purple-50"
         />
         <StatCard
-          title="Avg Order Value"
-          value={statistics.averageOrderValue}
-          icon={TrendingUp}
+          title="Purchases Received"
+          value={statistics.totalPurchasesReceived}
+          icon={CheckCircle}
+          color="text-green-600"
+          bgColor="bg-green-50"
+        />
+        <StatCard
+          title="Waiting to be Received"
+          value={statistics.totalPurchasesWaitingToBeReceived}
+          icon={Clock}
+          color="text-orange-600"
+          bgColor="bg-orange-50"
+        />
+        <StatCard
+          title="Unique Vendors"
+          value={statistics.uniqueVendors}
+          icon={Package}
           color="text-indigo-600"
           bgColor="bg-indigo-50"
-          isCurrency
         />
       </div>
 
       {/* Status Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Sale Status Distribution */}
+        {/* Purchase Status Distribution */}
         <Card className="hover:shadow-md transition-shadow bg-white">
           <CardHeader>
             <CardTitle className="text-lg font-semibold">
-              Sale Status Distribution
+              Purchase Status Distribution
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -214,11 +256,11 @@ const SalesOverview = ({ sales, isLoading }: SalesOverviewProps) => {
           </CardContent>
         </Card>
 
-        {/* Payment Status Distribution */}
+        {/* Shipping Status Distribution */}
         <Card className="hover:shadow-md transition-shadow bg-white">
           <CardHeader>
             <CardTitle className="text-lg font-semibold">
-              Payment Status Distribution
+              Shipping Status Distribution
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -226,7 +268,7 @@ const SalesOverview = ({ sales, isLoading }: SalesOverviewProps) => {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={paymentStatusData}
+                    data={shippingStatusData}
                     cx="50%"
                     cy="50%"
                     innerRadius={30}
@@ -234,7 +276,7 @@ const SalesOverview = ({ sales, isLoading }: SalesOverviewProps) => {
                     paddingAngle={5}
                     dataKey="value"
                   >
-                    {paymentStatusData.map((entry, index) => (
+                    {shippingStatusData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
@@ -250,7 +292,7 @@ const SalesOverview = ({ sales, isLoading }: SalesOverviewProps) => {
               </ResponsiveContainer>
             </div>
             <div className="flex flex-wrap justify-center gap-4 mt-4">
-              {paymentStatusData.map((item, index) => (
+              {shippingStatusData.map((item, index) => (
                 <div key={index} className="flex items-center gap-2">
                   <div
                     className="w-3 h-3 rounded-full"
@@ -269,4 +311,4 @@ const SalesOverview = ({ sales, isLoading }: SalesOverviewProps) => {
   );
 };
 
-export default SalesOverview;
+export default PurchasesOverview;

@@ -13,7 +13,7 @@ const SingleCategory = ({ categoryId }: { categoryId: string }) => {
   });
   return (
     <div className="w-fit">
-      {isLoading && <Loading />}
+      {isLoading && <Loading size={20} />}
       {category && <span>{category?.name}</span>}
     </div>
   );
