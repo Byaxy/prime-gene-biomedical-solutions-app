@@ -76,7 +76,10 @@ export const useShipments = ({
     shouldFetchAll || isShowAllMode
       ? allShipmentsQuery
       : paginatedShipmentsQuery;
-  const shipments = activeQuery.data?.documents || [];
+  const shipments =
+    (shouldFetchAll || isShowAllMode
+      ? activeQuery.data
+      : activeQuery.data?.documents) || [];
   const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view

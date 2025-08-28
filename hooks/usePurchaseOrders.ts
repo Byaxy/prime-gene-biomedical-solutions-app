@@ -77,7 +77,10 @@ export const usePurchaseOrders = ({
     shouldFetchAll || isShowAllMode
       ? allPurchaseOrdersQuery
       : paginatedPurchaseOrdersQuery;
-  const purchaseOrders = activeQuery.data?.documents || [];
+  const purchaseOrders =
+    (shouldFetchAll || isShowAllMode
+      ? activeQuery.data
+      : activeQuery.data?.documents) || [];
   const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view

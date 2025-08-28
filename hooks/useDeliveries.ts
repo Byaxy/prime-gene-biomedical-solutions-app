@@ -69,7 +69,10 @@ export const useDeliveries = ({
     shouldFetchAll || isShowAllMode
       ? allDeliveriesQuery
       : paginatedDeliveriesQuery;
-  const deliveries = activeQuery.data?.documents || [];
+  const deliveries =
+    (shouldFetchAll || isShowAllMode
+      ? activeQuery.data
+      : activeQuery.data?.documents) || [];
   const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view

@@ -49,7 +49,10 @@ export const useVendors = ({
   // Determine which query data to use
   const activeQuery =
     shouldFetchAll || isShowAllMode ? allVendorsQuery : paginatedVendorsQuery;
-  const vendors = activeQuery.data?.documents || [];
+  const vendors =
+    (shouldFetchAll || isShowAllMode
+      ? activeQuery.data
+      : activeQuery.data?.documents) || [];
   const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view

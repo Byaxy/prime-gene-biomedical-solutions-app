@@ -13,6 +13,8 @@ import toast from "react-hot-toast";
 
 const Units = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [rowSelection, setRowSelection] = useState({});
+
   const {
     units,
     isLoading,
@@ -41,7 +43,6 @@ const Units = () => {
     });
   };
 
-  const [rowSelection, setRowSelection] = useState({});
   const handleDownloadSelected = async (selectedItems: Unit[]) => {
     try {
       if (selectedItems.length === 0) {

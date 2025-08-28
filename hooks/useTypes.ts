@@ -50,7 +50,10 @@ export const useTypes = ({
   // Determine which query data to use
   const activeQuery =
     shouldFetchAll || isShowAllMode ? allTypesQuery : paginatedTypesQuery;
-  const types = activeQuery.data?.documents || [];
+  const types =
+    (shouldFetchAll || isShowAllMode
+      ? activeQuery.data
+      : activeQuery.data?.documents) || [];
   const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view

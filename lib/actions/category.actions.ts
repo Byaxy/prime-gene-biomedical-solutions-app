@@ -5,7 +5,7 @@ import { parseStringify } from "../utils";
 import { CategoryFormValues } from "../validation";
 import { db } from "@/drizzle/db";
 import { categoriesTable } from "@/drizzle/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 
 // Add Category
 export const addCategory = async (categoryData: CategoryFormValues) => {
@@ -18,7 +18,12 @@ export const addCategory = async (categoryData: CategoryFormValues) => {
       const parentCategory = await db
         .select()
         .from(categoriesTable)
-        .where(eq(categoriesTable.id, categoryData.parentId))
+        .where(
+          and(
+            eq(categoriesTable.id, categoryData.parentId),
+            eq(categoriesTable.isActive, true)
+          )
+        )
         .then((res) => res[0]);
 
       if (!parentCategory) {
@@ -42,8 +47,7 @@ export const addCategory = async (categoryData: CategoryFormValues) => {
       })
       .returning();
 
-    revalidatePath("/products/categories");
-    revalidatePath("/inventory/add-inventory");
+    revalidatePath("/settings/categories");
     return parseStringify(insertedCategory);
   } catch (error) {
     console.error("Error adding category:", error);
@@ -179,8 +183,7 @@ export const editCategory = async (
       .where(eq(categoriesTable.id, categoryId))
       .returning();
 
-    revalidatePath("/products/categories");
-    revalidatePath("/inventory/add-inventory");
+    revalidatePath("/settings/categories");
     return parseStringify(updatedCategory);
   } catch (error) {
     console.error("Error editing category:", error);
@@ -196,8 +199,7 @@ export const deleteCategory = async (categoryId: string) => {
       .where(eq(categoriesTable.id, categoryId))
       .returning();
 
-    revalidatePath("/products/categories");
-    revalidatePath("/inventory/add-inventory");
+    revalidatePath("/settings/categories");
     return parseStringify(deletedCategory);
   } catch (error) {
     console.error("Error deleting category:", error);
@@ -214,8 +216,7 @@ export const softDeleteCategory = async (categoryId: string) => {
       .where(eq(categoriesTable.id, categoryId))
       .returning();
 
-    revalidatePath("/products/categories");
-    revalidatePath("/inventory/add-inventory");
+    revalidatePath("/settings/categories");
     return parseStringify(updatedCategory);
   } catch (error) {
     console.error("Error soft deleting category:", error);

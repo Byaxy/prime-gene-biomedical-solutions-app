@@ -88,7 +88,7 @@ export const categoriesColumns: ColumnDef<Category>[] = [
     },
   },
   {
-    accessorKey: "$createdAt",
+    accessorKey: "createdAt",
     header: ({ column }) => {
       return (
         <Button
@@ -111,7 +111,7 @@ export const categoriesColumns: ColumnDef<Category>[] = [
     },
   },
   {
-    accessorKey: "$updatedAt",
+    accessorKey: "updatedAt",
     header: ({ column }) => {
       return (
         <Button

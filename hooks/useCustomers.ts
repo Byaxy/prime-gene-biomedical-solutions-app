@@ -54,7 +54,10 @@ export const useCustomers = ({
     shouldFetchAll || isShowAllMode
       ? allCustomersQuery
       : paginatedCustomersQuery;
-  const customers = activeQuery.data?.documents || [];
+  const customers =
+    (shouldFetchAll || isShowAllMode
+      ? activeQuery.data
+      : activeQuery.data?.documents) || [];
   const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view

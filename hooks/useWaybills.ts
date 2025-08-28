@@ -52,7 +52,7 @@ export const useWaybills = ({
 
   // Query for all Waybills
   const allWaybillsQuery = useQuery({
-    queryKey: ["waybills", "allWaybills", filters],
+    queryKey: ["waybills", filters],
     queryFn: async () => {
       const result = await getWaybills(0, 0, true, filters);
       return result.documents;
@@ -73,7 +73,10 @@ export const useWaybills = ({
   // Determine which query data to use
   const activeQuery =
     shouldFetchAll || isShowAllMode ? allWaybillsQuery : paginatedWaybillsQuery;
-  const waybills = activeQuery.data?.documents || [];
+  const waybills =
+    (shouldFetchAll || isShowAllMode
+      ? activeQuery.data
+      : activeQuery.data?.documents) || [];
   const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view

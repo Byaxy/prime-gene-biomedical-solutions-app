@@ -51,7 +51,10 @@ export const useBrands = ({
   // Determine which query data to use
   const activeQuery =
     shouldFetchAll || isShowAllMode ? allBrandsQuery : paginatedBrandsQuery;
-  const brands = activeQuery.data?.documents || [];
+  const brands =
+    (shouldFetchAll || isShowAllMode
+      ? activeQuery.data
+      : activeQuery.data?.documents) || [];
   const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view

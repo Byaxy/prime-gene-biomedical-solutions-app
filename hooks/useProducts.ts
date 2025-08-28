@@ -86,7 +86,10 @@ export const useProducts = ({
   // Determine which query data to use
   const activeQuery =
     shouldFetchAll || isShowAllMode ? allProductsQuery : paginatedProductsQuery;
-  const products = activeQuery.data?.documents || [];
+  const products =
+    (shouldFetchAll || isShowAllMode
+      ? activeQuery.data
+      : activeQuery.data?.documents) || [];
   const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view

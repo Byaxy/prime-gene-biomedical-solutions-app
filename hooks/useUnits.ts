@@ -50,7 +50,10 @@ export const useUnits = ({
   // Determine which query data to use
   const activeQuery =
     shouldFetchAll || isShowAllMode ? allUnitsQuery : paginatedUnitsQuery;
-  const units = activeQuery.data?.documents || [];
+  const units =
+    (shouldFetchAll || isShowAllMode
+      ? activeQuery.data
+      : activeQuery.data?.documents) || [];
   const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view

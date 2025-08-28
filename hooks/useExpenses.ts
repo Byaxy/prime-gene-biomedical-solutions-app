@@ -52,7 +52,10 @@ export const useExpenses = ({
   // Determine which query data to use
   const activeQuery =
     shouldFetchAll || isShowAllMode ? allExpensesQuery : paginatedExpensesQuery;
-  const expenses = activeQuery.data?.documents || [];
+  const expenses =
+    (shouldFetchAll || isShowAllMode
+      ? activeQuery.data
+      : activeQuery.data?.documents) || [];
   const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view

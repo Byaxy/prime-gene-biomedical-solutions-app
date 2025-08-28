@@ -58,7 +58,10 @@ export const useUsers = ({
   // Determine which query data to use
   const activeQuery =
     shouldFetchAll || isShowAllMode ? allUsersQuery : paginatedUsersQuery;
-  const users = activeQuery.data?.documents || [];
+  const users =
+    (shouldFetchAll || isShowAllMode
+      ? activeQuery.data
+      : activeQuery.data?.documents) || [];
   const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view

@@ -52,7 +52,10 @@ export const useCategories = ({
     shouldFetchAll || isShowAllMode
       ? allCategoriesQuery
       : paginatedCategoriesQuery;
-  const categories = activeQuery.data?.documents || [];
+  const categories =
+    (shouldFetchAll || isShowAllMode
+      ? activeQuery.data
+      : activeQuery.data?.documents) || [];
   const totalItems = activeQuery.data?.total || 0;
 
   // Prefetch next page for table view
