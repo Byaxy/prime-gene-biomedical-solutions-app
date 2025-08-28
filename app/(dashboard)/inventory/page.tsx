@@ -127,8 +127,13 @@ const Inventory = () => {
       options: unitOptions || [],
     },
     isActive: {
-      type: "boolean" as const,
-      label: "Is Active?",
+      type: "select" as const,
+      label: "Active Status",
+      options: [
+        { value: "all", label: "All" },
+        { value: "true", label: "Active" },
+        { value: "false", label: "Inactive" },
+      ],
     },
   };
 

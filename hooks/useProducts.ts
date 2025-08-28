@@ -29,7 +29,7 @@ export interface ProductFilters {
   sellingPrice_max?: number;
   quantity_min?: number;
   quantity_max?: number;
-  isActive?: boolean;
+  isActive?: "true" | "false" | "all";
   categoryId?: string;
   typeId?: string;
   brandId?: string;
@@ -43,7 +43,7 @@ export const defaultProductFilters: ProductFilters = {
   sellingPrice_max: undefined,
   quantity_min: undefined,
   quantity_max: undefined,
-  isActive: true,
+  isActive: "true",
   categoryId: undefined,
   typeId: undefined,
   brandId: undefined,

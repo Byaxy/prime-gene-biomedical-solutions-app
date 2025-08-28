@@ -103,9 +103,13 @@ export const getProducts = async (
           conditions.push(lte(productsTable.quantity, filters.quantity_max));
         }
 
-        // Active status filter
-        if (filters.isActive !== undefined) {
-          conditions.push(eq(productsTable.isActive, filters.isActive));
+        // isActive status filter
+        if (filters.isActive !== undefined && filters.isActive !== "all") {
+          if (filters.isActive === "true") {
+            conditions.push(eq(productsTable.isActive, true));
+          } else if (filters.isActive === "false") {
+            conditions.push(eq(productsTable.isActive, false));
+          }
         }
 
         // Category filter
