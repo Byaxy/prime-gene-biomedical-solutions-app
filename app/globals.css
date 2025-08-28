@@ -163,6 +163,10 @@
     @apply bg-blue-800 text-white border-0 !important;
   }
 
+  .shad-green-btn {
+    @apply bg-green-500 text-white border-0 !important;
+  }
+
   .shad-danger-btn {
     @apply bg-red-600 text-white border-0 !important;
   }

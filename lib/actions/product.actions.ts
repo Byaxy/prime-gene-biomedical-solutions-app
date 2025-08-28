@@ -314,6 +314,29 @@ export const reactivateProduct = async (productId: string) => {
   }
 };
 
+export const reactivateMultipleProducts = async (productIds: string[]) => {
+  try {
+    const reactivatedProducts = await db.transaction(async (tx) => {
+      const results = [];
+      for (const id of productIds) {
+        const reactivated = await tx
+          .update(productsTable)
+          .set({ isActive: true })
+          .where(eq(productsTable.id, id))
+          .returning();
+        results.push(reactivated[0]);
+      }
+      return results;
+    });
+
+    revalidatePath("/inventory");
+    return parseStringify(reactivatedProducts);
+  } catch (error) {
+    console.error("Error deleting multiple products:", error);
+    throw error;
+  }
+};
+
 // Optimized Bulk Products Upload
 export const bulkAddProducts = async (
   products: (ProductFormValues & { id?: string; productID: string })[]

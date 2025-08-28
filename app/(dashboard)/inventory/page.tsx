@@ -32,6 +32,8 @@ const Inventory = () => {
     setPageSize,
     softDeleteMultipleProducts,
     isSoftDeletingMultipleProducts,
+    reactivateMultipleProducts,
+    isReactivatingMultipleProducts,
     refetch,
     isRefetching,
     filters,
@@ -63,11 +65,22 @@ const Inventory = () => {
     value: unit.id,
   }));
 
-  const handleDeleteSelected = async (
+  const handleDeactivateSelected = async (
     selectedItems: ProductWithRelations[]
   ) => {
     const ids = selectedItems.map((item) => item.product.id);
     await softDeleteMultipleProducts(ids, {
+      onSuccess: () => {
+        setRowSelection({});
+      },
+    });
+  };
+
+  const handleReactivateSelected = async (
+    selectedItems: ProductWithRelations[]
+  ) => {
+    const ids = selectedItems.map((item) => item.product.id);
+    await reactivateMultipleProducts(ids, {
       onSuccess: () => {
         setRowSelection({});
       },
@@ -159,10 +172,12 @@ const Inventory = () => {
         onPageChange={setPage}
         pageSize={pageSize}
         onPageSizeChange={setPageSize}
-        onDeleteSelected={handleDeleteSelected}
+        onDeactivateSelected={handleDeactivateSelected}
+        isDeactivatingSelected={isSoftDeletingMultipleProducts}
+        onReactivateSelected={handleReactivateSelected}
+        isReactivatingSelected={isReactivatingMultipleProducts}
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}
-        isDeletingSelected={isSoftDeletingMultipleProducts}
         onDownloadSelected={handleDownloadSelected}
         refetch={refetch}
         isRefetching={isRefetching}

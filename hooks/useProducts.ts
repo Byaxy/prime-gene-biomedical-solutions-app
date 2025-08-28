@@ -10,6 +10,7 @@ import {
   deleteProduct,
   editProduct,
   getProducts,
+  reactivateMultipleProducts,
   reactivateProduct,
   softDeleteMultipleProducts,
   softDeleteProduct,
@@ -334,8 +335,8 @@ export const useProducts = ({
       toast.success("Selected products deactivated successfully");
     },
     onError: (error) => {
-      console.error("Error deleting products:", error);
-      toast.error("Failed to delete selected products");
+      console.error("Error deactivating products:", error);
+      toast.error("Failed to deactivate selected products");
     },
   });
 
@@ -352,6 +353,23 @@ export const useProducts = ({
         toast.error("Failed to reactivate product");
       },
     });
+
+  const {
+    mutate: reactivateMultipleProductsMutation,
+    status: reactivateMultipleProductsStatus,
+  } = useMutation({
+    mutationFn: async (productIds: string[]) => {
+      return await reactivateMultipleProducts(productIds);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      toast.success("Selected products reactivated successfully");
+    },
+    onError: (error) => {
+      console.error("Error reactivating products:", error);
+      toast.error("Failed to reactivate selected products");
+    },
+  });
 
   return {
     products,
@@ -384,5 +402,8 @@ export const useProducts = ({
       softDeleteMultipleProductsStatus === "pending",
     reactivateProduct: reactivateProductMutation,
     isReactivatingProduct: reactivateProductStatus === "pending",
+    reactivateMultipleProducts: reactivateMultipleProductsMutation,
+    isReactivatingMultipleProducts:
+      reactivateMultipleProductsStatus === "pending",
   };
 };

@@ -40,6 +40,7 @@ import { Search } from "lucide-react";
 import FiltersSheet from "./FiltersSheet";
 import { cn } from "@/lib/utils";
 import { RefreshCw } from "lucide-react";
+import { FileText } from "lucide-react";
 
 declare module "@tanstack/react-table" {
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-constraint, @typescript-eslint/no-unused-vars
@@ -61,6 +62,10 @@ interface DataTableProps<TData, TValue> {
   searchBy?: string | string[];
   onDeleteSelected?: (items: TData[]) => void;
   isDeletingSelected?: boolean;
+  onDeactivateSelected?: (items: TData[]) => void;
+  isDeactivatingSelected?: boolean;
+  onReactivateSelected?: (items: TData[]) => void;
+  isReactivatingSelected?: boolean;
   rowSelection?: Record<string, boolean>;
   onRowSelectionChange?: (selection: Record<string, boolean>) => void;
   onDownloadSelected?: (items: TData[]) => void;
@@ -92,6 +97,10 @@ export function DataTable<TData, TValue>({
   searchBy,
   onDeleteSelected,
   isDeletingSelected,
+  onDeactivateSelected,
+  isDeactivatingSelected,
+  onReactivateSelected,
+  isReactivatingSelected,
   onRowSelectionChange,
   rowSelection,
   onDownloadSelected,
@@ -221,6 +230,74 @@ export function DataTable<TData, TValue>({
             {table.getSelectedRowModel().rows.length} Rows Selected
           </div>
           <div className="flex gap-2">
+            {onReactivateSelected && (
+              <Button
+                disabled={isReactivatingSelected}
+                variant="default"
+                size="sm"
+                className="shad-green-btn"
+                onClick={async () => {
+                  const selectedRows = table
+                    .getSelectedRowModel()
+                    .rows.map((row) => row.original);
+
+                  await onReactivateSelected(selectedRows);
+                }}
+              >
+                {isReactivatingSelected ? (
+                  <div className="flex items-center gap-4">
+                    <Image
+                      src="/assets/icons/loader.svg"
+                      alt="loader"
+                      width={20}
+                      height={20}
+                      className="animate-spin"
+                    />
+                    Reactivating...
+                  </div>
+                ) : (
+                  <>
+                    <FileText className="h-4 w-4" />
+                    Reactivate
+                  </>
+                )}
+              </Button>
+            )}
+
+            {onDeactivateSelected && (
+              <Button
+                disabled={isDeactivatingSelected}
+                variant="default"
+                size="sm"
+                className="shad-danger-btn"
+                onClick={async () => {
+                  const selectedRows = table
+                    .getSelectedRowModel()
+                    .rows.map((row) => row.original);
+
+                  await onDeactivateSelected(selectedRows);
+                }}
+              >
+                {isDeactivatingSelected ? (
+                  <div className="flex items-center gap-4">
+                    <Image
+                      src="/assets/icons/loader.svg"
+                      alt="loader"
+                      width={20}
+                      height={20}
+                      className="animate-spin"
+                    />
+                    Deactivating...
+                  </div>
+                ) : (
+                  <>
+                    <Trash2Icon className="h-4 w-4" />
+                    Deactivate
+                  </>
+                )}
+              </Button>
+            )}
+
             {onDeleteSelected && (
               <Button
                 disabled={isDeletingSelected}
@@ -254,6 +331,7 @@ export function DataTable<TData, TValue>({
                 )}
               </Button>
             )}
+
             {onDownloadSelected && (
               <Button
                 variant="outline"
