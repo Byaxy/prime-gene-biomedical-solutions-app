@@ -224,136 +224,211 @@ export function DataTable<TData, TValue>({
         </div>
       </div>
 
-      {table.getSelectedRowModel().rows.length > 0 && (
-        <div className="w-full bg-white py-4 px-5 rounded-lg shadow-md flex items-center justify-between mt-2 mb-4">
-          <div className="text-blue-800 text-sm font-semibold">
-            {table.getSelectedRowModel().rows.length} Rows Selected
+      <div className="data-table">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 my-6 px-3">
+          <div className="w-full flex items-center gap-2">
+            <span className="text-xs sm:text-sm text-dark-600">
+              Rows per page:
+            </span>
+            <Select
+              value={isShowingAll ? "all" : String(pageSize)}
+              onValueChange={(value) => {
+                if (value === "all") {
+                  // Set pageSize to totalItems or 0 to indicate "show all"
+                  onPageSizeChange?.(totalItems || 0);
+                  onPageChange?.(0);
+                } else {
+                  const newPageSize = Number(value);
+                  onPageSizeChange?.(newPageSize);
+                  onPageChange?.(0);
+                }
+              }}
+            >
+              <SelectTrigger className="w-16 text-dark-600">
+                <SelectValue placeholder="10" />
+              </SelectTrigger>
+              <SelectContent className="bg-white">
+                {[5, 10, 25, 30, 50, 100].map((size) => (
+                  <SelectItem
+                    key={size}
+                    value={String(size)}
+                    className="text-dark-600 hover:text-white hover:bg-blue-800 cursor-pointer rounded-md"
+                  >
+                    {size}
+                  </SelectItem>
+                ))}
+                <SelectItem
+                  value="all"
+                  className="text-dark-600 hover:text-white hover:bg-blue-800 cursor-pointer rounded-md"
+                >
+                  All
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <span className="text-xs sm:text-sm text-dark-600">
+              {isShowingAll
+                ? `Showing all ${totalItems} items`
+                : `${page * pageSize + 1}-${Math.min(
+                    (page + 1) * pageSize,
+                    totalItems
+                  )} of ${totalItems}`}
+            </span>
           </div>
-          <div className="flex gap-2">
-            {onReactivateSelected && (
-              <Button
-                disabled={isReactivatingSelected}
-                variant="default"
-                size="sm"
-                className="shad-green-btn"
-                onClick={async () => {
-                  const selectedRows = table
-                    .getSelectedRowModel()
-                    .rows.map((row) => row.original);
 
-                  await onReactivateSelected(selectedRows);
-                }}
-              >
-                {isReactivatingSelected ? (
-                  <div className="flex items-center gap-4">
-                    <Image
-                      src="/assets/icons/loader.svg"
-                      alt="loader"
-                      width={20}
-                      height={20}
-                      className="animate-spin"
-                    />
-                    Activating...
-                  </div>
-                ) : (
-                  <>
-                    <FileText className="h-4 w-4" />
-                    Activate
-                  </>
-                )}
-              </Button>
+          <div className="w-full flex flex-col sm:flex-row items-center justify-between sm:justify-end gap-5">
+            {table.getSelectedRowModel().rows.length > 0 && (
+              <div className="w-full flex items-center justify-between">
+                <div className="text-blue-800 text-sm font-semibold">
+                  {table.getSelectedRowModel().rows.length} Rows Selected
+                </div>
+                <div className="flex gap-2">
+                  {onReactivateSelected && (
+                    <Button
+                      disabled={isReactivatingSelected}
+                      variant="default"
+                      size="sm"
+                      className="shad-green-btn"
+                      onClick={async () => {
+                        const selectedRows = table
+                          .getSelectedRowModel()
+                          .rows.map((row) => row.original);
+
+                        await onReactivateSelected(selectedRows);
+                      }}
+                    >
+                      {isReactivatingSelected ? (
+                        <div className="flex items-center gap-4">
+                          <Image
+                            src="/assets/icons/loader.svg"
+                            alt="loader"
+                            width={20}
+                            height={20}
+                            className="animate-spin"
+                          />
+                          Activating...
+                        </div>
+                      ) : (
+                        <>
+                          <FileText className="h-4 w-4" />
+                          Activate
+                        </>
+                      )}
+                    </Button>
+                  )}
+
+                  {onDeactivateSelected && (
+                    <Button
+                      disabled={isDeactivatingSelected}
+                      variant="default"
+                      size="sm"
+                      className="shad-danger-btn"
+                      onClick={async () => {
+                        const selectedRows = table
+                          .getSelectedRowModel()
+                          .rows.map((row) => row.original);
+
+                        await onDeactivateSelected(selectedRows);
+                      }}
+                    >
+                      {isDeactivatingSelected ? (
+                        <div className="flex items-center gap-4">
+                          <Image
+                            src="/assets/icons/loader.svg"
+                            alt="loader"
+                            width={20}
+                            height={20}
+                            className="animate-spin"
+                          />
+                          Deactivating...
+                        </div>
+                      ) : (
+                        <>
+                          <Trash2Icon className="h-4 w-4" />
+                          Deactivate
+                        </>
+                      )}
+                    </Button>
+                  )}
+
+                  {onDeleteSelected && (
+                    <Button
+                      disabled={isDeletingSelected}
+                      variant="default"
+                      size="sm"
+                      className="shad-danger-btn"
+                      onClick={async () => {
+                        const selectedRows = table
+                          .getSelectedRowModel()
+                          .rows.map((row) => row.original);
+
+                        await onDeleteSelected(selectedRows);
+                      }}
+                    >
+                      {isDeletingSelected ? (
+                        <div className="flex items-center gap-4">
+                          <Image
+                            src="/assets/icons/loader.svg"
+                            alt="loader"
+                            width={20}
+                            height={20}
+                            className="animate-spin"
+                          />
+                          Deleting...
+                        </div>
+                      ) : (
+                        <>
+                          <Trash2Icon className="h-4 w-4" />
+                          Delete
+                        </>
+                      )}
+                    </Button>
+                  )}
+
+                  {onDownloadSelected && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="shad-primary-btn"
+                      onClick={() => {
+                        const selectedProducts = table
+                          .getSelectedRowModel()
+                          .rows.map((row) => row.original);
+
+                        onDownloadSelected?.(selectedProducts);
+                      }}
+                    >
+                      <DownloadIcon className="h-4 w-4" />
+                      Download
+                    </Button>
+                  )}
+                </div>
+              </div>
             )}
 
-            {onDeactivateSelected && (
-              <Button
-                disabled={isDeactivatingSelected}
-                variant="default"
-                size="sm"
-                className="shad-danger-btn"
-                onClick={async () => {
-                  const selectedRows = table
-                    .getSelectedRowModel()
-                    .rows.map((row) => row.original);
-
-                  await onDeactivateSelected(selectedRows);
-                }}
-              >
-                {isDeactivatingSelected ? (
-                  <div className="flex items-center gap-4">
-                    <Image
-                      src="/assets/icons/loader.svg"
-                      alt="loader"
-                      width={20}
-                      height={20}
-                      className="animate-spin"
-                    />
-                    Deactivating...
-                  </div>
-                ) : (
-                  <>
-                    <Trash2Icon className="h-4 w-4" />
-                    Deactivate
-                  </>
-                )}
-              </Button>
-            )}
-
-            {onDeleteSelected && (
-              <Button
-                disabled={isDeletingSelected}
-                variant="default"
-                size="sm"
-                className="shad-danger-btn"
-                onClick={async () => {
-                  const selectedRows = table
-                    .getSelectedRowModel()
-                    .rows.map((row) => row.original);
-
-                  await onDeleteSelected(selectedRows);
-                }}
-              >
-                {isDeletingSelected ? (
-                  <div className="flex items-center gap-4">
-                    <Image
-                      src="/assets/icons/loader.svg"
-                      alt="loader"
-                      width={20}
-                      height={20}
-                      className="animate-spin"
-                    />
-                    Deleting...
-                  </div>
-                ) : (
-                  <>
-                    <Trash2Icon className="h-4 w-4" />
-                    Delete
-                  </>
-                )}
-              </Button>
-            )}
-
-            {onDownloadSelected && (
+            <div className="w-full sm:w-fit flex items-center justify-between sm:justify-end gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                className="shad-primary-btn"
-                onClick={() => {
-                  const selectedProducts = table
-                    .getSelectedRowModel()
-                    .rows.map((row) => row.original);
-
-                  onDownloadSelected?.(selectedProducts);
-                }}
+                onClick={() => onPageChange?.(page - 1)}
+                disabled={page === 0 || isShowingAll}
+                className="shad-primary-btn border-0"
               >
-                <DownloadIcon className="h-4 w-4" />
-                Download
+                <KeyboardArrowLeftIcon />
               </Button>
-            )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onPageChange?.(page + 1)}
+                disabled={
+                  page >= Math.ceil(totalItems / pageSize) - 1 || isShowingAll
+                }
+                className="shad-primary-btn border-0"
+              >
+                <KeyboardArrowRightIcon />
+              </Button>
+            </div>
           </div>
         </div>
-      )}
-
-      <div className="data-table">
         <Table className="shad-table [&_tr_td]:py-2 [&_tr_th]:py-2">
           <TableHeader className="bg-blue-800">
             {table.getHeaderGroups().map((headerGroup: HeaderGroup<TData>) => (
@@ -436,79 +511,6 @@ export function DataTable<TData, TValue>({
             )}
           </TableBody>
         </Table>
-
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 my-6 px-3">
-          <div className="w-full flex items-center gap-2">
-            <span className="text-xs sm:text-sm text-dark-600">
-              Rows per page:
-            </span>
-            <Select
-              value={isShowingAll ? "all" : String(pageSize)}
-              onValueChange={(value) => {
-                if (value === "all") {
-                  // Set pageSize to totalItems or 0 to indicate "show all"
-                  onPageSizeChange?.(totalItems || 0);
-                  onPageChange?.(0);
-                } else {
-                  const newPageSize = Number(value);
-                  onPageSizeChange?.(newPageSize);
-                  onPageChange?.(0);
-                }
-              }}
-            >
-              <SelectTrigger className="w-16 text-dark-600">
-                <SelectValue placeholder="10" />
-              </SelectTrigger>
-              <SelectContent className="bg-white">
-                {[5, 10, 25, 30, 50, 100].map((size) => (
-                  <SelectItem
-                    key={size}
-                    value={String(size)}
-                    className="text-dark-600 hover:text-white hover:bg-blue-800 cursor-pointer rounded-md"
-                  >
-                    {size}
-                  </SelectItem>
-                ))}
-                <SelectItem
-                  value="all"
-                  className="text-dark-600 hover:text-white hover:bg-blue-800 cursor-pointer rounded-md"
-                >
-                  All
-                </SelectItem>
-              </SelectContent>
-            </Select>
-            <span className="text-xs sm:text-sm text-dark-600">
-              {isShowingAll
-                ? `Showing all ${totalItems} items`
-                : `${page * pageSize + 1}-${Math.min(
-                    (page + 1) * pageSize,
-                    totalItems
-                  )} of ${totalItems}`}
-            </span>
-          </div>
-          <div className="w-full flex flex-row items-center justify-between sm:justify-end gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onPageChange?.(page - 1)}
-              disabled={page === 0 || isShowingAll}
-              className="shad-primary-btn border-0"
-            >
-              <KeyboardArrowLeftIcon />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onPageChange?.(page + 1)}
-              disabled={
-                page >= Math.ceil(totalItems / pageSize) - 1 || isShowingAll
-              }
-              className="shad-primary-btn border-0"
-            >
-              <KeyboardArrowRightIcon />
-            </Button>
-          </div>
-        </div>
       </div>
     </div>
   );
