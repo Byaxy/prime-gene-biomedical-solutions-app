@@ -4,8 +4,13 @@ import { useSales } from "@/hooks/useSales";
 import OverviewCard from "./OverviewCard";
 import { usePurchases } from "@/hooks/usePurchases";
 import { useExpenses } from "@/hooks/useExpenses";
-import ProductsOverview from "./ProductsOverview";
-import { Expense, PurchaseWithRelations, SaleWithRelations } from "@/types";
+import {
+  Expense,
+  ProductWithRelations,
+  PurchaseWithRelations,
+  SaleWithRelations,
+} from "@/types";
+import { useProducts } from "@/hooks/useProducts";
 
 const Overview = () => {
   const { sales, isLoading } = useSales({ getAllSales: true });
@@ -15,6 +20,20 @@ const Overview = () => {
   const { expenses, isLoading: expensesLoading } = useExpenses({
     getAllExpenses: true,
   });
+
+  const { products, isLoading: productsLoading } = useProducts({
+    getAllProducts: true,
+    filterAll: true,
+  });
+
+  const totalProducts = products ? products.length : 0;
+  const totalActiveProducts = products
+    ? products.reduce(
+        (sum: number, p: ProductWithRelations) =>
+          sum + (p.product.isActive ? 1 : 0),
+        0
+      )
+    : 0;
 
   const salesTotalPaid = sales
     ? sales.reduce(
@@ -93,7 +112,24 @@ const Overview = () => {
         isLoading={purchasesLoading}
       />
 
-      <ProductsOverview />
+      <OverviewCard
+        title="Number of Products"
+        data={[
+          {
+            name: "Active",
+            value: totalActiveProducts,
+            color: "#002060",
+          },
+          {
+            name: "Inactive",
+            value: totalProducts - totalActiveProducts,
+            color: "#dc2626",
+          },
+        ]}
+        total={totalProducts}
+        isLoading={productsLoading}
+        isNumber
+      />
 
       <OverviewCard
         title="Expenses"

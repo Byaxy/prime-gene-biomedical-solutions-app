@@ -8,6 +8,7 @@ import { useProducts } from "@/hooks/useProducts";
 import { read, utils } from "xlsx";
 import { useRouter } from "next/navigation";
 import Loading from "../../app/(dashboard)/loading";
+import { ProductWithRelations } from "@/types";
 
 const requiredHeaders = [
   "id",
@@ -26,6 +27,7 @@ const requiredHeaders = [
 
 const BulkProductUpload = ({ closeDialog }: { closeDialog?: () => void }) => {
   const { bulkAddProducts, isBulkAddingProducts } = useProducts();
+  const { products } = useProducts({ getAllProducts: true, filterAll: true });
   const router = useRouter();
 
   const handleFileUpload = async (files: File[]) => {
@@ -50,7 +52,7 @@ const BulkProductUpload = ({ closeDialog }: { closeDialog?: () => void }) => {
       }
 
       // Transform data
-      const products = jsonData.map((row) => ({
+      const productsData = jsonData.map((row) => ({
         id: row.id ? String(row.id) : undefined,
         productID: String(row.productID),
         name: String(row.name),
@@ -67,8 +69,44 @@ const BulkProductUpload = ({ closeDialog }: { closeDialog?: () => void }) => {
         image: [],
       }));
 
+      // Check for duplicate product IDs using Set for O(n) performance
+      const productIDSet = new Set<string>();
+      const duplicateIDs: string[] = [];
+      const existingIDs: string[] = [];
+
+      for (const product of productsData) {
+        if (productIDSet.has(product.productID)) {
+          duplicateIDs.push(product.productID);
+        }
+        productIDSet.add(product.productID);
+
+        // Validate product ID (if already exists)
+        const existingProduct = products.find(
+          (p: ProductWithRelations) => p.product.productID === product.productID
+        );
+
+        if (existingProduct) {
+          existingIDs.push(product.productID);
+        }
+      }
+
+      if (duplicateIDs.length) {
+        toast.error(
+          `Duplicate product IDs in upload: ${duplicateIDs.join(", ")}`
+        );
+        return;
+      }
+
+      if (existingIDs.length) {
+        toast.error(
+          `These product IDs already exist: ${existingIDs.join(", ")}`
+        );
+
+        return;
+      }
+
       // Use the mutation from useProducts
-      await bulkAddProducts(products, {
+      await bulkAddProducts(productsData, {
         onSuccess: () => {
           if (closeDialog) {
             closeDialog();

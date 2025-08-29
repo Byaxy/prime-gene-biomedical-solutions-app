@@ -21,6 +21,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 interface UseProductsOptions {
   getAllProducts?: boolean;
   initialPageSize?: number;
+  filterAll?: boolean;
 }
 
 export interface ProductFilters {
@@ -54,6 +55,7 @@ export const defaultProductFilters: ProductFilters = {
 export const useProducts = ({
   getAllProducts = false,
   initialPageSize = 10,
+  filterAll = false,
 }: UseProductsOptions = {}) => {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
@@ -63,6 +65,12 @@ export const useProducts = ({
   const shouldFetchAll = getAllProducts;
 
   const isShowAllMode = pageSize === 0;
+
+  useEffect(() => {
+    if (filterAll) {
+      setFilters((prev) => ({ ...prev, isActive: "all" }));
+    }
+  }, [filterAll]);
 
   // Query for all Products
   const allProductsQuery = useQuery({
