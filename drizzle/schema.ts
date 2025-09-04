@@ -186,6 +186,12 @@ export const unitsTable = pgTable(
   },
   (table) => ({
     unitsActiveIndex: index("units_active_idx").on(table.isActive),
+    unitsNameIndex: index("units_name_idx").on(table.name),
+    unitsNameGinIdx: sql`CREATE INDEX units_name_gin_idx ON ${table} USING GIN (${table.name} gin_trgm_ops);`,
+    unitsActiveNameIdx: index("units_active_name_idx").on(
+      table.isActive,
+      table.name
+    ),
   })
 );
 
@@ -205,6 +211,12 @@ export const productTypesTable = pgTable(
   (table) => ({
     productTypesActiveIndex: index("product_types_active_idx").on(
       table.isActive
+    ),
+    productTypesNameIndex: index("product_types_name_idx").on(table.name),
+    productTypesNameGinIdx: sql`CREATE INDEX product_types_name_gin_idx ON ${table} USING GIN (${table.name} gin_trgm_ops);`,
+    productTypesActiveNameIdx: index("product_types_active_name_idx").on(
+      table.isActive,
+      table.name
     ),
   })
 );
@@ -226,6 +238,12 @@ export const brandsTable = pgTable(
   },
   (table) => ({
     brandsActiveIndex: index("brands_active_idx").on(table.isActive),
+    brandsNameIndex: index("brands_name_idx").on(table.name),
+    brandsNameGinIdx: sql`CREATE INDEX brands_name_gin_idx ON ${table} USING GIN (${table.name} gin_trgm_ops);`,
+    brandsActiveNameIdx: index("brands_active_name_idx").on(
+      table.isActive,
+      table.name
+    ),
   })
 );
 
@@ -250,6 +268,12 @@ export const categoriesTable = pgTable(
   (table) => ({
     categoriesActiveIndex: index("categories_active_idx").on(table.isActive),
     categoriesParentIndex: index("categories_parent_idx").on(table.parentId),
+    categoriesNameIndex: index("categories_name_idx").on(table.name),
+    categoriesNameGinIdx: sql`CREATE INDEX categories_name_gin_idx ON ${table} USING GIN (${table.name} gin_trgm_ops);`,
+    categoriesActiveNameIdx: index("categories_active_name_idx").on(
+      table.isActive,
+      table.name
+    ),
   })
 );
 
@@ -293,6 +317,7 @@ export const vendorsTable = pgTable(
   },
   (table) => ({
     vendorsActiveIndex: index("vendors_active_idx").on(table.isActive),
+    vendorsNameIndex: index("vendors_name_idx").on(table.name),
   })
 );
 
@@ -327,6 +352,7 @@ export const customersTable = pgTable(
   },
   (table) => ({
     customersActiveIndex: index("customers_active_idx").on(table.isActive),
+    customersNameIndex: index("customers_name_idx").on(table.name),
   })
 );
 
@@ -387,6 +413,7 @@ export const productsTable = pgTable(
     productsProductIdIndex: index("products_product_id_idx").on(
       table.productID
     ),
+    productsNameIndex: index("products_name_idx").on(table.name),
     productsCategoryIdIndex: index("products_category_id_idx").on(
       table.categoryId
     ),
@@ -394,6 +421,39 @@ export const productsTable = pgTable(
     productsUnitIdIndex: index("products_unit_id_idx").on(table.unitId),
     productsTypeIdIndex: index("products_type_id_idx").on(table.typeId),
     productsActiveIndex: index("products_is_active_idx").on(table.isActive),
+
+    // GIN indexes for full-text search capabilities with ILIKE
+    productsNameGinIdx: sql`CREATE INDEX products_name_gin_idx ON ${table} USING GIN (${table.name} gin_trgm_ops);`,
+    productsProductIdGinIdx: sql`CREATE INDEX products_product_id_gin_idx ON ${table} USING GIN (${table.productID} gin_trgm_ops);`,
+    productsDescriptionGinIdx: sql`CREATE INDEX products_description_gin_idx ON ${table} USING GIN (${table.description} gin_trgm_ops);`,
+    // Indexes for number filters
+    productsCostPriceIdx: index("products_cost_price_idx").on(table.costPrice),
+    productsSellingPriceIdx: index("products_selling_price_idx").on(
+      table.sellingPrice
+    ),
+    productsQuantityIdx: index("products_quantity_idx").on(table.quantity),
+
+    // Composite indexes for common filter combinations
+    productsActiveCategoryIdx: index("products_active_category_idx").on(
+      table.isActive,
+      table.categoryId
+    ),
+    productsActiveBrandIdx: index("products_active_brand_idx").on(
+      table.isActive,
+      table.brandId
+    ),
+    productsActiveTypeIdx: index("products_active_type_idx").on(
+      table.isActive,
+      table.typeId
+    ),
+    productsActiveUnitIdx: index("products_active_unit_idx").on(
+      table.isActive,
+      table.unitId
+    ),
+    productsActiveCreatedIdx: index("products_active_created_idx").on(
+      table.isActive,
+      table.createdAt
+    ),
   })
 );
 

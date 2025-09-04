@@ -25,7 +25,7 @@ const Brands = () => {
     addBrand,
     isAddingBrand,
     refetch,
-    isRefetching,
+    isFetching,
   } = useBrands({ initialPageSize: 10 });
 
   const handleAddBrand = async (data: BrandFormValues): Promise<void> => {
@@ -88,7 +88,7 @@ const Brands = () => {
           rowSelection={rowSelection}
           onRowSelectionChange={setRowSelection}
           refetch={refetch}
-          isRefetching={isRefetching}
+          isFetching={isFetching}
         />
         <BrandDialog
           mode="add"

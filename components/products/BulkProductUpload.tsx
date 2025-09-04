@@ -27,11 +27,15 @@ const requiredHeaders = [
 
 const BulkProductUpload = ({ closeDialog }: { closeDialog?: () => void }) => {
   const { bulkAddProducts, isBulkAddingProducts } = useProducts();
-  const { products } = useProducts({ getAllProducts: true, filterAll: true });
+  const { products } = useProducts({ getAllProducts: true });
   const router = useRouter();
 
   const handleFileUpload = async (files: File[]) => {
     if (!files.length) return;
+    if (products.length === 0) {
+      toast.error("Existing products stills loading... Please wait.");
+      return;
+    }
 
     try {
       const file = files[0];

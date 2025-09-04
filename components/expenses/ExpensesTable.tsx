@@ -14,7 +14,7 @@ const ExpensesTable = () => {
     pageSize,
     setPageSize,
     refetch,
-    isRefetching,
+    isFetching,
   } = useExpenses({
     initialPageSize: 10,
   });
@@ -29,9 +29,8 @@ const ExpensesTable = () => {
       onPageChange={setPage}
       pageSize={pageSize}
       onPageSizeChange={setPageSize}
-      searchBy="title"
       refetch={refetch}
-      isRefetching={isRefetching}
+      isFetching={isFetching}
     />
   );
 };

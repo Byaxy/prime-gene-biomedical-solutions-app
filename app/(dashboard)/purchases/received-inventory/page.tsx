@@ -24,7 +24,7 @@ const ReceivedInventory = () => {
     pageSize,
     setPageSize,
     refetch,
-    isRefetching,
+    isFetching,
     onFilterChange,
     filters,
     defaultFilterValues,
@@ -125,14 +125,8 @@ const ReceivedInventory = () => {
           onPageChange={setPage}
           pageSize={pageSize}
           onPageSizeChange={setPageSize}
-          searchBy={[
-            "purchase.purchaseNumber",
-            "purchase.vendorInvoiceNumber",
-            "vendor.name",
-            "store.name",
-          ]}
           refetch={refetch}
-          isRefetching={isRefetching}
+          isFetching={isFetching}
           filters={inventoryFilters}
           filterValues={filters}
           onFilterChange={onFilterChange}

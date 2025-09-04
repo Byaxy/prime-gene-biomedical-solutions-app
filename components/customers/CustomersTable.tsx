@@ -14,7 +14,7 @@ const CustomersTable = () => {
     pageSize,
     setPageSize,
     refetch,
-    isRefetching,
+    isFetching,
   } = useCustomers({ initialPageSize: 10 });
 
   return (
@@ -28,7 +28,7 @@ const CustomersTable = () => {
       pageSize={pageSize}
       onPageSizeChange={setPageSize}
       refetch={refetch}
-      isRefetching={isRefetching}
+      isFetching={isFetching}
     />
   );
 };

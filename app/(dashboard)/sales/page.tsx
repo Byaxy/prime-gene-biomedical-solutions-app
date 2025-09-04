@@ -24,7 +24,7 @@ const Sales = () => {
     onFilterChange,
     defaultFilterValues,
     refetch,
-    isRefetching,
+    isFetching,
   } = useSales({ initialPageSize: 10 });
 
   const { sales: allSales, isLoading: isLoadingAllSales } = useSales({
@@ -85,14 +85,13 @@ const Sales = () => {
           onPageChange={setPage}
           pageSize={pageSize}
           onPageSizeChange={setPageSize}
-          searchBy={["sale.invoiceNumber", "customer.name"]}
           onRowClick={handleRowClick}
           filters={salesFilters}
           filterValues={filters}
           onFilterChange={onFilterChange}
           defaultFilterValues={defaultFilterValues}
           refetch={refetch}
-          isRefetching={isRefetching}
+          isFetching={isFetching}
         />
         <SaleDialog
           mode={"view"}

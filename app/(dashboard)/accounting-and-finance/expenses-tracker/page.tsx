@@ -1,5 +1,11 @@
+import PageWraper from "@/components/PageWraper";
+
 const ExpensesTracker = () => {
-  return <div>Expenses Tracker</div>;
+  return (
+    <PageWraper title="Expenses Tracker">
+      <div>Expenses Tracker</div>
+    </PageWraper>
+  );
 };
 
 export default ExpensesTracker;

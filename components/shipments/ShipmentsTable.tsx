@@ -21,7 +21,7 @@ const ShipmentsTable = () => {
     setPageSize,
     isLoading,
     refetch,
-    isRefetching,
+    isFetching,
     filters,
     onFilterChange,
     defaultFilterValues,
@@ -66,9 +66,8 @@ const ShipmentsTable = () => {
         onPageChange={setPage}
         pageSize={pageSize}
         onPageSizeChange={setPageSize}
-        searchBy={[]}
         refetch={refetch}
-        isRefetching={isRefetching}
+        isFetching={isFetching}
         filters={shipmentFilters}
         filterValues={filters}
         onFilterChange={onFilterChange}

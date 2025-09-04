@@ -25,7 +25,7 @@ const PromissoryNotes = () => {
     onFilterChange,
     defaultFilterValues,
     refetch,
-    isRefetching,
+    isFetching,
   } = usePromissoryNote({ initialPageSize: 10 });
 
   const promissoryNotesFilters = {
@@ -63,18 +63,13 @@ const PromissoryNotes = () => {
           onPageChange={setPage}
           pageSize={pageSize}
           onPageSizeChange={setPageSize}
-          searchBy={[
-            "promissoryNote.promissoryNoteRefNumber",
-            "customer.name",
-            "sale.invoiceNumber",
-          ]}
           filters={promissoryNotesFilters}
           filterValues={filters}
           onFilterChange={onFilterChange}
           defaultFilterValues={defaultFilterValues}
           onRowClick={handleRowClick}
           refetch={refetch}
-          isRefetching={isRefetching}
+          isFetching={isFetching}
         />
         <PromissoryNoteDialog
           mode={"view"}

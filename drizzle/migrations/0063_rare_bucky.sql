@@ -1,0 +1,19 @@
+CREATE INDEX "brands_name_idx" ON "brands" USING btree ("name");--> statement-breakpoint
+CREATE INDEX "brands_active_name_idx" ON "brands" USING btree ("is_active","name");--> statement-breakpoint
+CREATE INDEX "categories_name_idx" ON "categories" USING btree ("name");--> statement-breakpoint
+CREATE INDEX "categories_active_name_idx" ON "categories" USING btree ("is_active","name");--> statement-breakpoint
+CREATE INDEX "customers_name_idx" ON "customers" USING btree ("name");--> statement-breakpoint
+CREATE INDEX "product_types_name_idx" ON "product_types" USING btree ("name");--> statement-breakpoint
+CREATE INDEX "product_types_active_name_idx" ON "product_types" USING btree ("is_active","name");--> statement-breakpoint
+CREATE INDEX "products_name_idx" ON "products" USING btree ("name");--> statement-breakpoint
+CREATE INDEX "products_cost_price_idx" ON "products" USING btree ("cost_price");--> statement-breakpoint
+CREATE INDEX "products_selling_price_idx" ON "products" USING btree ("selling_price");--> statement-breakpoint
+CREATE INDEX "products_quantity_idx" ON "products" USING btree ("quantity");--> statement-breakpoint
+CREATE INDEX "products_active_category_idx" ON "products" USING btree ("is_active","category_id");--> statement-breakpoint
+CREATE INDEX "products_active_brand_idx" ON "products" USING btree ("is_active","brand_id");--> statement-breakpoint
+CREATE INDEX "products_active_type_idx" ON "products" USING btree ("is_active","type_id");--> statement-breakpoint
+CREATE INDEX "products_active_unit_idx" ON "products" USING btree ("is_active","unit_id");--> statement-breakpoint
+CREATE INDEX "products_active_created_idx" ON "products" USING btree ("is_active","created_at");--> statement-breakpoint
+CREATE INDEX "units_name_idx" ON "units" USING btree ("name");--> statement-breakpoint
+CREATE INDEX "units_active_name_idx" ON "units" USING btree ("is_active","name");--> statement-breakpoint
+CREATE INDEX "vendors_name_idx" ON "vendors" USING btree ("name");

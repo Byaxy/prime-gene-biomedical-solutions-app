@@ -23,7 +23,7 @@ const Waybills = () => {
     onFilterChange,
     defaultFilterValues,
     refetch,
-    isRefetching,
+    isFetching,
   } = useWaybills({ initialPageSize: 10 });
 
   const handleRowClick = (rowData: GroupedWaybills) => {
@@ -104,18 +104,13 @@ const Waybills = () => {
           onPageChange={setPage}
           pageSize={pageSize}
           onPageSizeChange={setPageSize}
-          searchBy={[
-            "latestWaybillRefNumber",
-            "customer.name",
-            "sale.invoiceNumber",
-          ]}
           onRowClick={handleRowClick}
           filters={waybillsFilters}
           filterValues={filters}
           onFilterChange={onFilterChange}
           defaultFilterValues={defaultFilterValues}
           refetch={refetch}
-          isRefetching={isRefetching}
+          isFetching={isFetching}
         />
         <WaybillListDialog
           open={openDialog}

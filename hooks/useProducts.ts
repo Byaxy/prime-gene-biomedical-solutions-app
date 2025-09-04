@@ -15,132 +15,304 @@ import {
   softDeleteMultipleProducts,
   softDeleteProduct,
 } from "@/lib/actions/product.actions";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useTransition } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { ProductWithRelations } from "@/types";
+import { useRouter, useSearchParams } from "next/navigation";
 
 interface UseProductsOptions {
   getAllProducts?: boolean;
-  initialPageSize?: number;
-  filterAll?: boolean;
+  initialData?: { documents: ProductWithRelations[]; total: number };
+  enableRealtime?: boolean;
 }
 
 export interface ProductFilters {
+  search?: string;
+  isActive?: "true" | "false" | "all";
+  categoryId?: string;
+  brandId?: string;
+  typeId?: string;
+  unitId?: string;
   costPrice_min?: number;
   costPrice_max?: number;
   sellingPrice_min?: number;
   sellingPrice_max?: number;
   quantity_min?: number;
   quantity_max?: number;
-  isActive?: "true" | "false" | "all";
-  categoryId?: string;
-  typeId?: string;
-  brandId?: string;
-  unitId?: string;
 }
 
 export const defaultProductFilters: ProductFilters = {
+  isActive: undefined,
+  categoryId: undefined,
+  brandId: undefined,
+  typeId: undefined,
+  unitId: undefined,
   costPrice_min: undefined,
   costPrice_max: undefined,
   sellingPrice_min: undefined,
   sellingPrice_max: undefined,
   quantity_min: undefined,
   quantity_max: undefined,
-  isActive: "true",
-  categoryId: undefined,
-  typeId: undefined,
-  brandId: undefined,
-  unitId: undefined,
 };
 
 export const useProducts = ({
   getAllProducts = false,
-  initialPageSize = 10,
-  filterAll = false,
+  initialData,
+  enableRealtime = true,
 }: UseProductsOptions = {}) => {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(initialPageSize);
-  const [filters, setFilters] = useState<ProductFilters>(defaultProductFilters);
+  const [isPending, startTransition] = useTransition();
 
-  const shouldFetchAll = getAllProducts;
-
-  const isShowAllMode = pageSize === 0;
-
-  useEffect(() => {
-    if (filterAll) {
-      setFilters((prev) => ({ ...prev, isActive: "all" }));
+  // Parse current state from URL - single source of truth
+  const currentState = useMemo(() => {
+    if (getAllProducts) {
+      return {
+        page: 0,
+        pageSize: 0,
+        search: "",
+        filters: {
+          isActive: "all",
+        } as ProductFilters,
+      };
     }
-  }, [filterAll]);
 
-  // Query for all Products
-  const allProductsQuery = useQuery({
-    queryKey: ["products", filters],
+    const page = Number(searchParams.get("page") || 0);
+    const pageSize = Number(searchParams.get("pageSize") || 10);
+    const search = searchParams.get("search") || "";
+
+    const filters: ProductFilters = {
+      search: search || undefined,
+      isActive:
+        (searchParams.get("isActive") as ProductFilters["isActive"]) ||
+        undefined,
+      categoryId: searchParams.get("categoryId") || undefined,
+      brandId: searchParams.get("brandId") || undefined,
+      typeId: searchParams.get("typeId") || undefined,
+      unitId: searchParams.get("unitId") || undefined,
+      costPrice_min: searchParams.get("costPrice_min")
+        ? Number(searchParams.get("costPrice_min"))
+        : undefined,
+      costPrice_max: searchParams.get("costPrice_max")
+        ? Number(searchParams.get("costPrice_max"))
+        : undefined,
+      sellingPrice_min: searchParams.get("sellingPrice_min")
+        ? Number(searchParams.get("sellingPrice_min"))
+        : undefined,
+      sellingPrice_max: searchParams.get("sellingPrice_max")
+        ? Number(searchParams.get("sellingPrice_max"))
+        : undefined,
+      quantity_min: searchParams.get("quantity_min")
+        ? Number(searchParams.get("quantity_min"))
+        : undefined,
+      quantity_max: searchParams.get("quantity_max")
+        ? Number(searchParams.get("quantity_max"))
+        : undefined,
+    };
+
+    return { page, pageSize, filters, search };
+  }, [getAllProducts, searchParams]);
+
+  // Create stable query key
+  const queryKey = useMemo(() => {
+    const { page, pageSize, filters } = currentState;
+    const filterString = JSON.stringify(filters);
+    return ["products", page, pageSize, filterString];
+  }, [currentState]);
+
+  // Main query with server state
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
+    queryKey,
     queryFn: async () => {
-      const result = await getProducts(0, 0, true, filters);
-      return result.documents;
+      const { page, pageSize, filters } = currentState;
+      return getProducts(
+        page,
+        pageSize,
+        getAllProducts || pageSize === 0,
+        filters
+      );
     },
-    enabled: shouldFetchAll || isShowAllMode,
+    initialData: initialData ? () => initialData : undefined,
+    staleTime: getAllProducts ? 60000 : 30000,
+    refetchOnWindowFocus: false,
+    retry: 1,
   });
 
-  // Query for paginated Products
-  const paginatedProductsQuery = useQuery({
-    queryKey: ["products", "paginatedProducts", page, pageSize, filters],
-    queryFn: async () => {
-      const result = await getProducts(page, pageSize, false, filters);
-      return result;
-    },
-    enabled: !shouldFetchAll && !isShowAllMode,
-  });
+  // Optimistic navigation function
+  const navigate = useCallback(
+    (
+      updates: Partial<{
+        page: number;
+        pageSize: number;
+        search: string;
+        filters: Partial<ProductFilters>;
+      }>
+    ) => {
+      const params = new URLSearchParams(searchParams.toString());
 
-  // Determine which query data to use
-  const activeQuery =
-    shouldFetchAll || isShowAllMode ? allProductsQuery : paginatedProductsQuery;
-  const products =
-    (shouldFetchAll || isShowAllMode
-      ? activeQuery.data
-      : activeQuery.data?.documents) || [];
-  const totalItems = activeQuery.data?.total || 0;
+      // Apply updates
+      if (updates.page !== undefined) {
+        if (updates.page === 0) {
+          params.delete("page");
+        } else {
+          params.set("page", String(updates.page));
+        }
+      }
 
-  // Prefetch next page for table view
-  useEffect(() => {
-    if (
-      !shouldFetchAll &&
-      !isShowAllMode &&
-      paginatedProductsQuery.data &&
-      page * pageSize < paginatedProductsQuery.data.total - pageSize
-    ) {
-      queryClient.prefetchQuery({
-        queryKey: [
-          "products",
-          "paginatedProducts",
-          page + 1,
-          pageSize,
-          filters,
-        ],
-        queryFn: () => getProducts(page + 1, pageSize, false, filters),
+      if (updates.pageSize !== undefined) {
+        if (updates.pageSize === 10) {
+          params.delete("pageSize");
+        } else {
+          params.set("pageSize", String(updates.pageSize));
+        }
+      }
+
+      if (updates.search !== undefined) {
+        if (updates.search.trim()) {
+          params.set("search", updates.search.trim());
+        } else {
+          params.delete("search");
+        }
+        params.delete("page");
+      }
+
+      if (updates.filters) {
+        Object.keys(defaultProductFilters).forEach((key) => params.delete(key));
+
+        Object.entries(updates.filters).forEach(([key, value]) => {
+          if (value === undefined || value === "" || value === null) {
+            params.delete(key);
+          } else {
+            params.set(key, String(value));
+          }
+        });
+        params.delete("page");
+      }
+
+      const newUrl = `?${params.toString()}`;
+
+      // Use startTransition for non-urgent updates
+      startTransition(() => {
+        router.push(newUrl, { scroll: false });
       });
-    }
-  }, [
-    page,
-    pageSize,
-    paginatedProductsQuery.data,
-    queryClient,
-    shouldFetchAll,
-    isShowAllMode,
-    filters,
-  ]);
 
-  // Handle filter changes
-  const handleFilterChange = (newFilters: ProductFilters) => {
-    setFilters(newFilters);
-    setPage(0);
-  };
+      // Prefetch the new data immediately
+      const newParams = new URLSearchParams(newUrl.substring(1));
+      const newPage = Number(newParams.get("page") || 0);
+      const newPageSize = Number(newParams.get("pageSize") || 10);
+      const newFilters: ProductFilters = {
+        search: newParams.get("search") || undefined,
+        isActive:
+          (newParams.get("isActive") as ProductFilters["isActive"]) ||
+          undefined,
+        categoryId: newParams.get("categoryId") || undefined,
+        brandId: newParams.get("brandId") || undefined,
+        typeId: newParams.get("typeId") || undefined,
+        unitId: newParams.get("unitId") || undefined,
+        costPrice_min: newParams.get("costPrice_min")
+          ? Number(newParams.get("costPrice_min"))
+          : undefined,
+        costPrice_max: newParams.get("costPrice_max")
+          ? Number(newParams.get("costPrice_max"))
+          : undefined,
+        sellingPrice_min: newParams.get("sellingPrice_min")
+          ? Number(newParams.get("sellingPrice_min"))
+          : undefined,
+        sellingPrice_max: newParams.get("sellingPrice_max")
+          ? Number(newParams.get("sellingPrice_max"))
+          : undefined,
+        quantity_min: newParams.get("quantity_min")
+          ? Number(newParams.get("quantity_min"))
+          : undefined,
+        quantity_max: newParams.get("quantity_max")
+          ? Number(newParams.get("quantity_max"))
+          : undefined,
+      };
 
-  // Handle page size changes
-  const handlePageSizeChange = (newPageSize: number) => {
-    setPageSize(newPageSize);
-    setPage(0);
-  };
+      const newQueryKey = [
+        "products",
+        newPage,
+        newPageSize,
+        JSON.stringify(newFilters),
+      ];
+
+      queryClient.prefetchQuery({
+        queryKey: newQueryKey,
+        queryFn: () =>
+          getProducts(newPage, newPageSize, newPageSize === 0, newFilters),
+      });
+    },
+    [router, searchParams, queryClient]
+  );
+
+  const setPage = useCallback(
+    (page: number) => {
+      if (getAllProducts) return;
+      navigate({ page });
+    },
+    [getAllProducts, navigate]
+  );
+
+  const setPageSize = useCallback(
+    (pageSize: number) => {
+      if (getAllProducts) return;
+      navigate({ pageSize, page: 0 });
+    },
+    [getAllProducts, navigate]
+  );
+
+  const setSearch = useCallback(
+    (search: string) => {
+      if (getAllProducts) return;
+      navigate({ search });
+    },
+    [getAllProducts, navigate]
+  );
+
+  const setFilters = useCallback(
+    (filters: Partial<ProductFilters>) => {
+      if (getAllProducts) return;
+      navigate({ filters });
+    },
+    [getAllProducts, navigate]
+  );
+
+  const clearFilters = useCallback(() => {
+    if (getAllProducts) return;
+    navigate({
+      filters: defaultProductFilters,
+      search: "",
+      page: 0,
+      pageSize: 10,
+    });
+  }, [getAllProducts, navigate]);
+
+  // Real-time updates
+  useEffect(() => {
+    if (!enableRealtime) return;
+
+    const supabase = createSupabaseBrowserClient();
+
+    const channel = supabase
+      .channel("products_changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "products",
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["products"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [enableRealtime, queryClient]);
 
   // Add product mutation
   const { mutate: addProductMutation, status: addProductStatus } = useMutation({
@@ -380,19 +552,21 @@ export const useProducts = ({
   });
 
   return {
-    products,
-    totalItems,
-    isLoading: activeQuery.isLoading,
-    error: activeQuery.error,
-    setPageSize: handlePageSizeChange,
-    refetch: activeQuery.refetch,
-    isRefetching: activeQuery.isRefetching,
-    page,
+    products: data?.documents || [],
+    totalItems: data?.total || 0,
+    page: currentState.page,
+    pageSize: currentState.pageSize,
+    search: currentState.search,
+    filters: currentState.filters,
+    isLoading: isLoading || isPending,
+    isFetching,
+    error,
     setPage,
-    pageSize,
-    filters,
-    onFilterChange: handleFilterChange,
-    defaultFilterValues: defaultProductFilters,
+    setPageSize,
+    setSearch,
+    setFilters,
+    clearFilters,
+    refetch: refetch,
     addProduct: addProductMutation,
     bulkAddProducts: bulkAddProductsMutation,
     editProduct: editProductMutation,

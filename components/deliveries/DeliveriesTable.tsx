@@ -24,7 +24,7 @@ const DeliveriesTable = () => {
     onFilterChange,
     defaultFilterValues,
     refetch,
-    isRefetching,
+    isFetching,
   } = useDeliveries({ initialPageSize: 10 });
 
   const handleRowClick = (rowData: DeliveryWithRelations) => {
@@ -57,18 +57,13 @@ const DeliveriesTable = () => {
         onPageChange={setPage}
         pageSize={pageSize}
         onPageSizeChange={setPageSize}
-        searchBy={[
-          "delivery.deliveryRefNumber",
-          "customer.name",
-          "sale.invoiceNumber",
-        ]}
         onRowClick={handleRowClick}
         filters={deliveriesFilters}
         filterValues={filters}
         onFilterChange={onFilterChange}
         defaultFilterValues={defaultFilterValues}
         refetch={refetch}
-        isRefetching={isRefetching}
+        isFetching={isFetching}
       />
 
       <DeliveryDialog

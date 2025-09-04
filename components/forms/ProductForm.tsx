@@ -82,7 +82,7 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
     editProduct,
     isAddingProduct,
     isEditingProduct,
-  } = useProducts({ getAllProducts: true, filterAll: true });
+  } = useProducts({ getAllProducts: true });
 
   const router = useRouter();
   const pathname = usePathname();

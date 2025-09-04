@@ -1,5 +1,11 @@
+import PageWraper from "@/components/PageWraper";
+
 const IncomeTracker = () => {
-  return <div>Income Tracker</div>;
+  return (
+    <PageWraper title="Income Tracker">
+      <div>Income Tracker</div>
+    </PageWraper>
+  );
 };
 
 export default IncomeTracker;

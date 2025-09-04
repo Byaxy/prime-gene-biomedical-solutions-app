@@ -20,7 +20,7 @@ const Users = () => {
     setPageSize,
     isLoading,
     refetch,
-    isRefetching,
+    isFetching,
   } = useUsers({ initialPageSize: 10 });
 
   const handleDownloadSelected = async (selectedItems: User[]) => {
@@ -70,7 +70,7 @@ const Users = () => {
         onRowSelectionChange={setRowSelection}
         onDownloadSelected={handleDownloadSelected}
         refetch={refetch}
-        isRefetching={isRefetching}
+        isFetching={isFetching}
       />
     </PageWraper>
   );

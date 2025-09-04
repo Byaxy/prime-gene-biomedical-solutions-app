@@ -245,6 +245,6 @@ export const useBrands = ({
     isDeletingBrand: deleteBrandStatus === "pending",
     isSoftDeletingBrand: softDeleteBrandStatus === "pending",
     refetch: activeQuery.refetch,
-    isRefetching: activeQuery.isRefetching,
+    isFetching: activeQuery.isFetching,
   };
 };

@@ -1,154 +1,65 @@
-"use client";
-
 import PageWraper from "@/components/PageWraper";
-import { productsColumns } from "@/components/table/columns/productsColumns";
-import { DataTable } from "@/components/table/DataTable";
-import { useBrands } from "@/hooks/useBrands";
-import { useCategories } from "@/hooks/useCategories";
-import { useProducts } from "@/hooks/useProducts";
-import { useTypes } from "@/hooks/useTypes";
-import { useUnits } from "@/hooks/useUnits";
-import { exportToExcel, transformProductsForExport } from "@/lib/utils";
-import {
-  Brand,
-  Category,
-  ProductType,
-  ProductWithRelations,
-  Unit,
-} from "@/types";
-import { useState } from "react";
-import toast from "react-hot-toast";
+import { ProductFilters } from "@/hooks/useProducts";
+import { getProducts } from "@/lib/actions/product.actions";
+import dynamic from "next/dynamic";
+import { Suspense } from "react";
+import Loading from "../loading";
 
-const Inventory = () => {
-  const [rowSelection, setRowSelection] = useState({});
+const InventoryTable = dynamic(
+  () => import("@/components/inventory/InventoryTable")
+);
 
-  const {
-    products,
-    isLoading,
-    totalItems,
-    page,
-    setPage,
-    pageSize,
-    setPageSize,
-    softDeleteMultipleProducts,
-    isSoftDeletingMultipleProducts,
-    reactivateMultipleProducts,
-    isReactivatingMultipleProducts,
-    refetch,
-    isRefetching,
-    filters,
-    onFilterChange,
-    defaultFilterValues,
-  } = useProducts({
-    initialPageSize: 10,
-  });
+export interface InventorySearchParams {
+  page?: string;
+  pageSize?: string;
+  search?: string;
+  isActive?: "true" | "false" | "all";
+  categoryId?: string;
+  brandId?: string;
+  typeId?: string;
+  unitId?: string;
+  costPrice_min?: string;
+  costPrice_max?: string;
+  sellingPrice_min?: string;
+  sellingPrice_max?: string;
+  quantity_min?: string;
+  quantity_max?: string;
+}
 
-  const { categories } = useCategories({ getAllCategories: true });
-  const { brands } = useBrands({ getAllBrands: true });
-  const { types } = useTypes({ getAllTypes: true });
-  const { units } = useUnits({ getAllUnits: true });
-  const categoryOptions = categories?.map((category: Category) => ({
-    label: category.name,
-    value: category.id,
-  }));
+const Inventory = async ({
+  searchParams,
+}: {
+  searchParams: Promise<InventorySearchParams>;
+}) => {
+  const sp = await searchParams;
+  const currentPage = Number(sp.page || 0);
+  const currentPageSize = sp.pageSize === "0" ? 0 : Number(sp.pageSize || 10);
 
-  const brandOptions = brands?.map((brand: Brand) => ({
-    label: brand.name,
-    value: brand.id,
-  }));
-  const typeOptions = types?.map((type: ProductType) => ({
-    label: type.name,
-    value: type.id,
-  }));
-  const unitOptions = units?.map((unit: Unit) => ({
-    label: unit.name,
-    value: unit.id,
-  }));
-
-  const handleDeactivateSelected = async (
-    selectedItems: ProductWithRelations[]
-  ) => {
-    const ids = selectedItems.map((item) => item.product.id);
-    await softDeleteMultipleProducts(ids, {
-      onSuccess: () => {
-        setRowSelection({});
-      },
-    });
+  const filtersForServer: ProductFilters = {
+    search: sp.search || undefined,
+    isActive: sp.isActive || undefined,
+    categoryId: sp.categoryId || undefined,
+    brandId: sp.brandId || undefined,
+    typeId: sp.typeId || undefined,
+    unitId: sp.unitId || undefined,
+    costPrice_min: sp.costPrice_min ? Number(sp.costPrice_min) : undefined,
+    costPrice_max: sp.costPrice_max ? Number(sp.costPrice_max) : undefined,
+    sellingPrice_min: sp.sellingPrice_min
+      ? Number(sp.sellingPrice_min)
+      : undefined,
+    sellingPrice_max: sp.sellingPrice_max
+      ? Number(sp.sellingPrice_max)
+      : undefined,
+    quantity_min: sp.quantity_min ? Number(sp.quantity_min) : undefined,
+    quantity_max: sp.quantity_max ? Number(sp.quantity_max) : undefined,
   };
 
-  const handleReactivateSelected = async (
-    selectedItems: ProductWithRelations[]
-  ) => {
-    const ids = selectedItems.map((item) => item.product.id);
-    await reactivateMultipleProducts(ids, {
-      onSuccess: () => {
-        setRowSelection({});
-      },
-    });
-  };
-
-  const handleDownloadSelected = async (
-    selectedItems: ProductWithRelations[]
-  ) => {
-    try {
-      if (selectedItems.length === 0) {
-        toast.error("No products selected for download");
-        return;
-      }
-
-      const exportData = transformProductsForExport(selectedItems);
-      exportToExcel(exportData, "selected-products");
-      setRowSelection({});
-      toast.success("Export started successfully");
-    } catch (error) {
-      console.error("Error exporting products:", error);
-      toast.error("Failed to export products");
-    }
-  };
-
-  const productFilters = {
-    costPrice: {
-      type: "number" as const,
-      label: "Cost Price",
-    },
-    sellingPrice: {
-      type: "number" as const,
-      label: "Selling Price",
-    },
-    quantity: {
-      type: "number" as const,
-      label: "Quantity",
-    },
-    categoryId: {
-      type: "select" as const,
-      label: "Category",
-      options: categoryOptions || [],
-    },
-    brandId: {
-      type: "select" as const,
-      label: "Brand / Vendor",
-      options: brandOptions || [],
-    },
-    typeId: {
-      type: "select" as const,
-      label: "Type",
-      options: typeOptions || [],
-    },
-    unitId: {
-      type: "select" as const,
-      label: "Unit",
-      options: unitOptions || [],
-    },
-    isActive: {
-      type: "select" as const,
-      label: "Active Status",
-      options: [
-        { value: "all", label: "All" },
-        { value: "true", label: "Active" },
-        { value: "false", label: "Inactive" },
-      ],
-    },
-  };
+  const initialData = await getProducts(
+    currentPage,
+    currentPageSize,
+    currentPageSize === 0,
+    filtersForServer
+  );
 
   return (
     <PageWraper
@@ -156,36 +67,9 @@ const Inventory = () => {
       buttonText="Add New"
       buttonPath="/inventory/add-inventory"
     >
-      <DataTable
-        columns={productsColumns}
-        data={products || []}
-        searchBy={[
-          "product.name",
-          "product.productID",
-          "brand.name",
-          "category.name",
-          "type.name",
-        ]}
-        isLoading={isLoading}
-        totalItems={totalItems}
-        page={page}
-        onPageChange={setPage}
-        pageSize={pageSize}
-        onPageSizeChange={setPageSize}
-        onDeactivateSelected={handleDeactivateSelected}
-        isDeactivatingSelected={isSoftDeletingMultipleProducts}
-        onReactivateSelected={handleReactivateSelected}
-        isReactivatingSelected={isReactivatingMultipleProducts}
-        rowSelection={rowSelection}
-        onRowSelectionChange={setRowSelection}
-        onDownloadSelected={handleDownloadSelected}
-        refetch={refetch}
-        isRefetching={isRefetching}
-        filters={productFilters}
-        filterValues={filters}
-        onFilterChange={onFilterChange}
-        defaultFilterValues={defaultFilterValues}
-      />
+      <Suspense fallback={<Loading />}>
+        <InventoryTable initialData={initialData} />
+      </Suspense>
     </PageWraper>
   );
 };

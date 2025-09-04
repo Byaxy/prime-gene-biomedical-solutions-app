@@ -26,7 +26,7 @@ const Categories = () => {
     addCategory,
     isAddingCategory,
     refetch,
-    isRefetching,
+    isFetching,
   } = useCategories({ initialPageSize: 10 });
 
   const handleAddCategory = async (data: CategoryFormValues): Promise<void> => {
@@ -90,7 +90,7 @@ const Categories = () => {
           rowSelection={rowSelection}
           onRowSelectionChange={setRowSelection}
           refetch={refetch}
-          isRefetching={isRefetching}
+          isFetching={isFetching}
         />
         <CategoryDialog
           mode="add"

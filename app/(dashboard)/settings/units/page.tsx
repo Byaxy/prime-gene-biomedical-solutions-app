@@ -26,7 +26,7 @@ const Units = () => {
     addUnit,
     isAddingUnit,
     refetch,
-    isRefetching,
+    isFetching,
   } = useUnits({ initialPageSize: 10 });
 
   const handleAddUnit = async (data: UnitFormValues): Promise<void> => {
@@ -88,7 +88,7 @@ const Units = () => {
           onRowSelectionChange={setRowSelection}
           onDownloadSelected={handleDownloadSelected}
           refetch={refetch}
-          isRefetching={isRefetching}
+          isFetching={isFetching}
         />
         <UnitsDialog
           mode="add"

@@ -303,7 +303,7 @@ export const useReceivingPurchases = ({
     error: activeQuery.error,
     setPageSize: handlePageSizeChange,
     refetch: activeQuery.refetch,
-    isRefetching: activeQuery.isRefetching,
+    isFetching: activeQuery.isFetching,
     page,
     setPage,
     pageSize,

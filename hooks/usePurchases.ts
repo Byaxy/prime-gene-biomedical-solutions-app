@@ -300,6 +300,6 @@ export const usePurchases = ({
     deletePurchase: deletePurchaseMutation,
     isDeletingPurchase: deletePurchaseStatus === "pending",
     refetch: activeQuery.refetch,
-    isRefetching: activeQuery.isRefetching,
+    isFetching: activeQuery.isFetching,
   };
 };

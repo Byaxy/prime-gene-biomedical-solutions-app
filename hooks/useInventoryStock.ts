@@ -299,7 +299,7 @@ export const useInventoryStock = ({
     error: activeQuery.error,
     setPageSize: handlePageSizeChange,
     refetch: activeQuery.refetch,
-    isRefetching: activeQuery.isRefetching,
+    isFetching: activeQuery.isFetching,
     page,
     setPage,
     pageSize,
@@ -316,7 +316,7 @@ export const useInventoryStock = ({
     transactionsError: activeTransactionsQuery.error,
     setTransactionFilters: handleTransactionFilterChange,
     refetchTransactions: activeTransactionsQuery.refetch,
-    isRefetchingTransactions: activeTransactionsQuery.isRefetching,
+    isFetchingTransactions: activeTransactionsQuery.isFetching,
     transactionFilters,
   };
 };

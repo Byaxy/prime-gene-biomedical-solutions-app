@@ -15,7 +15,7 @@ const InventoryAdjustmentList = () => {
     setPageSize,
     isTransactionsLoading,
     refetch,
-    isRefetching,
+    isFetchingTransactions,
   } = useInventoryStock({ initialPageSize: 10 });
   return (
     <PageWraper title="Inventory Stock Logs">
@@ -29,7 +29,7 @@ const InventoryAdjustmentList = () => {
         pageSize={pageSize}
         onPageSizeChange={setPageSize}
         refetch={refetch}
-        isRefetching={isRefetching}
+        isFetching={isFetchingTransactions}
       />
     </PageWraper>
   );

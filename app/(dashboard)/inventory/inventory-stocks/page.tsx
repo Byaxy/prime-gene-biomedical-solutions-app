@@ -30,7 +30,7 @@ const InventoryStocks = () => {
     onFilterChange,
     defaultFilterValues,
     refetch,
-    isRefetching,
+    isFetching,
   } = useInventoryStock({
     initialPageSize: 10,
   });
@@ -189,10 +189,9 @@ const InventoryStocks = () => {
           filterValues={filters}
           onFilterChange={onFilterChange}
           defaultFilterValues={defaultFilterValues}
-          searchBy={["product.name", "product.productID"]}
           onRowClick={handleRowClick}
           refetch={refetch}
-          isRefetching={isRefetching}
+          isFetching={isFetching}
         />
         <InventoryStockDialog
           open={openDialog && !!selectedStock}

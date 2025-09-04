@@ -1,13 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Sheet,
-  SheetClose,
   SheetContent,
   SheetDescription,
-  SheetFooter,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
@@ -32,62 +30,34 @@ interface FilterSheetProps {
   };
   filterValues: Record<string, any>;
   onFilterChange?: (filters: Record<string, any>) => void;
-  defaultFilterValues?: Record<string, any> | null;
 }
 
 const FiltersSheet = ({
   filters,
   filterValues = {},
   onFilterChange,
-  defaultFilterValues = {},
 }: FilterSheetProps) => {
   const [localFilters, setLocalFilters] =
     useState<Record<string, any>>(filterValues);
-  const [isFilterDirty, setIsFilterDirty] = useState(false);
-  const isMounted = useRef(true);
+  const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
-    isMounted.current = true;
-
-    if (isMounted.current && filterValues) {
-      setLocalFilters(filterValues);
-      setIsFilterDirty(false);
-    }
-
-    return () => {
-      isMounted.current = false;
-    };
+    setLocalFilters(filterValues);
   }, [filterValues]);
 
-  const handleLocalFilterChange = (key: string, value: any) => {
-    if (isMounted.current) {
-      setLocalFilters((prev) => ({ ...prev, [key]: value }));
-      setIsFilterDirty(true);
-    }
-  };
+  // Apply filters instantly as user types/changes
+  const handleLocalFilterChange = useCallback(
+    (key: string, value: any) => {
+      const newFilters = { ...localFilters, [key]: value };
+      setLocalFilters(newFilters);
 
-  const handleApplyFilters = () => {
-    if (isMounted.current && onFilterChange) {
-      onFilterChange(localFilters);
-      setIsFilterDirty(false);
-    }
-  };
-
-  const handleClearFilters = () => {
-    if (isMounted.current) {
-      const clearedFilters = defaultFilterValues
-        ? { ...defaultFilterValues }
-        : {};
-      setLocalFilters(clearedFilters);
-      if (onFilterChange) {
-        onFilterChange(clearedFilters);
-      }
-      setIsFilterDirty(false);
-    }
-  };
+      onFilterChange?.(newFilters);
+    },
+    [localFilters, onFilterChange]
+  );
 
   return (
-    <Sheet>
+    <Sheet open={isOpen} onOpenChange={setIsOpen}>
       <SheetTrigger asChild>
         <Button
           variant="outline"
@@ -278,32 +248,6 @@ const FiltersSheet = ({
             })}
           </div>
         </div>
-        <SheetFooter>
-          <div className="w-full flex justify-between gap-2 mt-4">
-            <SheetClose asChild>
-              <Button
-                className="shad-gray-btn"
-                onClick={handleClearFilters}
-                disabled={
-                  !Object.values(filterValues).some(
-                    (val) => val !== undefined && val !== ""
-                  )
-                }
-              >
-                Clear Filters
-              </Button>
-            </SheetClose>
-            <SheetClose asChild>
-              <Button
-                className="shad-primary-btn"
-                onClick={handleApplyFilters}
-                disabled={!isFilterDirty}
-              >
-                Apply Filters
-              </Button>
-            </SheetClose>
-          </div>
-        </SheetFooter>
       </SheetContent>
     </Sheet>
   );

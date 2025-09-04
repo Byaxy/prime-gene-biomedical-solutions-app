@@ -28,6 +28,7 @@ export default function SidebarItem({
       <Link
         href={data.path}
         onClick={handleClick}
+        prefetch={true}
         className={clsx(
           "w-full flex flex-row gap-2 items-center justify-start  hover:text-green-200 hover:bg-blue-800 border-0 rounded-md px-2 py-[6px] cursor-pointer",
           {

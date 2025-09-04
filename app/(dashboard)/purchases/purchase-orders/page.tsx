@@ -22,7 +22,7 @@ const PurchaseOrders = () => {
     setPageSize,
     isLoading,
     refetch,
-    isRefetching,
+    isFetching,
     filters,
     onFilterChange,
     defaultFilterValues,
@@ -68,9 +68,8 @@ const PurchaseOrders = () => {
           onPageChange={setPage}
           pageSize={pageSize}
           onPageSizeChange={setPageSize}
-          searchBy={["purchase.purchaseNumber", "vendor.name"]}
           refetch={refetch}
-          isRefetching={isRefetching}
+          isFetching={isFetching}
           filters={purchaseOrderFilters}
           filterValues={filters}
           onFilterChange={onFilterChange}

@@ -21,7 +21,7 @@ const Vendors = () => {
     pageSize,
     setPageSize,
     refetch,
-    isRefetching,
+    isFetching,
   } = useVendors({ initialPageSize: 10 });
 
   const handleDownloadSelected = async (selectedItems: Vendor[]) => {
@@ -69,7 +69,7 @@ const Vendors = () => {
         onRowSelectionChange={setRowSelection}
         onDownloadSelected={handleDownloadSelected}
         refetch={refetch}
-        isRefetching={isRefetching}
+        isFetching={isFetching}
       />
     </PageWraper>
   );

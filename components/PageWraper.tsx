@@ -1,6 +1,5 @@
 import { Button } from "./ui/button";
 import AddIcon from "@mui/icons-material/Add";
-import "@/app/dynamic-routes";
 import Link from "next/link";
 import BackButton from "./BackButton";
 

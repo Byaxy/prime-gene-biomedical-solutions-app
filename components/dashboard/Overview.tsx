@@ -23,7 +23,6 @@ const Overview = () => {
 
   const { products, isLoading: productsLoading } = useProducts({
     getAllProducts: true,
-    filterAll: true,
   });
 
   const totalProducts = products ? products.length : 0;

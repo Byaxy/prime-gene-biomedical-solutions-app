@@ -12,13 +12,80 @@ import {
   productTypesTable,
   unitsTable,
 } from "@/drizzle/schema";
-import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import { ProductFilters } from "@/hooks/useProducts";
 
 interface ProductDataWithImage extends Omit<ProductFormValues, "image"> {
   imageId: string;
   imageUrl: string;
 }
+
+// Reusable function to build the WHERE conditions for Drizzle queries
+const buildFilterConditionsDrizzle = (filters: ProductFilters) => {
+  const conditions = [];
+
+  // Cost price range
+  if (filters.costPrice_min !== undefined) {
+    conditions.push(gte(productsTable.costPrice, filters.costPrice_min));
+  }
+  if (filters.costPrice_max !== undefined) {
+    conditions.push(lte(productsTable.costPrice, filters.costPrice_max));
+  }
+
+  // Selling price range
+  if (filters.sellingPrice_min !== undefined) {
+    conditions.push(gte(productsTable.sellingPrice, filters.sellingPrice_min));
+  }
+  if (filters.sellingPrice_max !== undefined) {
+    conditions.push(lte(productsTable.sellingPrice, filters.sellingPrice_max));
+  }
+
+  // Quantity range
+  if (filters.quantity_min !== undefined) {
+    conditions.push(gte(productsTable.quantity, filters.quantity_min));
+  }
+  if (filters.quantity_max !== undefined) {
+    conditions.push(lte(productsTable.quantity, filters.quantity_max));
+  }
+
+  // Search logic using ILIKE on joined tables.
+  // GIN indexes are crucial here.
+  if (filters.search?.trim()) {
+    const searchTerm = `%${filters.search.trim()}%`;
+    conditions.push(
+      or(
+        ilike(productsTable.name, searchTerm),
+        ilike(productsTable.productID, searchTerm),
+        ilike(productsTable.description, searchTerm),
+        ilike(brandsTable.name, searchTerm),
+        ilike(categoriesTable.name, searchTerm),
+        ilike(productTypesTable.name, searchTerm),
+        ilike(unitsTable.name, searchTerm)
+      )
+    );
+  }
+
+  // isActive filter
+  if (filters.isActive !== undefined && filters.isActive !== "all") {
+    conditions.push(eq(productsTable.isActive, filters.isActive === "true"));
+  }
+
+  // Foreign key filters
+  if (filters.categoryId) {
+    conditions.push(eq(productsTable.categoryId, filters.categoryId));
+  }
+  if (filters.typeId) {
+    conditions.push(eq(productsTable.typeId, filters.typeId));
+  }
+  if (filters.brandId) {
+    conditions.push(eq(productsTable.brandId, filters.brandId));
+  }
+  if (filters.unitId) {
+    conditions.push(eq(productsTable.unitId, filters.unitId));
+  }
+
+  return conditions;
+};
 
 // Add Product
 export const addProduct = async (productData: ProductDataWithImage) => {
@@ -70,94 +137,42 @@ export const getProducts = async (
         .leftJoin(unitsTable, eq(productsTable.unitId, unitsTable.id))
         .$dynamic();
 
-      const conditions = [];
-
-      // Apply filters if provided
-      if (filters) {
-        // Cost price range
-        if (filters.costPrice_min !== undefined) {
-          conditions.push(gte(productsTable.costPrice, filters.costPrice_min));
-        }
-        if (filters.costPrice_max !== undefined) {
-          conditions.push(lte(productsTable.costPrice, filters.costPrice_max));
-        }
-
-        // Selling price range
-        if (filters.sellingPrice_min !== undefined) {
-          conditions.push(
-            gte(productsTable.sellingPrice, filters.sellingPrice_min)
-          );
-        }
-        if (filters.sellingPrice_max !== undefined) {
-          conditions.push(
-            lte(productsTable.sellingPrice, filters.sellingPrice_max)
-          );
-        }
-
-        // Quantity range
-        if (filters.quantity_min !== undefined) {
-          conditions.push(gte(productsTable.quantity, filters.quantity_min));
-        }
-        if (filters.quantity_max !== undefined) {
-          conditions.push(lte(productsTable.quantity, filters.quantity_max));
-        }
-
-        // isActive status filter
-        if (filters.isActive !== undefined && filters.isActive !== "all") {
-          if (filters.isActive === "true") {
-            conditions.push(eq(productsTable.isActive, true));
-          } else if (filters.isActive === "false") {
-            conditions.push(eq(productsTable.isActive, false));
-          }
-        }
-
-        // Category filter
-        if (filters.categoryId) {
-          conditions.push(eq(productsTable.categoryId, filters.categoryId));
-        }
-
-        // Type filter
-        if (filters.typeId) {
-          conditions.push(eq(productsTable.typeId, filters.typeId));
-        }
-
-        // Brand filter
-        if (filters.brandId) {
-          conditions.push(eq(productsTable.brandId, filters.brandId));
-        }
-
-        // Unit filter
-        if (filters.unitId) {
-          conditions.push(eq(productsTable.unitId, filters.unitId));
-        }
+      const conditions = buildFilterConditionsDrizzle(filters ?? {});
+      if (conditions.length > 0) {
+        productsQuery = productsQuery.where(and(...conditions));
       }
 
-      // Add default isActive filter only if not explicitly provided in filters
-      if (!filters || filters.isActive === undefined) {
-        conditions.push(eq(productsTable.isActive, true));
-      }
-
-      // Apply where conditions
-      productsQuery = productsQuery.where(and(...conditions));
-
-      // Apply order by
       productsQuery = productsQuery.orderBy(desc(productsTable.createdAt));
 
-      // Apply pagination if not getting all products
-      if (!getAllProducts) {
+      if (!getAllProducts && limit > 0) {
         productsQuery = productsQuery.limit(limit).offset(page * limit);
       }
 
       const products = await productsQuery;
 
       // Get total count for pagination
+      let totalQuery = tx
+        .select({ count: sql<number>`count(*)` })
+        .from(productsTable)
+        .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id))
+        .leftJoin(
+          categoriesTable,
+          eq(productsTable.categoryId, categoriesTable.id)
+        )
+        .leftJoin(
+          productTypesTable,
+          eq(productsTable.typeId, productTypesTable.id)
+        )
+        .leftJoin(unitsTable, eq(productsTable.unitId, unitsTable.id))
+        .$dynamic();
+
+      if (conditions.length > 0) {
+        totalQuery = totalQuery.where(and(...conditions));
+      }
+
       const total = getAllProducts
         ? products.length
-        : await tx
-            .select({ count: sql<number>`count(*)` })
-            .from(productsTable)
-            .where(and(...conditions))
-            .then((res) => res[0]?.count || 0);
+        : await totalQuery.then((res) => res[0]?.count || 0);
 
       return {
         documents: products,

@@ -23,7 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { HeaderGroup, Header } from "@tanstack/react-table";
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Input } from "../ui/input";
 import Loading from "@/app/(dashboard)/loading";
 import {
@@ -41,6 +41,7 @@ import FiltersSheet from "./FiltersSheet";
 import { cn } from "@/lib/utils";
 import { RefreshCw } from "lucide-react";
 import { FileText } from "lucide-react";
+import { X } from "lucide-react";
 
 declare module "@tanstack/react-table" {
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-constraint, @typescript-eslint/no-unused-vars
@@ -59,7 +60,6 @@ interface DataTableProps<TData, TValue> {
   page: number;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
-  searchBy?: string | string[];
   onDeleteSelected?: (items: TData[]) => void;
   isDeletingSelected?: boolean;
   onDeactivateSelected?: (items: TData[]) => void;
@@ -81,7 +81,11 @@ interface DataTableProps<TData, TValue> {
   defaultFilterValues?: Record<string, any> | null;
   onRowClick?: (rowData: TData) => void;
   refetch?: () => void;
-  isRefetching?: boolean;
+  searchTerm?: string;
+  onSearchChange?: (search: string) => void;
+  onClearSearch?: () => void;
+  isFetching?: boolean;
+  onClearFilters?: () => void;
 }
 
 export function DataTable<TData, TValue>({
@@ -94,7 +98,6 @@ export function DataTable<TData, TValue>({
   onPageChange,
   pageSize,
   onPageSizeChange,
-  searchBy,
   onDeleteSelected,
   isDeletingSelected,
   onDeactivateSelected,
@@ -107,13 +110,15 @@ export function DataTable<TData, TValue>({
   filters,
   filterValues = {},
   onFilterChange,
-  defaultFilterValues,
   onRowClick,
   refetch,
-  isRefetching,
+  searchTerm = "",
+  onSearchChange,
+  onClearSearch,
+  isFetching,
+  onClearFilters,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [globalFilter, setGlobalFilter] = useState("");
 
   const table = useReactTable({
     data,
@@ -131,24 +136,9 @@ export function DataTable<TData, TValue>({
           : updaterOrValue;
       onRowSelectionChange?.(newSelection);
     },
-    onGlobalFilterChange: setGlobalFilter,
-    globalFilterFn: (row, columnId, filterValue) => {
-      if (!filterValue) return true;
 
-      const searchColumns = Array.isArray(searchBy)
-        ? searchBy
-        : searchBy
-        ? [searchBy]
-        : ["name"];
-
-      return searchColumns.some((colId) => {
-        const value = row.getValue(colId);
-        return String(value).toLowerCase().includes(filterValue.toLowerCase());
-      });
-    },
     state: {
       sorting,
-      globalFilter,
       pagination: {
         pageIndex: page,
         pageSize,
@@ -159,13 +149,42 @@ export function DataTable<TData, TValue>({
     manualPagination: true,
   });
 
-  const handleRowClick = (rowData: TData) => {
-    if (onRowClick) {
-      onRowClick(rowData);
-    }
-  };
+  // Memoize pagination info
+  const paginationInfo = useMemo(() => {
+    const isShowingAll = pageSize === 0 || pageSize >= totalItems;
+    const start = isShowingAll ? 1 : page * pageSize + 1;
+    const end = isShowingAll
+      ? totalItems
+      : Math.min((page + 1) * pageSize, totalItems);
 
-  const isShowingAll = pageSize === totalItems || pageSize === 0;
+    return {
+      isShowingAll,
+      start,
+      end,
+      canGoNext: !isShowingAll && (page + 1) * pageSize < totalItems,
+      canGoPrev: page > 0 && !isShowingAll,
+    };
+  }, [page, pageSize, totalItems]);
+
+  // Event handlers
+  const handleRowClick = useCallback(
+    (rowData: TData, event: React.MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (target.closest("[data-no-row-click]")) {
+        return;
+      }
+      onRowClick?.(rowData);
+    },
+    [onRowClick]
+  );
+
+  const handlePageSizeChange = useCallback(
+    (value: string) => {
+      const newSize = value === "all" ? 0 : Number(value);
+      onPageSizeChange(newSize);
+    },
+    [onPageSizeChange]
+  );
 
   return (
     <div>
@@ -178,10 +197,19 @@ export function DataTable<TData, TValue>({
             />
             <Input
               placeholder={"Search..."}
-              value={globalFilter ?? ""}
-              onChange={(event) => setGlobalFilter(event.target.value)}
+              value={searchTerm}
+              onChange={(event) => onSearchChange?.(event.target.value)}
               className="w-full pl-10 placeholder:text-dark-600 border-dark-700 h-11 focus-visible:ring-0 focus-visible:ring-offset-0"
             />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={onClearSearch}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-dark-600 hover:text-dark-600/80"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
         )}
 
@@ -191,7 +219,7 @@ export function DataTable<TData, TValue>({
               <Button
                 variant="outline"
                 className="border-blue-800/60 text-dark-500 bg-blue-50"
-                onClick={() => onFilterChange?.(defaultFilterValues || {})}
+                onClick={onClearFilters}
                 disabled={
                   !Object.values(filterValues).some(
                     (val) => val !== undefined && val !== ""
@@ -204,7 +232,6 @@ export function DataTable<TData, TValue>({
                 filters={filters}
                 filterValues={filterValues}
                 onFilterChange={onFilterChange}
-                defaultFilterValues={defaultFilterValues}
               />
             </div>
           )}
@@ -214,10 +241,10 @@ export function DataTable<TData, TValue>({
               size={"icon"}
               onClick={refetch}
               className="self-end shad-primary-btn px-5"
-              disabled={isLoading || isRefetching}
+              disabled={isLoading || isFetching}
             >
               <RefreshCw
-                className={`h-5 w-5 ${isRefetching ? "animate-spin" : ""}`}
+                className={`h-5 w-5 ${isFetching ? "animate-spin" : ""}`}
               />
             </Button>
           )}
@@ -231,18 +258,8 @@ export function DataTable<TData, TValue>({
               Rows per page:
             </span>
             <Select
-              value={isShowingAll ? "all" : String(pageSize)}
-              onValueChange={(value) => {
-                if (value === "all") {
-                  // Set pageSize to totalItems or 0 to indicate "show all"
-                  onPageSizeChange?.(totalItems || 0);
-                  onPageChange?.(0);
-                } else {
-                  const newPageSize = Number(value);
-                  onPageSizeChange?.(newPageSize);
-                  onPageChange?.(0);
-                }
-              }}
+              value={paginationInfo.isShowingAll ? "all" : String(pageSize)}
+              onValueChange={handlePageSizeChange}
             >
               <SelectTrigger className="w-16 text-dark-600">
                 <SelectValue placeholder="10" />
@@ -266,12 +283,9 @@ export function DataTable<TData, TValue>({
               </SelectContent>
             </Select>
             <span className="text-xs sm:text-sm text-dark-600">
-              {isShowingAll
+              {paginationInfo.isShowingAll
                 ? `Showing all ${totalItems} items`
-                : `${page * pageSize + 1}-${Math.min(
-                    (page + 1) * pageSize,
-                    totalItems
-                  )} of ${totalItems}`}
+                : `${paginationInfo.start}-${paginationInfo.end} of ${totalItems}`}
             </span>
           </div>
 
@@ -409,8 +423,8 @@ export function DataTable<TData, TValue>({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => onPageChange?.(page - 1)}
-                disabled={page === 0 || isShowingAll}
+                onClick={() => onPageChange(page - 1)}
+                disabled={!paginationInfo.canGoPrev || isFetching}
                 className="shad-primary-btn border-0"
               >
                 <KeyboardArrowLeftIcon />
@@ -418,10 +432,8 @@ export function DataTable<TData, TValue>({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => onPageChange?.(page + 1)}
-                disabled={
-                  page >= Math.ceil(totalItems / pageSize) - 1 || isShowingAll
-                }
+                onClick={() => onPageChange(page + 1)}
+                disabled={!paginationInfo.canGoNext || isFetching}
                 className="shad-primary-btn border-0"
               >
                 <KeyboardArrowRightIcon />
@@ -485,7 +497,7 @@ export function DataTable<TData, TValue>({
                           if (skipRowClick) {
                             e.stopPropagation();
                           } else if (onRowClick) {
-                            handleRowClick(row.original);
+                            handleRowClick(row.original, e);
                           }
                         }}
                         className={skipRowClick ? "relative" : ""}

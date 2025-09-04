@@ -33,25 +33,25 @@ const ProductDetails = ({ product }: { product: ProductWithRelations }) => {
             <TableRow className="border-b border-dark-700">
               <TableCell className="text-16-semibold">Category</TableCell>
               <TableCell className="text-16-regular">
-                {product.category.name}
+                {product?.category ? product.category.name : "N/A"}
               </TableCell>
             </TableRow>
             <TableRow className="border-b border-dark-700">
               <TableCell className="text-16-semibold">Brand</TableCell>
               <TableCell className="text-16-regular">
-                {product.brand.name}
+                {product?.brand ? product.brand.name : "N/A"}
               </TableCell>
             </TableRow>
             <TableRow className="border-b border-dark-700">
               <TableCell className="text-16-semibold">Type</TableCell>
               <TableCell className="text-16-regular">
-                {product.type.name}
+                {product?.type ? product.type.name : "N/A"}
               </TableCell>
             </TableRow>
             <TableRow className="border-b border-dark-700">
               <TableCell className="text-16-semibold">Unit</TableCell>
               <TableCell className="text-16-regular">
-                {product.unit.name}
+                {product?.unit ? product.unit.name : "N/A"}
               </TableCell>
             </TableRow>
             <TableRow className="border-b border-dark-700">
