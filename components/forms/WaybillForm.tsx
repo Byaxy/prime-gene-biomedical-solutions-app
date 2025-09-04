@@ -105,7 +105,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
   const { user } = useAuth();
 
   const { products, isLoading: productsLoading } = useProducts({
-    getAllProducts: true,
+    getAllActive: true,
   });
 
   const { waybills } = useWaybills({

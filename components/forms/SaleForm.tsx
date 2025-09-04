@@ -105,7 +105,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
   );
 
   const { products, isLoading: productsLoading } = useProducts({
-    getAllProducts: true,
+    getAllActive: true,
   });
   const { quotations } = useQuotations({ getAllQuotations: true });
   const { inventoryStock } = useInventoryStock({

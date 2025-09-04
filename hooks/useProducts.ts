@@ -22,6 +22,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 interface UseProductsOptions {
   getAllProducts?: boolean;
+  getAllActive?: boolean;
   initialData?: { documents: ProductWithRelations[]; total: number };
   enableRealtime?: boolean;
 }
@@ -57,6 +58,7 @@ export const defaultProductFilters: ProductFilters = {
 
 export const useProducts = ({
   getAllProducts = false,
+  getAllActive = false,
   initialData,
   enableRealtime = true,
 }: UseProductsOptions = {}) => {
@@ -74,6 +76,17 @@ export const useProducts = ({
         search: "",
         filters: {
           isActive: "all",
+        } as ProductFilters,
+      };
+    }
+
+    if (getAllActive) {
+      return {
+        page: 0,
+        pageSize: 0,
+        search: "",
+        filters: {
+          isActive: "true",
         } as ProductFilters,
       };
     }
@@ -112,7 +125,7 @@ export const useProducts = ({
     };
 
     return { page, pageSize, filters, search };
-  }, [getAllProducts, searchParams]);
+  }, [getAllActive, getAllProducts, searchParams]);
 
   // Create stable query key
   const queryKey = useMemo(() => {

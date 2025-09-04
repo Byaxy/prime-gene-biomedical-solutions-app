@@ -89,7 +89,7 @@ const BulkProductUpload = ({ closeDialog }: { closeDialog?: () => void }) => {
           (p: ProductWithRelations) => p.product.productID === product.productID
         );
 
-        if (existingProduct) {
+        if (existingProduct && existingProduct.product.id !== product.id) {
           existingIDs.push(product.productID);
         }
       }

@@ -52,6 +52,7 @@ interface FormProduct {
   manufactureDate: Date | undefined;
   expiryDate: Date | undefined;
   productName?: string;
+  productID?: string;
   productUnit?: string;
 }
 
@@ -65,13 +66,14 @@ export type ExtendedStockAdjustmentFormValues = Omit<
 const NewStockForm = () => {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [selectedProductName, setSelectedProductName] = useState<string>("");
+  const [selectedProductID, setSelectedProductID] = useState<string>("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [prevSelectedProductId, setPrevSelectedProductId] = useState<
     string | null
   >(null);
   const { products, isLoading: productsLoading } = useProducts({
-    getAllProducts: true,
+    getAllActive: true,
   });
   const { inventoryStock } = useInventoryStock({
     getAllInventoryStocks: true,
@@ -177,11 +179,13 @@ const NewStockForm = () => {
           selectedProductId
         );
         setSelectedProductName(product.product.name);
+        setSelectedProductID(product.product.productID);
         form.setValue("tempCostPrice", product.product.costPrice);
         form.setValue("tempSellingPrice", product.product.sellingPrice);
       } catch (error) {
         console.error("Error fetching product:", error);
         setSelectedProductName("");
+        setSelectedProductID("");
         form.setValue("tempCostPrice", 0);
         form.setValue("tempSellingPrice", 0);
       }
@@ -270,6 +274,7 @@ const NewStockForm = () => {
     form.setValue("tempManufactureDate", entry.manufactureDate);
     form.setValue("tempExpiryDate", entry.expiryDate);
     setSelectedProductName(entry.productName || "");
+    setSelectedProductID(entry.productID || "");
     setEditingIndex(index);
   };
 
@@ -290,6 +295,7 @@ const NewStockForm = () => {
     form.setValue("tempExpiryDate", undefined);
     setEditingIndex(null);
     setSelectedProductName("");
+    setSelectedProductID("");
   };
 
   // handle close dialog
@@ -523,11 +529,17 @@ const NewStockForm = () => {
             </div>
             <div className="w-full flex flex-col justify-between sm:flex-row gap-4 bg-blue-50 rounded-md p-4">
               <div className="flex w-full flex-col gap-5">
+                <div className="flex flex-1 flex-col gap-3">
+                  <p className="text-14-medium text-blue-800">Product Name</p>
+                  <p className="text-14-medium bg-white text-blue-800 border border-dark-700 h-[42px] rounded-md flex items-center px-3 w-full shadow-sm min-w-[200px]">
+                    {selectedProductName ?? "Select a product"}
+                  </p>
+                </div>
                 <div className="flex w-full flex-col sm:flex-row gap-5">
                   <div className="flex flex-1 flex-col gap-3">
-                    <p className="text-14-medium text-blue-800">Product Name</p>
+                    <p className="text-14-medium text-blue-800">Product ID</p>
                     <p className="text-14-medium bg-white text-blue-800 border border-dark-700 h-[42px] rounded-md flex items-center px-3 w-full shadow-sm min-w-[200px]">
-                      {selectedProductName ?? "Select a product"}
+                      {selectedProductID ?? "Select a product"}
                     </p>
                   </div>
                   <CustomFormField
