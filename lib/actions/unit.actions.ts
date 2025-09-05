@@ -20,7 +20,8 @@ const buildFilterConditionsDrizzle = (filters: UnitFilters) => {
     conditions.push(
       or(
         ilike(unitsTable.name, searchTerm),
-        ilike(unitsTable.description, searchTerm)
+        ilike(unitsTable.description, searchTerm),
+        ilike(unitsTable.code, searchTerm)
       )
     );
   }
