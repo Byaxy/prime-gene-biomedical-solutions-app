@@ -19,7 +19,7 @@ import { SelectItem } from "../ui/select";
 import { useTypes } from "@/hooks/useTypes";
 import { useUnits } from "@/hooks/useUnits";
 import { FileUploader } from "../FileUploader";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useBrands } from "@/hooks/useBrands";
 import { getFlattenedCategories } from "./CategoriesForm";
 import Loading from "../../app/(dashboard)/loading";
@@ -85,7 +85,6 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
   } = useProducts({ getAllProducts: true });
 
   const router = useRouter();
-  const pathname = usePathname();
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(ProductFormValidation),
@@ -196,9 +195,7 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
             toast.success("Inventory Added successfully!");
             form.reset();
             onCancel?.();
-            if (pathname === "/inventory/add-inventory") {
-              router.push("/inventory");
-            }
+            router.push("/inventory");
           },
           onError: (error) => {
             console.error("Submission error:", error);
