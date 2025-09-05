@@ -5,7 +5,28 @@ import { parseStringify } from "../utils";
 import { CategoryFormValues } from "../validation";
 import { db } from "@/drizzle/db";
 import { categoriesTable } from "@/drizzle/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, or, ilike, sql } from "drizzle-orm";
+import { CategoryFilters } from "@/hooks/useCategories";
+
+const buildFilterConditionsDrizzle = (filters: CategoryFilters) => {
+  const conditions = [];
+
+  conditions.push(eq(categoriesTable.isActive, true));
+
+  // Search logic using ILIKE on joined tables.
+  // GIN indexes are crucial here.
+  if (filters.search?.trim()) {
+    const searchTerm = `%${filters.search.trim()}%`;
+    conditions.push(
+      or(
+        ilike(categoriesTable.name, searchTerm),
+        ilike(categoriesTable.description, searchTerm)
+      )
+    );
+  }
+
+  return conditions;
+};
 
 // Add Category
 export const addCategory = async (categoryData: CategoryFormValues) => {
@@ -59,63 +80,50 @@ export const addCategory = async (categoryData: CategoryFormValues) => {
 export const getCategories = async (
   page: number = 0,
   limit: number = 10,
-  getAllCategories: boolean = false
+  getAllCategories: boolean = false,
+  filters?: CategoryFilters
 ) => {
   try {
-    let query = db
-      .select()
-      .from(categoriesTable)
-      .where(eq(categoriesTable.isActive, true))
-      .orderBy(desc(categoriesTable.createdAt));
+    const result = await db.transaction(async (tx) => {
+      // Build the main query
+      let query = tx.select().from(categoriesTable).$dynamic();
 
-    if (!getAllCategories) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      query = (query as any).limit(limit).offset(page * limit);
-    }
-
-    const categories = await query;
-
-    // For getAllCategories, fetch all categories in batches (if needed)
-    if (getAllCategories) {
-      let allCategories: typeof categories = [];
-      let offset = 0;
-      const batchSize = 100; // Adjust batch size as needed
-
-      while (true) {
-        const batch = await db
-          .select()
-          .from(categoriesTable)
-          .where(eq(categoriesTable.isActive, true))
-          .orderBy(desc(categoriesTable.createdAt))
-          .limit(batchSize)
-          .offset(offset);
-
-        allCategories = [...allCategories, ...batch];
-
-        // If we got fewer categories than the batch size, we've reached the end
-        if (batch.length < batchSize) {
-          break;
-        }
-
-        offset += batchSize;
+      const conditions = buildFilterConditionsDrizzle(filters ?? {});
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
       }
 
-      return {
-        documents: parseStringify(allCategories),
-        total: allCategories.length,
-      };
-    }
+      query = query.orderBy(desc(categoriesTable.createdAt));
 
-    // For paginated results
-    const total = await db
-      .select()
-      .from(categoriesTable)
-      .where(eq(categoriesTable.isActive, true))
-      .then((res) => res.length);
+      if (!getAllCategories && limit > 0) {
+        query = query.limit(limit).offset(page * limit);
+      }
+
+      const categories = await query;
+
+      // Get total count for pagination
+      let totalQuery = tx
+        .select({ count: sql<number>`count(*)` })
+        .from(categoriesTable)
+        .$dynamic();
+
+      if (conditions.length > 0) {
+        totalQuery = totalQuery.where(and(...conditions));
+      }
+
+      const total = getAllCategories
+        ? categories.length
+        : await totalQuery.then((res) => res[0]?.count || 0);
+
+      return {
+        documents: categories,
+        total,
+      };
+    });
 
     return {
-      documents: parseStringify(categories),
-      total,
+      documents: parseStringify(result.documents),
+      total: result.total,
     };
   } catch (error) {
     console.error("Error getting categories:", error);

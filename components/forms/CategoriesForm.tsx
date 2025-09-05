@@ -2,7 +2,6 @@ import { CategoryFormValidation, CategoryFormValues } from "@/lib/validation";
 import SubmitButton from "../SubmitButton";
 import CustomFormField, { FormFieldType } from "../CustomFormField";
 import { Form } from "../ui/form";
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "../ui/button";
@@ -15,17 +14,17 @@ import { Category } from "@/types";
 interface CategoryFormProps {
   mode: "create" | "edit";
   initialData?: Category;
-  onSubmit: (data: CategoryFormValues) => Promise<void>;
   onCancel?: () => void;
 }
-const CategoryForm = ({
-  mode,
-  initialData,
-  onSubmit,
-  onCancel,
-}: CategoryFormProps) => {
-  const [isLoading, setIsLoading] = useState(false);
-  const { categories, isLoading: categoriesLoading } = useCategories({
+const CategoryForm = ({ mode, initialData, onCancel }: CategoryFormProps) => {
+  const {
+    categories,
+    isLoading: categoriesLoading,
+    addCategory,
+    isAddingCategory,
+    editCategory,
+    isEditingCategory,
+  } = useCategories({
     getAllCategories: true,
   });
   const router = useRouter();
@@ -47,13 +46,29 @@ const CategoryForm = ({
   });
 
   const handleSubmit = async (values: CategoryFormValues) => {
-    setIsLoading(true);
     try {
-      await onSubmit(values);
+      if (mode === "create") {
+        await addCategory(values, {
+          onSuccess: () => {
+            onCancel?.();
+          },
+        });
+      }
+      if (mode === "edit" && initialData) {
+        await editCategory(
+          {
+            id: initialData.id,
+            data: values,
+          },
+          {
+            onSuccess: () => {
+              onCancel?.();
+            },
+          }
+        );
+      }
     } catch (error) {
       console.error("Error submitting form:", error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -130,7 +145,10 @@ const CategoryForm = ({
               Cancel
             </Button>
           )}
-          <SubmitButton isLoading={isLoading} className="shad-primary-btn">
+          <SubmitButton
+            isLoading={isAddingCategory || isEditingCategory}
+            className="shad-primary-btn"
+          >
             {mode === "create" ? "Create Category" : "Update Category"}
           </SubmitButton>
         </div>

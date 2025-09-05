@@ -1,105 +1,45 @@
-"use client";
-
 import PageWraper from "@/components/PageWraper";
-import { CategoryDialog } from "@/components/categories/CategoryDialog";
-import { DataTable } from "@/components/table/DataTable";
-import { categoriesColumns } from "@/components/table/columns/categoriesColumns";
-import { CategoryFormValues } from "@/lib/validation";
-import { useState } from "react";
-import { useCategories } from "@/hooks/useCategories";
-import toast from "react-hot-toast";
-import { exportToExcel } from "@/lib/utils";
-import { Category } from "@/types";
+import dynamic from "next/dynamic";
+import { getCategories } from "@/lib/actions/category.actions";
+import { Suspense } from "react";
+import Loading from "../../loading";
+import { CategoryFilters } from "@/hooks/useCategories";
 
-const Categories = () => {
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [rowSelection, setRowSelection] = useState({});
+const CategoriesTable = dynamic(
+  () => import("@/components/categories/CategoriesTable")
+);
 
-  const {
-    categories,
-    isLoading,
-    totalItems,
-    page,
-    setPage,
-    pageSize,
-    setPageSize,
-    addCategory,
-    isAddingCategory,
-    refetch,
-    isFetching,
-  } = useCategories({ initialPageSize: 10 });
+export interface CategoriesSearchParams {
+  page?: string;
+  pageSize?: string;
+  search?: string;
+}
 
-  const handleAddCategory = async (data: CategoryFormValues): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      addCategory(data, {
-        onSuccess: () => {
-          setIsAddDialogOpen(false);
-          resolve();
-        },
-        onError: (error) => {
-          reject(error);
-        },
-      });
-    });
+const Categories = async ({
+  searchParams,
+}: {
+  searchParams: Promise<CategoriesSearchParams>;
+}) => {
+  const sp = await searchParams;
+  const currentPage = Number(sp.page || 0);
+  const currentPageSize = sp.pageSize === "0" ? 0 : Number(sp.pageSize || 10);
+
+  const filtersForServer: CategoryFilters = {
+    search: sp.search || undefined,
   };
 
-  const handleDownloadSelected = async (selectedItems: Category[]) => {
-    try {
-      if (selectedItems.length === 0) {
-        toast.error("No Items selected for download");
-        return;
-      }
-
-      const exportData = selectedItems.map((item) => ({
-        id: item.id,
-        name: item.name,
-        description: item.description ?? "",
-        parentId: item.parentId ?? "",
-        depth: item.depth,
-        path: item.path,
-        isActive: item.isActive,
-        createdAt: item.createdAt,
-        updatedAt: item.updatedAt,
-      }));
-      exportToExcel(exportData, "selected-categories");
-      setRowSelection({});
-      toast.success("Export started successfully");
-    } catch (error) {
-      console.error("Error exporting categories:", error);
-      toast.error("Failed to export categories");
-    }
-  };
+  const initialData = await getCategories(
+    currentPage,
+    currentPageSize,
+    currentPageSize === 0,
+    filtersForServer
+  );
 
   return (
-    <PageWraper
-      title="Categories"
-      buttonText="Add Category"
-      buttonAction={() => setIsAddDialogOpen(true)}
-    >
-      <>
-        <DataTable
-          columns={categoriesColumns}
-          data={categories || []}
-          isLoading={isLoading}
-          totalItems={totalItems}
-          page={page}
-          onPageChange={setPage}
-          pageSize={pageSize}
-          onPageSizeChange={setPageSize}
-          onDownloadSelected={handleDownloadSelected}
-          rowSelection={rowSelection}
-          onRowSelectionChange={setRowSelection}
-          refetch={refetch}
-          isFetching={isFetching}
-        />
-        <CategoryDialog
-          mode="add"
-          open={isAddDialogOpen}
-          onOpenChange={setIsAddDialogOpen}
-          isLoading={isAddingCategory}
-          onSubmit={handleAddCategory}
-        />
-      </>
+    <PageWraper title="Categories" buttonText="Add Category">
+      <Suspense fallback={<Loading />}>
+        <CategoriesTable initialData={initialData} />
+      </Suspense>
     </PageWraper>
   );
 };

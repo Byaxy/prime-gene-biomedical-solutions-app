@@ -8,83 +8,229 @@ import {
   getCategories,
   softDeleteCategory,
 } from "@/lib/actions/category.actions";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useTransition } from "react";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Category } from "@/types";
 
 interface UseCategoriesOptions {
   getAllCategories?: boolean;
-  initialPageSize?: number;
+  initialData?: { documents: Category[]; total: number };
 }
+
+export interface CategoryFilters {
+  search?: string;
+}
+
+export const defaultCategoryFilters: CategoryFilters = {
+  search: "",
+};
 
 export const useCategories = ({
   getAllCategories = false,
-  initialPageSize = 10,
+  initialData,
 }: UseCategoriesOptions = {}) => {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(initialPageSize);
+  const [isPending, startTransition] = useTransition();
 
-  const shouldFetchAll = getAllCategories;
-
-  const isShowAllMode = pageSize === 0;
-
-  // Query for all categories
-  const allCategoriesQuery = useQuery({
-    queryKey: ["categories"],
-    queryFn: async () => {
-      const result = await getCategories(0, 0, true);
-      return result.documents;
-    },
-    enabled: shouldFetchAll || isShowAllMode,
-  });
-
-  // Query for paginated categories
-  const paginatedCategoriesQuery = useQuery({
-    queryKey: ["categories", "paginatedCategories", page, pageSize],
-    queryFn: async () => {
-      const result = await getCategories(page, pageSize, false);
-      return result;
-    },
-    enabled: !shouldFetchAll && !isShowAllMode,
-  });
-
-  // Determine which query data to use
-  const activeQuery =
-    shouldFetchAll || isShowAllMode
-      ? allCategoriesQuery
-      : paginatedCategoriesQuery;
-  const categories =
-    (shouldFetchAll || isShowAllMode
-      ? activeQuery.data
-      : activeQuery.data?.documents) || [];
-  const totalItems = activeQuery.data?.total || 0;
-
-  // Prefetch next page for table view
-  useEffect(() => {
-    if (
-      !shouldFetchAll &&
-      !isShowAllMode &&
-      paginatedCategoriesQuery.data &&
-      page * pageSize < paginatedCategoriesQuery.data.total - pageSize
-    ) {
-      queryClient.prefetchQuery({
-        queryKey: ["categories", "paginatedCategories", page + 1, pageSize],
-        queryFn: () => getCategories(page + 1, pageSize, false),
-      });
+  // Parse current state from URL - single source of truth
+  const currentState = useMemo(() => {
+    if (getAllCategories) {
+      return {
+        page: 0,
+        pageSize: 0,
+        search: "",
+      };
     }
-  }, [
-    page,
-    pageSize,
-    paginatedCategoriesQuery.data,
-    queryClient,
-    shouldFetchAll,
-    isShowAllMode,
-  ]);
 
-  // Handle page size changes
-  const handlePageSizeChange = (newPageSize: number) => {
-    setPageSize(newPageSize);
-    setPage(0);
-  };
+    const page = Number(searchParams.get("page") || 0);
+    const pageSize = Number(searchParams.get("pageSize") || 10);
+    const search = searchParams.get("search") || "";
+
+    const filters: CategoryFilters = {
+      search: search || undefined,
+    };
+
+    return { page, pageSize, filters, search };
+  }, [getAllCategories, searchParams]);
+
+  // Create stable query key
+  const queryKey = useMemo(() => {
+    const { page, pageSize, filters } = currentState;
+    const filterString = JSON.stringify(filters);
+    return ["categories", page, pageSize, filterString];
+  }, [currentState]);
+
+  // Main query with server state
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      const { page, pageSize, filters } = currentState;
+      return getCategories(
+        page,
+        pageSize,
+        getAllCategories || pageSize === 0,
+        filters
+      );
+    },
+    initialData: initialData ? () => initialData : undefined,
+    staleTime: getAllCategories ? 60000 : 30000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
+
+  // Optimistic navigation function
+  const navigate = useCallback(
+    (
+      updates: Partial<{
+        page: number;
+        pageSize: number;
+        search: string;
+        filters: Partial<CategoryFilters>;
+      }>
+    ) => {
+      const params = new URLSearchParams(searchParams.toString());
+
+      // Apply updates
+      if (updates.page !== undefined) {
+        if (updates.page === 0) {
+          params.delete("page");
+        } else {
+          params.set("page", String(updates.page));
+        }
+      }
+
+      if (updates.pageSize !== undefined) {
+        if (updates.pageSize === 10) {
+          params.delete("pageSize");
+        } else {
+          params.set("pageSize", String(updates.pageSize));
+        }
+      }
+
+      if (updates.search !== undefined) {
+        if (updates.search.trim()) {
+          params.set("search", updates.search.trim());
+        } else {
+          params.delete("search");
+        }
+        params.delete("page");
+      }
+
+      if (updates.filters) {
+        Object.keys(defaultCategoryFilters).forEach((key) =>
+          params.delete(key)
+        );
+
+        Object.entries(updates.filters).forEach(([key, value]) => {
+          if (value === undefined || value === "" || value === null) {
+            params.delete(key);
+          } else {
+            params.set(key, String(value));
+          }
+        });
+        params.delete("page");
+      }
+
+      const newUrl = `?${params.toString()}`;
+
+      // Use startTransition for non-urgent updates
+      startTransition(() => {
+        router.push(newUrl, { scroll: false });
+      });
+
+      // Prefetch the new data immediately
+      const newParams = new URLSearchParams(newUrl.substring(1));
+      const newPage = Number(newParams.get("page") || 0);
+      const newPageSize = Number(newParams.get("pageSize") || 10);
+      const newFilters: CategoryFilters = {
+        search: newParams.get("search") || undefined,
+      };
+
+      const newQueryKey = [
+        "categories",
+        newPage,
+        newPageSize,
+        newFilters,
+        JSON.stringify(newFilters),
+      ];
+
+      queryClient.prefetchQuery({
+        queryKey: newQueryKey,
+        queryFn: () =>
+          getCategories(newPage, newPageSize, newPageSize === 0, newFilters),
+      });
+    },
+    [router, searchParams, queryClient]
+  );
+
+  const setPage = useCallback(
+    (page: number) => {
+      if (getAllCategories) return;
+      navigate({ page });
+    },
+    [getAllCategories, navigate]
+  );
+
+  const setPageSize = useCallback(
+    (pageSize: number) => {
+      if (getAllCategories) return;
+      navigate({ pageSize, page: 0 });
+    },
+    [getAllCategories, navigate]
+  );
+
+  const setSearch = useCallback(
+    (search: string) => {
+      if (getAllCategories) return;
+      navigate({ search });
+    },
+    [getAllCategories, navigate]
+  );
+
+  const setFilters = useCallback(
+    (filters: Partial<CategoryFilters>) => {
+      if (getAllCategories) return;
+      navigate({ filters });
+    },
+    [getAllCategories, navigate]
+  );
+
+  const clearFilters = useCallback(() => {
+    if (getAllCategories) return;
+    navigate({
+      filters: defaultCategoryFilters,
+      search: "",
+      page: 0,
+      pageSize: 10,
+    });
+  }, [getAllCategories, navigate]);
+
+  // Real-time updates
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+
+    const channel = supabase
+      .channel("categories_changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "categories",
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["categories"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   // Add category mutation
   const { mutate: addCategoryMutation, status: addCategoryStatus } =
@@ -146,16 +292,21 @@ export const useCategories = ({
     });
 
   return {
-    categories,
-    totalItems,
-    isLoading: activeQuery.isLoading,
-    error: activeQuery.error,
-    setPageSize: handlePageSizeChange,
-    refetch: activeQuery.refetch,
-    isFetching: activeQuery.isFetching,
-    page,
+    categories: data?.documents || [],
+    totalItems: data?.total || 0,
+    page: currentState.page,
+    pageSize: currentState.pageSize,
+    search: currentState.search,
+    isLoading: isLoading || isPending,
+    refetch: refetch,
+    isFetching,
+    error,
     setPage,
-    pageSize,
+    setPageSize,
+    setSearch,
+    filters: currentState.filters,
+    setFilters,
+    clearFilters,
     addCategory: addCategoryMutation,
     editCategory: editCategoryMutation,
     softDeleteCategory: softDeleteCategoryMutation,

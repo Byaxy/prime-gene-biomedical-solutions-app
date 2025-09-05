@@ -2,7 +2,6 @@
 
 import {
   BrandFormValues,
-  CategoryFormValues,
   ProductFormValidation,
   ProductFormValues,
   TypeFormValues,
@@ -48,12 +47,7 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
   const [brandDialogOpen, setBrandDialogOpen] = useState(false);
   const [unitDialogOpen, setUnitDialogOpen] = useState(false);
   const [typeDialogOpen, setTypeDialogOpen] = useState(false);
-  const {
-    categories,
-    isLoading: categoriesLoading,
-    addCategory,
-    isAddingCategory,
-  } = useCategories({
+  const { categories, isLoading: categoriesLoading } = useCategories({
     getAllCategories: true,
   });
   const {
@@ -118,21 +112,6 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
         stuckSection.style.pointerEvents = "auto";
       }
     }, 100);
-  };
-
-  // Handlers for adding new items
-  const handleAddCategory = async (data: CategoryFormValues): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      addCategory(data, {
-        onSuccess: () => {
-          closeDialog();
-          resolve();
-        },
-        onError: (error) => {
-          reject(error);
-        },
-      });
-    });
   };
 
   const handleAddBrand = async (data: BrandFormValues): Promise<void> => {
@@ -491,10 +470,8 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
       {/* Dialogs */}
       <CategoryDialog
         mode="add"
-        onSubmit={handleAddCategory}
         open={categoryDialogOpen}
         onOpenChange={closeDialog}
-        isLoading={isAddingCategory}
       />
 
       <BrandDialog

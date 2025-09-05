@@ -6,18 +6,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-
-import { CategoryFormValues } from "@/lib/validation";
 import CategoryForm from "../forms/CategoriesForm";
 import { Category } from "@/types";
+import { useCategories } from "@/hooks/useCategories";
 
 interface CategoryDialogProps {
   mode: "add" | "edit" | "delete";
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  isLoading?: boolean;
   category?: Category;
-  onSubmit: (data: CategoryFormValues) => Promise<void>;
 }
 
 export function CategoryDialog({
@@ -25,16 +22,18 @@ export function CategoryDialog({
   open,
   onOpenChange,
   category,
-  isLoading,
-  onSubmit,
 }: CategoryDialogProps) {
+  const { softDeleteCategory, isSoftDeletingCategory } = useCategories();
+
   const handleDelete = async () => {
     try {
-      await onSubmit({
-        name: category?.name || "",
-        description: category?.description ?? "",
-      });
-      onOpenChange(false);
+      if (mode === "delete" && category) {
+        await softDeleteCategory(category.id, {
+          onSuccess: () => {
+            onOpenChange(false);
+          },
+        });
+      }
     } catch (error) {
       console.error("Error deleting category:", error);
     } finally {
@@ -76,7 +75,7 @@ export function CategoryDialog({
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
-                disabled={isLoading}
+                disabled={isSoftDeletingCategory}
                 className="shad-primary-btn"
               >
                 Cancel
@@ -85,7 +84,7 @@ export function CategoryDialog({
                 type="button"
                 variant="destructive"
                 onClick={handleDelete}
-                disabled={isLoading}
+                disabled={isSoftDeletingCategory}
                 className="shad-danger-btn"
               >
                 Delete
@@ -102,7 +101,6 @@ export function CategoryDialog({
                   }
                 : undefined
             }
-            onSubmit={onSubmit}
             onCancel={() => onOpenChange(false)}
           />
         )}

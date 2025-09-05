@@ -24,7 +24,6 @@ interface UseProductsOptions {
   getAllProducts?: boolean;
   getAllActive?: boolean;
   initialData?: { documents: ProductWithRelations[]; total: number };
-  enableRealtime?: boolean;
 }
 
 export interface ProductFilters {
@@ -60,7 +59,6 @@ export const useProducts = ({
   getAllProducts = false,
   getAllActive = false,
   initialData,
-  enableRealtime = true,
 }: UseProductsOptions = {}) => {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -303,8 +301,6 @@ export const useProducts = ({
 
   // Real-time updates
   useEffect(() => {
-    if (!enableRealtime) return;
-
     const supabase = createSupabaseBrowserClient();
 
     const channel = supabase
@@ -325,7 +321,7 @@ export const useProducts = ({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [enableRealtime, queryClient]);
+  }, [queryClient]);
 
   // Add product mutation
   const { mutate: addProductMutation, status: addProductStatus } = useMutation({

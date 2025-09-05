@@ -1,42 +1,12 @@
-import { CategoryFormValues } from "@/lib/validation";
 import { useState } from "react";
 import { CategoryDialog } from "./CategoryDialog";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { useCategories } from "@/hooks/useCategories";
 import { Category } from "@/types";
 
 const CategoryActions = ({ category }: { category: Category }) => {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"add" | "edit" | "delete">("add");
-
-  const {
-    softDeleteCategory,
-    editCategory,
-    isSoftDeletingCategory,
-    isEditingCategory,
-  } = useCategories();
-
-  const handleAction = async (data: CategoryFormValues) => {
-    // Handle different actions based on mode
-    try {
-      if (mode === "edit") {
-        // Edit category
-        await editCategory(
-          { id: category.id, data },
-          { onSuccess: () => setOpen(false) }
-        );
-        setOpen(false);
-      } else if (mode === "delete") {
-        // Delete category
-        await softDeleteCategory(category.id, {
-          onSuccess: () => setOpen(false),
-        });
-      }
-    } catch (error) {
-      console.error("Error:", error);
-    }
-  };
 
   return (
     <div className="flex items-center">
@@ -63,8 +33,6 @@ const CategoryActions = ({ category }: { category: Category }) => {
         open={open}
         onOpenChange={setOpen}
         category={category}
-        onSubmit={handleAction}
-        isLoading={isSoftDeletingCategory || isEditingCategory}
       />
     </div>
   );

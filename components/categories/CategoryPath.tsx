@@ -1,25 +1,21 @@
-import { getCategoryById } from "@/lib/actions/category.actions";
-import { useQuery } from "@tanstack/react-query";
-import Loading from "../../app/(dashboard)/loading";
+import Loading from "@/app/(dashboard)/loading";
+import { useCategories } from "@/hooks/useCategories";
+import { Category } from "@/types";
 
 const CategoryPath = ({ categoryPath }: { categoryPath: string }) => {
+  const { categories: allCategories, isLoading } = useCategories({
+    getAllCategories: true,
+  });
   const categoryIds = categoryPath
     ? categoryPath.split("/").filter(Boolean)
     : [];
 
-  const { data: categories, isLoading } = useQuery({
-    queryKey: ["categoryPath", categoryPath],
-    queryFn: async () => {
-      if (!categoryIds.length) return [];
-
-      const categoryPromises = categoryIds.map((id) => getCategoryById(id));
-      const categoryResults = await Promise.all(categoryPromises);
-
-      // Filter out any null results and maintain order
-      return categoryResults.filter(Boolean);
-    },
-    enabled: categoryIds.length > 0,
-  });
+  const categories = allCategories
+    ?.map((category: Category) => {
+      const cat = categoryIds.find((id) => id === category.id);
+      if (cat) return category;
+    })
+    .filter(Boolean);
 
   if (isLoading) {
     return <Loading size={20} />;
@@ -31,14 +27,16 @@ const CategoryPath = ({ categoryPath }: { categoryPath: string }) => {
 
   return (
     <div className="w-fit">
-      <span>
-        {categories.map((category, index) => (
-          <span key={categoryIds[index]}>
-            {category?.name}
-            {index < categories.length - 1 && " / "}
-          </span>
-        ))}
-      </span>
+      {categories && (
+        <span>
+          {categories.map((category: Category, index: number) => (
+            <span key={category.id}>
+              {category?.name}
+              {index < categories.length - 1 && " / "}
+            </span>
+          ))}
+        </span>
+      )}
     </div>
   );
 };
