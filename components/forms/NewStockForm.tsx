@@ -1,5 +1,4 @@
 import { useProducts } from "@/hooks/useProducts";
-import { getProductById } from "@/lib/actions/product.actions";
 import {
   StockAdjustmentFormValidation,
   StockAdjustmentFormValues,
@@ -171,12 +170,13 @@ const NewStockForm = () => {
 
   // Handle product selection
   useEffect(() => {
-    const updateSelectedProduct = async () => {
-      if (!selectedProductId) return;
+    const updateSelectedProduct = () => {
+      if (!selectedProductId || products.length === 0) return;
 
       try {
-        const product: ProductWithRelations = await getProductById(
-          selectedProductId
+        const product = products.find(
+          (product: ProductWithRelations) =>
+            product.product.id === selectedProductId
         );
         setSelectedProductName(product.product.name);
         setSelectedProductID(product.product.productID);
@@ -192,20 +192,20 @@ const NewStockForm = () => {
     };
 
     updateSelectedProduct();
-  }, [selectedProductId, editingIndex, form]);
+  }, [selectedProductId, editingIndex, form, products]);
 
   // Handle product addition
   const handleAddProduct = async () => {
-    const currentProductId = form.getValues("selectedProduct");
-    if (!currentProductId) {
+    if (!selectedProductId) {
       toast.error("Please select a product");
       return;
     }
 
     try {
-      const selectedProduct = (await getProductById(
-        currentProductId
-      )) as ProductWithRelations;
+      const selectedProduct = products.find(
+        (product: ProductWithRelations) =>
+          product.product.id === selectedProductId
+      );
       if (!selectedProduct) {
         throw new Error("Product not found");
       }
@@ -247,6 +247,7 @@ const NewStockForm = () => {
         manufactureDate,
         expiryDate,
         productName: selectedProduct.product.name,
+        productID: selectedProduct.product.productID,
         productUnit: selectedProduct.unit.code,
       };
 
@@ -612,7 +613,8 @@ const NewStockForm = () => {
               <TableHeader>
                 <TableRow className="w-full bg-blue-800 text-white px-2 font-semibold">
                   <TableHead>#</TableHead>
-                  <TableHead>Product</TableHead>
+                  <TableHead>PID</TableHead>
+                  <TableHead>Product Name</TableHead>
                   <TableHead>Lot Number</TableHead>
                   <TableHead>Quantity</TableHead>
                   <TableHead>Cost Price</TableHead>
@@ -633,6 +635,7 @@ const NewStockForm = () => {
                 {fields.map((entry, index) => (
                   <TableRow key={`${entry.productId}-${index}`}>
                     <TableCell>{index + 1}</TableCell>
+                    <TableCell>{entry.productID}</TableCell>
                     <TableCell>{entry.productName}</TableCell>
                     <TableCell>{entry.lotNumber}</TableCell>
                     <TableCell>
