@@ -92,7 +92,7 @@ const RecievingPurchaseForm = ({
     getAllReceivedPurchases: true,
   });
 
-  const { products: mainProducts } = useProducts({ getAllProducts: true });
+  const { products: mainProducts } = useProducts({ getAllActive: true });
 
   const { user } = useAuth();
 

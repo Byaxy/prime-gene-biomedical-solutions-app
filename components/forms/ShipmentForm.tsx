@@ -146,7 +146,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
   const { purchases, isLoading: purchasesLoading } = usePurchases({
     getAllPurchases: true,
   });
-  const { products } = useProducts({ getAllProducts: true });
+  const { products } = useProducts({ getAllActive: true });
   const {
     shipments,
     addShipment,

@@ -58,7 +58,7 @@ const PurchaseOrderForm = ({ mode, initialData }: Props) => {
     string | null
   >(null);
   const { products, isLoading: productsLoading } = useProducts({
-    getAllProducts: true,
+    getAllActive: true,
   });
   const { vendors, isLoading: vendorsLoading } = useVendors({
     getAllVendors: true,
