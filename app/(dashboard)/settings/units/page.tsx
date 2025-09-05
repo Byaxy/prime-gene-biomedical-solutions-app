@@ -1,103 +1,47 @@
-"use client";
-
 import PageWraper from "@/components/PageWraper";
-import { unitsColumns } from "@/components/table/columns/unitsColumns";
-import { DataTable } from "@/components/table/DataTable";
-import UnitsDialog from "@/components/units/UnitsDialog";
-import { useUnits } from "@/hooks/useUnits";
-import { exportToExcel } from "@/lib/utils";
-import { UnitFormValues } from "@/lib/validation";
-import { Unit } from "@/types";
-import { useState } from "react";
-import toast from "react-hot-toast";
+import { UnitFilters } from "@/hooks/useUnits";
+import dynamic from "next/dynamic";
+import { Suspense } from "react";
+import Loading from "../../loading";
+import { getUnits } from "@/lib/actions/unit.actions";
 
-const Units = () => {
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [rowSelection, setRowSelection] = useState({});
+const UnitsTable = dynamic(() => import("@/components/units/UnitsTable"));
 
-  const {
-    units,
-    isLoading,
-    totalItems,
-    page,
-    setPage,
-    pageSize,
-    setPageSize,
-    addUnit,
-    isAddingUnit,
-    refetch,
-    isFetching,
-  } = useUnits({ initialPageSize: 10 });
+export interface UnitsSearchParams {
+  page?: string;
+  pageSize?: string;
+  search?: string;
+}
 
-  const handleAddUnit = async (data: UnitFormValues): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      addUnit(data, {
-        onSuccess: () => {
-          setIsAddDialogOpen(false);
-          resolve();
-        },
-        onError: (error) => {
-          reject(error);
-        },
-      });
-    });
+const Units = async ({
+  searchParams,
+}: {
+  searchParams: Promise<UnitsSearchParams>;
+}) => {
+  const sp = await searchParams;
+  const currentPage = Number(sp.page || 0);
+  const currentPageSize = sp.pageSize === "0" ? 0 : Number(sp.pageSize || 10);
+
+  const filtersForServer: UnitFilters = {
+    search: sp.search || undefined,
   };
 
-  const handleDownloadSelected = async (selectedItems: Unit[]) => {
-    try {
-      if (selectedItems.length === 0) {
-        toast.error("No Items selected for download");
-        return;
-      }
-
-      const exportData = selectedItems.map((item) => ({
-        id: item.id,
-        name: item.name,
-        description: item.description ?? "",
-        code: item.code,
-        isActive: item.isActive,
-        createdAt: item.createdAt,
-        updatedAt: item.updatedAt,
-      }));
-      exportToExcel(exportData, "selected-units");
-      setRowSelection({});
-      toast.success("Export started successfully");
-    } catch (error) {
-      console.error("Error exporting units:", error);
-      toast.error("Failed to export units");
-    }
-  };
+  const initialData = await getUnits(
+    currentPage,
+    currentPageSize,
+    currentPageSize === 0,
+    filtersForServer
+  );
 
   return (
     <PageWraper
       title="Product Units"
       buttonText="Add Unit"
-      buttonAction={() => setIsAddDialogOpen(true)}
+      buttonPath="/settings/units?dialog=open"
     >
-      <>
-        <DataTable
-          columns={unitsColumns}
-          data={units || []}
-          isLoading={isLoading}
-          totalItems={totalItems}
-          page={page}
-          onPageChange={setPage}
-          pageSize={pageSize}
-          onPageSizeChange={setPageSize}
-          rowSelection={rowSelection}
-          onRowSelectionChange={setRowSelection}
-          onDownloadSelected={handleDownloadSelected}
-          refetch={refetch}
-          isFetching={isFetching}
-        />
-        <UnitsDialog
-          mode="add"
-          open={isAddDialogOpen}
-          onOpenChange={setIsAddDialogOpen}
-          isLoading={isAddingUnit}
-          onSubmit={handleAddUnit}
-        />
-      </>
+      <Suspense fallback={<Loading />}>
+        <UnitsTable initialData={initialData} />
+      </Suspense>
     </PageWraper>
   );
 };

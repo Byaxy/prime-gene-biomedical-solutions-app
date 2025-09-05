@@ -1,28 +1,26 @@
 import { UnitFormValidation, UnitFormValues } from "@/lib/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "../ui/button";
 import SubmitButton from "../SubmitButton";
 import CustomFormField, { FormFieldType } from "../CustomFormField";
 import { Form } from "../ui/form";
 import { Unit } from "@/types";
+import { useUnits } from "@/hooks/useUnits";
 
 interface UnitFormProps {
   mode: "create" | "edit";
   initialData?: Unit;
-  onSubmit: (data: UnitFormValues) => Promise<void>;
   onCancel?: () => void;
 }
 
 const UnitsForm = ({
   mode,
   initialData,
-  onSubmit,
+
   onCancel,
 }: UnitFormProps) => {
-  const [isLoading, setIsLoading] = useState(false);
-
+  const { addUnit, editUnit, isAddingUnit, isEditingUnit } = useUnits();
   const form = useForm<UnitFormValues>({
     resolver: zodResolver(UnitFormValidation),
     defaultValues: initialData || {
@@ -33,13 +31,29 @@ const UnitsForm = ({
   });
 
   const handleSubmit = async (values: UnitFormValues) => {
-    setIsLoading(true);
     try {
-      await onSubmit(values);
+      if (mode === "create") {
+        await addUnit(values, {
+          onSuccess: () => {
+            onCancel?.();
+          },
+        });
+      }
+      if (mode === "edit" && initialData) {
+        await editUnit(
+          {
+            id: initialData.id,
+            data: values,
+          },
+          {
+            onSuccess: () => {
+              onCancel?.();
+            },
+          }
+        );
+      }
     } catch (error) {
       console.error("Error submitting form:", error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -82,7 +96,10 @@ const UnitsForm = ({
               Cancel
             </Button>
           )}
-          <SubmitButton isLoading={isLoading} className="shad-primary-btn">
+          <SubmitButton
+            isLoading={isAddingUnit || isEditingUnit}
+            className="shad-primary-btn"
+          >
             {mode === "create" ? "Create Unit" : "Update Unit"}
           </SubmitButton>
         </div>

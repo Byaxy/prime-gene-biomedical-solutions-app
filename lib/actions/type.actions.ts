@@ -5,7 +5,28 @@ import { parseStringify } from "../utils";
 import { TypeFormValues } from "../validation";
 import { db } from "@/drizzle/db";
 import { productTypesTable } from "@/drizzle/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, ilike, or, and, sql } from "drizzle-orm";
+import { TypeFilters } from "@/hooks/useTypes";
+
+const buildFilterConditionsDrizzle = (filters: TypeFilters) => {
+  const conditions = [];
+
+  conditions.push(eq(productTypesTable.isActive, true));
+
+  // Search logic using ILIKE on joined tables.
+  // GIN indexes are crucial here.
+  if (filters.search?.trim()) {
+    const searchTerm = `%${filters.search.trim()}%`;
+    conditions.push(
+      or(
+        ilike(productTypesTable.name, searchTerm),
+        ilike(productTypesTable.description, searchTerm)
+      )
+    );
+  }
+
+  return conditions;
+};
 
 // Add Type
 export const addType = async (typeData: TypeFormValues) => {
@@ -44,63 +65,50 @@ export const getTypeById = async (typeId: string) => {
 export const getTypes = async (
   page: number = 0,
   limit: number = 10,
-  getAllTypes: boolean = false
+  getAllTypes: boolean = false,
+  filters?: TypeFilters
 ) => {
   try {
-    let query = db
-      .select()
-      .from(productTypesTable)
-      .where(eq(productTypesTable.isActive, true))
-      .orderBy(desc(productTypesTable.createdAt));
+    const result = await db.transaction(async (tx) => {
+      // Build the main query
+      let query = tx.select().from(productTypesTable).$dynamic();
 
-    if (!getAllTypes) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      query = (query as any).limit(limit).offset(page * limit);
-    }
-
-    const types = await query;
-
-    // For getAllTypes, fetch all types in batches (if needed)
-    if (getAllTypes) {
-      let allTypes: typeof types = [];
-      let offset = 0;
-      const batchSize = 100; // Adjust batch size as needed
-
-      while (true) {
-        const batch = await db
-          .select()
-          .from(productTypesTable)
-          .where(eq(productTypesTable.isActive, true))
-          .orderBy(desc(productTypesTable.createdAt))
-          .limit(batchSize)
-          .offset(offset);
-
-        allTypes = [...allTypes, ...batch];
-
-        // If we got fewer types than the batch size, we've reached the end
-        if (batch.length < batchSize) {
-          break;
-        }
-
-        offset += batchSize;
+      const conditions = buildFilterConditionsDrizzle(filters ?? {});
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
       }
 
-      return {
-        documents: parseStringify(allTypes),
-        total: allTypes.length,
-      };
-    }
+      query = query.orderBy(desc(productTypesTable.createdAt));
 
-    // For paginated results
-    const total = await db
-      .select()
-      .from(productTypesTable)
-      .where(eq(productTypesTable.isActive, true))
-      .then((res) => res.length);
+      if (!getAllTypes && limit > 0) {
+        query = query.limit(limit).offset(page * limit);
+      }
+
+      const types = await query;
+
+      // Get total count for pagination
+      let totalQuery = tx
+        .select({ count: sql<number>`count(*)` })
+        .from(productTypesTable)
+        .$dynamic();
+
+      if (conditions.length > 0) {
+        totalQuery = totalQuery.where(and(...conditions));
+      }
+
+      const total = getAllTypes
+        ? types.length
+        : await totalQuery.then((res) => res[0]?.count || 0);
+
+      return {
+        documents: types,
+        total,
+      };
+    });
 
     return {
-      documents: parseStringify(types),
-      total,
+      documents: parseStringify(result.documents),
+      total: result.total,
     };
   } catch (error) {
     console.error("Error getting types:", error);

@@ -5,12 +5,33 @@ import { parseStringify } from "../utils";
 import { BrandFormValues } from "../validation";
 import { db } from "@/drizzle/db";
 import { brandsTable } from "@/drizzle/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, or, ilike, and, sql } from "drizzle-orm";
+import { BrandFilters } from "@/hooks/useBrands";
 
 interface BrandDataWithImage extends Omit<BrandFormValues, "image"> {
   imageId: string;
   imageUrl: string;
 }
+
+const buildFilterConditionsDrizzle = (filters: BrandFilters) => {
+  const conditions = [];
+
+  conditions.push(eq(brandsTable.isActive, true));
+
+  // Search logic using ILIKE on joined tables.
+  // GIN indexes are crucial here.
+  if (filters.search?.trim()) {
+    const searchTerm = `%${filters.search.trim()}%`;
+    conditions.push(
+      or(
+        ilike(brandsTable.name, searchTerm),
+        ilike(brandsTable.description, searchTerm)
+      )
+    );
+  }
+
+  return conditions;
+};
 
 // Add Brand
 export const addBrand = async (brandData: BrandDataWithImage) => {
@@ -49,63 +70,50 @@ export const getBrandById = async (brandId: string) => {
 export const getBrands = async (
   page: number = 0,
   limit: number = 10,
-  getAllBrands: boolean = false
+  getAllBrands: boolean = false,
+  filters?: BrandFilters
 ) => {
   try {
-    let query = db
-      .select()
-      .from(brandsTable)
-      .where(eq(brandsTable.isActive, true))
-      .orderBy(desc(brandsTable.createdAt));
+    const result = await db.transaction(async (tx) => {
+      // Build the main query
+      let query = tx.select().from(brandsTable).$dynamic();
 
-    if (!getAllBrands) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      query = (query as any).limit(limit).offset(page * limit);
-    }
-
-    const brands = await query;
-
-    // For getAllBrands, fetch all brands in batches (if needed)
-    if (getAllBrands) {
-      let allBrands: typeof brands = [];
-      let offset = 0;
-      const batchSize = 100; // Adjust batch size as needed
-
-      while (true) {
-        const batch = await db
-          .select()
-          .from(brandsTable)
-          .where(eq(brandsTable.isActive, true))
-          .orderBy(desc(brandsTable.createdAt))
-          .limit(batchSize)
-          .offset(offset);
-
-        allBrands = [...allBrands, ...batch];
-
-        // If we got fewer brands than the batch size, we've reached the end
-        if (batch.length < batchSize) {
-          break;
-        }
-
-        offset += batchSize;
+      const conditions = buildFilterConditionsDrizzle(filters ?? {});
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
       }
 
-      return {
-        documents: parseStringify(allBrands),
-        total: allBrands.length,
-      };
-    }
+      query = query.orderBy(desc(brandsTable.createdAt));
 
-    // For paginated results
-    const total = await db
-      .select()
-      .from(brandsTable)
-      .where(eq(brandsTable.isActive, true))
-      .then((res) => res.length);
+      if (!getAllBrands && limit > 0) {
+        query = query.limit(limit).offset(page * limit);
+      }
+
+      const brands = await query;
+
+      // Get total count for pagination
+      let totalQuery = tx
+        .select({ count: sql<number>`count(*)` })
+        .from(brandsTable)
+        .$dynamic();
+
+      if (conditions.length > 0) {
+        totalQuery = totalQuery.where(and(...conditions));
+      }
+
+      const total = getAllBrands
+        ? brands.length
+        : await totalQuery.then((res) => res[0]?.count || 0);
+
+      return {
+        documents: brands,
+        total,
+      };
+    });
 
     return {
-      documents: parseStringify(brands),
-      total,
+      documents: parseStringify(result.documents),
+      total: result.total,
     };
   } catch (error) {
     console.error("Error getting brands:", error);

@@ -1,24 +1,24 @@
 "use client";
 
-import { useCategories } from "@/hooks/useCategories";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useDialogState } from "@/hooks/useDialogState";
+import { useTypes } from "@/hooks/useTypes";
 import { exportToExcel } from "@/lib/utils";
-import { Category } from "@/types";
+import { ProductType } from "@/types";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { DataTable } from "../table/DataTable";
-import { categoriesColumns } from "../table/columns/categoriesColumns";
-import { CategoryDialog } from "./CategoryDialog";
-import { useDialogState } from "@/hooks/useDialogState";
+import ProductTypeDialog from "./ProductTypeDialog";
+import { typesColumns } from "../table/columns/typesColumns";
 
 interface Props {
-  initialData: { documents: Category[]; total: number };
+  initialData: { documents: ProductType[]; total: number };
 }
 
-const CategoriesTable = ({ initialData }: Props) => {
+const ProductTypesTable = ({ initialData }: Props) => {
   const [rowSelection, setRowSelection] = useState({});
   const {
-    categories,
+    types,
     totalItems,
     page,
     pageSize,
@@ -29,7 +29,7 @@ const CategoriesTable = ({ initialData }: Props) => {
     setPageSize,
     setSearch,
     refetch,
-  } = useCategories({ initialData });
+  } = useTypes({ initialData });
 
   const { isOpen, openDialog, closeDialog } = useDialogState();
 
@@ -54,7 +54,7 @@ const CategoriesTable = ({ initialData }: Props) => {
     setSearch("");
   }, [setSearch]);
 
-  const handleDownloadSelected = async (selectedItems: Category[]) => {
+  const handleDownloadSelected = async (selectedItems: ProductType[]) => {
     try {
       if (selectedItems.length === 0) {
         toast.error("No Items selected for download");
@@ -65,43 +65,41 @@ const CategoriesTable = ({ initialData }: Props) => {
         id: item.id,
         name: item.name,
         description: item.description ?? "",
-        parentId: item.parentId ?? "",
-        depth: item.depth,
-        path: item.path,
         isActive: item.isActive,
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
       }));
-      exportToExcel(exportData, "selected-categories");
+      exportToExcel(exportData, "selected-types");
       setRowSelection({});
       toast.success("Export started successfully");
     } catch (error) {
-      console.error("Error exporting categories:", error);
-      toast.error("Failed to export categories");
+      console.error("Error exporting types:", error);
+      toast.error("Failed to export types");
     }
   };
 
   return (
     <div>
+      {" "}
       <DataTable
-        columns={categoriesColumns}
-        data={categories || []}
+        columns={typesColumns}
+        data={types || []}
         isLoading={isLoading}
         totalItems={totalItems}
         page={page}
         onPageChange={setPage}
         pageSize={pageSize}
         onPageSizeChange={setPageSize}
-        onDownloadSelected={handleDownloadSelected}
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}
+        onDownloadSelected={handleDownloadSelected}
         refetch={refetch}
         isFetching={isFetching}
         searchTerm={localSearch}
         onSearchChange={handleSearchChange}
         onClearSearch={handleClearSearch}
       />
-      <CategoryDialog
+      <ProductTypeDialog
         mode="add"
         open={isOpen}
         onOpenChange={(open) => (open ? openDialog() : closeDialog())}
@@ -110,4 +108,4 @@ const CategoriesTable = ({ initialData }: Props) => {
   );
 };
 
-export default CategoriesTable;
+export default ProductTypesTable;

@@ -1,28 +1,25 @@
 import { TypeFormValidation, TypeFormValues } from "@/lib/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "../ui/button";
 import SubmitButton from "../SubmitButton";
 import CustomFormField, { FormFieldType } from "../CustomFormField";
 import { Form } from "../ui/form";
 import { ProductType } from "@/types";
+import { useTypes } from "@/hooks/useTypes";
 
 interface ProductTypeFormProps {
   mode: "create" | "edit";
   initialData?: ProductType;
-  onSubmit: (data: TypeFormValues) => Promise<void>;
   onCancel?: () => void;
 }
 
 const ProductTypeForm = ({
   mode,
   initialData,
-  onSubmit,
   onCancel,
 }: ProductTypeFormProps) => {
-  const [isLoading, setIsLoading] = useState(false);
-
+  const { addType, editType, isAddingType, isEditingType } = useTypes();
   const form = useForm<TypeFormValues>({
     resolver: zodResolver(TypeFormValidation),
     defaultValues: initialData || {
@@ -32,13 +29,29 @@ const ProductTypeForm = ({
   });
 
   const handleSubmit = async (values: TypeFormValues) => {
-    setIsLoading(true);
     try {
-      await onSubmit(values);
+      if (mode === "create") {
+        await addType(values, {
+          onSuccess: () => {
+            onCancel?.();
+          },
+        });
+      }
+      if (mode === "edit" && initialData) {
+        await editType(
+          {
+            id: initialData.id,
+            data: values,
+          },
+          {
+            onSuccess: () => {
+              onCancel?.();
+            },
+          }
+        );
+      }
     } catch (error) {
       console.error("Error submitting form:", error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -76,7 +89,10 @@ const ProductTypeForm = ({
               Cancel
             </Button>
           )}
-          <SubmitButton isLoading={isLoading} className="shad-primary-btn">
+          <SubmitButton
+            isLoading={isAddingType || isEditingType}
+            className="shad-primary-btn"
+          >
             {mode === "create" ? "Create Type" : "Update Type"}
           </SubmitButton>
         </div>

@@ -5,7 +5,28 @@ import { parseStringify } from "../utils";
 import { UnitFormValues } from "../validation";
 import { db } from "@/drizzle/db";
 import { unitsTable } from "@/drizzle/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, ilike, or, and, sql } from "drizzle-orm";
+import { UnitFilters } from "@/hooks/useUnits";
+
+const buildFilterConditionsDrizzle = (filters: UnitFilters) => {
+  const conditions = [];
+
+  conditions.push(eq(unitsTable.isActive, true));
+
+  // Search logic using ILIKE on joined tables.
+  // GIN indexes are crucial here.
+  if (filters.search?.trim()) {
+    const searchTerm = `%${filters.search.trim()}%`;
+    conditions.push(
+      or(
+        ilike(unitsTable.name, searchTerm),
+        ilike(unitsTable.description, searchTerm)
+      )
+    );
+  }
+
+  return conditions;
+};
 
 // Add Unit
 export const addUnit = async (unitData: UnitFormValues) => {
@@ -44,63 +65,50 @@ export const getUnitById = async (unitId: string) => {
 export const getUnits = async (
   page: number = 0,
   limit: number = 10,
-  getAllUnits: boolean = false
+  getAllUnits: boolean = false,
+  filters?: UnitFilters
 ) => {
   try {
-    let query = db
-      .select()
-      .from(unitsTable)
-      .where(eq(unitsTable.isActive, true))
-      .orderBy(desc(unitsTable.createdAt));
+    const result = await db.transaction(async (tx) => {
+      // Build the main query
+      let query = tx.select().from(unitsTable).$dynamic();
 
-    if (!getAllUnits) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      query = (query as any).limit(limit).offset(page * limit);
-    }
-
-    const units = await query;
-
-    // For getAllUnits, fetch all units in batches (if needed)
-    if (getAllUnits) {
-      let allUnits: typeof units = [];
-      let offset = 0;
-      const batchSize = 100;
-
-      while (true) {
-        const batch = await db
-          .select()
-          .from(unitsTable)
-          .where(eq(unitsTable.isActive, true))
-          .orderBy(desc(unitsTable.createdAt))
-          .limit(batchSize)
-          .offset(offset);
-
-        allUnits = [...allUnits, ...batch];
-
-        // If we got fewer units than the batch size, we've reached the end
-        if (batch.length < batchSize) {
-          break;
-        }
-
-        offset += batchSize;
+      const conditions = buildFilterConditionsDrizzle(filters ?? {});
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
       }
 
-      return {
-        documents: parseStringify(allUnits),
-        total: allUnits.length,
-      };
-    }
+      query = query.orderBy(desc(unitsTable.createdAt));
 
-    // For paginated results
-    const total = await db
-      .select()
-      .from(unitsTable)
-      .where(eq(unitsTable.isActive, true))
-      .then((res) => res.length);
+      if (!getAllUnits && limit > 0) {
+        query = query.limit(limit).offset(page * limit);
+      }
+
+      const units = await query;
+
+      // Get total count for pagination
+      let totalQuery = tx
+        .select({ count: sql<number>`count(*)` })
+        .from(unitsTable)
+        .$dynamic();
+
+      if (conditions.length > 0) {
+        totalQuery = totalQuery.where(and(...conditions));
+      }
+
+      const total = getAllUnits
+        ? units.length
+        : await totalQuery.then((res) => res[0]?.count || 0);
+
+      return {
+        documents: units,
+        total,
+      };
+    });
 
     return {
-      documents: parseStringify(units),
-      total,
+      documents: parseStringify(result.documents),
+      total: result.total,
     };
   } catch (error) {
     console.error("Error getting units:", error);

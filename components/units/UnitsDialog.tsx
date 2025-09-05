@@ -1,4 +1,3 @@
-import { UnitFormValues } from "@/lib/validation";
 import {
   Dialog,
   DialogContent,
@@ -9,31 +8,25 @@ import {
 import { Button } from "../ui/button";
 import UnitsForm from "../forms/UnitsForm";
 import { Unit } from "@/types";
+import { useUnits } from "@/hooks/useUnits";
 
 interface UnitDialogProps {
   mode: "add" | "edit" | "delete";
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  isLoading?: boolean;
   unit?: Unit;
-  onSubmit: (data: UnitFormValues) => Promise<void>;
 }
-const UnitsDialog = ({
-  mode,
-  open,
-  onOpenChange,
-  unit,
-  isLoading,
-  onSubmit,
-}: UnitDialogProps) => {
+const UnitsDialog = ({ mode, open, onOpenChange, unit }: UnitDialogProps) => {
+  const { softDeleteUnit, isSoftDeletingUnit } = useUnits();
   const handleDelete = async () => {
     try {
-      await onSubmit({
-        name: unit?.name || "",
-        code: unit?.code || "",
-        description: unit?.description,
-      });
-      onOpenChange(false);
+      if (mode === "delete" && unit) {
+        await softDeleteUnit(unit.id, {
+          onSuccess: () => {
+            onOpenChange(false);
+          },
+        });
+      }
     } catch (error) {
       console.error("Error deleting unit:", error);
     } finally {
@@ -75,7 +68,7 @@ const UnitsDialog = ({
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
-                disabled={isLoading}
+                disabled={isSoftDeletingUnit}
                 className="shad-primary-btn"
               >
                 Cancel
@@ -84,7 +77,7 @@ const UnitsDialog = ({
                 type="button"
                 variant="destructive"
                 onClick={handleDelete}
-                disabled={isLoading}
+                disabled={isSoftDeletingUnit}
                 className="shad-danger-btn"
               >
                 Delete
@@ -101,7 +94,6 @@ const UnitsDialog = ({
                   }
                 : undefined
             }
-            onSubmit={onSubmit}
             onCancel={() => onOpenChange(false)}
           />
         )}

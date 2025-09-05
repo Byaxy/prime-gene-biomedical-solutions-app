@@ -36,7 +36,11 @@ const Categories = async ({
   );
 
   return (
-    <PageWraper title="Categories" buttonText="Add Category">
+    <PageWraper
+      title="Categories"
+      buttonText="Add Category"
+      buttonPath="/settings/categories?dialog=open"
+    >
       <Suspense fallback={<Loading />}>
         <CategoriesTable initialData={initialData} />
       </Suspense>

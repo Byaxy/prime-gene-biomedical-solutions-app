@@ -1,24 +1,24 @@
 "use client";
 
-import { useCategories } from "@/hooks/useCategories";
+import { useBrands } from "@/hooks/useBrands";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useDialogState } from "@/hooks/useDialogState";
 import { exportToExcel } from "@/lib/utils";
-import { Category } from "@/types";
+import { Brand } from "@/types";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { DataTable } from "../table/DataTable";
-import { categoriesColumns } from "../table/columns/categoriesColumns";
-import { CategoryDialog } from "./CategoryDialog";
-import { useDialogState } from "@/hooks/useDialogState";
+import BrandDialog from "./BrandDialog";
+import { brandColumns } from "../table/columns/brandColumns";
 
 interface Props {
-  initialData: { documents: Category[]; total: number };
+  initialData: { documents: Brand[]; total: number };
 }
 
-const CategoriesTable = ({ initialData }: Props) => {
+const BrandsTable = ({ initialData }: Props) => {
   const [rowSelection, setRowSelection] = useState({});
   const {
-    categories,
+    brands,
     totalItems,
     page,
     pageSize,
@@ -29,7 +29,7 @@ const CategoriesTable = ({ initialData }: Props) => {
     setPageSize,
     setSearch,
     refetch,
-  } = useCategories({ initialData });
+  } = useBrands({ initialData });
 
   const { isOpen, openDialog, closeDialog } = useDialogState();
 
@@ -54,7 +54,7 @@ const CategoriesTable = ({ initialData }: Props) => {
     setSearch("");
   }, [setSearch]);
 
-  const handleDownloadSelected = async (selectedItems: Category[]) => {
+  const handleDownloadSelected = async (selectedItems: Brand[]) => {
     try {
       if (selectedItems.length === 0) {
         toast.error("No Items selected for download");
@@ -65,27 +65,26 @@ const CategoriesTable = ({ initialData }: Props) => {
         id: item.id,
         name: item.name,
         description: item.description ?? "",
-        parentId: item.parentId ?? "",
-        depth: item.depth,
-        path: item.path,
+        imageId: item.imageId ?? "",
+        imageUrl: item.imageUrl ?? "",
         isActive: item.isActive,
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
       }));
-      exportToExcel(exportData, "selected-categories");
+      exportToExcel(exportData, "selected-brands");
       setRowSelection({});
       toast.success("Export started successfully");
     } catch (error) {
-      console.error("Error exporting categories:", error);
-      toast.error("Failed to export categories");
+      console.error("Error exporting brands:", error);
+      toast.error("Failed to export brands");
     }
   };
 
   return (
     <div>
       <DataTable
-        columns={categoriesColumns}
-        data={categories || []}
+        columns={brandColumns}
+        data={brands || []}
         isLoading={isLoading}
         totalItems={totalItems}
         page={page}
@@ -101,7 +100,7 @@ const CategoriesTable = ({ initialData }: Props) => {
         onSearchChange={handleSearchChange}
         onClearSearch={handleClearSearch}
       />
-      <CategoryDialog
+      <BrandDialog
         mode="add"
         open={isOpen}
         onOpenChange={(open) => (open ? openDialog() : closeDialog())}
@@ -110,4 +109,4 @@ const CategoriesTable = ({ initialData }: Props) => {
   );
 };
 
-export default CategoriesTable;
+export default BrandsTable;

@@ -1,102 +1,49 @@
-"use client";
-
-import { useState } from "react";
+import { Suspense } from "react";
 import PageWraper from "@/components/PageWraper";
-import { useTypes } from "@/hooks/useTypes";
-import { DataTable } from "@/components/table/DataTable";
-import { typesColumns } from "@/components/table/columns/typesColumns";
-import ProductTypeDialog from "@/components/productTypes/ProductTypeDialog";
-import { TypeFormValues } from "@/lib/validation";
-import toast from "react-hot-toast";
-import { exportToExcel } from "@/lib/utils";
-import { ProductType } from "@/types";
+import { TypeFilters } from "@/hooks/useTypes";
+import dynamic from "next/dynamic";
+import Loading from "../../loading";
+import { getTypes } from "@/lib/actions/type.actions";
 
-const Types = () => {
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [rowSelection, setRowSelection] = useState({});
+const ProductTypesTable = dynamic(
+  () => import("@/components/productTypes/ProductTypesTable")
+);
 
-  const {
-    types,
-    isLoading,
-    totalItems,
-    page,
-    setPage,
-    pageSize,
-    setPageSize,
-    addType,
-    isAddingType,
-    refetch,
-    isFetching,
-  } = useTypes({ initialPageSize: 10 });
+export interface TypesSearchParams {
+  page?: string;
+  pageSize?: string;
+  search?: string;
+}
 
-  const handleAddType = async (data: TypeFormValues): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      addType(data, {
-        onSuccess: () => {
-          setIsAddDialogOpen(false);
-          resolve();
-        },
-        onError: (error) => {
-          reject(error);
-        },
-      });
-    });
+const Types = async ({
+  searchParams,
+}: {
+  searchParams: Promise<TypesSearchParams>;
+}) => {
+  const sp = await searchParams;
+  const currentPage = Number(sp.page || 0);
+  const currentPageSize = sp.pageSize === "0" ? 0 : Number(sp.pageSize || 10);
+
+  const filtersForServer: TypeFilters = {
+    search: sp.search || undefined,
   };
 
-  const handleDownloadSelected = async (selectedItems: ProductType[]) => {
-    try {
-      if (selectedItems.length === 0) {
-        toast.error("No Items selected for download");
-        return;
-      }
-
-      const exportData = selectedItems.map((item) => ({
-        id: item.id,
-        name: item.name,
-        description: item.description ?? "",
-        isActive: item.isActive,
-        createdAt: item.createdAt,
-        updatedAt: item.updatedAt,
-      }));
-      exportToExcel(exportData, "selected-types");
-      setRowSelection({});
-      toast.success("Export started successfully");
-    } catch (error) {
-      console.error("Error exporting types:", error);
-      toast.error("Failed to export types");
-    }
-  };
+  const initialData = await getTypes(
+    currentPage,
+    currentPageSize,
+    currentPageSize === 0,
+    filtersForServer
+  );
 
   return (
     <PageWraper
       title="Product Types"
       buttonText="Add Type"
-      buttonAction={() => setIsAddDialogOpen(true)}
+      buttonPath="/settings/types?dialog=open"
     >
-      <>
-        <DataTable
-          columns={typesColumns}
-          data={types || []}
-          isLoading={isLoading}
-          totalItems={totalItems}
-          page={page}
-          onPageChange={setPage}
-          pageSize={pageSize}
-          onPageSizeChange={setPageSize}
-          rowSelection={rowSelection}
-          onRowSelectionChange={setRowSelection}
-          onDownloadSelected={handleDownloadSelected}
-          refetch={refetch}
-          isFetching={isFetching}
-        />
-        <ProductTypeDialog
-          mode="add"
-          open={isAddDialogOpen}
-          onOpenChange={setIsAddDialogOpen}
-          isLoading={isAddingType}
-          onSubmit={handleAddType}
-        />
-      </>
+      <Suspense fallback={<Loading />}>
+        <ProductTypesTable initialData={initialData} />
+      </Suspense>
     </PageWraper>
   );
 };

@@ -1,35 +1,13 @@
 import { useState } from "react";
-import { UnitFormValues } from "@/lib/validation";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import UnitsDialog from "./UnitsDialog";
-import { useUnits } from "@/hooks/useUnits";
 import { Unit } from "@/types";
 
 const UnitActions = ({ unit }: { unit: Unit }) => {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"add" | "edit" | "delete">("add");
 
-  const { softDeleteUnit, editUnit, isSoftDeletingUnit, isEditingUnit } =
-    useUnits();
-
-  const handleAction = async (data: UnitFormValues) => {
-    try {
-      if (mode === "edit") {
-        await editUnit(
-          { id: unit.id, data },
-          { onSuccess: () => setOpen(false) }
-        );
-        setOpen(false);
-      } else if (mode === "delete") {
-        await softDeleteUnit(unit.id, {
-          onSuccess: () => setOpen(false),
-        });
-      }
-    } catch (error) {
-      console.error("Error:", error);
-    }
-  };
   return (
     <div className="flex items-center">
       <span
@@ -50,14 +28,7 @@ const UnitActions = ({ unit }: { unit: Unit }) => {
       >
         <DeleteIcon className="h-5 w-5" />
       </span>
-      <UnitsDialog
-        mode={mode}
-        open={open}
-        onOpenChange={setOpen}
-        unit={unit}
-        onSubmit={handleAction}
-        isLoading={isSoftDeletingUnit || isEditingUnit}
-      />
+      <UnitsDialog mode={mode} open={open} onOpenChange={setOpen} unit={unit} />
     </div>
   );
 };

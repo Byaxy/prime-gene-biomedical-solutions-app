@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  BrandFormValues,
-  ProductFormValidation,
-  ProductFormValues,
-  TypeFormValues,
-  UnitFormValues,
-} from "@/lib/validation";
+import { ProductFormValidation, ProductFormValues } from "@/lib/validation";
 import SubmitButton from "../SubmitButton";
 import CustomFormField, { FormFieldType } from "../CustomFormField";
 import { Form, FormControl } from "../ui/form";
@@ -50,24 +44,9 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
   const { categories, isLoading: categoriesLoading } = useCategories({
     getAllCategories: true,
   });
-  const {
-    types,
-    isLoading: typesLoading,
-    addType,
-    isAddingType,
-  } = useTypes({ getAllTypes: true });
-  const {
-    units,
-    isLoading: unitsLoading,
-    addUnit,
-    isAddingUnit,
-  } = useUnits({ getAllUnits: true });
-  const {
-    brands,
-    isLoading: brandsLoading,
-    addBrand,
-    isAddingBrand,
-  } = useBrands({
+  const { types, isLoading: typesLoading } = useTypes({ getAllTypes: true });
+  const { units, isLoading: unitsLoading } = useUnits({ getAllUnits: true });
+  const { brands, isLoading: brandsLoading } = useBrands({
     getAllBrands: true,
   });
   const {
@@ -112,48 +91,6 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
         stuckSection.style.pointerEvents = "auto";
       }
     }, 100);
-  };
-
-  const handleAddBrand = async (data: BrandFormValues): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      addBrand(data, {
-        onSuccess: () => {
-          closeDialog();
-          resolve();
-        },
-        onError: (error) => {
-          reject(error);
-        },
-      });
-    });
-  };
-
-  const handleAddUnit = async (data: UnitFormValues): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      addUnit(data, {
-        onSuccess: () => {
-          closeDialog();
-          resolve();
-        },
-        onError: (error) => {
-          reject(error);
-        },
-      });
-    });
-  };
-
-  const handleAddType = async (data: TypeFormValues): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      addType(data, {
-        onSuccess: () => {
-          closeDialog();
-          resolve();
-        },
-        onError: (error) => {
-          reject(error);
-        },
-      });
-    });
   };
 
   const handleSubmit = async (values: ProductFormValues) => {
@@ -476,24 +413,18 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
 
       <BrandDialog
         mode="add"
-        onSubmit={handleAddBrand}
         open={brandDialogOpen}
         onOpenChange={closeDialog}
-        isLoading={isAddingBrand}
       />
       <UnitsDialog
         mode="add"
-        onSubmit={handleAddUnit}
         open={unitDialogOpen}
         onOpenChange={closeDialog}
-        isLoading={isAddingUnit}
       />
       <ProductTypeDialog
         mode="add"
-        onSubmit={handleAddType}
         open={typeDialogOpen}
         onOpenChange={closeDialog}
-        isLoading={isAddingType}
       />
     </>
   );
