@@ -258,7 +258,7 @@ const SalesBarChart = ({
               </div>
             </div>
           </div>
-          <ResponsiveContainer width="100%" minHeight={300}>
+          <ResponsiveContainer width="100%" minHeight={400}>
             <BarChart data={chartData}>
               <CartesianGrid stroke="#EDF3F6" />
               <XAxis dataKey="date" tick={{ fontSize: 14 }} />

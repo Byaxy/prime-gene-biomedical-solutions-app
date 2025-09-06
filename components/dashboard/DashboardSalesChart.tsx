@@ -18,7 +18,7 @@ const DashboardSalesChart = ({
 
   const totalSalesRangeOptions =
     getRangeOption(salesRange, salesRangeFrom, salesRangeTo) ||
-    RANGE_OPTIONS.last_7_days;
+    RANGE_OPTIONS.last_365_days;
 
   const chartData =
     sales &&
