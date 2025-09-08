@@ -21,6 +21,7 @@ import SidebarMenu from "@/components/sidebar/SidebarMenu";
 import { sidebarData } from "@/constants";
 import { theme } from "@/lib/theme";
 import Image from "next/image";
+import { useCompanySettings } from "@/hooks/useCompanySettings";
 
 const drawerWidth = 320;
 
@@ -94,6 +95,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const matchesMidium = useMediaQuery(theme.breakpoints.down("md"));
 
+  const { companySettings } = useCompanySettings();
+
   const handleDrawerOpen = () => {
     setOpen(true);
   };
@@ -160,10 +163,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               className="no-underline flex items-center justify-center gap-2 bg-primaryColor/95 p-1"
             >
               <Image
-                src={"/assets/logos/logo.png"}
+                src={companySettings?.logoUrl || "/assets/logos/logoWhite.png"}
                 alt="Logo"
-                width={280}
-                height={80}
+                width={100}
+                height={50}
+                priority
               />
             </Link>
             <IconButton
