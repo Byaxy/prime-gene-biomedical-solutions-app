@@ -4,13 +4,16 @@ import "./globals.css";
 import { cn } from "@/lib/utils";
 import { Providers } from "@/components/context/Providers";
 import { Analytics } from "@vercel/analytics/react";
+import { TitleUpdater } from "@/components/TitleUpdater";
 
 export const dynamic = "force-dynamic";
 
 const inter = Inter({ subsets: ["latin"] });
 
+const DEFAULT_APP_TITLE = "Sales and Inventory Management System";
+
 export const metadata: Metadata = {
-  title: "Sales and Inventory Management System",
+  title: DEFAULT_APP_TITLE,
   description:
     "A Sales and Inventory Management web application that allows users to manage their inventory and keep track of their sales.",
 };
@@ -28,7 +31,10 @@ export default function RootLayout({
           inter.className
         )}
       >
-        <Providers>{children}</Providers>
+        <Providers>
+          <TitleUpdater defaultTitle={DEFAULT_APP_TITLE} />
+          {children}
+        </Providers>
         <Analytics />
       </body>
     </html>
