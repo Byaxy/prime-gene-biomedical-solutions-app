@@ -10,10 +10,9 @@ export const dynamic = "force-dynamic";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title:
-    "Prime Gene Biomedical Solutions Sales and Inventory Management System",
+  title: "Sales and Inventory Management System",
   description:
-    "A Sales and Inventory Management web application that allows users to manage their inventory and sales of products. The application is built with Next.js, TypeScript, Tailwind CSS, and Appwrite",
+    "A Sales and Inventory Management web application that allows users to manage their inventory and keep track of their sales.",
 };
 
 export default function RootLayout({
