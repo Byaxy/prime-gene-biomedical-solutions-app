@@ -27,7 +27,11 @@ ALTER TABLE "waybills" DROP CONSTRAINT "waybills_delivery_id_deliveries_id_fk";
 --> statement-breakpoint
 ALTER TABLE "waybills" DROP CONSTRAINT "waybills_sale_id_sales_id_fk";
 --> statement-breakpoint
-ALTER TABLE "waybills" ALTER COLUMN "delivery_address" SET DATA TYPE jsonb;--> statement-breakpoint
+ALTER TABLE "waybills" ALTER COLUMN "delivery_address" SET DATA TYPE jsonb USING 
+  COALESCE(
+    NULLIF(delivery_address, '')::jsonb,
+    '{"addressName":"","address":"","city":"","state":"","country":"","email":"","phone":""}'::jsonb
+  );--> statement-breakpoint
 ALTER TABLE "waybills" ALTER COLUMN "delivery_address" DROP NOT NULL;--> statement-breakpoint
 ALTER TABLE "promissory_notes" ADD COLUMN "waybill_id" uuid NOT NULL;--> statement-breakpoint
 ALTER TABLE "waybill_items" ADD COLUMN "quantity_requested" integer NOT NULL;--> statement-breakpoint
