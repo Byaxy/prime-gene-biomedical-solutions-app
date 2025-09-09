@@ -19,6 +19,7 @@ import toast from "react-hot-toast";
 import { DataTable } from "../table/DataTable";
 import { productsColumns } from "../table/columns/productsColumns";
 import { useProducts } from "@/hooks/useProducts";
+import { ProductDialog } from "../products/ProductDialog";
 
 interface Props {
   initialData: { documents: ProductWithRelations[]; total: number };
@@ -26,6 +27,10 @@ interface Props {
 
 const InventoryTable = ({ initialData }: Props) => {
   const [rowSelection, setRowSelection] = useState({});
+  const [openDialog, setOpenDialog] = useState(false);
+  const [selectedRow, setSelectedRow] = useState<ProductWithRelations>(
+    {} as ProductWithRelations
+  );
 
   const {
     products,
@@ -200,33 +205,60 @@ const InventoryTable = ({ initialData }: Props) => {
     });
   };
 
+  const handleRowClick = (rowData: ProductWithRelations) => {
+    setSelectedRow(rowData);
+    setOpenDialog(true);
+  };
+
+  // handle close dialog
+  const closeDialog = () => {
+    setOpenDialog(false);
+
+    setTimeout(() => {
+      const stuckSection = document.querySelector(".MuiBox-root.css-0");
+      if (stuckSection instanceof HTMLElement) {
+        stuckSection.style.pointerEvents = "auto";
+      }
+    }, 100);
+  };
+
   return (
-    <DataTable
-      columns={productsColumns}
-      data={products}
-      isLoading={isLoading}
-      isFetching={isFetching}
-      totalItems={totalItems}
-      page={page}
-      onPageChange={setPage}
-      pageSize={pageSize}
-      onPageSizeChange={setPageSize}
-      rowSelection={rowSelection}
-      onRowSelectionChange={setRowSelection}
-      onDownloadSelected={handleDownloadSelected}
-      onDeactivateSelected={handleDeactivateSelected}
-      isDeactivatingSelected={isSoftDeletingMultipleProducts}
-      onReactivateSelected={handleReactivateSelected}
-      isReactivatingSelected={isReactivatingMultipleProducts}
-      refetch={refetch}
-      filters={productFilters}
-      filterValues={filters}
-      onFilterChange={handleFilterChange}
-      onClearFilters={handleClearFilters}
-      searchTerm={localSearch}
-      onSearchChange={handleSearchChange}
-      onClearSearch={handleClearSearch}
-    />
+    <>
+      <DataTable
+        columns={productsColumns}
+        data={products}
+        isLoading={isLoading}
+        isFetching={isFetching}
+        totalItems={totalItems}
+        page={page}
+        onPageChange={setPage}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
+        rowSelection={rowSelection}
+        onRowSelectionChange={setRowSelection}
+        onRowClick={handleRowClick}
+        onDownloadSelected={handleDownloadSelected}
+        onDeactivateSelected={handleDeactivateSelected}
+        isDeactivatingSelected={isSoftDeletingMultipleProducts}
+        onReactivateSelected={handleReactivateSelected}
+        isReactivatingSelected={isReactivatingMultipleProducts}
+        refetch={refetch}
+        filters={productFilters}
+        filterValues={filters}
+        onFilterChange={handleFilterChange}
+        onClearFilters={handleClearFilters}
+        searchTerm={localSearch}
+        onSearchChange={handleSearchChange}
+        onClearSearch={handleClearSearch}
+      />
+
+      <ProductDialog
+        mode={"view"}
+        open={openDialog && !!selectedRow}
+        onOpenChange={closeDialog}
+        product={selectedRow}
+      />
+    </>
   );
 };
 
