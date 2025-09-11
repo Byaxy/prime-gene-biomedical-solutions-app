@@ -36,7 +36,8 @@ const buildTransactionsFilterConditions = (
         ilike(productsTable.name, searchTerm),
         ilike(productsTable.productID, searchTerm),
         ilike(productsTable.description, searchTerm),
-        ilike(storesTable.name, searchTerm)
+        ilike(storesTable.name, searchTerm),
+        ilike(inventoryTable.lotNumber, searchTerm)
       )
     );
   }

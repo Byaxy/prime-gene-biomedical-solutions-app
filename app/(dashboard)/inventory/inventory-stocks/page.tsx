@@ -4,6 +4,7 @@ import { getInventoryStock } from "@/lib/actions/inventoryStock.actions";
 import { Suspense } from "react";
 import Loading from "../../loading";
 import dynamic from "next/dynamic";
+import InventoryStats from "@/components/inventory/InventoryStats";
 
 const InventoryStockTable = dynamic(
   () => import("@/components/inventory/InventoryStockTable")
@@ -68,7 +69,10 @@ const InventoryStocks = async ({
       buttonPath="/inventory/adjust-inventory"
     >
       <Suspense fallback={<Loading />}>
-        <InventoryStockTable initialData={initialData} />
+        <div className="flex flex-col gap-5">
+          <InventoryStats />
+          <InventoryStockTable initialData={initialData} />
+        </div>
       </Suspense>
     </PageWraper>
   );

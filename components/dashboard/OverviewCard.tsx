@@ -15,7 +15,7 @@ interface OverviewCardProps {
     color: string;
   }[];
   total: number;
-  isLoading: boolean;
+  isLoading?: boolean;
   isNumber?: boolean;
 }
 

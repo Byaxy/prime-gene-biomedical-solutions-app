@@ -12,7 +12,6 @@ import {
   Store,
 } from "@/types";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import InventoryStats from "./InventoryStats";
 import { DataTable } from "../table/DataTable";
 import { groupedInventoryStockColumns } from "../table/columns/inventoryStockColumns";
 import InventoryStockDialog from "./InventoryStockDialog";
@@ -212,8 +211,7 @@ const InventoryStockTable = ({ initialData }: Props) => {
     }
   };
   return (
-    <div className="flex flex-col gap-5">
-      <InventoryStats />
+    <>
       <DataTable
         columns={groupedInventoryStockColumns}
         data={groupedInventoryStock || []}
@@ -239,7 +237,7 @@ const InventoryStockTable = ({ initialData }: Props) => {
         onOpenChange={handleCloseDialog}
         stock={selectedRow!}
       />
-    </div>
+    </>
   );
 };
 
