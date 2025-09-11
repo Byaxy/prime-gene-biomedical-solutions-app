@@ -5,69 +5,78 @@ import { revalidatePath } from "next/cache";
 import { CustomerFormValues } from "../validation";
 import { customersTable } from "@/drizzle/schema";
 import { db } from "@/drizzle/db";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { CustomerFilters } from "@/hooks/useCustomers";
+
+const buildFilterConditions = (filters: CustomerFilters) => {
+  const conditions = [];
+
+  conditions.push(eq(customersTable.isActive, true));
+
+  // Search logic using ILIKE on joined tables.
+  // GIN indexes are crucial here.
+  if (filters.search?.trim()) {
+    const searchTerm = `%${filters.search.trim()}%`;
+    conditions.push(
+      or(
+        ilike(customersTable.name, searchTerm),
+        ilike(customersTable.email, searchTerm),
+        ilike(customersTable.phone, searchTerm)
+      )
+    );
+  }
+
+  return conditions;
+};
 
 // Get Customers
 export const getCustomers = async (
   page: number = 0,
   limit: number = 10,
-  getAllCustomers: boolean = false
+  getAllCustomers: boolean = false,
+  filters?: CustomerFilters
 ) => {
   try {
-    let query = db
-      .select()
-      .from(customersTable)
-      .where(eq(customersTable.isActive, true))
-      .orderBy(desc(customersTable.createdAt));
+    const result = await db.transaction(async (tx) => {
+      // Build the main query
+      let query = tx.select().from(customersTable).$dynamic();
 
-    if (!getAllCustomers) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      query = (query as any).limit(limit).offset(page * limit);
-    }
-
-    const customers = await query;
-
-    // For getAllCustomers, fetch all Customers in batches (if needed)
-    if (getAllCustomers) {
-      let allCustomers: typeof customers = [];
-      let offset = 0;
-      const batchSize = 100;
-
-      while (true) {
-        const batch = await db
-          .select()
-          .from(customersTable)
-          .where(eq(customersTable.isActive, true))
-          .orderBy(desc(customersTable.createdAt))
-          .limit(batchSize)
-          .offset(offset);
-
-        allCustomers = [...allCustomers, ...batch];
-
-        // If we got fewer Customers than the batch size, we've reached the end
-        if (batch.length < batchSize) {
-          break;
-        }
-
-        offset += batchSize;
+      const conditions = buildFilterConditions(filters ?? {});
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
       }
 
-      return {
-        documents: parseStringify(allCustomers),
-        total: allCustomers.length,
-      };
-    }
+      query = query.orderBy(desc(customersTable.createdAt));
 
-    // For paginated results
-    const total = await db
-      .select()
-      .from(customersTable)
-      .where(eq(customersTable.isActive, true))
-      .then((res) => res.length);
+      if (!getAllCustomers && limit > 0) {
+        query = query.limit(limit).offset(page * limit);
+      }
+
+      const customers = await query;
+
+      // Get total count for pagination
+      let totalQuery = tx
+        .select({ count: sql<number>`count(*)` })
+        .from(customersTable)
+        .$dynamic();
+
+      if (conditions.length > 0) {
+        totalQuery = totalQuery.where(and(...conditions));
+      }
+
+      const total = getAllCustomers
+        ? customers.length
+        : await totalQuery.then((res) => res[0]?.count || 0);
+
+      return {
+        documents: customers,
+        total,
+      };
+    });
 
     return {
-      documents: parseStringify(customers),
-      total,
+      documents: parseStringify(result.documents),
+      total: result.total,
     };
   } catch (error) {
     console.error("Error getting customers:", error);

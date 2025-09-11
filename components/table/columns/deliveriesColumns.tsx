@@ -127,7 +127,7 @@ export const deliveriesColumns: ColumnDef<DeliveryWithRelations>[] = [
   },
   {
     accessorKey: "delivery.status",
-    header: "Payment Status",
+    header: "Delivery Status",
     cell: ({ row }) => {
       const delivery = row.original;
       return (

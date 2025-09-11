@@ -188,6 +188,8 @@ export const unitsTable = pgTable(
     unitsActiveIndex: index("units_active_idx").on(table.isActive),
     unitsNameIndex: index("units_name_idx").on(table.name),
     unitsNameGinIdx: sql`CREATE INDEX units_name_gin_idx ON ${table} USING GIN (${table.name} gin_trgm_ops);`,
+    unitsDescriptionGinIdx: sql`CREATE INDEX units_description_gin_idx ON ${table} USING GIN (${table.description} gin_trgm_ops);`,
+    unitsCodeGinIdx: sql`CREATE INDEX units_code_gin_idx ON ${table} USING GIN (${table.code} gin_trgm_ops);`,
     unitsActiveNameIdx: index("units_active_name_idx").on(
       table.isActive,
       table.name
@@ -214,6 +216,7 @@ export const productTypesTable = pgTable(
     ),
     productTypesNameIndex: index("product_types_name_idx").on(table.name),
     productTypesNameGinIdx: sql`CREATE INDEX product_types_name_gin_idx ON ${table} USING GIN (${table.name} gin_trgm_ops);`,
+    productTypesDescriptionGinIdx: sql`CREATE INDEX product_types_description_gin_idx ON ${table} USING GIN (${table.description} gin_trgm_ops);`,
     productTypesActiveNameIdx: index("product_types_active_name_idx").on(
       table.isActive,
       table.name
@@ -240,6 +243,7 @@ export const brandsTable = pgTable(
     brandsActiveIndex: index("brands_active_idx").on(table.isActive),
     brandsNameIndex: index("brands_name_idx").on(table.name),
     brandsNameGinIdx: sql`CREATE INDEX brands_name_gin_idx ON ${table} USING GIN (${table.name} gin_trgm_ops);`,
+    brandsDescriptionGinIdx: sql`CREATE INDEX brands_description_gin_idx ON ${table} USING GIN (${table.description} gin_trgm_ops);`,
     brandsActiveNameIdx: index("brands_active_name_idx").on(
       table.isActive,
       table.name
@@ -270,6 +274,7 @@ export const categoriesTable = pgTable(
     categoriesParentIndex: index("categories_parent_idx").on(table.parentId),
     categoriesNameIndex: index("categories_name_idx").on(table.name),
     categoriesNameGinIdx: sql`CREATE INDEX categories_name_gin_idx ON ${table} USING GIN (${table.name} gin_trgm_ops);`,
+    categoriesDescriptionGinIdx: sql`CREATE INDEX categories_description_gin_idx ON ${table} USING GIN (${table.description} gin_trgm_ops);`,
     categoriesActiveNameIdx: index("categories_active_name_idx").on(
       table.isActive,
       table.name
@@ -353,6 +358,9 @@ export const customersTable = pgTable(
   (table) => ({
     customersActiveIndex: index("customers_active_idx").on(table.isActive),
     customersNameIndex: index("customers_name_idx").on(table.name),
+    customersNameGinIdx: sql`CREATE INDEX customers_name_gin_idx ON ${table} USING GIN (${table.name} gin_trgm_ops);`,
+    customersEmailGinIdx: sql`CREATE INDEX customers_email_gin_idx ON ${table} USING GIN (${table.email} gin_trgm_ops);`,
+    customersPhoneGinIdx: sql`CREATE INDEX customers_phone_gin_idx ON ${table} USING GIN (${table.phone} gin_trgm_ops);`,
   })
 );
 
@@ -472,6 +480,7 @@ export const storesTable = pgTable(
   },
   (table) => ({
     storesActiveIndex: index("stores_is_active_idx").on(table.isActive),
+    storesNameGinIdx: sql`CREATE INDEX stores_name_gin_idx ON ${table} USING GIN (${table.name} gin_trgm_ops);`,
   })
 );
 
@@ -505,6 +514,7 @@ export const inventoryTable = pgTable(
     ),
     invenotryStoreIdIndex: index("invenotry_store_id_idx").on(table.storeId),
     invenotryActiveIndex: index("invenotry_is_active_idx").on(table.isActive),
+    invenotryLotNumberGinIdx: sql`CREATE INDEX invenotry_lot_number_gin_idx ON ${table} USING GIN (${table.lotNumber} gin_trgm_ops);`,
   })
 );
 

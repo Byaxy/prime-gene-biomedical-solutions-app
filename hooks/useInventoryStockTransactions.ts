@@ -1,37 +1,42 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useTransition } from "react";
-import {
-  addCustomer,
-  deleteCustomer,
-  editCustomer,
-  getCustomers,
-  softDeleteCustomer,
-} from "@/lib/actions/customer.actions";
-import { CustomerFormValues } from "@/lib/validation";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import toast from "react-hot-toast";
-import { Customer } from "@/types";
+import { getInventoryTransactions } from "@/lib/actions/inventoryStock.actions";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { InventoryTransactionWithRelations } from "@/types";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
-interface UseCustomersOptions {
-  getAllCustomers?: boolean;
-  initialData?: { documents: Customer[]; total: number };
+interface UseInventoryStockOptions {
+  getAllTransactions?: boolean;
+  initialData?: {
+    documents: InventoryTransactionWithRelations[];
+    total: number;
+  };
 }
 
-export interface CustomerFilters {
+export interface InventoryTransactionsFilters {
   search?: string;
+  productId?: string;
+  storeId?: string;
+  transactionType?: string;
+  transactionDate_start?: string;
+  transactionDate_end?: string;
 }
 
-export const defaultCustomerFilters: CustomerFilters = {
+export const defaultTransactionFilters: InventoryTransactionsFilters = {
   search: "",
+  productId: undefined,
+  storeId: undefined,
+  transactionType: undefined,
+  transactionDate_start: undefined,
+  transactionDate_end: undefined,
 };
 
-export const useCustomers = ({
-  getAllCustomers = false,
+export const useInventoryStockTransactions = ({
+  getAllTransactions = false,
   initialData,
-}: UseCustomersOptions = {}) => {
+}: UseInventoryStockOptions = {}) => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -39,7 +44,7 @@ export const useCustomers = ({
 
   // Parse current state from URL - single source of truth
   const currentState = useMemo(() => {
-    if (getAllCustomers) {
+    if (getAllTransactions) {
       return {
         page: 0,
         pageSize: 0,
@@ -51,18 +56,23 @@ export const useCustomers = ({
     const pageSize = Number(searchParams.get("pageSize") || 10);
     const search = searchParams.get("search") || "";
 
-    const filters: CustomerFilters = {
+    const filters: InventoryTransactionsFilters = {
       search: search || undefined,
+      productId: searchParams.get("productId") || undefined,
+      storeId: searchParams.get("storeId") || undefined,
+      transactionType: searchParams.get("transactionType") || undefined,
+      transactionDate_start: searchParams.get("startDate") || undefined,
+      transactionDate_end: searchParams.get("endDate") || undefined,
     };
 
     return { page, pageSize, filters, search };
-  }, [getAllCustomers, searchParams]);
+  }, [getAllTransactions, searchParams]);
 
   // Create stable query key
   const queryKey = useMemo(() => {
     const { page, pageSize, filters } = currentState;
     const filterString = JSON.stringify(filters);
-    return ["customers", page, pageSize, filterString];
+    return ["inventory-transactions", page, pageSize, filterString];
   }, [currentState]);
 
   // Main query with server state
@@ -70,15 +80,15 @@ export const useCustomers = ({
     queryKey,
     queryFn: async () => {
       const { page, pageSize, filters } = currentState;
-      return getCustomers(
+      return getInventoryTransactions(
         page,
         pageSize,
-        getAllCustomers || pageSize === 0,
+        getAllTransactions || pageSize === 0,
         filters
       );
     },
     initialData: initialData ? () => initialData : undefined,
-    staleTime: getAllCustomers ? 60000 : 30000,
+    staleTime: getAllTransactions ? 60000 : 30000,
     refetchOnWindowFocus: false,
     retry: 1,
   });
@@ -90,7 +100,7 @@ export const useCustomers = ({
         page: number;
         pageSize: number;
         search: string;
-        filters: Partial<CustomerFilters>;
+        filters: Partial<InventoryTransactionsFilters>;
       }>
     ) => {
       const params = new URLSearchParams(searchParams.toString());
@@ -122,7 +132,7 @@ export const useCustomers = ({
       }
 
       if (updates.filters) {
-        Object.keys(defaultCustomerFilters).forEach((key) =>
+        Object.keys(defaultTransactionFilters).forEach((key) =>
           params.delete(key)
         );
 
@@ -147,12 +157,12 @@ export const useCustomers = ({
       const newParams = new URLSearchParams(newUrl.substring(1));
       const newPage = Number(newParams.get("page") || 0);
       const newPageSize = Number(newParams.get("pageSize") || 10);
-      const newFilters: CustomerFilters = {
+      const newFilters: InventoryTransactionsFilters = {
         search: newParams.get("search") || undefined,
       };
 
       const newQueryKey = [
-        "customers",
+        "inventory-transactions",
         newPage,
         newPageSize,
         newFilters,
@@ -162,7 +172,12 @@ export const useCustomers = ({
       queryClient.prefetchQuery({
         queryKey: newQueryKey,
         queryFn: () =>
-          getCustomers(newPage, newPageSize, newPageSize === 0, newFilters),
+          getInventoryTransactions(
+            newPage,
+            newPageSize,
+            newPageSize === 0,
+            newFilters
+          ),
       });
     },
     [router, searchParams, queryClient]
@@ -170,61 +185,63 @@ export const useCustomers = ({
 
   const setPage = useCallback(
     (page: number) => {
-      if (getAllCustomers) return;
+      if (getAllTransactions) return;
       navigate({ page });
     },
-    [getAllCustomers, navigate]
+    [getAllTransactions, navigate]
   );
 
   const setPageSize = useCallback(
     (pageSize: number) => {
-      if (getAllCustomers) return;
+      if (getAllTransactions) return;
       navigate({ pageSize, page: 0 });
     },
-    [getAllCustomers, navigate]
+    [getAllTransactions, navigate]
   );
 
   const setSearch = useCallback(
     (search: string) => {
-      if (getAllCustomers) return;
+      if (getAllTransactions) return;
       navigate({ search });
     },
-    [getAllCustomers, navigate]
+    [getAllTransactions, navigate]
   );
 
   const setFilters = useCallback(
-    (filters: Partial<CustomerFilters>) => {
-      if (getAllCustomers) return;
+    (filters: Partial<InventoryTransactionsFilters>) => {
+      if (getAllTransactions) return;
       navigate({ filters });
     },
-    [getAllCustomers, navigate]
+    [getAllTransactions, navigate]
   );
 
   const clearFilters = useCallback(() => {
-    if (getAllCustomers) return;
+    if (getAllTransactions) return;
     navigate({
-      filters: defaultCustomerFilters,
+      filters: defaultTransactionFilters,
       search: "",
       page: 0,
       pageSize: 10,
     });
-  }, [getAllCustomers, navigate]);
+  }, [getAllTransactions, navigate]);
 
   // Real-time updates
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
 
     const channel = supabase
-      .channel("customers_changes")
+      .channel("inventory_transactions_changes")
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
-          table: "customers",
+          table: "inventory_transactions",
         },
         () => {
-          queryClient.invalidateQueries({ queryKey: ["customers"] });
+          queryClient.invalidateQueries({
+            queryKey: ["inventory-transactions"],
+          });
         }
       )
       .subscribe();
@@ -234,78 +251,21 @@ export const useCustomers = ({
     };
   }, [queryClient]);
 
-  // Add customer mutation
-  const { mutate: addCustomerMutation, status: addCustomerStatus } =
-    useMutation({
-      mutationFn: (data: CustomerFormValues) => addCustomer(data),
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["customers"] });
-      },
-    });
-
-  // Edit customer mutation
-  const { mutate: editCustomerMutation, status: editCustomerStatus } =
-    useMutation({
-      mutationFn: ({ id, data }: { id: string; data: CustomerFormValues }) =>
-        editCustomer(data, id),
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["customers"] });
-      },
-    });
-
-  // Soft Delete customer mutation
-  const {
-    mutate: softDeleteCustomerMutation,
-    status: softDeleteCustomerStatus,
-  } = useMutation({
-    mutationFn: (id: string) => softDeleteCustomer(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["customers"] });
-      toast.success("Customer deleted successfully");
-    },
-    onError: (error) => {
-      console.error("Error deleting customer:", error);
-      toast.error("Failed to delete customer");
-    },
-  });
-
-  // Permanently Delete customer mutation
-  const { mutate: deleteCustomerMutation, status: deleteCustomerStatus } =
-    useMutation({
-      mutationFn: (id: string) => deleteCustomer(id),
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["customers"] });
-        toast.success("Customer deleted successfully");
-      },
-      onError: (error) => {
-        console.error("Error deleting customer:", error);
-        toast.error("Failed to delete customer");
-      },
-    });
-
   return {
-    customers: data?.documents || [],
+    inventoryTransactions: data?.documents || [],
     totalItems: data?.total || 0,
     page: currentState.page,
     pageSize: currentState.pageSize,
     search: currentState.search,
+    filters: currentState.filters,
     isLoading: isLoading || isPending,
-    refetch: refetch,
     isFetching,
     error,
     setPage,
     setPageSize,
     setSearch,
-    filters: currentState.filters,
     setFilters,
     clearFilters,
-    addCustomer: addCustomerMutation,
-    isAddingCustomer: addCustomerStatus === "pending",
-    editCustomer: editCustomerMutation,
-    isEditingCustomer: editCustomerStatus === "pending",
-    softDeleteCustomer: softDeleteCustomerMutation,
-    isSoftDeletingCustomer: softDeleteCustomerStatus === "pending",
-    deleteCustomer: deleteCustomerMutation,
-    isDeletingCustomer: deleteCustomerStatus === "pending",
+    refetch: refetch,
   };
 };

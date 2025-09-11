@@ -15,14 +15,149 @@ import {
   storesTable,
   usersTable,
 } from "@/drizzle/schema";
-import { eq, and, desc, sql, gte, lte, asc, gt } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lte, asc, gt, ilike, or } from "drizzle-orm";
 import { ExistingStockAdjustmentFormValues } from "../validation";
 import { ExtendedStockAdjustmentFormValues } from "@/components/forms/NewStockForm";
-import {
-  InventoryStockFilters,
-  InventoryTransactionsFilters,
-} from "@/hooks/useInventoryStock";
-import { InventoryStock } from "@/types";
+import { InventoryStockFilters } from "@/hooks/useInventoryStock";
+import { InventoryStock, InventoryTransactionType } from "@/types";
+import { InventoryTransactionsFilters } from "@/hooks/useInventoryStockTransactions";
+
+const buildTransactionsFilterConditions = (
+  filters: InventoryTransactionsFilters
+) => {
+  const conditions = [];
+
+  // Search logic using ILIKE on joined tables.
+  // GIN indexes are crucial here.
+  if (filters.search?.trim()) {
+    const searchTerm = `%${filters.search.trim()}%`;
+    conditions.push(
+      or(
+        ilike(productsTable.name, searchTerm),
+        ilike(productsTable.productID, searchTerm),
+        ilike(productsTable.description, searchTerm),
+        ilike(storesTable.name, searchTerm),
+        ilike(inventoryTable.lotNumber, searchTerm)
+      )
+    );
+  }
+
+  if (filters.productId) {
+    conditions.push(
+      eq(inventoryTransactionsTable.productId, filters.productId)
+    );
+  }
+  if (filters.storeId) {
+    conditions.push(eq(inventoryTransactionsTable.storeId, filters.storeId));
+  }
+
+  if (filters.transactionType) {
+    conditions.push(
+      eq(
+        inventoryTransactionsTable.transactionType,
+        filters.transactionType as InventoryTransactionType
+      )
+    );
+  }
+  if (filters.transactionDate_start) {
+    conditions.push(
+      gte(
+        inventoryTransactionsTable.transactionDate,
+        new Date(filters.transactionDate_start)
+      )
+    );
+  }
+  if (filters.transactionDate_end) {
+    conditions.push(
+      lte(
+        inventoryTransactionsTable.transactionDate,
+        new Date(filters.transactionDate_end)
+      )
+    );
+  }
+
+  return conditions;
+};
+
+const buildStockFilterConditions = (filters: InventoryStockFilters) => {
+  const conditions = [];
+
+  conditions.push(eq(inventoryTable.isActive, true));
+  conditions.push(gt(inventoryTable.quantity, 0));
+
+  // Search logic using ILIKE on joined tables.
+  // GIN indexes are crucial here.
+  if (filters.search?.trim()) {
+    const searchTerm = `%${filters.search.trim()}%`;
+    conditions.push(
+      or(
+        ilike(inventoryTable.lotNumber, searchTerm),
+        ilike(productsTable.name, searchTerm),
+        ilike(productsTable.productID, searchTerm),
+        ilike(productsTable.description, searchTerm),
+        ilike(storesTable.name, searchTerm)
+      )
+    );
+  }
+
+  // Quantity range
+  if (filters.quantity_min) {
+    conditions.push(gte(inventoryTable.quantity, filters.quantity_min));
+  }
+  if (filters.quantity_max) {
+    conditions.push(lte(inventoryTable.quantity, filters.quantity_max));
+  }
+
+  // Cost price range
+  if (filters.costPrice_min) {
+    conditions.push(gte(inventoryTable.costPrice, filters.costPrice_min));
+  }
+  if (filters.costPrice_max) {
+    conditions.push(lte(inventoryTable.costPrice, filters.costPrice_max));
+  }
+
+  // Selling price range
+  if (filters.sellingPrice_min) {
+    conditions.push(gte(inventoryTable.sellingPrice, filters.sellingPrice_min));
+  }
+  if (filters.sellingPrice_max) {
+    conditions.push(lte(inventoryTable.sellingPrice, filters.sellingPrice_max));
+  }
+
+  // Expiry date range
+  if (filters.expiryDate_start) {
+    conditions.push(
+      gte(inventoryTable.expiryDate, new Date(filters.expiryDate_start))
+    );
+  }
+  if (filters.expiryDate_end) {
+    conditions.push(
+      lte(inventoryTable.expiryDate, new Date(filters.expiryDate_end))
+    );
+  }
+
+  // Manufacture date range
+  if (filters.manufactureDate_start) {
+    conditions.push(
+      gte(
+        inventoryTable.manufactureDate,
+        new Date(filters.manufactureDate_start)
+      )
+    );
+  }
+  if (filters.manufactureDate_end) {
+    conditions.push(
+      lte(inventoryTable.manufactureDate, new Date(filters.manufactureDate_end))
+    );
+  }
+
+  // Store filter
+  if (filters.store) {
+    conditions.push(eq(storesTable.id, filters.store));
+  }
+
+  return conditions;
+};
 
 // fulfill Backorders
 export const fulfillBackorders = async (
@@ -422,218 +557,57 @@ export const getInventoryStock = async (
   filters?: InventoryStockFilters
 ) => {
   try {
-    let query = db
-      .select({
-        inventory: inventoryTable,
-        product: productsTable,
-        store: storesTable,
-      })
-      .from(inventoryTable)
-      .leftJoin(productsTable, eq(inventoryTable.productId, productsTable.id))
-      .leftJoin(storesTable, eq(inventoryTable.storeId, storesTable.id))
-      .$dynamic();
+    const result = await db.transaction(async (tx) => {
+      // Build the main products query
+      let query = tx
+        .select({
+          inventory: inventoryTable,
+          product: productsTable,
+          store: storesTable,
+        })
+        .from(inventoryTable)
+        .leftJoin(productsTable, eq(inventoryTable.productId, productsTable.id))
+        .leftJoin(storesTable, eq(inventoryTable.storeId, storesTable.id))
+        .$dynamic();
 
-    // Create conditions array
-    const conditions = [
-      eq(inventoryTable.isActive, true),
-      gt(inventoryTable.quantity, 0),
-    ];
-
-    // Apply filters if provided
-    if (filters) {
-      // Quantity range
-      if (filters.quantity_min !== undefined) {
-        conditions.push(gte(inventoryTable.quantity, filters.quantity_min));
-      }
-      if (filters.quantity_max !== undefined) {
-        conditions.push(lte(inventoryTable.quantity, filters.quantity_max));
+      const conditions = buildStockFilterConditions(filters ?? {});
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
       }
 
-      // Cost price range
-      if (filters.costPrice_min !== undefined) {
-        conditions.push(gte(inventoryTable.costPrice, filters.costPrice_min));
-      }
-      if (filters.costPrice_max !== undefined) {
-        conditions.push(lte(inventoryTable.costPrice, filters.costPrice_max));
+      query = query.orderBy(desc(inventoryTable.createdAt));
+
+      if (!getAllInventoryStock && limit > 0) {
+        query = query.limit(limit).offset(page * limit);
       }
 
-      // Selling price range
-      if (filters.sellingPrice_min !== undefined) {
-        conditions.push(
-          gte(inventoryTable.sellingPrice, filters.sellingPrice_min)
-        );
-      }
-      if (filters.sellingPrice_max !== undefined) {
-        conditions.push(
-          lte(inventoryTable.sellingPrice, filters.sellingPrice_max)
-        );
-      }
+      const inventoryStock = await query;
 
-      // Expiry date range
-      if (filters.expiryDate_start) {
-        conditions.push(
-          gte(inventoryTable.expiryDate, new Date(filters.expiryDate_start))
-        );
-      }
-      if (filters.expiryDate_end) {
-        conditions.push(
-          lte(inventoryTable.expiryDate, new Date(filters.expiryDate_end))
-        );
+      // Get total count for pagination
+      let totalQuery = tx
+        .select({ count: sql<number>`count(*)` })
+        .from(inventoryTable)
+        .leftJoin(productsTable, eq(inventoryTable.productId, productsTable.id))
+        .leftJoin(storesTable, eq(inventoryTable.storeId, storesTable.id))
+        .$dynamic();
+
+      if (conditions.length > 0) {
+        totalQuery = totalQuery.where(and(...conditions));
       }
 
-      // Manufacture date range
-      if (filters.manufactureDate_start) {
-        conditions.push(
-          gte(
-            inventoryTable.manufactureDate,
-            new Date(filters.manufactureDate_start)
-          )
-        );
-      }
-      if (filters.manufactureDate_end) {
-        conditions.push(
-          lte(
-            inventoryTable.manufactureDate,
-            new Date(filters.manufactureDate_end)
-          )
-        );
-      }
-
-      // Store filter
-      if (filters.store) {
-        conditions.push(eq(storesTable.id, filters.store));
-      }
-    }
-
-    // Apply where conditions
-    query = query.where(and(...conditions));
-
-    // Apply order by
-    query = query.orderBy(desc(inventoryTable.createdAt));
-
-    if (!getAllInventoryStock) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      query = (query as any).limit(limit).offset(page * limit);
-    }
-
-    const inventoryStock = await query;
-
-    // For getAllInventoryStock
-    if (getAllInventoryStock) {
-      let allInventoryStock: typeof inventoryStock = [];
-      let offset = 0;
-      const batchSize = 100;
-
-      while (true) {
-        const batchConditions = [
-          eq(inventoryTable.isActive, true),
-          gt(inventoryTable.quantity, 0),
-        ];
-
-        // Apply the same filters to batch query
-        if (filters) {
-          if (filters.quantity_min !== undefined) {
-            batchConditions.push(
-              gte(inventoryTable.quantity, filters.quantity_min)
-            );
-          }
-          if (filters.quantity_max !== undefined) {
-            batchConditions.push(
-              lte(inventoryTable.quantity, filters.quantity_max)
-            );
-          }
-          if (filters.costPrice_min !== undefined) {
-            batchConditions.push(
-              gte(inventoryTable.costPrice, filters.costPrice_min)
-            );
-          }
-          if (filters.costPrice_max !== undefined) {
-            batchConditions.push(
-              lte(inventoryTable.costPrice, filters.costPrice_max)
-            );
-          }
-          if (filters.sellingPrice_min !== undefined) {
-            batchConditions.push(
-              gte(inventoryTable.sellingPrice, filters.sellingPrice_min)
-            );
-          }
-          if (filters.sellingPrice_max !== undefined) {
-            batchConditions.push(
-              lte(inventoryTable.sellingPrice, filters.sellingPrice_max)
-            );
-          }
-          if (filters.expiryDate_start) {
-            batchConditions.push(
-              gte(inventoryTable.expiryDate, new Date(filters.expiryDate_start))
-            );
-          }
-          if (filters.expiryDate_end) {
-            batchConditions.push(
-              lte(inventoryTable.expiryDate, new Date(filters.expiryDate_end))
-            );
-          }
-          if (filters.manufactureDate_start) {
-            batchConditions.push(
-              gte(
-                inventoryTable.manufactureDate,
-                new Date(filters.manufactureDate_start)
-              )
-            );
-          }
-          if (filters.manufactureDate_end) {
-            batchConditions.push(
-              lte(
-                inventoryTable.manufactureDate,
-                new Date(filters.manufactureDate_end)
-              )
-            );
-          }
-          if (filters.store) {
-            batchConditions.push(eq(storesTable.id, filters.store));
-          }
-        }
-
-        const batch = await db
-          .select({
-            inventory: inventoryTable,
-            product: productsTable,
-            store: storesTable,
-          })
-          .from(inventoryTable)
-          .leftJoin(
-            productsTable,
-            eq(inventoryTable.productId, productsTable.id)
-          )
-          .leftJoin(storesTable, eq(inventoryTable.storeId, storesTable.id))
-          .where(and(...batchConditions))
-          .orderBy(asc(inventoryTable.expiryDate))
-          .limit(batchSize)
-          .offset(offset);
-
-        allInventoryStock = [...allInventoryStock, ...batch];
-
-        if (batch.length < batchSize) break;
-        offset += batchSize;
-      }
+      const total = getAllInventoryStock
+        ? inventoryStock.length
+        : await totalQuery.then((res) => res[0]?.count || 0);
 
       return {
-        documents: parseStringify(allInventoryStock),
-        total: allInventoryStock.length,
+        documents: inventoryStock,
+        total,
       };
-    }
-
-    // For paginated results
-    const total = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(inventoryTable)
-      .leftJoin(productsTable, eq(inventoryTable.productId, productsTable.id))
-      .leftJoin(storesTable, eq(inventoryTable.storeId, storesTable.id))
-      .where(and(...conditions))
-      .then((res) => res[0]?.count || 0);
+    });
 
     return {
-      documents: parseStringify(inventoryStock),
-      total,
+      documents: parseStringify(result.documents),
+      total: result.total,
     };
   } catch (error) {
     console.error("Error getting inventory stock:", error);
@@ -671,95 +645,87 @@ export const getInventoryTransactions = async (
   filters?: InventoryTransactionsFilters
 ) => {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let query: any = db
-      .select({
-        transaction: inventoryTransactionsTable,
-        inventory: inventoryTable,
-        product: productsTable,
-        store: storesTable,
-        user: usersTable,
-      })
-      .from(inventoryTransactionsTable)
-      .leftJoin(
-        inventoryTable,
-        eq(inventoryTransactionsTable.inventoryId, inventoryTable.id)
-      )
-      .leftJoin(
-        productsTable,
-        eq(inventoryTransactionsTable.productId, productsTable.id)
-      )
-      .leftJoin(
-        storesTable,
-        eq(inventoryTransactionsTable.storeId, storesTable.id)
-      )
-      .leftJoin(
-        usersTable,
-        eq(inventoryTransactionsTable.userId, usersTable.id)
-      )
-      .orderBy(desc(inventoryTransactionsTable.transactionDate));
+    const result = await db.transaction(async (tx) => {
+      // Build the main products query
+      let query = tx
+        .select({
+          transaction: inventoryTransactionsTable,
+          inventory: inventoryTable,
+          product: productsTable,
+          store: storesTable,
+          user: usersTable,
+        })
+        .from(inventoryTransactionsTable)
+        .leftJoin(
+          inventoryTable,
+          eq(inventoryTransactionsTable.inventoryId, inventoryTable.id)
+        )
+        .leftJoin(
+          productsTable,
+          eq(inventoryTransactionsTable.productId, productsTable.id)
+        )
+        .leftJoin(
+          storesTable,
+          eq(inventoryTransactionsTable.storeId, storesTable.id)
+        )
+        .leftJoin(
+          usersTable,
+          eq(inventoryTransactionsTable.userId, usersTable.id)
+        )
+        .$dynamic();
 
-    const conditions = [eq(inventoryTransactionsTable.isActive, true)];
-
-    // Apply filters if provided
-    if (filters) {
-      if (filters.productId !== undefined) {
-        conditions.push(
-          eq(inventoryTransactionsTable.productId, filters.productId)
-        );
+      const conditions = buildTransactionsFilterConditions(filters ?? {});
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
       }
-      if (filters.storeId !== undefined) {
-        conditions.push(
-          eq(inventoryTransactionsTable.storeId, filters.storeId)
-        );
-      }
-      if (filters.transactionType !== undefined) {
-        conditions.push(
-          eq(
-            inventoryTransactionsTable.transactionType,
-            filters.transactionType as
-              | "purchase"
-              | "sale"
-              | "transfer"
-              | "adjustment"
-          )
-        );
-      }
-      if (filters.startDate !== undefined) {
-        conditions.push(
-          gte(
-            inventoryTransactionsTable.transactionDate,
-            new Date(filters.startDate)
-          )
-        );
-      }
-      if (filters.endDate !== undefined) {
-        conditions.push(
-          lte(
-            inventoryTransactionsTable.transactionDate,
-            new Date(filters.endDate)
-          )
-        );
-      }
-    }
 
-    query = query.where(and(...conditions));
+      query = query.orderBy(desc(inventoryTransactionsTable.transactionDate));
 
-    if (!getAllTransactions) {
-      query = query.limit(Number(limit)).offset(Number(page) * Number(limit));
-    }
+      if (!getAllTransactions && limit > 0) {
+        query = query.limit(limit).offset(page * limit);
+      }
 
-    const transactions = await query;
+      const transactions = await query;
 
-    // For paginated results
-    const total = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(inventoryTransactionsTable)
-      .then((res) => res[0]?.count || 0);
+      // Get total count for pagination
+      let totalQuery = tx
+        .select({ count: sql<number>`count(*)` })
+        .from(inventoryTransactionsTable)
+        .leftJoin(
+          inventoryTable,
+          eq(inventoryTransactionsTable.inventoryId, inventoryTable.id)
+        )
+        .leftJoin(
+          productsTable,
+          eq(inventoryTransactionsTable.productId, productsTable.id)
+        )
+        .leftJoin(
+          storesTable,
+          eq(inventoryTransactionsTable.storeId, storesTable.id)
+        )
+        .leftJoin(
+          usersTable,
+          eq(inventoryTransactionsTable.userId, usersTable.id)
+        )
+        .$dynamic();
+
+      if (conditions.length > 0) {
+        totalQuery = totalQuery.where(and(...conditions));
+      }
+
+      const total = getAllTransactions
+        ? transactions.length
+        : await totalQuery.then((res) => res[0]?.count || 0);
+
+      return {
+        documents: transactions,
+        total,
+      };
+    });
 
     return {
-      documents: parseStringify(transactions),
-      total,
+      documents: parseStringify(result.documents),
+      total: result.total,
     };
   } catch (error) {
     console.error("Error getting inventory transactions:", error);

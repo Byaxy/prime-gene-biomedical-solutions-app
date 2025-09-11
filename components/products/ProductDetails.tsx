@@ -1,6 +1,6 @@
 import { ProductWithRelations } from "@/types";
 import { Table, TableBody, TableCell, TableRow } from "../ui/table";
-import { formatDateTime } from "@/lib/utils";
+import { cn, formatDateTime } from "@/lib/utils";
 import Image from "next/image";
 
 const ProductDetails = ({ product }: { product: ProductWithRelations }) => {
@@ -106,6 +106,19 @@ const ProductDetails = ({ product }: { product: ProductWithRelations }) => {
               <TableCell className="text-16-semibold">Last Updated</TableCell>
               <TableCell className="text-16-regular">
                 {formatDateTime(product.product.createdAt).dateTime}
+              </TableCell>
+            </TableRow>
+            <TableRow className="border-b border-dark-700">
+              <TableCell className="text-16-semibold">Status</TableCell>
+              <TableCell className="text-16-regular">
+                <span
+                  className={cn(
+                    "capitalize text-white font-medium px-4 py-1 rounded-full",
+                    product.product.isActive ? "bg-green-500" : "bg-red-600"
+                  )}
+                >
+                  {product.product.isActive ? "Active" : "Inactive"}
+                </span>
               </TableCell>
             </TableRow>
           </TableBody>

@@ -8,7 +8,7 @@ import { productTypesTable } from "@/drizzle/schema";
 import { eq, desc, ilike, or, and, sql } from "drizzle-orm";
 import { TypeFilters } from "@/hooks/useTypes";
 
-const buildFilterConditionsDrizzle = (filters: TypeFilters) => {
+const buildFilterConditions = (filters: TypeFilters) => {
   const conditions = [];
 
   conditions.push(eq(productTypesTable.isActive, true));
@@ -73,7 +73,7 @@ export const getTypes = async (
       // Build the main query
       let query = tx.select().from(productTypesTable).$dynamic();
 
-      const conditions = buildFilterConditionsDrizzle(filters ?? {});
+      const conditions = buildFilterConditions(filters ?? {});
       if (conditions.length > 0) {
         query = query.where(and(...conditions));
       }

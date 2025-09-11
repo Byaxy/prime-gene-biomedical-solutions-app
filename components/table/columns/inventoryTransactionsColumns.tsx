@@ -9,6 +9,18 @@ import { InventoryTransactionWithRelations } from "@/types";
 export const inventoryTransactionsColumns: ColumnDef<InventoryTransactionWithRelations>[] =
   [
     {
+      id: "index",
+      header: "#",
+      cell: ({ row, table }) => {
+        const pagination = table.getState().pagination;
+
+        const globalIndex =
+          pagination.pageIndex * pagination.pageSize + row.index + 1;
+        return <span className="text-sm text-dark-600">{globalIndex}</span>;
+      },
+      enableSorting: false,
+    },
+    {
       header: "Date",
       cell: ({ row }) => {
         const inventoryStock = row.original;
@@ -19,6 +31,28 @@ export const inventoryTransactionsColumns: ColumnDef<InventoryTransactionWithRel
                 .dateTime
             }
           </p>
+        );
+      },
+    },
+    {
+      accessorKey: "product.productID",
+      header: ({ column }) => {
+        return (
+          <Button
+            variant="ghost"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            className="font-semibold px-0"
+          >
+            PID
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          </Button>
+        );
+      },
+
+      cell: ({ row }) => {
+        const inventoryStock = row.original;
+        return (
+          <p className="text-14-medium ">{inventoryStock.product.productID}</p>
         );
       },
     },

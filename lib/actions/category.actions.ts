@@ -8,7 +8,7 @@ import { categoriesTable } from "@/drizzle/schema";
 import { eq, desc, and, or, ilike, sql } from "drizzle-orm";
 import { CategoryFilters } from "@/hooks/useCategories";
 
-const buildFilterConditionsDrizzle = (filters: CategoryFilters) => {
+const buildFilterConditions = (filters: CategoryFilters) => {
   const conditions = [];
 
   conditions.push(eq(categoriesTable.isActive, true));
@@ -88,7 +88,7 @@ export const getCategories = async (
       // Build the main query
       let query = tx.select().from(categoriesTable).$dynamic();
 
-      const conditions = buildFilterConditionsDrizzle(filters ?? {});
+      const conditions = buildFilterConditions(filters ?? {});
       if (conditions.length > 0) {
         query = query.where(and(...conditions));
       }

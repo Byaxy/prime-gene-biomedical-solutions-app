@@ -1,13 +1,9 @@
-"use client";
-
-import { useInventoryStock } from "@/hooks/useInventoryStock";
+import { getInventoryStock } from "@/lib/actions/inventoryStock.actions";
 import OverviewCard from "../dashboard/OverviewCard";
 import { InventoryStockWithRelations } from "@/types";
 
-const InventoryStats = () => {
-  const { inventoryStock, isLoading } = useInventoryStock({
-    getAllInventoryStocks: true,
-  });
+const InventoryStats = async () => {
+  const { documents: inventoryStock } = await getInventoryStock(0, 0, true);
 
   // Calculate statistics
   const totalItems = inventoryStock?.length || 0;
@@ -43,7 +39,6 @@ const InventoryStats = () => {
           },
         ]}
         total={totalItems}
-        isLoading={isLoading}
         isNumber
       />
 
@@ -57,7 +52,6 @@ const InventoryStats = () => {
           },
         ]}
         total={totalQuantity}
-        isLoading={isLoading}
         isNumber
       />
 
@@ -71,7 +65,6 @@ const InventoryStats = () => {
           },
         ]}
         total={totalValue}
-        isLoading={isLoading}
       />
 
       <OverviewCard
@@ -84,7 +77,6 @@ const InventoryStats = () => {
           },
         ]}
         total={lowStockItems}
-        isLoading={isLoading}
         isNumber
       />
     </div>

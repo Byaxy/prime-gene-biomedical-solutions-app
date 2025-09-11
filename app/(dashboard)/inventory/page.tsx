@@ -5,8 +5,8 @@ import dynamic from "next/dynamic";
 import { Suspense } from "react";
 import Loading from "../loading";
 
-const InventoryTable = dynamic(
-  () => import("@/components/inventory/InventoryTable")
+const ProductsTable = dynamic(
+  () => import("@/components/products/ProductsTable")
 );
 
 export interface InventorySearchParams {
@@ -68,7 +68,7 @@ const Inventory = async ({
       buttonPath="/inventory/add-inventory"
     >
       <Suspense fallback={<Loading />}>
-        <InventoryTable initialData={initialData} />
+        <ProductsTable initialData={initialData} />
       </Suspense>
     </PageWraper>
   );
