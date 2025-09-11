@@ -13,7 +13,7 @@ interface BrandDataWithImage extends Omit<BrandFormValues, "image"> {
   imageUrl: string;
 }
 
-const buildFilterConditionsDrizzle = (filters: BrandFilters) => {
+const buildFilterConditions = (filters: BrandFilters) => {
   const conditions = [];
 
   conditions.push(eq(brandsTable.isActive, true));
@@ -78,7 +78,7 @@ export const getBrands = async (
       // Build the main query
       let query = tx.select().from(brandsTable).$dynamic();
 
-      const conditions = buildFilterConditionsDrizzle(filters ?? {});
+      const conditions = buildFilterConditions(filters ?? {});
       if (conditions.length > 0) {
         query = query.where(and(...conditions));
       }

@@ -231,7 +231,6 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
               placeholder="Select category"
               onAddNew={() => setCategoryDialogOpen(true)}
               key={`category-select-${form.watch("categoryId") || ""}`}
-              hideSearch={true}
             >
               {categoriesLoading && (
                 <div className="py-4">

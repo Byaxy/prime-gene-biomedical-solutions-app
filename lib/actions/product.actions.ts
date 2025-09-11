@@ -21,7 +21,7 @@ interface ProductDataWithImage extends Omit<ProductFormValues, "image"> {
 }
 
 // Reusable function to build the WHERE conditions for Drizzle queries
-const buildFilterConditionsDrizzle = (filters: ProductFilters) => {
+const buildFilterConditions = async (filters: ProductFilters) => {
   const conditions = [];
 
   // Cost price range
@@ -52,19 +52,59 @@ const buildFilterConditionsDrizzle = (filters: ProductFilters) => {
   // GIN indexes are crucial here.
   if (filters.search?.trim()) {
     const searchTerm = `%${filters.search.trim()}%`;
-    conditions.push(
-      or(
-        ilike(productsTable.name, searchTerm),
-        ilike(productsTable.productID, searchTerm),
-        ilike(productsTable.description, searchTerm),
-        ilike(brandsTable.name, searchTerm),
-        ilike(categoriesTable.name, searchTerm),
-        ilike(productTypesTable.name, searchTerm),
-        ilike(unitsTable.name, searchTerm)
-      )
-    );
-  }
+    const searchConditions = [
+      ilike(productsTable.name, searchTerm),
+      ilike(productsTable.productID, searchTerm),
+      ilike(productsTable.description, searchTerm),
+      ilike(brandsTable.name, searchTerm),
+      ilike(productTypesTable.name, searchTerm),
+      ilike(unitsTable.name, searchTerm),
+      ilike(categoriesTable.name, searchTerm),
+    ];
 
+    const matchingCategories = await db.query.categoriesTable.findMany({
+      where: ilike(categoriesTable.name, searchTerm),
+      columns: {
+        id: true,
+      },
+    });
+
+    let allRelevantCategoryIdsForSearch: string[] = matchingCategories.map(
+      (c) => c.id
+    );
+
+    if (matchingCategories.length > 0) {
+      // For each category name match, find all its descendants.
+      // This will capture products whose *direct category* does not match the search
+      // but its *ancestor's name* matches the search term.
+      const descendantConditions = allRelevantCategoryIdsForSearch.map((id) =>
+        ilike(categoriesTable.path, `${id}%`)
+      );
+
+      const descendantCategories = await db.query.categoriesTable.findMany({
+        where: or(...descendantConditions),
+        columns: {
+          id: true,
+        },
+      });
+
+      allRelevantCategoryIdsForSearch = allRelevantCategoryIdsForSearch.concat(
+        descendantCategories.map((c) => c.id)
+      );
+      allRelevantCategoryIdsForSearch = [
+        ...new Set(allRelevantCategoryIdsForSearch),
+      ]; // Deduplicate
+    }
+
+    // If we found any relevant category IDs, add them to the main search OR condition
+    if (allRelevantCategoryIdsForSearch.length > 0) {
+      searchConditions.push(
+        inArray(productsTable.categoryId, allRelevantCategoryIdsForSearch)
+      );
+    }
+    // Push all collected search OR conditions
+    conditions.push(or(...searchConditions));
+  }
   // isActive filter
   if (filters.isActive !== undefined && filters.isActive !== "all") {
     conditions.push(eq(productsTable.isActive, filters.isActive === "true"));
@@ -72,8 +112,47 @@ const buildFilterConditionsDrizzle = (filters: ProductFilters) => {
 
   // Foreign key filters
   if (filters.categoryId) {
-    conditions.push(eq(productsTable.categoryId, filters.categoryId));
+    const targetCategory = await db.query.categoriesTable.findFirst({
+      where: eq(categoriesTable.id, filters.categoryId),
+      columns: {
+        id: true,
+        path: true,
+      },
+    });
+
+    if (targetCategory) {
+      let matchingCategoryIds: string[] = [targetCategory.id];
+
+      const pathCondition =
+        targetCategory.path === null || targetCategory.path === ""
+          ? ilike(categoriesTable.path, `${targetCategory.id}%`)
+          : ilike(
+              categoriesTable.path,
+              `${targetCategory.path}/${targetCategory.id}%`
+            );
+
+      const descendantCategories = await db.query.categoriesTable.findMany({
+        where: pathCondition,
+        columns: {
+          id: true,
+        },
+      });
+
+      matchingCategoryIds = matchingCategoryIds.concat(
+        descendantCategories.map((c) => c.id)
+      );
+
+      conditions.push(
+        inArray(productsTable.categoryId, [...new Set(matchingCategoryIds)])
+      );
+    } else {
+      conditions.push(sql`false`);
+    }
   }
+
+  //if (filters.categoryId) {
+  //  conditions.push(eq(productsTable.categoryId, filters.categoryId));
+  //}
   if (filters.typeId) {
     conditions.push(eq(productsTable.typeId, filters.typeId));
   }
@@ -137,7 +216,7 @@ export const getProducts = async (
         .leftJoin(unitsTable, eq(productsTable.unitId, unitsTable.id))
         .$dynamic();
 
-      const conditions = buildFilterConditionsDrizzle(filters ?? {});
+      const conditions = await buildFilterConditions(filters ?? {});
       if (conditions.length > 0) {
         productsQuery = productsQuery.where(and(...conditions));
       }

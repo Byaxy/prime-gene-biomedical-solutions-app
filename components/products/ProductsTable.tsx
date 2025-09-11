@@ -19,17 +19,17 @@ import toast from "react-hot-toast";
 import { DataTable } from "../table/DataTable";
 import { productsColumns } from "../table/columns/productsColumns";
 import { useProducts } from "@/hooks/useProducts";
-import { ProductDialog } from "../products/ProductDialog";
+import { ProductDialog } from "./ProductDialog";
 
 interface Props {
   initialData: { documents: ProductWithRelations[]; total: number };
 }
 
-const InventoryTable = ({ initialData }: Props) => {
+const ProductsTable = ({ initialData }: Props) => {
   const [rowSelection, setRowSelection] = useState({});
   const [openDialog, setOpenDialog] = useState(false);
-  const [selectedRow, setSelectedRow] = useState<ProductWithRelations>(
-    {} as ProductWithRelations
+  const [selectedRow, setSelectedRow] = useState<ProductWithRelations | null>(
+    null
   );
 
   const {
@@ -213,6 +213,7 @@ const InventoryTable = ({ initialData }: Props) => {
   // handle close dialog
   const closeDialog = () => {
     setOpenDialog(false);
+    setSelectedRow(null);
 
     setTimeout(() => {
       const stuckSection = document.querySelector(".MuiBox-root.css-0");
@@ -256,10 +257,10 @@ const InventoryTable = ({ initialData }: Props) => {
         mode={"view"}
         open={openDialog && !!selectedRow}
         onOpenChange={closeDialog}
-        product={selectedRow}
+        product={selectedRow ?? undefined}
       />
     </>
   );
 };
 
-export default InventoryTable;
+export default ProductsTable;

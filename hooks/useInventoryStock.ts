@@ -1,22 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useTransition } from "react";
 import {
   addInventoryStock,
   adjustInventoryStock,
   getInventoryStock,
-  getInventoryTransactions,
 } from "@/lib/actions/inventoryStock.actions";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExtendedStockAdjustmentFormValues } from "@/components/forms/NewStockForm";
 import { ExistingStockAdjustmentFormValues } from "@/lib/validation";
+import { InventoryStockWithRelations } from "@/types";
+import { useRouter, useSearchParams } from "next/navigation";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 interface UseInventoryStockOptions {
   getAllInventoryStocks?: boolean;
-  initialPageSize?: number;
-  getAllTransactions?: boolean;
+  initialData?: { documents: InventoryStockWithRelations[]; total: number };
 }
 export interface InventoryStockFilters {
+  search?: string;
   quantity_min?: number;
   quantity_max?: number;
   costPrice_min?: number;
@@ -30,23 +32,8 @@ export interface InventoryStockFilters {
   store?: string;
 }
 
-export interface InventoryTransactionsFilters {
-  productId?: string;
-  storeId?: string;
-  transactionType?: string;
-  startDate?: string;
-  endDate?: string;
-}
-
-export const defaultTransactionFilters: InventoryTransactionsFilters = {
-  productId: undefined,
-  storeId: undefined,
-  transactionType: undefined,
-  startDate: undefined,
-  endDate: undefined,
-};
-
 export const defaultInventoryStockFilters: InventoryStockFilters = {
+  search: "",
   quantity_min: undefined,
   quantity_max: undefined,
   costPrice_min: undefined,
@@ -62,189 +49,239 @@ export const defaultInventoryStockFilters: InventoryStockFilters = {
 
 export const useInventoryStock = ({
   getAllInventoryStocks = false,
-  getAllTransactions = false,
-  initialPageSize = 10,
+  initialData,
 }: UseInventoryStockOptions = {}) => {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(initialPageSize);
-  const [filters, setFilters] = useState<InventoryStockFilters>(
-    defaultInventoryStockFilters
-  );
-  const [transactionFilters, setTransactionFilters] =
-    useState<InventoryTransactionsFilters>(defaultTransactionFilters);
+  const [isPending, startTransition] = useTransition();
 
-  const shouldFetchAll = getAllInventoryStocks;
+  // Parse current state from URL - single source of truth
+  const currentState = useMemo(() => {
+    if (getAllInventoryStocks) {
+      return {
+        page: 0,
+        pageSize: 0,
+        search: "",
+      };
+    }
 
-  const shouldFetchAllTransactions = getAllTransactions;
+    const page = Number(searchParams.get("page") || 0);
+    const pageSize = Number(searchParams.get("pageSize") || 10);
+    const search = searchParams.get("search") || "";
 
-  const isShowAllMode = pageSize === 0;
+    const filters: InventoryStockFilters = {
+      search: search || undefined,
+      costPrice_min: searchParams.get("costPrice_min")
+        ? Number(searchParams.get("costPrice_min"))
+        : undefined,
+      costPrice_max: searchParams.get("costPrice_max")
+        ? Number(searchParams.get("costPrice_max"))
+        : undefined,
+      sellingPrice_min: searchParams.get("sellingPrice_min")
+        ? Number(searchParams.get("sellingPrice_min"))
+        : undefined,
+      sellingPrice_max: searchParams.get("sellingPrice_max")
+        ? Number(searchParams.get("sellingPrice_max"))
+        : undefined,
+      quantity_min: searchParams.get("quantity_min")
+        ? Number(searchParams.get("quantity_min"))
+        : undefined,
+      quantity_max: searchParams.get("quantity_max")
+        ? Number(searchParams.get("quantity_max"))
+        : undefined,
+      expiryDate_start: searchParams.get("expiryDate_start") || undefined,
+      expiryDate_end: searchParams.get("expiryDate_end") || undefined,
+      manufactureDate_start:
+        searchParams.get("manufactureDate_start") || undefined,
+      manufactureDate_end: searchParams.get("manufactureDate_end") || undefined,
+      store: searchParams.get("store") || undefined,
+    };
 
-  // Query for all inventory transactions
-  const allInventoryTransactionsQuery = useQuery({
-    queryKey: ["inventory-transactions", transactionFilters],
+    return { page, pageSize, filters, search };
+  }, [getAllInventoryStocks, searchParams]);
+
+  // Create stable query key
+  const queryKey = useMemo(() => {
+    const { page, pageSize, filters } = currentState;
+    const filterString = JSON.stringify(filters);
+    return ["inventory-stock", page, pageSize, filterString];
+  }, [currentState]);
+
+  // Main query with server state
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
+    queryKey,
     queryFn: async () => {
-      const result = await getInventoryTransactions(
-        0,
-        0,
-        true,
-        transactionFilters
-      );
-      return result.documents;
-    },
-    enabled: shouldFetchAllTransactions || isShowAllMode,
-  });
-
-  // Query for paginated inventory transactions
-  const paginatedInventoryTransactionsQuery = useQuery({
-    queryKey: [
-      "inventory-transactions",
-      "paginatedInventoryTransactions",
-      page,
-      pageSize,
-      transactionFilters,
-    ],
-    queryFn: async () => {
-      const result = await getInventoryTransactions(
+      const { page, pageSize, filters } = currentState;
+      return getInventoryStock(
         page,
         pageSize,
-        false,
-        transactionFilters
+        getAllInventoryStocks || pageSize === 0,
+        filters
       );
-      return result;
     },
-    enabled: !shouldFetchAllTransactions && !isShowAllMode,
+    initialData: initialData ? () => initialData : undefined,
+    staleTime: getAllInventoryStocks ? 60000 : 30000,
+    refetchOnWindowFocus: false,
+    retry: 1,
   });
 
-  // Determine which query data to use
-  const activeTransactionsQuery =
-    shouldFetchAllTransactions || isShowAllMode
-      ? allInventoryTransactionsQuery
-      : paginatedInventoryTransactionsQuery;
-  const inventoryTransactions = activeTransactionsQuery.data?.documents || [];
-  const totalTransactions = activeTransactionsQuery.data?.total || 0;
+  // Optimistic navigation function
+  const navigate = useCallback(
+    (
+      updates: Partial<{
+        page: number;
+        pageSize: number;
+        search: string;
+        filters: Partial<InventoryStockFilters>;
+      }>
+    ) => {
+      const params = new URLSearchParams(searchParams.toString());
 
-  // Prefetch next page for table view
-  useEffect(() => {
-    if (
-      !shouldFetchAllTransactions &&
-      !isShowAllMode &&
-      paginatedInventoryTransactionsQuery.data
-    ) {
+      // Apply updates
+      if (updates.page !== undefined) {
+        if (updates.page === 0) {
+          params.delete("page");
+        } else {
+          params.set("page", String(updates.page));
+        }
+      }
+
+      if (updates.pageSize !== undefined) {
+        if (updates.pageSize === 10) {
+          params.delete("pageSize");
+        } else {
+          params.set("pageSize", String(updates.pageSize));
+        }
+      }
+
+      if (updates.search !== undefined) {
+        if (updates.search.trim()) {
+          params.set("search", updates.search.trim());
+        } else {
+          params.delete("search");
+        }
+        params.delete("page");
+      }
+
+      if (updates.filters) {
+        Object.keys(defaultInventoryStockFilters).forEach((key) =>
+          params.delete(key)
+        );
+
+        Object.entries(updates.filters).forEach(([key, value]) => {
+          if (value === undefined || value === "" || value === null) {
+            params.delete(key);
+          } else {
+            params.set(key, String(value));
+          }
+        });
+        params.delete("page");
+      }
+
+      const newUrl = `?${params.toString()}`;
+
+      // Use startTransition for non-urgent updates
+      startTransition(() => {
+        router.push(newUrl, { scroll: false });
+      });
+
+      // Prefetch the new data immediately
+      const newParams = new URLSearchParams(newUrl.substring(1));
+      const newPage = Number(newParams.get("page") || 0);
+      const newPageSize = Number(newParams.get("pageSize") || 10);
+      const newFilters: InventoryStockFilters = {
+        search: newParams.get("search") || undefined,
+      };
+
+      const newQueryKey = [
+        "inventory-stock",
+        newPage,
+        newPageSize,
+        newFilters,
+        JSON.stringify(newFilters),
+      ];
+
       queryClient.prefetchQuery({
-        queryKey: [
-          "inventory-transactions",
-          "paginatedInventoryTransactions",
-          page + 1,
-          pageSize,
-          transactionFilters,
-        ],
-        queryFn: async () => {
-          const result = await getInventoryTransactions(
-            page + 1,
-            pageSize,
-            false,
-            transactionFilters
-          );
-          return result;
+        queryKey: newQueryKey,
+        queryFn: () =>
+          getInventoryStock(
+            newPage,
+            newPageSize,
+            newPageSize === 0,
+            newFilters
+          ),
+      });
+    },
+    [router, searchParams, queryClient]
+  );
+
+  const setPage = useCallback(
+    (page: number) => {
+      if (getAllInventoryStocks) return;
+      navigate({ page });
+    },
+    [getAllInventoryStocks, navigate]
+  );
+
+  const setPageSize = useCallback(
+    (pageSize: number) => {
+      if (getAllInventoryStocks) return;
+      navigate({ pageSize, page: 0 });
+    },
+    [getAllInventoryStocks, navigate]
+  );
+
+  const setSearch = useCallback(
+    (search: string) => {
+      if (getAllInventoryStocks) return;
+      navigate({ search });
+    },
+    [getAllInventoryStocks, navigate]
+  );
+
+  const setFilters = useCallback(
+    (filters: Partial<InventoryStockFilters>) => {
+      if (getAllInventoryStocks) return;
+      navigate({ filters });
+    },
+    [getAllInventoryStocks, navigate]
+  );
+
+  const clearFilters = useCallback(() => {
+    if (getAllInventoryStocks) return;
+    navigate({
+      filters: defaultInventoryStockFilters,
+      search: "",
+      page: 0,
+      pageSize: 10,
+    });
+  }, [getAllInventoryStocks, navigate]);
+
+  // Real-time updates
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+
+    const channel = supabase
+      .channel("inventory_stock_changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "inventory",
         },
-      });
-    }
-  }, [
-    queryClient,
-    page,
-    pageSize,
-    shouldFetchAllTransactions,
-    isShowAllMode,
-    paginatedInventoryTransactionsQuery.data,
-    transactionFilters,
-  ]);
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["inventory-stock"] });
+        }
+      )
+      .subscribe();
 
-  // handle transaction filter changes
-  const handleTransactionFilterChange = (
-    newFilters: InventoryTransactionsFilters
-  ) => {
-    setTransactionFilters(newFilters);
-    setPage(0);
-  };
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
-  // Query for all inventory stock
-  const allInventoryStockQuery = useQuery({
-    queryKey: ["inventory-stock", filters],
-    queryFn: async () => {
-      const result = await getInventoryStock(0, 0, true, filters);
-      return result.documents;
-    },
-    enabled: shouldFetchAll || isShowAllMode,
-  });
-
-  // Query for paginated inventory stock
-  const paginatedInventoryStockQuery = useQuery({
-    queryKey: [
-      "inventory-stock",
-      "paginatedInventoryStock",
-      page,
-      pageSize,
-      filters,
-    ],
-    queryFn: async () => {
-      const result = await getInventoryStock(page, pageSize, false, filters);
-      return result;
-    },
-    enabled: !shouldFetchAll && !isShowAllMode,
-  });
-
-  // Determine which query data to use
-  const activeQuery =
-    shouldFetchAll || isShowAllMode
-      ? allInventoryStockQuery
-      : paginatedInventoryStockQuery;
-  const inventoryStock =
-    (shouldFetchAll || isShowAllMode
-      ? activeQuery.data
-      : activeQuery.data?.documents) || [];
-  const totalItems = activeQuery.data?.total || 0;
-
-  // Prefetch next page for table view
-  useEffect(() => {
-    if (
-      !shouldFetchAll &&
-      !isShowAllMode &&
-      paginatedInventoryStockQuery.data &&
-      page * pageSize < paginatedInventoryStockQuery.data.total - pageSize
-    ) {
-      queryClient.prefetchQuery({
-        queryKey: [
-          "inventory-stock",
-          "paginatedInventoryStock",
-          page + 1,
-          pageSize,
-          filters,
-        ],
-        queryFn: () => getInventoryStock(page + 1, pageSize, false, filters),
-      });
-    }
-  }, [
-    page,
-    pageSize,
-    paginatedInventoryStockQuery.data,
-    queryClient,
-    shouldFetchAll,
-    isShowAllMode,
-    filters,
-  ]);
-
-  // Handle filter changes
-  const handleFilterChange = (newFilters: InventoryStockFilters) => {
-    setFilters(newFilters);
-    setPage(0);
-  };
-
-  // Handle page size changes
-  const handlePageSizeChange = (newPageSize: number) => {
-    setPageSize(newPageSize);
-    setPage(0);
-  };
   // Add inventory stock mutation
   const {
     mutateAsync: addInventoryStockMutation,
@@ -293,30 +330,24 @@ export const useInventoryStock = ({
   });
 
   return {
-    inventoryStock,
-    totalItems,
-    isLoading: activeQuery.isLoading,
-    error: activeQuery.error,
-    setPageSize: handlePageSizeChange,
-    refetch: activeQuery.refetch,
-    isFetching: activeQuery.isFetching,
-    page,
+    inventoryStock: data?.documents || [],
+    totalItems: data?.total || 0,
+    page: currentState.page,
+    pageSize: currentState.pageSize,
+    search: currentState.search,
+    filters: currentState.filters,
+    isLoading: isLoading || isPending,
+    isFetching,
+    error,
     setPage,
-    pageSize,
-    filters,
-    onFilterChange: handleFilterChange,
-    defaultFilterValues: defaultInventoryStockFilters,
+    setPageSize,
+    setSearch,
+    setFilters,
+    clearFilters,
+    refetch: refetch,
     addInventoryStock: addInventoryStockMutation,
     isAddingInventoryStock: addInventoryStockStatus === "pending",
     adjustInventoryStock: adjustInventoryStockMutation,
     isAdjustingInventoryStock: adjustInventoryStockStatus === "pending",
-    inventoryTransactions,
-    totalTransactions,
-    isTransactionsLoading: activeTransactionsQuery.isLoading,
-    transactionsError: activeTransactionsQuery.error,
-    setTransactionFilters: handleTransactionFilterChange,
-    refetchTransactions: activeTransactionsQuery.refetch,
-    isFetchingTransactions: activeTransactionsQuery.isFetching,
-    transactionFilters,
   };
 };

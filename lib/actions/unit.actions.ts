@@ -8,7 +8,7 @@ import { unitsTable } from "@/drizzle/schema";
 import { eq, desc, ilike, or, and, sql } from "drizzle-orm";
 import { UnitFilters } from "@/hooks/useUnits";
 
-const buildFilterConditionsDrizzle = (filters: UnitFilters) => {
+const buildFilterConditions = (filters: UnitFilters) => {
   const conditions = [];
 
   conditions.push(eq(unitsTable.isActive, true));
@@ -74,7 +74,7 @@ export const getUnits = async (
       // Build the main query
       let query = tx.select().from(unitsTable).$dynamic();
 
-      const conditions = buildFilterConditionsDrizzle(filters ?? {});
+      const conditions = buildFilterConditions(filters ?? {});
       if (conditions.length > 0) {
         query = query.where(and(...conditions));
       }
