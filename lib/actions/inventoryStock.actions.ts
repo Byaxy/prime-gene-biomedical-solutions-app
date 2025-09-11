@@ -574,7 +574,7 @@ export const getInventoryStock = async (
         query = query.where(and(...conditions));
       }
 
-      query = query.orderBy(desc(inventoryTransactionsTable.transactionDate));
+      query = query.orderBy(desc(inventoryTable.createdAt));
 
       if (!getAllInventoryStock && limit > 0) {
         query = query.limit(limit).offset(page * limit);
