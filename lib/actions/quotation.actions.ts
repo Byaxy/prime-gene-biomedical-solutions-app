@@ -9,10 +9,64 @@ import {
   quotationItemsTable,
   customersTable,
 } from "@/drizzle/schema";
-import { eq, desc, sql, inArray, and, gte, lte } from "drizzle-orm";
+import { eq, desc, sql, inArray, and, gte, lte, or, ilike } from "drizzle-orm";
 import { QuotationFormValues } from "../validation";
 import { QuotationStatus } from "@/types";
 import { QuotationFilters } from "@/hooks/useQuotations";
+
+const buildFilterConditions = (filters: QuotationFilters) => {
+  const conditions = [];
+
+  conditions.push(eq(quotationsTable.isActive, true));
+
+  // Search logic using ILIKE on joined tables.
+  // GIN indexes are crucial here.
+  if (filters.search?.trim()) {
+    const searchTerm = `%${filters.search.trim()}%`;
+    conditions.push(
+      or(
+        ilike(quotationsTable.quotationNumber, searchTerm),
+        ilike(quotationsTable.rfqNumber, searchTerm),
+        ilike(customersTable.name, searchTerm)
+      )
+    );
+  }
+
+  if (filters.totalAmount_min !== undefined) {
+    conditions.push(gte(quotationsTable.totalAmount, filters.totalAmount_min));
+  }
+  if (filters.totalAmount_max !== undefined) {
+    conditions.push(lte(quotationsTable.totalAmount, filters.totalAmount_max));
+  }
+
+  // Quotation date range
+  if (filters.quotationDate_start) {
+    conditions.push(
+      gte(quotationsTable.quotationDate, new Date(filters.quotationDate_start))
+    );
+  }
+  if (filters.quotationDate_end) {
+    conditions.push(
+      lte(quotationsTable.quotationDate, new Date(filters.quotationDate_end))
+    );
+  }
+
+  // Status filter
+  if (filters.status) {
+    conditions.push(
+      eq(quotationsTable.status, filters.status as QuotationStatus)
+    );
+  }
+
+  // Converted to sale filter
+  if (filters.convertedToSale !== undefined) {
+    conditions.push(
+      eq(quotationsTable.convertedToSale, filters.convertedToSale)
+    );
+  }
+
+  return conditions;
+};
 
 // Add new quotation with transaction
 export const addQuotation = async (quotation: QuotationFormValues) => {
@@ -344,68 +398,18 @@ export const getQuotations = async (
         )
         .$dynamic();
 
-      // Create conditions array
-      const conditions = [eq(quotationsTable.isActive, true)];
-
-      // Apply filters if provided
-      if (filters) {
-        // Total Amount range
-        if (filters.totalAmount_min !== undefined) {
-          conditions.push(
-            gte(quotationsTable.totalAmount, filters.totalAmount_min)
-          );
-        }
-        if (filters.totalAmount_max !== undefined) {
-          conditions.push(
-            lte(quotationsTable.totalAmount, filters.totalAmount_max)
-          );
-        }
-
-        // Quotation date range
-        if (filters.quotationDate_start) {
-          conditions.push(
-            gte(
-              quotationsTable.quotationDate,
-              new Date(filters.quotationDate_start)
-            )
-          );
-        }
-        if (filters.quotationDate_end) {
-          conditions.push(
-            lte(
-              quotationsTable.quotationDate,
-              new Date(filters.quotationDate_end)
-            )
-          );
-        }
-
-        // Status filter
-        if (filters.status) {
-          conditions.push(
-            eq(quotationsTable.status, filters.status as QuotationStatus)
-          );
-        }
-
-        // Converted to sale filter
-        if (filters.convertedToSale !== undefined) {
-          conditions.push(
-            eq(quotationsTable.convertedToSale, filters.convertedToSale)
-          );
-        }
+      const conditions = await buildFilterConditions(filters ?? {});
+      if (conditions.length > 0) {
+        quotationsQuery = quotationsQuery.where(and(...conditions));
       }
 
-      // Apply where conditions
-      quotationsQuery = quotationsQuery.where(and(...conditions));
-
-      // Apply order by
       quotationsQuery = quotationsQuery.orderBy(
         desc(quotationsTable.createdAt)
       );
 
-      if (!getAllQuotations) {
-        quotationsQuery.limit(limit).offset(page * limit);
+      if (!getAllQuotations && limit > 0) {
+        quotationsQuery = quotationsQuery.limit(limit).offset(page * limit);
       }
-
       const quotations = await quotationsQuery;
 
       // Get all items for these quotations in a single query
@@ -458,12 +462,22 @@ export const getQuotations = async (
       }));
 
       // Get total count for pagination
+      let totalQuery = tx
+        .select({ count: sql<number>`count(*)` })
+        .from(quotationsTable)
+        .leftJoin(
+          customersTable,
+          eq(quotationsTable.customerId, customersTable.id)
+        )
+        .$dynamic();
+
+      if (conditions.length > 0) {
+        totalQuery = totalQuery.where(and(...conditions));
+      }
+
       const total = getAllQuotations
         ? quotations.length
-        : await tx
-            .select({ count: sql<number>`count(*)` })
-            .from(quotationsTable)
-            .then((res) => res[0]?.count || 0);
+        : await totalQuery.then((res) => res[0]?.count || 0);
 
       return {
         documents: quotationsWithItems,

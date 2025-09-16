@@ -1,60 +1,55 @@
-"use client";
-
-import { useQuotations } from "@/hooks/useQuotations";
+import { QuotationFilters } from "@/hooks/useQuotations";
 import PageWraper from "@/components/PageWraper";
-import { DataTable } from "@/components/table/DataTable";
-import { quotationsColumns } from "@/components/table/columns/quotationsColumns";
-import { QuotationStatus, QuotationWithRelations } from "@/types";
-import { useState } from "react";
-import QuotationDialog from "@/components/quotations/QuotationsDialog";
+import { Suspense } from "react";
+import dynamic from "next/dynamic";
+import { getQuotations } from "@/lib/actions/quotation.actions";
+import Loading from "../loading";
 
-const Quotations = () => {
-  const [openDialog, setOpenDialog] = useState(false);
-  const [selectedQuotation, setSelectedQuotation] = useState(
-    {} as QuotationWithRelations
+const QuotationsTable = dynamic(
+  () => import("@/components/quotations/QuotationsTable")
+);
+
+export interface SearchParams {
+  page?: string;
+  pageSize?: string;
+  search?: string;
+  totalAmount_min?: number;
+  totalAmount_max?: number;
+  quotationDate_start?: string;
+  quotationDate_end?: string;
+  status?: string;
+  convertedToSale?: boolean;
+}
+
+const Quotations = async ({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) => {
+  const sp = await searchParams;
+  const currentPage = Number(sp.page || 0);
+  const currentPageSize = sp.pageSize === "0" ? 0 : Number(sp.pageSize || 10);
+
+  const filtersForServer: QuotationFilters = {
+    search: sp.search || undefined,
+    totalAmount_min: sp.totalAmount_min
+      ? Number(sp.totalAmount_min)
+      : undefined,
+    totalAmount_max: sp.totalAmount_max
+      ? Number(sp.totalAmount_max)
+      : undefined,
+    quotationDate_start: sp.quotationDate_start || undefined,
+    quotationDate_end: sp.quotationDate_end || undefined,
+    status: sp.status || undefined,
+    convertedToSale: sp.convertedToSale || undefined,
+  };
+
+  const initialData = await getQuotations(
+    currentPage,
+    currentPageSize,
+    currentPageSize === 0,
+    filtersForServer
   );
-  const {
-    quotations,
-    isLoading,
-    totalItems,
-    page,
-    setPage,
-    pageSize,
-    setPageSize,
-    filters,
-    onFilterChange,
-    defaultFilterValues,
-    refetch,
-    isFetching,
-  } = useQuotations({ initialPageSize: 10 });
-
-  const handleRowClick = (rowData: QuotationWithRelations) => {
-    setSelectedQuotation(rowData);
-    setOpenDialog(true);
-  };
-
-  const quotationFilters = {
-    totalAmount: {
-      type: "number" as const,
-      label: "Grand Total",
-    },
-    quotationDate: {
-      type: "date" as const,
-      label: "Quotation Date",
-    },
-    status: {
-      type: "select" as const,
-      label: "Quotation Status",
-      options: Object.values(QuotationStatus).map((item) => ({
-        label: item,
-        value: item,
-      })),
-    },
-    convertedToSale: {
-      type: "boolean" as const,
-      label: "Converted to Sale",
-    },
-  };
 
   return (
     <PageWraper
@@ -62,31 +57,9 @@ const Quotations = () => {
       buttonText="Add Quotation"
       buttonPath="/quotations/create-quotation"
     >
-      <>
-        <DataTable
-          columns={quotationsColumns}
-          data={quotations || []}
-          isLoading={isLoading}
-          totalItems={totalItems}
-          page={page}
-          onPageChange={setPage}
-          pageSize={pageSize}
-          onPageSizeChange={setPageSize}
-          filters={quotationFilters}
-          filterValues={filters}
-          onFilterChange={onFilterChange}
-          defaultFilterValues={defaultFilterValues}
-          onRowClick={handleRowClick}
-          refetch={refetch}
-          isFetching={isFetching}
-        />
-        <QuotationDialog
-          mode={"view"}
-          open={openDialog && !!selectedQuotation}
-          onOpenChange={setOpenDialog}
-          quotation={selectedQuotation}
-        />
-      </>
+      <Suspense fallback={<Loading />}>
+        <QuotationsTable initialData={initialData} />
+      </Suspense>
     </PageWraper>
   );
 };

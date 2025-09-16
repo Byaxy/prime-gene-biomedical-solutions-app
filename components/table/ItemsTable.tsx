@@ -17,14 +17,17 @@ interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   onRowClick?: (rowData: TData) => void;
+  isLoading?: boolean;
 }
 import { HeaderGroup, Header } from "@tanstack/react-table";
 import { cn } from "@/lib/utils";
+import Loading from "@/app/(dashboard)/loading";
 
 export function ItemsTable<TData, TValue>({
   columns,
   data,
   onRowClick,
+  isLoading,
 }: DataTableProps<TData, TValue>) {
   const table = useReactTable({
     data,
@@ -66,7 +69,13 @@ export function ItemsTable<TData, TValue>({
           ))}
         </TableHeader>
         <TableBody>
-          {table.getRowModel().rows?.length ? (
+          {isLoading ? (
+            <TableRow>
+              <TableCell colSpan={columns.length} className="h-24 text-center">
+                <Loading />
+              </TableCell>
+            </TableRow>
+          ) : table.getRowModel().rows?.length ? (
             table.getRowModel().rows.map((row: any) => (
               <TableRow
                 key={row.id}

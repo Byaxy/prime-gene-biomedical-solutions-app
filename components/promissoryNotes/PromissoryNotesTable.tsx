@@ -1,24 +1,28 @@
 "use client";
 
-import { DeliveryFilters, useDeliveries } from "@/hooks/useDeliveries";
-import { DeliveryStatus, DeliveryWithRelations } from "@/types";
-import React, { useCallback, useEffect, useState } from "react";
-import { DataTable } from "../table/DataTable";
-import { deliveriesColumns } from "../table/columns/deliveriesColumns";
-import DeliveryDialog from "./DeliveryDialog";
 import { useDebounce } from "@/hooks/useDebounce";
+import {
+  PromissoryNoteFilters,
+  usePromissoryNote,
+} from "@/hooks/usePromissoryNote";
+import { PromissoryNoteStatus, PromissoryNoteWithRelations } from "@/types";
+import { useCallback, useEffect, useState } from "react";
+import PromissoryNoteDialog from "./PromissoryNoteDialog";
+import { promissoryNotesColumns } from "../table/columns/promissoryNotesColumns";
+import { DataTable } from "../table/DataTable";
 
 interface Props {
-  initialData: { documents: DeliveryWithRelations[]; total: number };
+  initialData: { documents: PromissoryNoteWithRelations[]; total: number };
 }
 
-const DeliveriesTable = ({ initialData }: Props) => {
+const PromissoryNotesTable = ({ initialData }: Props) => {
   const [openDialog, setOpenDialog] = useState(false);
-  const [selectedDelivery, setSelectedDelivery] = useState(
-    {} as DeliveryWithRelations
+  const [selectedRow, setSelectedRow] = useState<PromissoryNoteWithRelations>(
+    {} as PromissoryNoteWithRelations
   );
+
   const {
-    deliveries,
+    promissoryNotes,
     totalItems,
     page,
     pageSize,
@@ -32,7 +36,7 @@ const DeliveriesTable = ({ initialData }: Props) => {
     setFilters,
     clearFilters,
     refetch,
-  } = useDeliveries({ initialData });
+  } = usePromissoryNote({ initialData });
 
   // Local search state for immediate UI feedback
   const [localSearch, setLocalSearch] = useState(search);
@@ -45,25 +49,26 @@ const DeliveriesTable = ({ initialData }: Props) => {
     }
   }, [debouncedSearch, search, setSearch]);
 
-  const handleRowClick = (rowData: DeliveryWithRelations) => {
-    setSelectedDelivery(rowData);
-    setOpenDialog(true);
-  };
-
-  const deliveriesFilters = {
-    deliveryDate: {
+  const promissoryNotesFilters = {
+    promissoryNoteDate: {
       type: "date" as const,
-      label: "Delivery Date",
+      label: "Promissory Note Date",
     },
     status: {
       type: "select" as const,
-      label: "Delivery Status",
-      options: Object.values(DeliveryStatus).map((item) => ({
+      label: "Promissory Note Status",
+      options: Object.values(PromissoryNoteStatus).map((item) => ({
         label: item,
         value: item,
       })),
     },
   };
+
+  const handleRowClick = (rowData: PromissoryNoteWithRelations) => {
+    setSelectedRow(rowData);
+    setOpenDialog(true);
+  };
+
   // Event handlers
   const handleSearchChange = useCallback((newSearch: string) => {
     setLocalSearch(newSearch);
@@ -81,7 +86,7 @@ const DeliveriesTable = ({ initialData }: Props) => {
   }, [clearFilters, setSearch]);
 
   const handleFilterChange = useCallback(
-    (newFilters: DeliveryFilters) => {
+    (newFilters: PromissoryNoteFilters) => {
       setFilters(newFilters);
     },
     [setFilters]
@@ -99,10 +104,10 @@ const DeliveriesTable = ({ initialData }: Props) => {
   };
 
   return (
-    <React.Fragment>
+    <>
       <DataTable
-        columns={deliveriesColumns}
-        data={deliveries || []}
+        columns={promissoryNotesColumns}
+        data={promissoryNotes || []}
         isLoading={isLoading}
         isFetching={isFetching}
         totalItems={totalItems}
@@ -112,7 +117,7 @@ const DeliveriesTable = ({ initialData }: Props) => {
         onPageSizeChange={setPageSize}
         onRowClick={handleRowClick}
         refetch={refetch}
-        filters={deliveriesFilters}
+        filters={promissoryNotesFilters}
         filterValues={filters}
         onFilterChange={handleFilterChange}
         onClearFilters={handleClearFilters}
@@ -120,15 +125,14 @@ const DeliveriesTable = ({ initialData }: Props) => {
         onSearchChange={handleSearchChange}
         onClearSearch={handleClearSearch}
       />
-
-      <DeliveryDialog
+      <PromissoryNoteDialog
         mode={"view"}
-        open={openDialog && !!selectedDelivery}
+        open={openDialog && !!selectedRow}
         onOpenChange={closeDialog}
-        delivery={selectedDelivery}
+        promissoryNote={selectedRow}
       />
-    </React.Fragment>
+    </>
   );
 };
 
-export default DeliveriesTable;
+export default PromissoryNotesTable;

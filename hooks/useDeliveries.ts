@@ -7,12 +7,16 @@ import {
   getDeliveries,
   softDeleteDelivery,
 } from "@/lib/actions/delivery.actions";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { DeliveryFormValues } from "@/lib/validation";
+import { DeliveryWithRelations } from "@/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useTransition } from "react";
 import toast from "react-hot-toast";
 
 export interface DeliveryFilters {
+  search?: string;
   deliveryDate_start?: string;
   deliveryDate_end?: string;
   status?: string;
@@ -20,7 +24,7 @@ export interface DeliveryFilters {
 
 interface UseDeliveriesOptions {
   getAllDeliveries?: boolean;
-  initialPageSize?: number;
+  initialData?: { documents: DeliveryWithRelations[]; total: number };
 }
 
 export const defaultDeliveryFilters: DeliveryFilters = {
@@ -31,89 +35,215 @@ export const defaultDeliveryFilters: DeliveryFilters = {
 
 export const useDeliveries = ({
   getAllDeliveries = false,
-  initialPageSize = 10,
+  initialData,
 }: UseDeliveriesOptions = {}) => {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(initialPageSize);
-  const [filters, setFilters] = useState<DeliveryFilters>(
-    defaultDeliveryFilters
+  const [isPending, startTransition] = useTransition();
+
+  // Parse current state from URL - single source of truth
+  const currentState = useMemo(() => {
+    if (getAllDeliveries) {
+      return {
+        page: 0,
+        pageSize: 0,
+        search: "",
+      };
+    }
+
+    const page = Number(searchParams.get("page") || 0);
+    const pageSize = Number(searchParams.get("pageSize") || 10);
+    const search = searchParams.get("search") || "";
+
+    const filters: DeliveryFilters = {
+      search: search || undefined,
+      status: searchParams.get("status") || undefined,
+      deliveryDate_start: searchParams.get("deliveryDate_start") || undefined,
+      deliveryDate_end: searchParams.get("deliveryDate_end") || undefined,
+    };
+
+    return { page, pageSize, filters, search };
+  }, [getAllDeliveries, searchParams]);
+
+  // Create stable query key
+  const queryKey = useMemo(() => {
+    const { page, pageSize, filters } = currentState;
+    const filterString = JSON.stringify(filters);
+    return ["deliveries", page, pageSize, filterString];
+  }, [currentState]);
+
+  // Main query with server state
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      const { page, pageSize, filters } = currentState;
+      return getDeliveries(
+        page,
+        pageSize,
+        getAllDeliveries || pageSize === 0,
+        filters
+      );
+    },
+    initialData: initialData ? () => initialData : undefined,
+    staleTime: getAllDeliveries ? 60000 : 30000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
+
+  // Optimistic navigation function
+  const navigate = useCallback(
+    (
+      updates: Partial<{
+        page: number;
+        pageSize: number;
+        search: string;
+        filters: Partial<DeliveryFilters>;
+      }>
+    ) => {
+      const params = new URLSearchParams(searchParams.toString());
+
+      // Apply updates
+      if (updates.page !== undefined) {
+        if (updates.page === 0) {
+          params.delete("page");
+        } else {
+          params.set("page", String(updates.page));
+        }
+      }
+
+      if (updates.pageSize !== undefined) {
+        if (updates.pageSize === 10) {
+          params.delete("pageSize");
+        } else {
+          params.set("pageSize", String(updates.pageSize));
+        }
+      }
+
+      if (updates.search !== undefined) {
+        if (updates.search.trim()) {
+          params.set("search", updates.search.trim());
+        } else {
+          params.delete("search");
+        }
+        params.delete("page");
+      }
+
+      if (updates.filters) {
+        Object.keys(defaultDeliveryFilters).forEach((key) =>
+          params.delete(key)
+        );
+
+        Object.entries(updates.filters).forEach(([key, value]) => {
+          if (value === undefined || value === "" || value === null) {
+            params.delete(key);
+          } else {
+            params.set(key, String(value));
+          }
+        });
+        params.delete("page");
+      }
+
+      const newUrl = `?${params.toString()}`;
+
+      // Use startTransition for non-urgent updates
+      startTransition(() => {
+        router.push(newUrl, { scroll: false });
+      });
+
+      // Prefetch the new data immediately
+      const newParams = new URLSearchParams(newUrl.substring(1));
+      const newPage = Number(newParams.get("page") || 0);
+      const newPageSize = Number(newParams.get("pageSize") || 10);
+      const newFilters: DeliveryFilters = {
+        search: newParams.get("search") || undefined,
+        status: newParams.get("status") || undefined,
+        deliveryDate_start: newParams.get("deliveryDate_start") || undefined,
+        deliveryDate_end: newParams.get("deliveryDate_end") || undefined,
+      };
+
+      const newQueryKey = [
+        "deliveries",
+        newPage,
+        newPageSize,
+        JSON.stringify(newFilters),
+      ];
+
+      queryClient.prefetchQuery({
+        queryKey: newQueryKey,
+        queryFn: () =>
+          getDeliveries(newPage, newPageSize, newPageSize === 0, newFilters),
+      });
+    },
+    [router, searchParams, queryClient]
   );
 
-  const shouldFetchAll = getAllDeliveries;
-
-  const isShowAllMode = pageSize === 0;
-
-  // Query for all Deliveries
-  const allDeliveriesQuery = useQuery({
-    queryKey: ["deliveries", filters],
-    queryFn: async () => {
-      const result = await getDeliveries(0, 0, true, filters);
-      return result.documents;
+  const setPage = useCallback(
+    (page: number) => {
+      if (getAllDeliveries) return;
+      navigate({ page });
     },
-    enabled: shouldFetchAll || isShowAllMode,
-  });
+    [getAllDeliveries, navigate]
+  );
 
-  // Query for paginated Deliveries
-  const paginatedDeliveriesQuery = useQuery({
-    queryKey: ["deliveries", "paginatedDeliveries", page, pageSize, filters],
-    queryFn: async () => {
-      const result = await getDeliveries(page, pageSize, false, filters);
-      return result;
+  const setPageSize = useCallback(
+    (pageSize: number) => {
+      if (getAllDeliveries) return;
+      navigate({ pageSize, page: 0 });
     },
-    enabled: !shouldFetchAll && !isShowAllMode,
-  });
+    [getAllDeliveries, navigate]
+  );
 
-  // Determine which query data to use
-  const activeQuery =
-    shouldFetchAll || isShowAllMode
-      ? allDeliveriesQuery
-      : paginatedDeliveriesQuery;
-  const deliveries =
-    (shouldFetchAll || isShowAllMode
-      ? activeQuery.data
-      : activeQuery.data?.documents) || [];
-  const totalItems = activeQuery.data?.total || 0;
+  const setSearch = useCallback(
+    (search: string) => {
+      if (getAllDeliveries) return;
+      navigate({ search });
+    },
+    [getAllDeliveries, navigate]
+  );
 
-  // Prefetch next page for table view
+  const setFilters = useCallback(
+    (filters: Partial<DeliveryFilters>) => {
+      if (getAllDeliveries) return;
+      navigate({ filters });
+    },
+    [getAllDeliveries, navigate]
+  );
+
+  const clearFilters = useCallback(() => {
+    if (getAllDeliveries) return;
+    navigate({
+      filters: defaultDeliveryFilters,
+      search: "",
+      page: 0,
+      pageSize: 10,
+    });
+  }, [getAllDeliveries, navigate]);
+
+  // Real-time updates
   useEffect(() => {
-    if (
-      !shouldFetchAll &&
-      !isShowAllMode &&
-      paginatedDeliveriesQuery.data &&
-      page * pageSize < paginatedDeliveriesQuery.data.total - pageSize
-    ) {
-      queryClient.prefetchQuery({
-        queryKey: [
-          "deliveries",
-          "paginatedDeliveries",
-          page + 1,
-          pageSize,
-          filters,
-        ],
-        queryFn: () => getDeliveries(page + 1, pageSize, false, filters),
-      });
-    }
-  }, [
-    page,
-    pageSize,
-    paginatedDeliveriesQuery.data,
-    queryClient,
-    shouldFetchAll,
-    isShowAllMode,
-    filters,
-  ]);
-  // Handle filter changes
-  const handleFilterChange = (newFilters: DeliveryFilters) => {
-    setFilters(newFilters);
-    setPage(0);
-  };
+    const supabase = createSupabaseBrowserClient();
 
-  // Handle page size changes
-  const handlePageSizeChange = (newPageSize: number) => {
-    setPageSize(newPageSize);
-    setPage(0);
-  };
+    const channel = supabase
+      .channel("deliveries_changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "deliveries",
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["deliveries"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
   // Add Delivery Mutation
   const { mutate: addDeliveryMutation, status: addDeliveryStatus } =
     useMutation({
@@ -136,7 +266,7 @@ export const useDeliveries = ({
       }) => editDelivery(data, id),
       onSuccess: () => {
         queryClient.invalidateQueries({
-          queryKey: ["deliveries", "paginatedDeliveries"],
+          queryKey: ["deliveries"],
         });
       },
     });
@@ -146,7 +276,7 @@ export const useDeliveries = ({
       mutationFn: (id: string) => deleteDelivery(id),
       onSuccess: () => {
         queryClient.invalidateQueries({
-          queryKey: ["deliveries", "paginatedDeliveries"],
+          queryKey: ["deliveries"],
         });
         toast.success("Delivery deleted successfully");
       },
@@ -163,25 +293,27 @@ export const useDeliveries = ({
     mutationFn: (id: string) => softDeleteDelivery(id),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["deliveries", "paginatedDeliveries"],
+        queryKey: ["deliveries"],
       });
     },
   });
 
   return {
-    deliveries,
-    totalItems,
-    isLoading: activeQuery.isLoading,
-    error: activeQuery.error,
-    setPageSize: handlePageSizeChange,
-    refetch: activeQuery.refetch,
-    isFetching: activeQuery.isFetching,
-    page,
+    deliveries: data?.documents || [],
+    totalItems: data?.total || 0,
+    page: currentState.page,
+    pageSize: currentState.pageSize,
+    search: currentState.search,
+    filters: currentState.filters,
+    isLoading: isLoading || isPending,
+    isFetching,
+    error,
     setPage,
-    pageSize,
-    filters,
-    onFilterChange: handleFilterChange,
-    defaultFilterValues: defaultDeliveryFilters,
+    setPageSize,
+    setSearch,
+    setFilters,
+    clearFilters,
+    refetch: refetch,
     addDelivery: addDeliveryMutation,
     isAddingDelivery: addDeliveryStatus === "pending",
     editDelivery: editDeliveryMutation,

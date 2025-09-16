@@ -1,24 +1,25 @@
 "use client";
 
-import { DeliveryFilters, useDeliveries } from "@/hooks/useDeliveries";
-import { DeliveryStatus, DeliveryWithRelations } from "@/types";
-import React, { useCallback, useEffect, useState } from "react";
-import { DataTable } from "../table/DataTable";
-import { deliveriesColumns } from "../table/columns/deliveriesColumns";
-import DeliveryDialog from "./DeliveryDialog";
 import { useDebounce } from "@/hooks/useDebounce";
+import { SaleFilters, useSales } from "@/hooks/useSales";
+import { PaymentStatus, SaleStatus, SaleWithRelations } from "@/types";
+import { useCallback, useEffect, useState } from "react";
+import { DataTable } from "../table/DataTable";
+import { salesColumns } from "../table/columns/salesColumns";
+import SaleDialog from "./SaleDialog";
 
 interface Props {
-  initialData: { documents: DeliveryWithRelations[]; total: number };
+  initialData: { documents: SaleWithRelations[]; total: number };
 }
 
-const DeliveriesTable = ({ initialData }: Props) => {
+const SalesTable = ({ initialData }: Props) => {
   const [openDialog, setOpenDialog] = useState(false);
-  const [selectedDelivery, setSelectedDelivery] = useState(
-    {} as DeliveryWithRelations
+  const [selectedRow, setSelectedRow] = useState<SaleWithRelations>(
+    {} as SaleWithRelations
   );
+
   const {
-    deliveries,
+    sales,
     totalItems,
     page,
     pageSize,
@@ -32,7 +33,7 @@ const DeliveriesTable = ({ initialData }: Props) => {
     setFilters,
     clearFilters,
     refetch,
-  } = useDeliveries({ initialData });
+  } = useSales({ initialData });
 
   // Local search state for immediate UI feedback
   const [localSearch, setLocalSearch] = useState(search);
@@ -45,25 +46,42 @@ const DeliveriesTable = ({ initialData }: Props) => {
     }
   }, [debouncedSearch, search, setSearch]);
 
-  const handleRowClick = (rowData: DeliveryWithRelations) => {
-    setSelectedDelivery(rowData);
+  const handleRowClick = (rowData: SaleWithRelations) => {
+    setSelectedRow(rowData);
     setOpenDialog(true);
   };
 
-  const deliveriesFilters = {
-    deliveryDate: {
+  const salesFilters = {
+    totalAmount: {
+      type: "number" as const,
+      label: "Grand Total",
+    },
+    amountPaid: {
+      type: "number" as const,
+      label: "Amount Paid",
+    },
+    saleDate: {
       type: "date" as const,
-      label: "Delivery Date",
+      label: "Sale Date",
     },
     status: {
       type: "select" as const,
-      label: "Delivery Status",
-      options: Object.values(DeliveryStatus).map((item) => ({
+      label: "Sale Status",
+      options: Object.values(SaleStatus).map((item) => ({
+        label: item,
+        value: item,
+      })),
+    },
+    paymentStatus: {
+      type: "select" as const,
+      label: "Payment Status",
+      options: Object.values(PaymentStatus).map((item) => ({
         label: item,
         value: item,
       })),
     },
   };
+
   // Event handlers
   const handleSearchChange = useCallback((newSearch: string) => {
     setLocalSearch(newSearch);
@@ -81,7 +99,7 @@ const DeliveriesTable = ({ initialData }: Props) => {
   }, [clearFilters, setSearch]);
 
   const handleFilterChange = useCallback(
-    (newFilters: DeliveryFilters) => {
+    (newFilters: SaleFilters) => {
       setFilters(newFilters);
     },
     [setFilters]
@@ -99,10 +117,10 @@ const DeliveriesTable = ({ initialData }: Props) => {
   };
 
   return (
-    <React.Fragment>
+    <>
       <DataTable
-        columns={deliveriesColumns}
-        data={deliveries || []}
+        columns={salesColumns}
+        data={sales || []}
         isLoading={isLoading}
         isFetching={isFetching}
         totalItems={totalItems}
@@ -112,7 +130,7 @@ const DeliveriesTable = ({ initialData }: Props) => {
         onPageSizeChange={setPageSize}
         onRowClick={handleRowClick}
         refetch={refetch}
-        filters={deliveriesFilters}
+        filters={salesFilters}
         filterValues={filters}
         onFilterChange={handleFilterChange}
         onClearFilters={handleClearFilters}
@@ -120,15 +138,14 @@ const DeliveriesTable = ({ initialData }: Props) => {
         onSearchChange={handleSearchChange}
         onClearSearch={handleClearSearch}
       />
-
-      <DeliveryDialog
+      <SaleDialog
         mode={"view"}
-        open={openDialog && !!selectedDelivery}
+        open={openDialog && !!selectedRow}
         onOpenChange={closeDialog}
-        delivery={selectedDelivery}
+        sale={selectedRow}
       />
-    </React.Fragment>
+    </>
   );
 };
 
-export default DeliveriesTable;
+export default SalesTable;

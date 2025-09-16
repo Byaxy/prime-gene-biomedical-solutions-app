@@ -225,7 +225,7 @@ const QuotationDialog = ({
         </Dialog>
       )}
 
-      {mode === "view" && (
+      {mode === "view" && quotation && (
         <Dialog open={open} onOpenChange={onOpenChange}>
           <DialogContent className="max-w-[100rem] w-full h-[96vh] p-0 bg-light-200">
             <DialogHeader className="hidden">

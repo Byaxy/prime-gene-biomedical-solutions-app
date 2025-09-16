@@ -26,8 +26,65 @@ import {
   SaleInventoryStock,
   SaleStatus,
 } from "@/types";
-import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import { SaleFilters } from "@/hooks/useSales";
+
+const buildFilterConditions = (filters: SaleFilters) => {
+  const conditions = [];
+
+  conditions.push(eq(salesTable.isActive, true));
+
+  // Search logic using ILIKE on joined tables.
+  // GIN indexes are crucial here.
+  if (filters.search?.trim()) {
+    const searchTerm = `%${filters.search.trim()}%`;
+    conditions.push(
+      or(
+        ilike(salesTable.invoiceNumber, searchTerm),
+        ilike(customersTable.name, searchTerm),
+        ilike(storesTable.name, searchTerm)
+      )
+    );
+  }
+
+  // Total Amount range
+  if (filters.totalAmount_min !== undefined) {
+    conditions.push(gte(salesTable.totalAmount, filters.totalAmount_min));
+  }
+  if (filters.totalAmount_max !== undefined) {
+    conditions.push(lte(salesTable.totalAmount, filters.totalAmount_max));
+  }
+
+  // Amount paid range
+  if (filters.amountPaid_min !== undefined) {
+    conditions.push(gte(salesTable.amountPaid, filters.amountPaid_min));
+  }
+  if (filters.amountPaid_max !== undefined) {
+    conditions.push(lte(salesTable.amountPaid, filters.amountPaid_max));
+  }
+
+  // Sale date range
+  if (filters.saleDate_start) {
+    conditions.push(gte(salesTable.saleDate, new Date(filters.saleDate_start)));
+  }
+  if (filters.saleDate_end) {
+    conditions.push(lte(salesTable.saleDate, new Date(filters.saleDate_end)));
+  }
+
+  // Status filter
+  if (filters.status) {
+    conditions.push(eq(salesTable.status, filters.status as SaleStatus));
+  }
+
+  // Payment Status filter
+  if (filters.paymentStatus) {
+    conditions.push(
+      eq(salesTable.paymentStatus, filters.paymentStatus as PaymentStatus)
+    );
+  }
+
+  return conditions;
+};
 
 // Add a new sale
 export const addSale = async (sale: SaleFormValues) => {
@@ -35,14 +92,13 @@ export const addSale = async (sale: SaleFormValues) => {
     // Verify that all products exist in the database before proceeding
     const productIds = sale.products.map((product) => product.productId);
     const existingProducts = await db
-      .select({ id: productsTable.id })
+      .select({ id: productsTable.id, isActive: productsTable.isActive })
       .from(productsTable)
-      .where(
-        and(
-          inArray(productsTable.id, productIds),
-          eq(productsTable.isActive, true)
-        )
-      );
+      .where(and(inArray(productsTable.id, productIds)));
+
+    const inactiveProducts = existingProducts.filter(
+      (p) => p.isActive === false
+    );
 
     const existingProductIds = new Set(existingProducts.map((p) => p.id));
     const missingProducts = sale.products.filter(
@@ -184,6 +240,16 @@ export const addSale = async (sale: SaleFormValues) => {
               status: QuotationStatus.Completed,
             })
             .where(eq(quotationsTable.id, sale.quotationId));
+        }
+
+        // Activate non active products
+        if (inactiveProducts.length > 0) {
+          for (const product of inactiveProducts) {
+            await tx
+              .update(productsTable)
+              .set({ isActive: true })
+              .where(eq(productsTable.id, product.id));
+          }
         }
 
         return { sale: newSale, items: saleItems };
@@ -779,62 +845,16 @@ export const getSales = async (
         )
         .$dynamic();
 
-      // Create conditions array
-      const conditions = [eq(salesTable.isActive, true)];
-
-      // Apply filters if provided
-      if (filters) {
-        // Total Amount range
-        if (filters.totalAmount_min !== undefined) {
-          conditions.push(gte(salesTable.totalAmount, filters.totalAmount_min));
-        }
-        if (filters.totalAmount_max !== undefined) {
-          conditions.push(lte(salesTable.totalAmount, filters.totalAmount_max));
-        }
-
-        // Amount paid range
-        if (filters.amountPaid_min !== undefined) {
-          conditions.push(gte(salesTable.amountPaid, filters.amountPaid_min));
-        }
-        if (filters.amountPaid_max !== undefined) {
-          conditions.push(lte(salesTable.amountPaid, filters.amountPaid_max));
-        }
-
-        // Sale date range
-        if (filters.saleDate_start) {
-          conditions.push(
-            gte(salesTable.saleDate, new Date(filters.saleDate_start))
-          );
-        }
-        if (filters.saleDate_end) {
-          conditions.push(
-            lte(salesTable.saleDate, new Date(filters.saleDate_end))
-          );
-        }
-
-        // Status filter
-        if (filters.status) {
-          conditions.push(eq(salesTable.status, filters.status as SaleStatus));
-        }
-
-        // Payment Status filter
-        if (filters.paymentStatus) {
-          conditions.push(
-            eq(salesTable.paymentStatus, filters.paymentStatus as PaymentStatus)
-          );
-        }
+      const conditions = await buildFilterConditions(filters ?? {});
+      if (conditions.length > 0) {
+        salesQuery = salesQuery.where(and(...conditions));
       }
 
-      // Apply where conditions
-      salesQuery = salesQuery.where(and(...conditions));
-
-      // Apply order by
       salesQuery = salesQuery.orderBy(desc(salesTable.createdAt));
 
-      if (!getAllSales) {
+      if (!getAllSales && limit > 0) {
         salesQuery = salesQuery.limit(limit).offset(page * limit);
       }
-
       const sales = await salesQuery;
 
       // Get all items for these sales in a single query
@@ -949,13 +969,25 @@ export const getSales = async (
       }));
 
       // Get total count for pagination
+      let totalQuery = tx
+        .select({ count: sql<number>`count(*)` })
+        .from(salesTable)
+        .leftJoin(customersTable, eq(salesTable.customerId, customersTable.id))
+        .leftJoin(storesTable, eq(salesTable.storeId, storesTable.id))
+        .leftJoin(deliveriesTable, eq(salesTable.id, deliveriesTable.saleId))
+        .leftJoin(
+          promissoryNotesTable,
+          eq(salesTable.id, promissoryNotesTable.saleId)
+        )
+        .$dynamic();
+
+      if (conditions.length > 0) {
+        totalQuery = totalQuery.where(and(...conditions));
+      }
+
       const total = getAllSales
         ? sales.length
-        : await tx
-            .select({ count: sql<number>`count(*)` })
-            .from(salesTable)
-            .where(and(...conditions))
-            .then((res) => res[0]?.count || 0);
+        : await totalQuery.then((res) => res[0]?.count || 0);
 
       return {
         documents: salesWithItems,

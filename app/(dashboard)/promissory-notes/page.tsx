@@ -1,83 +1,55 @@
-"use client";
-
 import PageWraper from "@/components/PageWraper";
-import PromissoryNoteDialog from "@/components/promissoryNotes/PromissoryNoteDialog";
-import { promissoryNotesColumns } from "@/components/table/columns/promissoryNotesColumns";
-import { DataTable } from "@/components/table/DataTable";
-import { usePromissoryNote } from "@/hooks/usePromissoryNote";
-import { PromissoryNoteStatus, PromissoryNoteWithRelations } from "@/types";
-import { useState } from "react";
+import { PromissoryNoteFilters } from "@/hooks/usePromissoryNote";
+import { getPromissoryNotes } from "@/lib/actions/promissoryNote.actions";
+import dynamic from "next/dynamic";
+import { Suspense } from "react";
+import Loading from "../loading";
 
-const PromissoryNotes = () => {
-  const [openDialog, setOpenDialog] = useState(false);
-  const [selectedPromissoryNote, setSelectedPromissoryNote] = useState(
-    {} as PromissoryNoteWithRelations
+const PromissoryNotesTable = dynamic(
+  () => import("@/components/promissoryNotes/PromissoryNotesTable")
+);
+
+export interface SearchParams {
+  page?: string;
+  pageSize?: string;
+  search?: string;
+  promissoryNoteDate_start?: string;
+  promissoryNoteDate_end?: string;
+  status?: string;
+}
+
+const PromissoryNotes = async ({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) => {
+  const sp = await searchParams;
+  const currentPage = Number(sp.page || 0);
+  const currentPageSize = sp.pageSize === "0" ? 0 : Number(sp.pageSize || 10);
+
+  const filtersForServer: PromissoryNoteFilters = {
+    search: sp.search || undefined,
+    promissoryNoteDate_start: sp.promissoryNoteDate_start || undefined,
+    promissoryNoteDate_end: sp.promissoryNoteDate_end || undefined,
+    status: sp.status || undefined,
+  };
+
+  const initialData = await getPromissoryNotes(
+    currentPage,
+    currentPageSize,
+    currentPageSize === 0,
+    filtersForServer
   );
-  const {
-    promissoryNotes,
-    isLoading,
-    totalItems,
-    page,
-    setPage,
-    pageSize,
-    setPageSize,
-    filters,
-    onFilterChange,
-    defaultFilterValues,
-    refetch,
-    isFetching,
-  } = usePromissoryNote({ initialPageSize: 10 });
 
-  const promissoryNotesFilters = {
-    promissoryNoteDate: {
-      type: "date" as const,
-      label: "Promissory Note Date",
-    },
-    status: {
-      type: "select" as const,
-      label: "Promissory Note Status",
-      options: Object.values(PromissoryNoteStatus).map((item) => ({
-        label: item,
-        value: item,
-      })),
-    },
-  };
-
-  const handleRowClick = (rowData: PromissoryNoteWithRelations) => {
-    setSelectedPromissoryNote(rowData);
-    setOpenDialog(true);
-  };
   return (
     <PageWraper
       title="Promissory Notes"
       buttonText="Add Promissory Note"
       buttonPath="/promissory-notes/create-promissory-note"
     >
-      <>
-        <DataTable
-          columns={promissoryNotesColumns}
-          data={promissoryNotes || []}
-          isLoading={isLoading}
-          totalItems={totalItems}
-          page={page}
-          onPageChange={setPage}
-          pageSize={pageSize}
-          onPageSizeChange={setPageSize}
-          filters={promissoryNotesFilters}
-          filterValues={filters}
-          onFilterChange={onFilterChange}
-          defaultFilterValues={defaultFilterValues}
-          onRowClick={handleRowClick}
-          refetch={refetch}
-          isFetching={isFetching}
-        />
-        <PromissoryNoteDialog
-          mode={"view"}
-          open={openDialog && !!selectedPromissoryNote}
-          onOpenChange={setOpenDialog}
-          promissoryNote={selectedPromissoryNote}
-        />
-      </>
+      <Suspense fallback={<Loading />}>
+        <PromissoryNotesTable initialData={initialData} />
+      </Suspense>
     </PageWraper>
   );
 };

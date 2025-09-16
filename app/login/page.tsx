@@ -1,20 +1,11 @@
 "use client";
 
 import LoginForm from "@/components/forms/LoginForm";
-import { useAuth } from "@/hooks/useAuth";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 
 const LoginPage = () => {
-  const { user } = useAuth();
-  const router = useRouter();
-
-  if (user) {
-    router.replace("/");
-  }
-
   const { companySettings } = useCompanySettings();
 
   return (
