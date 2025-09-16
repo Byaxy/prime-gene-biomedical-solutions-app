@@ -1,71 +1,60 @@
-"use client";
-
-import { useSales } from "@/hooks/useSales";
+import { SaleFilters } from "@/hooks/useSales";
 import PageWraper from "@/components/PageWraper";
-import { DataTable } from "@/components/table/DataTable";
-import { salesColumns } from "@/components/table/columns/salesColumns";
-import SaleDialog from "@/components/sales/SaleDialog";
-import { useState } from "react";
-import { PaymentStatus, SaleStatus, SaleWithRelations } from "@/types";
+import { Suspense } from "react";
 import SalesOverview from "@/components/sales/SalesOverview";
+import dynamic from "next/dynamic";
+import Loading from "../loading";
+import { getSales } from "@/lib/actions/sale.actions";
 
-const Sales = () => {
-  const [openDialog, setOpenDialog] = useState(false);
-  const [selectedSale, setSelectedSale] = useState({} as SaleWithRelations);
-  const {
-    sales,
-    isLoading,
-    totalItems,
-    page,
-    setPage,
-    pageSize,
-    setPageSize,
-    filters,
-    onFilterChange,
-    defaultFilterValues,
-    refetch,
-    isFetching,
-  } = useSales({ initialPageSize: 10 });
+const SalesTable = dynamic(() => import("@/components/sales/SalesTable"));
 
-  const { sales: allSales, isLoading: isLoadingAllSales } = useSales({
-    getAllSales: true,
-  });
+export interface SearchParams {
+  page?: string;
+  pageSize?: string;
+  search?: string;
+  totalAmount_min?: number;
+  totalAmount_max?: number;
+  amountPaid_min?: number;
+  amountPaid_max?: number;
+  saleDate_start?: string;
+  saleDate_end?: string;
+  status?: string;
+  paymentStatus?: string;
+}
 
-  const handleRowClick = (rowData: SaleWithRelations) => {
-    setSelectedSale(rowData);
-    setOpenDialog(true);
+const Sales = async ({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) => {
+  const sp = await searchParams;
+  const currentPage = Number(sp.page || 0);
+  const currentPageSize = sp.pageSize === "0" ? 0 : Number(sp.pageSize || 10);
+
+  const filtersForServer: SaleFilters = {
+    search: sp.search || undefined,
+    totalAmount_min: sp.totalAmount_min
+      ? Number(sp.totalAmount_min)
+      : undefined,
+    totalAmount_max: sp.totalAmount_max
+      ? Number(sp.totalAmount_max)
+      : undefined,
+    amountPaid_min: sp.amountPaid_min ? Number(sp.amountPaid_min) : undefined,
+    amountPaid_max: sp.amountPaid_max ? Number(sp.amountPaid_max) : undefined,
+    saleDate_start: sp.saleDate_start || undefined,
+    saleDate_end: sp.saleDate_end || undefined,
+    status: sp.status || undefined,
+    paymentStatus: sp.paymentStatus || undefined,
   };
 
-  const salesFilters = {
-    totalAmount: {
-      type: "number" as const,
-      label: "Grand Total",
-    },
-    amountPaid: {
-      type: "number" as const,
-      label: "Amount Paid",
-    },
-    saleDate: {
-      type: "date" as const,
-      label: "Sale Date",
-    },
-    status: {
-      type: "select" as const,
-      label: "Sale Status",
-      options: Object.values(SaleStatus).map((item) => ({
-        label: item,
-        value: item,
-      })),
-    },
-    paymentStatus: {
-      type: "select" as const,
-      label: "Payment Status",
-      options: Object.values(PaymentStatus).map((item) => ({
-        label: item,
-        value: item,
-      })),
-    },
-  };
+  const initialData = await getSales(
+    currentPage,
+    currentPageSize,
+    currentPageSize === 0,
+    filtersForServer
+  );
+  const allSales = await getSales(0, 0, true);
+  const isLoadingAllSales = allSales.total === 0;
 
   return (
     <PageWraper
@@ -73,33 +62,13 @@ const Sales = () => {
       buttonText="Create Invoice"
       buttonPath="/sales/create-invoice"
     >
-      <>
-        <SalesOverview sales={allSales || []} isLoading={isLoadingAllSales} />
-
-        <DataTable
-          columns={salesColumns}
-          data={sales || []}
-          isLoading={isLoading}
-          totalItems={totalItems}
-          page={page}
-          onPageChange={setPage}
-          pageSize={pageSize}
-          onPageSizeChange={setPageSize}
-          onRowClick={handleRowClick}
-          filters={salesFilters}
-          filterValues={filters}
-          onFilterChange={onFilterChange}
-          defaultFilterValues={defaultFilterValues}
-          refetch={refetch}
-          isFetching={isFetching}
+      <Suspense fallback={<Loading />}>
+        <SalesOverview
+          sales={allSales.documents || []}
+          isLoading={isLoadingAllSales}
         />
-        <SaleDialog
-          mode={"view"}
-          open={openDialog && !!selectedSale}
-          onOpenChange={setOpenDialog}
-          sale={selectedSale}
-        />
-      </>
+        <SalesTable initialData={initialData} />
+      </Suspense>
     </PageWraper>
   );
 };

@@ -10,17 +10,19 @@ import {
 } from "@/lib/actions/quotation.actions";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { QuotationFormValues } from "@/lib/validation";
-import { Attachment } from "@/types";
+import { Attachment, QuotationWithRelations } from "@/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useTransition } from "react";
 import toast from "react-hot-toast";
 
 interface UseQuotationsOptions {
   getAllQuotations?: boolean;
-  initialPageSize?: number;
+  initialData?: { documents: QuotationWithRelations[]; total: number };
 }
 
 export interface QuotationFilters {
+  search?: string;
   totalAmount_min?: number;
   totalAmount_max?: number;
   quotationDate_start?: string;
@@ -40,90 +42,232 @@ export const defaultQuotationFilters: QuotationFilters = {
 
 export const useQuotations = ({
   getAllQuotations = false,
-  initialPageSize = 10,
+  initialData,
 }: UseQuotationsOptions = {}) => {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(initialPageSize);
-  const [filters, setFilters] = useState<QuotationFilters>(
-    defaultQuotationFilters
+  const [isPending, startTransition] = useTransition();
+
+  // Parse current state from URL - single source of truth
+  const currentState = useMemo(() => {
+    if (getAllQuotations) {
+      return {
+        page: 0,
+        pageSize: 0,
+        search: "",
+      };
+    }
+
+    const page = Number(searchParams.get("page") || 0);
+    const pageSize = Number(searchParams.get("pageSize") || 10);
+    const search = searchParams.get("search") || "";
+
+    const filters: QuotationFilters = {
+      search: search || undefined,
+      status: searchParams.get("status") || undefined,
+      convertedToSale: searchParams.get("convertedToSale")
+        ? searchParams.get("convertedToSale") === "true"
+        : undefined,
+      totalAmount_min: searchParams.get("totalAmount_min")
+        ? Number(searchParams.get("totalAmount_min"))
+        : undefined,
+      totalAmount_max: searchParams.get("totalAmount_max")
+        ? Number(searchParams.get("totalAmount_max"))
+        : undefined,
+      quotationDate_start: searchParams.get("quotationDate_start") || undefined,
+      quotationDate_end: searchParams.get("quotationDate_end") || undefined,
+    };
+
+    return { page, pageSize, filters, search };
+  }, [getAllQuotations, searchParams]);
+
+  // Create stable query key
+  const queryKey = useMemo(() => {
+    const { page, pageSize, filters } = currentState;
+    const filterString = JSON.stringify(filters);
+    return ["quotations", page, pageSize, filterString];
+  }, [currentState]);
+
+  // Main query with server state
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      const { page, pageSize, filters } = currentState;
+      return getQuotations(
+        page,
+        pageSize,
+        getAllQuotations || pageSize === 0,
+        filters
+      );
+    },
+    initialData: initialData ? () => initialData : undefined,
+    staleTime: getAllQuotations ? 60000 : 30000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
+
+  // Optimistic navigation function
+  const navigate = useCallback(
+    (
+      updates: Partial<{
+        page: number;
+        pageSize: number;
+        search: string;
+        filters: Partial<QuotationFilters>;
+      }>
+    ) => {
+      const params = new URLSearchParams(searchParams.toString());
+
+      // Apply updates
+      if (updates.page !== undefined) {
+        if (updates.page === 0) {
+          params.delete("page");
+        } else {
+          params.set("page", String(updates.page));
+        }
+      }
+
+      if (updates.pageSize !== undefined) {
+        if (updates.pageSize === 10) {
+          params.delete("pageSize");
+        } else {
+          params.set("pageSize", String(updates.pageSize));
+        }
+      }
+
+      if (updates.search !== undefined) {
+        if (updates.search.trim()) {
+          params.set("search", updates.search.trim());
+        } else {
+          params.delete("search");
+        }
+        params.delete("page");
+      }
+
+      if (updates.filters) {
+        Object.keys(defaultQuotationFilters).forEach((key) =>
+          params.delete(key)
+        );
+
+        Object.entries(updates.filters).forEach(([key, value]) => {
+          if (value === undefined || value === "" || value === null) {
+            params.delete(key);
+          } else {
+            params.set(key, String(value));
+          }
+        });
+        params.delete("page");
+      }
+
+      const newUrl = `?${params.toString()}`;
+
+      // Use startTransition for non-urgent updates
+      startTransition(() => {
+        router.push(newUrl, { scroll: false });
+      });
+
+      // Prefetch the new data immediately
+      const newParams = new URLSearchParams(newUrl.substring(1));
+      const newPage = Number(newParams.get("page") || 0);
+      const newPageSize = Number(newParams.get("pageSize") || 10);
+      const newFilters: QuotationFilters = {
+        search: newParams.get("search") || undefined,
+        status: newParams.get("status") || undefined,
+        convertedToSale: newParams.get("convertedToSale")
+          ? newParams.get("convertedToSale") === "true"
+          : undefined,
+        totalAmount_min: newParams.get("totalAmount_min")
+          ? Number(newParams.get("totalAmount_min"))
+          : undefined,
+        totalAmount_max: newParams.get("totalAmount_max")
+          ? Number(newParams.get("totalAmount_max"))
+          : undefined,
+        quotationDate_start: newParams.get("quotationDate_start") || undefined,
+        quotationDate_end: newParams.get("quotationDate_end") || undefined,
+      };
+
+      const newQueryKey = [
+        "quotations",
+        newPage,
+        newPageSize,
+        JSON.stringify(newFilters),
+      ];
+
+      queryClient.prefetchQuery({
+        queryKey: newQueryKey,
+        queryFn: () =>
+          getQuotations(newPage, newPageSize, newPageSize === 0, newFilters),
+      });
+    },
+    [router, searchParams, queryClient]
   );
 
-  const shouldFetchAll = getAllQuotations;
-
-  const isShowAllMode = pageSize === 0;
-
-  // Query for all Quotations
-  const allQuotationsQuery = useQuery({
-    queryKey: ["quotations", "paginatedQuotations", filters],
-    queryFn: async () => {
-      const result = await getQuotations(0, 0, true, filters);
-      return result.documents;
+  const setPage = useCallback(
+    (page: number) => {
+      if (getAllQuotations) return;
+      navigate({ page });
     },
-    enabled: shouldFetchAll || isShowAllMode,
-  });
+    [getAllQuotations, navigate]
+  );
 
-  // Query for paginated Quotations
-  const paginatedQuotationsQuery = useQuery({
-    queryKey: ["quotations", "paginatedQuotations", page, pageSize, filters],
-    queryFn: async () => {
-      const result = await getQuotations(page, pageSize, false, filters);
-      return result;
+  const setPageSize = useCallback(
+    (pageSize: number) => {
+      if (getAllQuotations) return;
+      navigate({ pageSize, page: 0 });
     },
-    enabled: !shouldFetchAll || !isShowAllMode,
-  });
+    [getAllQuotations, navigate]
+  );
 
-  // Determine which query data to use
-  const activeQuery =
-    shouldFetchAll || isShowAllMode
-      ? allQuotationsQuery
-      : paginatedQuotationsQuery;
-  const quotations =
-    (shouldFetchAll || isShowAllMode
-      ? activeQuery.data
-      : activeQuery.data?.documents) || [];
-  const totalItems = activeQuery.data?.total || 0;
+  const setSearch = useCallback(
+    (search: string) => {
+      if (getAllQuotations) return;
+      navigate({ search });
+    },
+    [getAllQuotations, navigate]
+  );
 
-  // Prefetch next page for table view
+  const setFilters = useCallback(
+    (filters: Partial<QuotationFilters>) => {
+      if (getAllQuotations) return;
+      navigate({ filters });
+    },
+    [getAllQuotations, navigate]
+  );
+
+  const clearFilters = useCallback(() => {
+    if (getAllQuotations) return;
+    navigate({
+      filters: defaultQuotationFilters,
+      search: "",
+      page: 0,
+      pageSize: 10,
+    });
+  }, [getAllQuotations, navigate]);
+
+  // Real-time updates
   useEffect(() => {
-    if (
-      !shouldFetchAll &&
-      !isShowAllMode &&
-      paginatedQuotationsQuery.data &&
-      page * pageSize < paginatedQuotationsQuery.data.total - pageSize
-    ) {
-      queryClient.prefetchQuery({
-        queryKey: [
-          "quotations",
-          "paginatedQuotations",
-          page + 1,
-          pageSize,
-          filters,
-        ],
-        queryFn: () => getQuotations(page + 1, pageSize, false, filters),
-      });
-    }
-  }, [
-    page,
-    pageSize,
-    paginatedQuotationsQuery.data,
-    queryClient,
-    shouldFetchAll,
-    isShowAllMode,
-    filters,
-  ]);
+    const supabase = createSupabaseBrowserClient();
 
-  // Handle filter changes
-  const handleFilterChange = (newFilters: QuotationFilters) => {
-    setFilters(newFilters);
-    setPage(0);
-  };
+    const channel = supabase
+      .channel("quotations_changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "quotations",
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["quotations"] });
+        }
+      )
+      .subscribe();
 
-  // Handle page size changes
-  const handlePageSizeChange = (newPageSize: number) => {
-    setPageSize(newPageSize);
-    setPage(0);
-  };
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   const { mutate: addQuotationMutation, status: addQuotationStatus } =
     useMutation({
@@ -172,7 +316,7 @@ export const useQuotations = ({
       },
       onSuccess: () => {
         queryClient.invalidateQueries({
-          queryKey: ["quotations", "paginatedQuotations"],
+          queryKey: ["quotations"],
         });
       },
     });
@@ -243,7 +387,7 @@ export const useQuotations = ({
       },
       onSuccess: () => {
         queryClient.invalidateQueries({
-          queryKey: ["quotations", "paginatedQuotations"],
+          queryKey: ["quotations"],
         });
       },
     });
@@ -255,7 +399,7 @@ export const useQuotations = ({
     mutationFn: (id: string) => softDeleteQuotation(id),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["quotations", "paginatedQuotations"],
+        queryKey: ["quotations"],
       });
     },
   });
@@ -265,7 +409,7 @@ export const useQuotations = ({
       mutationFn: (id: string) => deleteQuotation(id),
       onSuccess: () => {
         queryClient.invalidateQueries({
-          queryKey: ["quotations", "paginatedQuotations"],
+          queryKey: ["quotations"],
         });
         toast.success("Quotation deleted successfully");
       },
@@ -276,19 +420,21 @@ export const useQuotations = ({
     });
 
   return {
-    quotations,
-    totalItems,
-    isLoading: activeQuery.isLoading,
-    error: activeQuery.error,
-    setPageSize: handlePageSizeChange,
-    refetch: activeQuery.refetch,
-    isFetching: activeQuery.isFetching,
-    page,
+    quotations: data?.documents || [],
+    totalItems: data?.total || 0,
+    page: currentState.page,
+    pageSize: currentState.pageSize,
+    search: currentState.search,
+    filters: currentState.filters,
+    isLoading: isLoading || isPending,
+    isFetching,
+    error,
     setPage,
-    pageSize,
-    filters,
-    onFilterChange: handleFilterChange,
-    defaultFilterValues: defaultQuotationFilters,
+    setPageSize,
+    setSearch,
+    setFilters,
+    clearFilters,
+    refetch: refetch,
     addQuotation: addQuotationMutation,
     isAddingQuotation: addQuotationStatus === "pending",
     editQuotation: editQuotationMutation,

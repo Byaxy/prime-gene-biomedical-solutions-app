@@ -149,7 +149,7 @@ const DeliveryNote = ({ delivery }: { delivery: DeliveryWithRelations }) => {
               <Text
                 style={{ ...styles.deliveryInfo, fontWeight: "bold", flex: 4 }}
               >
-                {formatDateTime(sale.saleDate).dateTime}
+                {sale ? formatDateTime(sale.saleDate).dateTime : "N/A"}
               </Text>
             </View>
             <View style={styles.deliveryInfoContainer}>
@@ -159,7 +159,7 @@ const DeliveryNote = ({ delivery }: { delivery: DeliveryWithRelations }) => {
               <Text
                 style={{ ...styles.deliveryInfo, fontWeight: "bold", flex: 4 }}
               >
-                {sale.invoiceNumber}
+                {sale ? sale.invoiceNumber : "N/A"}
               </Text>
             </View>
             <View style={styles.deliveryInfoContainer}>

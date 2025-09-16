@@ -12,9 +12,50 @@ import {
   storesTable,
 } from "@/drizzle/schema";
 import { DeliveryStatus } from "@/types";
-import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import { DeliveryFilters } from "@/hooks/useDeliveries";
 import { getSaleById } from "./sale.actions";
+
+const buildFilterConditions = (filters: DeliveryFilters) => {
+  const conditions = [];
+
+  conditions.push(eq(deliveriesTable.isActive, true));
+
+  // Search logic using ILIKE on joined tables.
+  // GIN indexes are crucial here.
+  if (filters.search?.trim()) {
+    const searchTerm = `%${filters.search.trim()}%`;
+    conditions.push(
+      or(
+        ilike(deliveriesTable.deliveryRefNumber, searchTerm),
+        ilike(customersTable.name, searchTerm),
+        ilike(salesTable.invoiceNumber, searchTerm),
+        ilike(storesTable.name, searchTerm)
+      )
+    );
+  }
+
+  // Delivery date range
+  if (filters.deliveryDate_start) {
+    conditions.push(
+      gte(deliveriesTable.deliveryDate, new Date(filters.deliveryDate_start))
+    );
+  }
+  if (filters.deliveryDate_end) {
+    conditions.push(
+      lte(deliveriesTable.deliveryDate, new Date(filters.deliveryDate_end))
+    );
+  }
+
+  // Status filter
+  if (filters.status) {
+    conditions.push(
+      eq(deliveriesTable.status, filters.status as DeliveryStatus)
+    );
+  }
+
+  return conditions;
+};
 
 // Add a new delivery
 export const addDelivery = async (delivery: DeliveryFormValues) => {
@@ -170,46 +211,16 @@ export const getDeliveries = async (
         .leftJoin(storesTable, eq(deliveriesTable.storeId, storesTable.id))
         .$dynamic();
 
-      // Create conditions array
-      const conditions = [eq(deliveriesTable.isActive, true)];
-
-      // Apply filters if provided
-      if (filters) {
-        // Delivery date range
-        if (filters.deliveryDate_start) {
-          conditions.push(
-            gte(
-              deliveriesTable.deliveryDate,
-              new Date(filters.deliveryDate_start)
-            )
-          );
-        }
-        if (filters.deliveryDate_end) {
-          conditions.push(
-            lte(
-              deliveriesTable.deliveryDate,
-              new Date(filters.deliveryDate_end)
-            )
-          );
-        }
-
-        // Status filter
-        if (filters.status) {
-          conditions.push(
-            eq(deliveriesTable.status, filters.status as DeliveryStatus)
-          );
-        }
+      const conditions = await buildFilterConditions(filters ?? {});
+      if (conditions.length > 0) {
+        deliveriesQuery = deliveriesQuery.where(and(...conditions));
       }
 
-      // Apply where conditions
-      deliveriesQuery = deliveriesQuery.where(and(...conditions));
-
-      // Apply order by
       deliveriesQuery = deliveriesQuery.orderBy(
         desc(deliveriesTable.createdAt)
       );
 
-      if (!getAllDeliveries) {
+      if (!getAllDeliveries && limit > 0) {
         deliveriesQuery = deliveriesQuery.limit(limit).offset(page * limit);
       }
 
@@ -240,13 +251,24 @@ export const getDeliveries = async (
       });
 
       // Get total count for pagination
+      let totalQuery = tx
+        .select({ count: sql<number>`count(*)` })
+        .from(deliveriesTable)
+        .leftJoin(salesTable, eq(deliveriesTable.saleId, salesTable.id))
+        .leftJoin(
+          customersTable,
+          eq(deliveriesTable.customerId, customersTable.id)
+        )
+        .leftJoin(storesTable, eq(deliveriesTable.storeId, storesTable.id))
+        .$dynamic();
+
+      if (conditions.length > 0) {
+        totalQuery = totalQuery.where(and(...conditions));
+      }
+
       const total = getAllDeliveries
         ? deliveries.length
-        : await tx
-            .select({ count: sql<number>`count(*)` })
-            .from(deliveriesTable)
-            .where(and(...conditions))
-            .then((res) => res[0]?.count || 0);
+        : await totalQuery.then((res) => res[0]?.count || 0);
 
       return {
         documents: deliveries.map((delivery) => ({

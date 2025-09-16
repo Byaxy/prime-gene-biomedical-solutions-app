@@ -10,10 +10,56 @@ import {
   promissoryNotesTable,
   salesTable,
 } from "@/drizzle/schema";
-import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import { PromissoryNoteFilters } from "@/hooks/usePromissoryNote";
 import { PromissoryNoteStatus } from "@/types";
 import { getSaleById } from "./sale.actions";
+
+const buildFilterConditions = (filters: PromissoryNoteFilters) => {
+  const conditions = [];
+
+  conditions.push(eq(promissoryNotesTable.isActive, true));
+
+  // Search logic using ILIKE on joined tables.
+  // GIN indexes are crucial here.
+  if (filters.search?.trim()) {
+    const searchTerm = `%${filters.search.trim()}%`;
+    conditions.push(
+      or(
+        ilike(promissoryNotesTable.promissoryNoteRefNumber, searchTerm),
+        ilike(customersTable.name, searchTerm),
+        ilike(salesTable.invoiceNumber, searchTerm)
+      )
+    );
+  }
+
+  // promissory note date range
+  if (filters.promissoryNoteDate_start) {
+    conditions.push(
+      gte(
+        promissoryNotesTable.promissoryNoteDate,
+        new Date(filters.promissoryNoteDate_start)
+      )
+    );
+  }
+  if (filters.promissoryNoteDate_end) {
+    conditions.push(
+      lte(
+        promissoryNotesTable.promissoryNoteDate,
+        new Date(filters.promissoryNoteDate_end)
+      )
+    );
+  }
+
+  // Status filter
+  if (filters.status) {
+    conditions.push(
+      eq(promissoryNotesTable.status, filters.status as PromissoryNoteStatus)
+    );
+  }
+
+  return conditions;
+};
 
 export const addPromissoryNote = async (
   promissoryNote: PromissoryNoteFormValues
@@ -302,50 +348,16 @@ export const getPromissoryNotes = async (
           eq(promissoryNotesTable.customerId, customersTable.id)
         )
         .$dynamic();
-
-      // Create conditions array
-      const conditions = [eq(promissoryNotesTable.isActive, true)];
-
-      // Apply filters if provided
-      if (filters) {
-        // promissory note date range
-        if (filters.promissoryNoteDate_start) {
-          conditions.push(
-            gte(
-              promissoryNotesTable.promissoryNoteDate,
-              new Date(filters.promissoryNoteDate_start)
-            )
-          );
-        }
-        if (filters.promissoryNoteDate_end) {
-          conditions.push(
-            lte(
-              promissoryNotesTable.promissoryNoteDate,
-              new Date(filters.promissoryNoteDate_end)
-            )
-          );
-        }
-
-        // Status filter
-        if (filters.status) {
-          conditions.push(
-            eq(
-              promissoryNotesTable.status,
-              filters.status as PromissoryNoteStatus
-            )
-          );
-        }
+      const conditions = await buildFilterConditions(filters ?? {});
+      if (conditions.length > 0) {
+        promissoryNotesQuery = promissoryNotesQuery.where(and(...conditions));
       }
 
-      // Apply where conditions
-      promissoryNotesQuery = promissoryNotesQuery.where(and(...conditions));
-
-      // Apply order by
       promissoryNotesQuery = promissoryNotesQuery.orderBy(
         desc(promissoryNotesTable.createdAt)
       );
 
-      if (!getAllPromissoryNotes) {
+      if (!getAllPromissoryNotes && limit > 0) {
         promissoryNotesQuery = promissoryNotesQuery
           .limit(limit)
           .offset(page * limit);
@@ -383,13 +395,23 @@ export const getPromissoryNotes = async (
       });
 
       // Get total count for pagination
+      let totalQuery = tx
+        .select({ count: sql<number>`count(*)` })
+        .from(promissoryNotesTable)
+        .leftJoin(salesTable, eq(promissoryNotesTable.saleId, salesTable.id))
+        .leftJoin(
+          customersTable,
+          eq(promissoryNotesTable.customerId, customersTable.id)
+        )
+        .$dynamic();
+
+      if (conditions.length > 0) {
+        totalQuery = totalQuery.where(and(...conditions));
+      }
+
       const total = getAllPromissoryNotes
         ? promissoryNotes.length
-        : await tx
-            .select({ count: sql<number>`count(*)` })
-            .from(promissoryNotesTable)
-            .where(and(...conditions))
-            .then((res) => res[0]?.count || 0);
+        : await totalQuery.then((res) => res[0]?.count || 0);
 
       return {
         documents: promissoryNotes.map((promissoryNote) => ({

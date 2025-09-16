@@ -1,14 +1,13 @@
-"use client";
-
 import Link from "next/link";
 import { Button } from "../ui/button";
-import { DataTable } from "../table/DataTable";
-import { useSales } from "@/hooks/useSales";
 import { dashboardSalesColumns } from "../table/columns/dashboardSalesColumns";
+import { ItemsTable } from "../table/ItemsTable";
+import { getSales } from "@/lib/actions/sale.actions";
 
-const DashboardSalesTable = () => {
-  const { sales, isLoading, totalItems, page, setPage, pageSize, setPageSize } =
-    useSales({ initialPageSize: 5 });
+const DashboardSalesTable = async () => {
+  const salesData = await getSales(0, 10, false);
+
+  const sales = salesData.documents;
 
   return (
     <div className="w-full bg-white rounded-lg shadow-sm p-5 space-y-6">
@@ -24,17 +23,7 @@ const DashboardSalesTable = () => {
           </Link>
         </Button>
       </div>
-      <DataTable
-        columns={dashboardSalesColumns}
-        data={sales || []}
-        isLoading={isLoading}
-        hideSearch={true}
-        totalItems={totalItems}
-        page={page}
-        onPageChange={setPage}
-        pageSize={pageSize}
-        onPageSizeChange={setPageSize}
-      />
+      <ItemsTable columns={dashboardSalesColumns} data={sales || []} />
     </div>
   );
 };

@@ -1,24 +1,25 @@
 "use client";
 
-import { DeliveryFilters, useDeliveries } from "@/hooks/useDeliveries";
-import { DeliveryStatus, DeliveryWithRelations } from "@/types";
-import React, { useCallback, useEffect, useState } from "react";
-import { DataTable } from "../table/DataTable";
-import { deliveriesColumns } from "../table/columns/deliveriesColumns";
-import DeliveryDialog from "./DeliveryDialog";
 import { useDebounce } from "@/hooks/useDebounce";
+import { QuotationFilters, useQuotations } from "@/hooks/useQuotations";
+import { QuotationStatus, QuotationWithRelations } from "@/types";
+import { useCallback, useEffect, useState } from "react";
+import { DataTable } from "../table/DataTable";
+import QuotationDialog from "./QuotationsDialog";
+import { quotationsColumns } from "../table/columns/quotationsColumns";
 
 interface Props {
-  initialData: { documents: DeliveryWithRelations[]; total: number };
+  initialData: { documents: QuotationWithRelations[]; total: number };
 }
 
-const DeliveriesTable = ({ initialData }: Props) => {
+const QuotationsTable = ({ initialData }: Props) => {
   const [openDialog, setOpenDialog] = useState(false);
-  const [selectedDelivery, setSelectedDelivery] = useState(
-    {} as DeliveryWithRelations
+  const [selectedRow, setSelectedRow] = useState<QuotationWithRelations>(
+    {} as QuotationWithRelations
   );
+
   const {
-    deliveries,
+    quotations,
     totalItems,
     page,
     pageSize,
@@ -32,7 +33,7 @@ const DeliveriesTable = ({ initialData }: Props) => {
     setFilters,
     clearFilters,
     refetch,
-  } = useDeliveries({ initialData });
+  } = useQuotations({ initialData });
 
   // Local search state for immediate UI feedback
   const [localSearch, setLocalSearch] = useState(search);
@@ -45,25 +46,38 @@ const DeliveriesTable = ({ initialData }: Props) => {
     }
   }, [debouncedSearch, search, setSearch]);
 
-  const handleRowClick = (rowData: DeliveryWithRelations) => {
-    setSelectedDelivery(rowData);
+  const handleRowClick = (rowData: QuotationWithRelations) => {
+    setSelectedRow(rowData);
     setOpenDialog(true);
   };
 
-  const deliveriesFilters = {
-    deliveryDate: {
+  const quotationFilters = {
+    totalAmount: {
+      type: "number" as const,
+      label: "Grand Total",
+    },
+    quotationDate: {
       type: "date" as const,
-      label: "Delivery Date",
+      label: "Quotation Date",
     },
     status: {
       type: "select" as const,
-      label: "Delivery Status",
-      options: Object.values(DeliveryStatus).map((item) => ({
+      label: "Quotation Status",
+      options: Object.values(QuotationStatus).map((item) => ({
         label: item,
         value: item,
       })),
     },
+    convertedToSale: {
+      type: "select" as const,
+      label: "Converted to Sale?",
+      options: [
+        { value: "true", label: "True" },
+        { value: "false", label: "False" },
+      ],
+    },
   };
+
   // Event handlers
   const handleSearchChange = useCallback((newSearch: string) => {
     setLocalSearch(newSearch);
@@ -81,7 +95,7 @@ const DeliveriesTable = ({ initialData }: Props) => {
   }, [clearFilters, setSearch]);
 
   const handleFilterChange = useCallback(
-    (newFilters: DeliveryFilters) => {
+    (newFilters: QuotationFilters) => {
       setFilters(newFilters);
     },
     [setFilters]
@@ -97,12 +111,11 @@ const DeliveriesTable = ({ initialData }: Props) => {
       }
     }, 100);
   };
-
   return (
-    <React.Fragment>
+    <>
       <DataTable
-        columns={deliveriesColumns}
-        data={deliveries || []}
+        columns={quotationsColumns}
+        data={quotations || []}
         isLoading={isLoading}
         isFetching={isFetching}
         totalItems={totalItems}
@@ -112,7 +125,7 @@ const DeliveriesTable = ({ initialData }: Props) => {
         onPageSizeChange={setPageSize}
         onRowClick={handleRowClick}
         refetch={refetch}
-        filters={deliveriesFilters}
+        filters={quotationFilters}
         filterValues={filters}
         onFilterChange={handleFilterChange}
         onClearFilters={handleClearFilters}
@@ -120,15 +133,14 @@ const DeliveriesTable = ({ initialData }: Props) => {
         onSearchChange={handleSearchChange}
         onClearSearch={handleClearSearch}
       />
-
-      <DeliveryDialog
+      <QuotationDialog
         mode={"view"}
-        open={openDialog && !!selectedDelivery}
+        open={openDialog && !!selectedRow}
         onOpenChange={closeDialog}
-        delivery={selectedDelivery}
+        quotation={selectedRow}
       />
-    </React.Fragment>
+    </>
   );
 };
 
-export default DeliveriesTable;
+export default QuotationsTable;

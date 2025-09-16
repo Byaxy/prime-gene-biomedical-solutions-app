@@ -90,19 +90,8 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
     QuotationWithRelations[] | null
   >(null);
 
-  const [states, setStates] = useState<IState[]>(() =>
-    initialData?.sale.deliveryAddress?.country
-      ? State.getStatesOfCountry(initialData?.sale.deliveryAddress?.country)
-      : []
-  );
-  const [cities, setCities] = useState<ICity[]>(() =>
-    initialData?.sale.deliveryAddress?.state
-      ? City.getCitiesOfState(
-          initialData?.sale.deliveryAddress?.country || "",
-          initialData?.sale.deliveryAddress?.state
-        )
-      : []
-  );
+  const [states, setStates] = useState<IState[]>([]);
+  const [cities, setCities] = useState<ICity[]>([]);
 
   const { products, isLoading: productsLoading } = useProducts({
     getAllActive: true,
@@ -148,16 +137,18 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
       return result;
     },
     enabled: mode === "create",
+    refetchOnWindowFocus: false,
+    staleTime: Infinity,
   });
 
   const router = useRouter();
 
-  // Default values
+  // Memoized default values for new sales
   const defaultValues = useMemo(
     () => ({
       invoiceNumber: generatedInvoiceNumber || "",
       saleDate: new Date(),
-      customerId: sourceQuotation?.quotation.customerId || "",
+      customerId: "",
       storeId: "",
       subTotal: 0,
       totalAmount: 0,
@@ -167,68 +158,32 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
       status: SaleStatus.Pending as SaleStatus,
       paymentMethod: PaymentMethod.Cash as PaymentMethod,
       paymentStatus: PaymentStatus.Pending as PaymentStatus,
-      notes: sourceQuotation?.quotation.notes || "",
+      notes: "",
       products: [],
-      quotationId: sourceQuotation?.quotation.id || undefined,
+      quotationId: undefined,
       attachments: [],
-      isDeliveryAddressAdded:
-        sourceQuotation?.quotation.isDeliveryAddressAdded || false,
+      isDeliveryAddressAdded: false,
       deliveryAddress: {
-        addressName:
-          sourceQuotation?.quotation.deliveryAddress?.addressName || "",
-        address: sourceQuotation?.quotation.deliveryAddress?.address || "",
-        city: sourceQuotation?.quotation.deliveryAddress?.city || "",
-        state: sourceQuotation?.quotation.deliveryAddress?.state || "",
-        country: sourceQuotation?.quotation.deliveryAddress?.country || "",
-        email: sourceQuotation?.quotation.deliveryAddress?.email || "",
-        phone: sourceQuotation?.quotation.deliveryAddress?.phone || "",
+        addressName: "",
+        address: "",
+        city: "",
+        state: "",
+        country: "",
+        email: "",
+        phone: "",
       },
       selectedProductId: "",
     }),
-    [generatedInvoiceNumber, sourceQuotation]
+    [generatedInvoiceNumber]
   );
 
   const form = useForm<SaleFormValues>({
     resolver: zodResolver(SaleFormValidation),
     mode: "all",
-    defaultValues: initialData
-      ? {
-          invoiceNumber: initialData?.sale.invoiceNumber || "",
-          saleDate: initialData?.sale.saleDate
-            ? new Date(initialData.sale.saleDate)
-            : new Date(),
-          products: initialData?.products || [],
-          customerId: initialData?.sale.customerId || "",
-          storeId: initialData?.sale.storeId || "",
-          status: initialData?.sale.status || SaleStatus.Pending,
-          notes: initialData?.sale.notes || "",
-          amountPaid: initialData?.sale.amountPaid || 0,
-          discountAmount: initialData?.sale.discountAmount || 0,
-          totalTaxAmount: initialData?.sale.totalTaxAmount || 0,
-          subTotal: initialData?.sale.subTotal || 0,
-          totalAmount: initialData?.sale.totalAmount || 0,
-          attachments: initialData?.sale.attachments || [],
-          isDeliveryAddressAdded:
-            initialData?.sale.isDeliveryAddressAdded || false,
-          deliveryAddress: {
-            addressName: initialData?.sale.deliveryAddress?.addressName || "",
-            address: initialData?.sale.deliveryAddress?.address || "",
-            city: initialData?.sale.deliveryAddress?.city || "",
-            state: initialData?.sale.deliveryAddress?.state || "",
-            country: initialData?.sale.deliveryAddress?.country || "",
-            email: initialData?.sale.deliveryAddress?.email || "",
-            phone: initialData?.sale.deliveryAddress?.phone || "",
-          },
-          paymentMethod: initialData?.sale.paymentMethod || PaymentMethod.Cash,
-          paymentStatus:
-            initialData?.sale.paymentStatus || PaymentStatus.Pending,
-          quotationId: initialData?.sale.quotationId || undefined,
-          selectedProductId: "",
-        }
-      : defaultValues,
+    defaultValues: defaultValues,
   });
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, replace } = useFieldArray({
     control: form.control,
     name: "products",
   });
@@ -240,13 +195,15 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
   const selectedCountry = form.watch("deliveryAddress.country");
   const selectedState = form.watch("deliveryAddress.state");
 
-  const watchedFields = fields.map((_, index) => ({
-    quantity: form.watch(`products.${index}.quantity`),
-    unitPrice: form.watch(`products.${index}.unitPrice`),
-    taxRateId: form.watch(`products.${index}.taxRateId`),
-    discountRate: form.watch(`products.${index}.discountRate`),
-    lotNumber: form.watch(`products.${index}.inventoryStock`),
-  }));
+  const watchedProductFields = useMemo(() => {
+    return fields.map((_, index) => ({
+      quantity: form.watch(`products.${index}.quantity`),
+      unitPrice: form.watch(`products.${index}.unitPrice`),
+      taxRateId: form.watch(`products.${index}.taxRateId`),
+      discountRate: form.watch(`products.${index}.discountRate`),
+      inventoryStock: form.watch(`products.${index}.inventoryStock`),
+    }));
+  }, [form, fields]);
 
   const filteredProducts = products?.reduce(
     (acc: Product[], product: ProductWithRelations) => {
@@ -302,69 +259,87 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
     },
     []
   );
-
-  // Set initial values for the form
+  // initialize data in edit mode
   useEffect(() => {
-    // Editing an existing sale
-    if (initialData && inventoryStock) {
-      if (initialData.sale.deliveryAddress?.country) {
-        const countryStates =
-          State.getStatesOfCountry(initialData.sale.deliveryAddress.country) ||
-          [];
-        setStates(countryStates);
-
-        if (initialData.sale.deliveryAddress?.state) {
-          const stateCities =
-            City.getCitiesOfState(
-              initialData.sale.deliveryAddress.country,
-              initialData.sale.deliveryAddress.state
-            ) || [];
-          setCities(stateCities);
-        }
-      }
-
+    if (initialData) {
       setTimeout(() => {
-        form.reset({
-          invoiceNumber: initialData.sale.invoiceNumber,
-          saleDate: new Date(initialData.sale.saleDate || Date.now()),
-          products: initialData?.products || [],
-          customerId: initialData.sale.customerId || "",
-          storeId: initialData?.sale.storeId || "",
-          status: initialData.sale.status,
-          notes: initialData.sale.notes || "",
-          amountPaid: initialData.sale.amountPaid,
-          discountAmount: initialData.sale.discountAmount || 0,
-          totalTaxAmount: initialData.sale.totalTaxAmount || 0,
-          subTotal: initialData.sale.subTotal || 0,
-          totalAmount: initialData.sale.totalAmount || 0,
-          attachments: initialData.sale.attachments || [],
-          isDeliveryAddressAdded:
-            initialData.sale.isDeliveryAddressAdded || false,
-          deliveryAddress: {
-            addressName: initialData.sale.deliveryAddress?.addressName || "",
-            address: initialData.sale.deliveryAddress?.address || "",
-            city: initialData.sale.deliveryAddress?.city || "",
-            state: initialData.sale.deliveryAddress?.state || "",
-            country: initialData.sale.deliveryAddress?.country || "",
-            email: initialData.sale.deliveryAddress?.email || "",
-            phone: initialData.sale.deliveryAddress?.phone || "",
-          },
-          paymentMethod: initialData?.sale.paymentMethod || PaymentMethod.Cash,
-          paymentStatus:
-            initialData?.sale.paymentStatus || PaymentStatus.Pending,
-          quotationId: initialData?.sale.quotationId || undefined,
-          selectedProductId: "",
+        form.setValue("invoiceNumber", initialData.sale.invoiceNumber || "");
+        form.setValue(
+          "saleDate",
+          initialData.sale.saleDate
+            ? new Date(initialData.sale.saleDate)
+            : new Date()
+        );
+        form.setValue("products", initialData.products || []);
+        form.setValue("customerId", initialData.sale.customerId || "");
+        form.setValue("storeId", initialData.sale.storeId || "");
+        form.setValue("status", initialData.sale.status || SaleStatus.Pending);
+        form.setValue("notes", initialData.sale.notes || "");
+        form.setValue("amountPaid", initialData.sale.amountPaid || 0);
+        form.setValue("discountAmount", initialData.sale.discountAmount || 0);
+        form.setValue("totalTaxAmount", initialData.sale.totalTaxAmount || 0);
+        form.setValue("subTotal", initialData.sale.subTotal || 0);
+        form.setValue("totalAmount", initialData.sale.totalAmount || 0);
+        form.setValue("attachments", initialData.sale.attachments || []);
+        form.setValue(
+          "isDeliveryAddressAdded",
+          initialData.sale.isDeliveryAddressAdded || false
+        );
+        form.setValue("deliveryAddress", {
+          addressName: initialData.sale.deliveryAddress?.addressName || "",
+          address: initialData.sale.deliveryAddress?.address || "",
+          city: initialData.sale.deliveryAddress?.city || "",
+          state: initialData.sale.deliveryAddress?.state || "",
+          country: initialData.sale.deliveryAddress?.country || "",
+          email: initialData.sale.deliveryAddress?.email || "",
+          phone: initialData.sale.deliveryAddress?.phone || "",
         });
+        form.setValue(
+          "paymentMethod",
+          initialData.sale.paymentMethod || PaymentMethod.Cash
+        );
+        form.setValue(
+          "paymentStatus",
+          initialData.sale.paymentStatus || PaymentStatus.Pending
+        );
+        form.setValue(
+          "quotationId",
+          initialData.sale?.quotationId || undefined
+        );
+        form.setValue("selectedProductId", "");
+
+        if (initialData.sale.deliveryAddress?.country) {
+          const countryStates =
+            State.getStatesOfCountry(
+              initialData.sale.deliveryAddress.country
+            ) || [];
+          setStates(countryStates);
+          if (initialData.sale.deliveryAddress?.state) {
+            const stateCities =
+              City.getCitiesOfState(
+                initialData.sale.deliveryAddress.country,
+                initialData.sale.deliveryAddress.state
+              ) || [];
+            setCities(stateCities);
+          }
+        }
       }, 100);
     }
-    // Creating from a quotation
-    else if (sourceQuotation && stores && stores.length > 0) {
-      // Set the first store by default
-      const firstStoreId = stores[0].id;
-      form.setValue("storeId", firstStoreId);
-      form.setValue("quotationId", sourceQuotation.quotation.id);
+  }, [form, initialData, mode]);
+  // initialize data when creating from quotation.
+  useEffect(() => {
+    if (mode === "create" && sourceQuotation && stores && stores.length > 0) {
+      if (form.getValues("quotationId") === sourceQuotation.quotation.id) {
+        return;
+      }
+
       form.setValue("customerId", sourceQuotation.quotation.customerId);
+      const firstStoreId = stores[0].id;
+      if (form.getValues("storeId") !== firstStoreId) {
+        form.setValue("storeId", firstStoreId);
+      }
       form.setValue("notes", sourceQuotation.quotation.notes);
+      form.setValue("quotationId", sourceQuotation.quotation.id);
       form.setValue("attachments", sourceQuotation.quotation.attachments || []);
       form.setValue(
         "isDeliveryAddressAdded",
@@ -383,86 +358,77 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
           phone: sourceQuotation.quotation.deliveryAddress.phone || "",
         });
 
-        // Set states and cities if country/state is provided
         if (sourceQuotation.quotation.deliveryAddress.country) {
-          const countryStates =
+          setStates(
             State.getStatesOfCountry(
               sourceQuotation.quotation.deliveryAddress.country
-            ) || [];
-          setStates(countryStates);
-
+            ) || []
+          );
           if (sourceQuotation.quotation.deliveryAddress.state) {
-            const stateCities =
+            setCities(
               City.getCitiesOfState(
                 sourceQuotation.quotation.deliveryAddress.country,
                 sourceQuotation.quotation.deliveryAddress.state
-              ) || [];
-            setCities(stateCities);
+              ) || []
+            );
           }
         }
       }
 
-      const handleAutoPopulateProducts = async () => {
-        if (!inventoryStock || !sourceQuotation) return;
-
-        remove();
-
-        for (const quotationProduct of sourceQuotation.products) {
-          // Append single product entry
-          append({
-            productId: quotationProduct.productId,
-            inventoryStock: [],
-            hasBackorder: false,
-            backorderQuantity: 0,
-            quantity: quotationProduct.quantity,
-            unitPrice: quotationProduct.unitPrice,
-            totalPrice: 0,
-            subTotal: 0,
-            taxAmount: 0,
-            taxRate: quotationProduct.taxRate,
-            discountRate: quotationProduct.discountRate,
-            taxRateId: quotationProduct.taxRateId,
-            discountAmount: 0,
-            productID: quotationProduct.productID,
-            productName: quotationProduct.productName,
-          });
-        }
-      };
-
-      handleAutoPopulateProducts();
+      if (inventoryStock) {
+        const quotationProducts = sourceQuotation.products.map((qp) => ({
+          productId: qp.productId,
+          inventoryStock: [],
+          hasBackorder: false,
+          backorderQuantity: 0,
+          quantity: qp.quantity,
+          unitPrice: qp.unitPrice,
+          totalPrice: 0,
+          subTotal: 0,
+          taxAmount: 0,
+          taxRate: qp.taxRate,
+          discountRate: qp.discountRate,
+          taxRateId: qp.taxRateId,
+          discountAmount: 0,
+          productID: qp.productID,
+          productName: qp.productName,
+        }));
+        replace(quotationProducts);
+      }
     }
-  }, [
-    initialData,
-    form,
-    sourceQuotation,
-    stores,
-    inventoryStock,
-    remove,
-    append,
-    defaultValues,
-  ]);
+  }, [sourceQuotation, mode, stores, inventoryStock, form, replace]);
 
+  useEffect(() => {
+    if (
+      mode === "create" &&
+      generatedInvoiceNumber &&
+      form.getValues("invoiceNumber") === ""
+    ) {
+      form.setValue("invoiceNumber", generatedInvoiceNumber);
+    }
+  }, [generatedInvoiceNumber, form, mode]);
+
+  // Effects for country/state/city changes (these are fine as they are, independent)
   useEffect(() => {
     if (selectedCountry) {
       setStates(State.getStatesOfCountry(selectedCountry) || []);
+      setCities([]);
+    } else {
+      setStates([]);
       setCities([]);
     }
   }, [selectedCountry]);
 
   useEffect(() => {
-    if (selectedState) {
-      setCities(
-        City.getCitiesOfState(selectedCountry ?? "", selectedState ?? "") || []
-      );
+    if (selectedState && selectedCountry) {
+      setCities(City.getCitiesOfState(selectedCountry, selectedState) || []);
+    } else {
+      setCities([]);
     }
   }, [selectedState, selectedCountry]);
 
   // Handle country change
   const handleCountryChange = (value: string) => {
-    const countryStates = State.getStatesOfCountry(value) || [];
-    setStates(countryStates);
-    setCities([]);
-
     form.setValue("deliveryAddress.country", value);
     form.setValue("deliveryAddress.state", "");
     form.setValue("deliveryAddress.city", "");
@@ -471,22 +437,11 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
   // Handle state change
   const handleStateChange = (value: string) => {
     if (!selectedCountry) return;
-
-    const stateCities = City.getCitiesOfState(selectedCountry, value) || [];
-    setCities(stateCities);
-
     form.setValue("deliveryAddress.state", value);
     form.setValue("deliveryAddress.city", "");
   };
 
-  // Set invoice number
-  useEffect(() => {
-    if (generatedInvoiceNumber && mode === "create") {
-      form.setValue("invoiceNumber", generatedInvoiceNumber);
-    }
-  }, [generatedInvoiceNumber, form, mode]);
-
-  // Update the refresh button handler
+  // Refresh button handler
   const handleRefreshInvoiceNumber = async () => {
     if (mode === "create") {
       try {
@@ -501,13 +456,51 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
     }
   };
 
-  // Update the cancel button handler
+  // Cancel button handler
   const handleCancel = () => {
     if (mode === "create") {
       form.reset(defaultValues);
       refetch();
     } else {
-      form.reset();
+      form.reset(
+        initialData
+          ? {
+              invoiceNumber: initialData.sale.invoiceNumber || "",
+              saleDate: initialData.sale.saleDate
+                ? new Date(initialData.sale.saleDate)
+                : new Date(),
+              products: initialData.products || [],
+              customerId: initialData.sale.customerId || "",
+              storeId: initialData.sale.storeId || "",
+              status: initialData.sale.status || SaleStatus.Pending,
+              notes: initialData.sale.notes || "",
+              amountPaid: initialData.sale.amountPaid || 0,
+              discountAmount: initialData.sale.discountAmount || 0,
+              totalTaxAmount: initialData.sale.totalTaxAmount || 0,
+              subTotal: initialData.sale.subTotal || 0,
+              totalAmount: initialData.sale.totalAmount || 0,
+              attachments: initialData.sale.attachments || [],
+              isDeliveryAddressAdded:
+                initialData.sale.isDeliveryAddressAdded || false,
+              deliveryAddress: {
+                addressName:
+                  initialData.sale.deliveryAddress?.addressName || "",
+                address: initialData.sale.deliveryAddress?.address || "",
+                city: initialData.sale.deliveryAddress?.city || "",
+                state: initialData.sale.deliveryAddress?.state || "",
+                country: initialData.sale.deliveryAddress?.country || "",
+                email: initialData.sale.deliveryAddress?.email || "",
+                phone: initialData.sale.deliveryAddress?.phone || "",
+              },
+              paymentMethod:
+                initialData.sale.paymentMethod || PaymentMethod.Cash,
+              paymentStatus:
+                initialData.sale.paymentStatus || PaymentStatus.Pending,
+              quotationId: initialData.sale.quotationId || undefined,
+              selectedProductId: "",
+            }
+          : defaultValues
+      );
     }
   };
 
@@ -558,7 +551,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
   };
 
   // handle close dialog
-  const closeDialog = () => {
+  const closeDialog = useCallback(() => {
     setCustomerDialogOpen(false);
     setTaxDialogOpen(false);
     setProductDialogOpen(false);
@@ -571,63 +564,75 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
         stuckSection.style.pointerEvents = "auto";
       }
     }, 100);
-  };
+  }, []);
 
-  const handleAddCustomer = async (data: CustomerFormValues): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      addCustomer(data, {
-        onSuccess: () => {
-          resolve();
-        },
-        onError: (error) => {
-          reject(error);
-        },
+  const handleAddCustomer = useCallback(
+    async (data: CustomerFormValues): Promise<void> => {
+      return new Promise((resolve, reject) => {
+        addCustomer(data, {
+          onSuccess: () => {
+            closeDialog();
+            resolve();
+          },
+          onError: (error) => {
+            reject(error);
+          },
+        });
       });
-    });
-  };
-
-  const handleAddTax = async (data: TaxFormValues): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      addTax(data, {
-        onSuccess: () => {
-          closeDialog();
-          resolve();
-        },
-        onError: (error) => {
-          reject(error);
-        },
+    },
+    [addCustomer, closeDialog]
+  );
+  const handleAddTax = useCallback(
+    async (data: TaxFormValues): Promise<void> => {
+      return new Promise((resolve, reject) => {
+        addTax(data, {
+          onSuccess: () => {
+            closeDialog();
+            resolve();
+          },
+          onError: (error) => {
+            reject(error);
+          },
+        });
       });
-    });
-  };
+    },
+    [addTax, closeDialog]
+  );
 
-  const handleAddStore = async (data: StoreFormValues): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      addStore(data, {
-        onSuccess: () => {
-          closeDialog();
-          resolve();
-        },
-        onError: (error) => {
-          reject(error);
-        },
+  const handleAddStore = useCallback(
+    async (data: StoreFormValues): Promise<void> => {
+      return new Promise((resolve, reject) => {
+        addStore(data, {
+          onSuccess: () => {
+            closeDialog();
+            resolve();
+          },
+          onError: (error) => {
+            reject(error);
+          },
+        });
       });
-    });
-  };
+    },
+    [addStore, closeDialog]
+  );
 
-  const validateInvoiceNumber = (invoiceNumber: string) => {
-    const existingSale = sales?.find(
-      (sale: SaleWithRelations) => sale.sale.invoiceNumber === invoiceNumber
-    );
-    if (mode === "create" && existingSale) return false;
+  const validateInvoiceNumber = useCallback(
+    (invoiceNumber: string) => {
+      const existingSale = sales?.find(
+        (sale: SaleWithRelations) => sale.sale.invoiceNumber === invoiceNumber
+      );
+      if (mode === "create" && existingSale) return false;
 
-    if (
-      mode === "edit" &&
-      initialData?.sale.invoiceNumber !== invoiceNumber &&
-      existingSale
-    )
-      return false;
-    return true;
-  };
+      if (
+        mode === "edit" &&
+        initialData?.sale.invoiceNumber !== invoiceNumber &&
+        existingSale
+      )
+        return false;
+      return true;
+    },
+    [sales, mode, initialData]
+  );
 
   // Handle submit
   const handleSubmit = async () => {
@@ -650,7 +655,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
           {
             onSuccess: () => {
               toast.success("Sale created successfully!");
-              form.reset();
+              form.reset(defaultValues);
               router.push("/sales");
             },
             onError: (error) => {
@@ -674,7 +679,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
             {
               onSuccess: () => {
                 toast.success("Sale updated successfully!");
-                form.reset();
+                form.reset(initialData);
                 router.push("/sales");
               },
               onError: (error) => {
@@ -692,7 +697,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
             {
               onSuccess: () => {
                 toast.success("Sale updated successfully!");
-                form.reset();
+                form.reset(initialData);
                 router.push("/sales");
               },
               onError: (error) => {
@@ -741,27 +746,33 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
     [inventoryStock, selectedStoreId]
   );
 
-  // Calculate raw subtotal per product entry (before any discounts)
+  const getTaxRate = useCallback(
+    (taxRateId: string) => {
+      const selectedTax = taxes?.find((tax: Tax) => tax.id === taxRateId);
+      return selectedTax?.taxRate || 0;
+    },
+    [taxes]
+  );
+
   const calculateEntryRawSubTotal = useCallback(
     (index: number) => {
-      const quantity = form.watch(`products.${index}.quantity`) || 0;
-      const unitPrice = form.watch(`products.${index}.unitPrice`) || 0;
+      const quantity = form.getValues(`products.${index}.quantity`) || 0;
+      const unitPrice = form.getValues(`products.${index}.unitPrice`) || 0;
       return quantity * unitPrice;
     },
     [form]
   );
 
-  // Calculate discount amount per product entry
   const calculateEntryDiscountAmount = useCallback(
     (index: number) => {
       const entrySubTotal = calculateEntryRawSubTotal(index);
-      const discountRate = form.watch(`products.${index}.discountRate`) || 0;
+      const discountRate =
+        form.getValues(`products.${index}.discountRate`) || 0;
       return (entrySubTotal * discountRate) / 100;
     },
     [calculateEntryRawSubTotal, form]
   );
 
-  // Calculate taxable amount per product entry (subtotal - discount)
   const calculateEntryTaxableAmount = useCallback(
     (index: number) => {
       const entryRawSubTotal = calculateEntryRawSubTotal(index);
@@ -771,19 +782,16 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
     [calculateEntryRawSubTotal, calculateEntryDiscountAmount]
   );
 
-  // Calculate tax amount per product entry
   const calculateEntryTaxAmount = useCallback(
     (index: number) => {
       const entryTaxableAmount = calculateEntryTaxableAmount(index);
-      const taxRateId = form.watch(`products.${index}.taxRateId`) || "";
-      const selectedTax = taxes?.find((tax: Tax) => tax.id === taxRateId);
-      const taxRate = selectedTax?.taxRate || 0;
+      const taxRateId = form.getValues(`products.${index}.taxRateId`) || "";
+      const taxRate = getTaxRate(taxRateId);
       return (entryTaxableAmount * taxRate) / 100;
     },
-    [calculateEntryTaxableAmount, form, taxes]
+    [calculateEntryTaxableAmount, form, getTaxRate]
   );
 
-  // Calculate total per product entry (taxable amount + tax)
   const calculateEntryTotalAmount = useCallback(
     (index: number) => {
       const entryTaxableAmount = calculateEntryTaxableAmount(index);
@@ -792,7 +800,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
     },
     [calculateEntryTaxableAmount, calculateEntryTaxAmount]
   );
-  // Calculate overall subtotal (sum of all entry taxable amounts)
+
   const calculateSubTotal = useCallback(() => {
     let total = 0;
     fields.forEach((_, index) => {
@@ -801,7 +809,6 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
     return total;
   }, [fields, calculateEntryTaxableAmount]);
 
-  // Calculate overall tax amount (sum of all entry tax amounts)
   const calculateTotalTaxAmount = useCallback(() => {
     let total = 0;
     fields.forEach((_, index) => {
@@ -810,12 +817,10 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
     return total;
   }, [fields, calculateEntryTaxAmount]);
 
-  // Calculate grand total (subtotal + total tax)
   const calculateTotalAmount = useCallback(() => {
     return calculateSubTotal() + calculateTotalTaxAmount();
   }, [calculateSubTotal, calculateTotalTaxAmount]);
 
-  // Calculate total discount amount (sum of all entry discount amounts)
   const calculateTotalDiscountAmount = useCallback(() => {
     let total = 0;
     fields.forEach((_, index) => {
@@ -824,50 +829,78 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
     return total;
   }, [fields, calculateEntryDiscountAmount]);
 
-  // fields/entry calculations
   useEffect(() => {
-    if (fields.length > 0) {
-      fields.forEach((field, index) => {
-        const entryDiscountAmount = calculateEntryDiscountAmount(index);
-        const entryTaxableAmount = calculateEntryTaxableAmount(index);
-        const entryTaxAmount = calculateEntryTaxAmount(index);
-        const entryTotalAmount = calculateEntryTotalAmount(index);
-
-        // Set individual product entry values
-        form.setValue(`products.${index}.discountAmount`, entryDiscountAmount);
-        form.setValue(`products.${index}.subTotal`, entryTaxableAmount);
-
-        const taxRateId = form.watch(`products.${index}.taxRateId`) || "";
-        const selectedTax = taxes?.find((tax: Tax) => tax.id === taxRateId);
-        const taxRate = selectedTax?.taxRate || 0;
-        form.setValue(`products.${index}.taxRate`, taxRate);
-
-        form.setValue(`products.${index}.taxAmount`, entryTaxAmount);
-        form.setValue(`products.${index}.totalPrice`, entryTotalAmount);
-      });
-
-      // Set overall sale values
-      form.setValue("subTotal", calculateSubTotal());
-      form.setValue("discountAmount", calculateTotalDiscountAmount());
-      form.setValue("totalAmount", calculateTotalAmount());
-      form.setValue("totalTaxAmount", calculateTotalTaxAmount());
+    if (fields.length === 0) {
+      if (form.getValues("subTotal") !== 0) form.setValue("subTotal", 0);
+      if (form.getValues("discountAmount") !== 0)
+        form.setValue("discountAmount", 0);
+      if (form.getValues("totalAmount") !== 0) form.setValue("totalAmount", 0);
+      if (form.getValues("totalTaxAmount") !== 0)
+        form.setValue("totalTaxAmount", 0);
+      return;
     }
+
+    let overallSubTotal = 0;
+    let overallDiscountAmount = 0;
+    let overallTotalTaxAmount = 0;
+
+    fields.forEach((_, index) => {
+      const entryDiscountAmount = calculateEntryDiscountAmount(index);
+      const entryTaxableAmount = calculateEntryTaxableAmount(index);
+      const entryTaxAmount = calculateEntryTaxAmount(index);
+      const entryTotalAmount = calculateEntryTotalAmount(index);
+
+      const taxRateId = form.getValues(`products.${index}.taxRateId`) || "";
+      const taxRate = getTaxRate(taxRateId);
+
+      if (
+        form.getValues(`products.${index}.discountAmount`) !==
+        entryDiscountAmount
+      ) {
+        form.setValue(`products.${index}.discountAmount`, entryDiscountAmount);
+      }
+      if (form.getValues(`products.${index}.subTotal`) !== entryTaxableAmount) {
+        form.setValue(`products.${index}.subTotal`, entryTaxableAmount);
+      }
+      if (form.getValues(`products.${index}.taxRate`) !== taxRate) {
+        form.setValue(`products.${index}.taxRate`, taxRate);
+      }
+      if (form.getValues(`products.${index}.taxAmount`) !== entryTaxAmount) {
+        form.setValue(`products.${index}.taxAmount`, entryTaxAmount);
+      }
+      if (form.getValues(`products.${index}.totalPrice`) !== entryTotalAmount) {
+        form.setValue(`products.${index}.totalPrice`, entryTotalAmount);
+      }
+
+      overallSubTotal += entryTaxableAmount;
+      overallDiscountAmount += entryDiscountAmount;
+      overallTotalTaxAmount += entryTaxAmount;
+    });
+
+    const overallTotalAmount = overallSubTotal + overallTotalTaxAmount;
+
+    // Set overall sale values only if they've changed
+    if (form.getValues("subTotal") !== overallSubTotal)
+      form.setValue("subTotal", overallSubTotal);
+    if (form.getValues("discountAmount") !== overallDiscountAmount)
+      form.setValue("discountAmount", overallDiscountAmount);
+    if (form.getValues("totalAmount") !== overallTotalAmount)
+      form.setValue("totalAmount", overallTotalAmount);
+    if (form.getValues("totalTaxAmount") !== overallTotalTaxAmount)
+      form.setValue("totalTaxAmount", overallTotalTaxAmount);
   }, [
-    watchedFields,
-    fields,
+    watchedProductFields,
+    fields.length,
     form,
-    calculateSubTotal,
-    calculateTotalAmount,
-    calculateTotalTaxAmount,
-    calculateEntryRawSubTotal,
+    getTaxRate,
     calculateEntryDiscountAmount,
     calculateEntryTaxableAmount,
     calculateEntryTaxAmount,
     calculateEntryTotalAmount,
-    calculateTotalDiscountAmount,
-    taxes,
+    fields,
   ]);
 
+  // Effect for customer quotations
   useEffect(() => {
     if (selectedCustomerId && selectedCustomerId !== "") {
       const customerQuotations =
@@ -897,7 +930,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
     } else {
       setCustomerQuotations(null);
     }
-  }, [form, quotations, selectedCustomerId]);
+  }, [quotations, selectedCustomerId]);
 
   return (
     <>
@@ -1353,7 +1386,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                   <>
                     <TableRow>
                       <TableCell
-                        colSpan={11}
+                        colSpan={10}
                         className="text-right font-medium text-blue-800 text-[17px] py-4"
                       >
                         {`Sub-Total:`}
@@ -1367,7 +1400,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                     </TableRow>
                     <TableRow>
                       <TableCell
-                        colSpan={11}
+                        colSpan={10}
                         className="text-right font-medium text-blue-800 text-[17px] py-4"
                       >
                         {`Total Discount:`}
@@ -1381,7 +1414,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                     </TableRow>
                     <TableRow>
                       <TableCell
-                        colSpan={11}
+                        colSpan={10}
                         className="text-right font-medium text-blue-800 text-[17px] py-4"
                       >
                         {`Total Tax:`}
@@ -1395,7 +1428,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                     </TableRow>
                     <TableRow>
                       <TableCell
-                        colSpan={11}
+                        colSpan={10}
                         className="text-right font-semibold text-blue-800 text-[17px] py-4"
                       >
                         {`Grand Total:`}

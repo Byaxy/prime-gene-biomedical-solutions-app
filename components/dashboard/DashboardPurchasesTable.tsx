@@ -1,21 +1,13 @@
-"use client";
-
 import Link from "next/link";
 import { Button } from "../ui/button";
-import { DataTable } from "../table/DataTable";
 import { dashboardPurchasesColumns } from "../table/columns/dashboardPurchasesColumns";
-import { usePurchases } from "@/hooks/usePurchases";
+import { getPurchases } from "@/lib/actions/purchase.actions";
+import { ItemsTable } from "../table/ItemsTable";
 
-const DashboardPurchasesTable = () => {
-  const {
-    purchases,
-    isLoading,
-    totalItems,
-    page,
-    setPage,
-    pageSize,
-    setPageSize,
-  } = usePurchases({ initialPageSize: 5 });
+const DashboardPurchasesTable = async () => {
+  const purchasesData = await getPurchases(0, 10, false);
+
+  const purchases = purchasesData.documents;
 
   return (
     <div className="w-full bg-white rounded-lg shadow-sm p-5 space-y-6">
@@ -31,17 +23,7 @@ const DashboardPurchasesTable = () => {
           </Link>
         </Button>
       </div>
-      <DataTable
-        columns={dashboardPurchasesColumns}
-        data={purchases || []}
-        isLoading={isLoading}
-        hideSearch={true}
-        totalItems={totalItems}
-        page={page}
-        onPageChange={setPage}
-        pageSize={pageSize}
-        onPageSizeChange={setPageSize}
-      />
+      <ItemsTable columns={dashboardPurchasesColumns} data={purchases || []} />
     </div>
   );
 };
