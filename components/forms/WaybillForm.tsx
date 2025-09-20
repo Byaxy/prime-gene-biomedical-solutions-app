@@ -228,7 +228,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
       : defaultValues,
   });
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, prepend, remove } = useFieldArray({
     control: form.control,
     name: "products",
   });
@@ -626,7 +626,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
 
           // Only add products that have some inventory allocation
           if (allocatedStock.length > 0 && actualSuppliedQuantity > 0) {
-            append({
+            prepend({
               productId: product.productId,
               saleItemId: product.id,
               inventoryStock: allocatedStock,
@@ -735,7 +735,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
         // Add products after form reset
         if (initialData.products && initialData.products.length > 0) {
           initialData.products.forEach((product) => {
-            append({
+            prepend({
               productId: product.productId,
               saleItemId: product.saleItemId || "",
               inventoryStock: product.inventoryStock.map((stock) => ({
@@ -995,7 +995,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
 
           // Only add products that have some inventory allocation
           if (allocatedStock.length > 0 && actualSuppliedQuantity > 0) {
-            append({
+            prepend({
               productId: product.productId,
               saleItemId: product.id,
               inventoryStock: allocatedStock,
@@ -1020,7 +1020,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
     form,
     stores,
     remove,
-    append,
+    prepend,
     defaultValues,
     sourceSale,
     generatedWaybillRefNumber,
@@ -1096,7 +1096,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
       return;
     }
 
-    append({
+    prepend({
       productId: selectedProduct.product.id,
       saleItemId: "",
       inventoryStock: [],
@@ -1149,9 +1149,9 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
           { data: values, userId: user.id },
           {
             onSuccess: () => {
+              router.push("/waybills");
               toast.success("Waybill created successfully!");
               form.reset();
-              router.push("/waybills");
             },
             onError: (error) => {
               console.error("Create waybill error:", error);

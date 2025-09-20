@@ -1,44 +1,33 @@
-"use client";
-
-import SaleForm from "@/components/forms/SaleForm";
-import Loading from "@/app/(dashboard)/loading";
 import PageWraper from "@/components/PageWraper";
 import { getQuotationById } from "@/lib/actions/quotation.actions";
-import { useQuery } from "@tanstack/react-query";
-import { useParams } from "next/navigation";
+import { Suspense } from "react";
+import SaleFormWrapper from "@/components/sales/SaleFormWrapper";
+import FormSkeleton from "@/components/ui/form-skeleton";
 
-const CreateInvoiceFromQuotation = () => {
-  const { id } = useParams();
+export interface Params {
+  id: string;
+}
 
-  const { data: fetchedQuotation, isLoading } = useQuery({
-    queryKey: [id],
-    queryFn: async () => {
-      if (!id) return null;
-      return await getQuotationById(id as string);
-    },
-    enabled: !!id,
-    staleTime: 0,
-    refetchOnMount: true,
-    refetchOnWindowFocus: true,
-  });
+const CreateInvoiceFromQuotation = async ({
+  params,
+}: {
+  params: Promise<Params>;
+}) => {
+  const { id } = await params;
 
-  if (isLoading) {
-    return <Loading />;
-  }
+  const sourceQuotation = await getQuotationById(id);
 
   return (
     <PageWraper title="Create Invoice">
       <section className="space-y-6">
         <div className="bg-blue-50 px-5 py-4 rounded-md">
           <p className="text-blue-800 font-medium">
-            Converting from Quotation:{" "}
-            {fetchedQuotation?.quotation.quotationNumber}
+            Converting Quotation: {sourceQuotation?.quotation.quotationNumber}
           </p>
         </div>
-        <SaleForm
-          mode={"create"}
-          sourceQuotation={fetchedQuotation || undefined}
-        />
+        <Suspense fallback={<FormSkeleton />}>
+          <SaleFormWrapper mode="create" sourceQuotationId={id} />
+        </Suspense>
       </section>
     </PageWraper>
   );

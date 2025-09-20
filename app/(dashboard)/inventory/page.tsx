@@ -2,8 +2,6 @@ import PageWraper from "@/components/PageWraper";
 import { ProductFilters } from "@/hooks/useProducts";
 import { getProducts } from "@/lib/actions/product.actions";
 import dynamic from "next/dynamic";
-import { Suspense } from "react";
-import Loading from "../loading";
 
 const ProductsTable = dynamic(
   () => import("@/components/products/ProductsTable")
@@ -67,9 +65,7 @@ const Inventory = async ({
       buttonText="Add New"
       buttonPath="/inventory/add-inventory"
     >
-      <Suspense fallback={<Loading />}>
-        <ProductsTable initialData={initialData} />
-      </Suspense>
+      <ProductsTable initialData={initialData} />
     </PageWraper>
   );
 };

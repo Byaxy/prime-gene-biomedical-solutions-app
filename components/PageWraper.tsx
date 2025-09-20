@@ -26,13 +26,15 @@ const PageWraper = ({
           <BackButton />
 
           {buttonPath && (
-            <Link href={buttonPath} prefetch={true}>
-              <Button className="shad-primary-btn flex flex-row items-center justify-center gap-1">
-                <AddIcon className="h-6 w-6" />
-                <span className="text-white font-medium capitalize">
-                  {buttonText}
-                </span>
-              </Button>
+            <Link
+              href={buttonPath}
+              prefetch={true}
+              className="shad-primary-btn flex flex-row items-center justify-center gap-1 px-4 py-2 rounded-md shadow-sm text-sm"
+            >
+              <AddIcon className="h-4 w-4" />
+              <span className="text-white font-medium capitalize">
+                {buttonText}
+              </span>
             </Link>
           )}
 
@@ -41,7 +43,7 @@ const PageWraper = ({
               onClick={buttonAction}
               className="shad-primary-btn flex flex-row items-center justify-center gap-1"
             >
-              <AddIcon className="h-6 w-6" />
+              <AddIcon className="h-4 w-4" />
               <span className="text-white font-medium capitalize">
                 {buttonText}
               </span>

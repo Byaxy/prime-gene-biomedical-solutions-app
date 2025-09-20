@@ -5,7 +5,7 @@ import { ItemsTable } from "../table/ItemsTable";
 import { getSales } from "@/lib/actions/sale.actions";
 
 const DashboardSalesTable = async () => {
-  const salesData = await getSales(0, 10, false);
+  const salesData = await getSales(0, 5, false);
 
   const sales = salesData.documents;
 

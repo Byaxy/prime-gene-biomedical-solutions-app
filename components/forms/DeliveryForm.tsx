@@ -60,19 +60,8 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
   const [prevSelectedSaleId, setPrevSelectedSaleId] = useState<string | null>(
     null
   );
-  const [states, setStates] = useState<IState[]>(() =>
-    initialData?.sale.deliveryAddress?.country
-      ? State.getStatesOfCountry(initialData?.sale.deliveryAddress?.country)
-      : []
-  );
-  const [cities, setCities] = useState<ICity[]>(() =>
-    initialData?.sale.deliveryAddress?.state
-      ? City.getCitiesOfState(
-          initialData?.sale.deliveryAddress?.country || "",
-          initialData?.sale.deliveryAddress?.state
-        )
-      : []
-  );
+  const [states, setStates] = useState<IState[]>([]);
+  const [cities, setCities] = useState<ICity[]>([]);
   const {
     stores,
     addStore,

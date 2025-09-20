@@ -5,7 +5,7 @@ import { getPurchases } from "@/lib/actions/purchase.actions";
 import { ItemsTable } from "../table/ItemsTable";
 
 const DashboardPurchasesTable = async () => {
-  const purchasesData = await getPurchases(0, 10, false);
+  const purchasesData = await getPurchases(0, 5, false);
 
   const purchases = purchasesData.documents;
 

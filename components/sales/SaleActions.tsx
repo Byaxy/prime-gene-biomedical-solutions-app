@@ -5,7 +5,6 @@ import SaleDialog from "./SaleDialog";
 import { useRouter } from "next/navigation";
 import { InventoryStockWithRelations, SaleWithRelations } from "@/types";
 import toast from "react-hot-toast";
-import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { EllipsisVertical } from "lucide-react";
 import { Download } from "lucide-react";
 import { Mail } from "lucide-react";
@@ -17,9 +16,14 @@ import { useCompanySettings } from "@/hooks/useCompanySettings";
 import { Eye } from "lucide-react";
 import { FileText } from "lucide-react";
 import { useInventoryStock } from "@/hooks/useInventoryStock";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
 
 const SaleActions = ({ sale }: { sale: SaleWithRelations }) => {
-  const [open, setOpen] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
   const [mode, setMode] = useState<"add" | "edit" | "delete" | "view">("add");
 
@@ -138,7 +142,6 @@ const SaleActions = ({ sale }: { sale: SaleWithRelations }) => {
       toast.success(
         "Email client opened. Please attach the downloaded PDF manually."
       );
-      setOpen(false);
     } catch (error) {
       console.error("Error preparing email:", error);
       toast.error("Failed to prepare email");
@@ -147,43 +150,40 @@ const SaleActions = ({ sale }: { sale: SaleWithRelations }) => {
 
   return (
     <div className="flex items-center">
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
           <EllipsisVertical className="w-10 h-10 hover:bg-white cursor-pointer p-2 rounded-full" />
-        </PopoverTrigger>
-        <PopoverContent className="w-72 flex flex-col mt-2 mr-12 gap-2 bg-white z-50">
-          <p
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="w-72 bg-white py-4 px-2" align="end">
+          <DropdownMenuItem
             onClick={() => {
               setMode("view");
               setOpenDialog(true);
-              setOpen(false);
             }}
             className="text-green-500 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
             <Eye className="h-5 w-5" />
             <span>Sale Details</span>
-          </p>
-          <p
+          </DropdownMenuItem>
+          <DropdownMenuItem
             onClick={() => {
               router.push(`/sales/duplicate-invoice/${sale.sale.id}`);
-              setOpen(false);
             }}
             className="text-dark-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
             <Plus className="h-5 w-5" /> <span>Duplicate Sale</span>
-          </p>
-          <p
+          </DropdownMenuItem>
+          <DropdownMenuItem
             onClick={() => {
               router.push(
                 `/promissory-notes/create-promissory-note/from-sale/${sale.sale.id}`
               );
-              setOpen(false);
             }}
             className="text-dark-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
             <FileText className="h-5 w-5" /> <span>Promissory Note</span>
-          </p>
-          <p
+          </DropdownMenuItem>
+          <DropdownMenuItem
             onClick={() => {
               if (hasDeliverableProducts(sale)) {
                 router.push(
@@ -192,13 +192,12 @@ const SaleActions = ({ sale }: { sale: SaleWithRelations }) => {
               } else {
                 toast.error("No deliverable products available for this sale");
               }
-              setOpen(false);
             }}
             className="text-dark-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
             <ShoppingCart className="h-5 w-5" /> <span>Create Waybill</span>
-          </p>
-          <p
+          </DropdownMenuItem>
+          <DropdownMenuItem
             onClick={() => {
               if (sale.sale.isDeliveryNoteCreated) {
                 toast.error("Delivery Note already created");
@@ -207,53 +206,48 @@ const SaleActions = ({ sale }: { sale: SaleWithRelations }) => {
                   `/deliveries/create-delivery/from-sale/${sale.sale.id}`
                 );
               }
-              setOpen(false);
             }}
             className="text-dark-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
             <Truck className="h-5 w-5" /> <span>Add Delivery</span>
-          </p>
-          <p
+          </DropdownMenuItem>
+          <DropdownMenuItem
             onClick={() => {
               setMode("edit");
               router.push(`/sales/edit-invoice/${sale.sale.id}`);
-              setOpen(false);
             }}
             className="text-[#475BE8] p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
             <EditIcon className="h-5 w-5" /> <span>Edit Sale</span>
-          </p>
-          <p
+          </DropdownMenuItem>
+          <DropdownMenuItem
             onClick={() => {
               handleDownloadPDF();
-              setOpen(false);
             }}
             className="text-dark-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
             <Download className="h-5 w-5" /> <span>Download as PDF</span>
-          </p>
-          <p
+          </DropdownMenuItem>
+          <DropdownMenuItem
             onClick={() => {
               handleEmailSale();
-              setOpen(false);
             }}
             className="text-dark-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
             <Mail className="h-5 w-5" /> <span>Email Sale</span>
-          </p>
+          </DropdownMenuItem>
 
-          <p
+          <DropdownMenuItem
             onClick={() => {
               setMode("delete");
               setOpenDialog(true);
-              setOpen(false);
             }}
             className="text-red-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
             <DeleteIcon className="h-5 w-5" /> <span>Delete Sale</span>
-          </p>
-        </PopoverContent>
-      </Popover>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <SaleDialog
         mode={mode}

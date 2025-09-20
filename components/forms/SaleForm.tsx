@@ -8,7 +8,7 @@ import {
   TaxFormValues,
 } from "@/lib/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import toast from "react-hot-toast";
 import { Form, FormControl } from "../ui/form";
@@ -25,7 +25,6 @@ import {
 } from "../ui/table";
 import DeleteIcon from "@mui/icons-material/Delete";
 import SubmitButton from "../SubmitButton";
-import { useCustomers } from "@/hooks/useCustomers";
 import FormatNumber from "@/components/FormatNumber";
 import { useSales } from "@/hooks/useSales";
 import { useRouter } from "next/navigation";
@@ -44,36 +43,54 @@ import {
   Tax,
 } from "@/types";
 import CustomerDialog from "../customers/CustomerDialog";
-import { useQuery } from "@tanstack/react-query";
 import { generateInvoiceNumber } from "@/lib/actions/sale.actions";
 import { RefreshCw } from "lucide-react";
-import { useTaxes } from "@/hooks/useTaxes";
 import TaxDialog from "../taxes/TaxDialog";
-import Loading from "../../app/(dashboard)/loading";
 import { FileUploader } from "../FileUploader";
 import ProductSheet from "../products/ProductSheet";
 import { Country, State, City } from "country-state-city";
 import { IState, ICity } from "country-state-city";
-import { useInventoryStock } from "@/hooks/useInventoryStock";
 import { Check } from "lucide-react";
 import { X } from "lucide-react";
 import { Input } from "../ui/input";
 import { Search } from "lucide-react";
-import { useStores } from "@/hooks/useStores";
 import StoreDialog from "../stores/StoreDialog";
-import { useProducts } from "@/hooks/useProducts";
 import InventoryStockSelectDialog from "../sales/InventoryStockSelectDialog";
 import { cn } from "@/lib/utils";
-import { useQuotations } from "@/hooks/useQuotations";
 import CustomerQuotationsDialog from "../sales/CustomerQuotationsDialog";
+import { useCustomers } from "@/hooks/useCustomers";
+import { useTaxes } from "@/hooks/useTaxes";
+import { useStores } from "@/hooks/useStores";
 
 interface SaleFormProps {
   mode: "create" | "edit";
   initialData?: SaleWithRelations;
   sourceQuotation?: QuotationWithRelations;
+  customers: Customer[];
+  products: ProductWithRelations[];
+  sales: SaleWithRelations[];
+  taxes: Tax[];
+  stores: Store[];
+  inventoryStock: InventoryStockWithRelations[];
+  quotations: QuotationWithRelations[];
+  generatedInvoiceNumber?: string;
 }
 
-const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
+const SaleForm = ({
+  mode,
+  initialData,
+  sourceQuotation,
+  customers,
+  products,
+  sales,
+  taxes,
+  stores,
+  inventoryStock,
+  quotations,
+  generatedInvoiceNumber: initialGeneratedInvoiceNumber,
+}: SaleFormProps) => {
+  const [isRefetchingInvoiceNumber, setIsRefetchingInvoiceNumber] =
+    useState(false);
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
   const [taxDialogOpen, setTaxDialogOpen] = useState(false);
   const [storeDialogOpen, setStoreDialogOpen] = useState(false);
@@ -86,67 +103,22 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
   const [selectedProductIndex, setSelectedProductIndex] = useState<
     number | null
   >(null);
-  const [customerQuotations, setCustomerQuotations] = useState<
-    QuotationWithRelations[] | null
-  >(null);
 
   const [states, setStates] = useState<IState[]>([]);
   const [cities, setCities] = useState<ICity[]>([]);
 
-  const { products, isLoading: productsLoading } = useProducts({
-    getAllActive: true,
-  });
-  const { quotations } = useQuotations({ getAllQuotations: true });
-  const { inventoryStock } = useInventoryStock({
-    getAllInventoryStocks: true,
-  });
-  const {
-    stores,
-    addStore,
-    isAddingStore,
-    isLoading: storesLoading,
-  } = useStores({
-    getAllStores: true,
-  });
-  const {
-    customers,
-    addCustomer,
-    isLoading: customersLoading,
-  } = useCustomers({ getAllCustomers: true });
-  const {
-    taxes,
-    isLoading: taxesLoading,
-    addTax,
-    isAddingTax,
-  } = useTaxes({ getAllTaxes: true });
-  const { sales, addSale, isAddingSale, editSale, isEditingSale } = useSales({
-    getAllSales: true,
-  });
-
-  // Generate Sale invoice number
-  const {
-    data: generatedInvoiceNumber,
-    isLoading,
-    refetch,
-    isRefetching,
-  } = useQuery({
-    queryKey: ["invoice-number"],
-    queryFn: async () => {
-      if (mode !== "create") return null;
-      const result = await generateInvoiceNumber();
-      return result;
-    },
-    enabled: mode === "create",
-    refetchOnWindowFocus: false,
-    staleTime: Infinity,
-  });
+  const { addSale, isAddingSale, editSale, isEditingSale } = useSales();
+  const { addCustomer } = useCustomers();
+  const { addTax, isAddingTax } = useTaxes();
+  const { addStore, isAddingStore } = useStores();
 
   const router = useRouter();
+  const initialMount = useRef(true);
 
   // Memoized default values for new sales
   const defaultValues = useMemo(
     () => ({
-      invoiceNumber: generatedInvoiceNumber || "",
+      invoiceNumber: initialGeneratedInvoiceNumber || "",
       saleDate: new Date(),
       customerId: "",
       storeId: "",
@@ -174,7 +146,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
       },
       selectedProductId: "",
     }),
-    [generatedInvoiceNumber]
+    [initialGeneratedInvoiceNumber]
   );
 
   const form = useForm<SaleFormValues>({
@@ -183,7 +155,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
     defaultValues: defaultValues,
   });
 
-  const { fields, append, remove, replace } = useFieldArray({
+  const { fields, remove, prepend } = useFieldArray({
     control: form.control,
     name: "products",
   });
@@ -195,15 +167,17 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
   const selectedCountry = form.watch("deliveryAddress.country");
   const selectedState = form.watch("deliveryAddress.state");
 
-  const watchedProductFields = useMemo(() => {
-    return fields.map((_, index) => ({
-      quantity: form.watch(`products.${index}.quantity`),
-      unitPrice: form.watch(`products.${index}.unitPrice`),
-      taxRateId: form.watch(`products.${index}.taxRateId`),
-      discountRate: form.watch(`products.${index}.discountRate`),
-      inventoryStock: form.watch(`products.${index}.inventoryStock`),
-    }));
-  }, [form, fields]);
+  const watchedFields = fields.map((_, index) => ({
+    quantity: form.watch(`products.${index}.quantity`),
+
+    unitPrice: form.watch(`products.${index}.unitPrice`),
+
+    taxRateId: form.watch(`products.${index}.taxRateId`),
+
+    discountRate: form.watch(`products.${index}.discountRate`),
+
+    lotNumber: form.watch(`products.${index}.inventoryStock`),
+  }));
 
   const filteredProducts = products?.reduce(
     (acc: Product[], product: ProductWithRelations) => {
@@ -259,54 +233,44 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
     },
     []
   );
+
   // initialize data in edit mode
   useEffect(() => {
-    if (initialData) {
-      setTimeout(() => {
-        form.setValue("invoiceNumber", initialData.sale.invoiceNumber || "");
-        form.setValue(
-          "saleDate",
-          initialData.sale.saleDate
+    if (initialMount.current) {
+      if (initialData) {
+        form.reset({
+          invoiceNumber: initialData.sale.invoiceNumber || "",
+          saleDate: initialData.sale.saleDate
             ? new Date(initialData.sale.saleDate)
-            : new Date()
-        );
-        form.setValue("products", initialData.products || []);
-        form.setValue("customerId", initialData.sale.customerId || "");
-        form.setValue("storeId", initialData.sale.storeId || "");
-        form.setValue("status", initialData.sale.status || SaleStatus.Pending);
-        form.setValue("notes", initialData.sale.notes || "");
-        form.setValue("amountPaid", initialData.sale.amountPaid || 0);
-        form.setValue("discountAmount", initialData.sale.discountAmount || 0);
-        form.setValue("totalTaxAmount", initialData.sale.totalTaxAmount || 0);
-        form.setValue("subTotal", initialData.sale.subTotal || 0);
-        form.setValue("totalAmount", initialData.sale.totalAmount || 0);
-        form.setValue("attachments", initialData.sale.attachments || []);
-        form.setValue(
-          "isDeliveryAddressAdded",
-          initialData.sale.isDeliveryAddressAdded || false
-        );
-        form.setValue("deliveryAddress", {
-          addressName: initialData.sale.deliveryAddress?.addressName || "",
-          address: initialData.sale.deliveryAddress?.address || "",
-          city: initialData.sale.deliveryAddress?.city || "",
-          state: initialData.sale.deliveryAddress?.state || "",
-          country: initialData.sale.deliveryAddress?.country || "",
-          email: initialData.sale.deliveryAddress?.email || "",
-          phone: initialData.sale.deliveryAddress?.phone || "",
+            : new Date(),
+          products: initialData.products || [],
+          customerId: initialData.sale.customerId || "",
+          storeId: initialData.sale.storeId || "",
+          status: initialData.sale.status || SaleStatus.Pending,
+          notes: initialData.sale.notes || "",
+          amountPaid: initialData.sale.amountPaid || 0,
+          discountAmount: initialData.sale.discountAmount || 0,
+          totalTaxAmount: initialData.sale.totalTaxAmount || 0,
+          subTotal: initialData.sale.subTotal || 0,
+          totalAmount: initialData.sale.totalAmount || 0,
+          attachments: initialData.sale.attachments || [],
+          isDeliveryAddressAdded:
+            initialData.sale.isDeliveryAddressAdded || false,
+          deliveryAddress: {
+            addressName: initialData.sale.deliveryAddress?.addressName || "",
+            address: initialData.sale.deliveryAddress?.address || "",
+            city: initialData.sale.deliveryAddress?.city || "",
+            state: initialData.sale.deliveryAddress?.state || "",
+            country: initialData.sale.deliveryAddress?.country || "",
+            email: initialData.sale.deliveryAddress?.email || "",
+            phone: initialData.sale.deliveryAddress?.phone || "",
+          },
+          paymentMethod: initialData.sale.paymentMethod || PaymentMethod.Cash,
+          paymentStatus:
+            initialData.sale.paymentStatus || PaymentStatus.Pending,
+          quotationId: initialData.sale?.quotationId || undefined,
+          selectedProductId: "",
         });
-        form.setValue(
-          "paymentMethod",
-          initialData.sale.paymentMethod || PaymentMethod.Cash
-        );
-        form.setValue(
-          "paymentStatus",
-          initialData.sale.paymentStatus || PaymentStatus.Pending
-        );
-        form.setValue(
-          "quotationId",
-          initialData.sale?.quotationId || undefined
-        );
-        form.setValue("selectedProductId", "");
 
         if (initialData.sale.deliveryAddress?.country) {
           const countryStates =
@@ -323,48 +287,74 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
             setCities(stateCities);
           }
         }
-      }, 100);
-    }
-  }, [form, initialData, mode]);
-  // initialize data when creating from quotation.
-  useEffect(() => {
-    if (mode === "create" && sourceQuotation && stores && stores.length > 0) {
-      if (form.getValues("quotationId") === sourceQuotation.quotation.id) {
-        return;
-      }
-
-      form.setValue("customerId", sourceQuotation.quotation.customerId);
-      const firstStoreId = stores[0].id;
-      if (form.getValues("storeId") !== firstStoreId) {
-        form.setValue("storeId", firstStoreId);
-      }
-      form.setValue("notes", sourceQuotation.quotation.notes);
-      form.setValue("quotationId", sourceQuotation.quotation.id);
-      form.setValue("attachments", sourceQuotation.quotation.attachments || []);
-      form.setValue(
-        "isDeliveryAddressAdded",
-        sourceQuotation.quotation.isDeliveryAddressAdded
-      );
-
-      if (sourceQuotation.quotation.deliveryAddress) {
-        form.setValue("deliveryAddress", {
-          addressName:
-            sourceQuotation.quotation.deliveryAddress.addressName || "",
-          address: sourceQuotation.quotation.deliveryAddress.address || "",
-          city: sourceQuotation.quotation.deliveryAddress.city || "",
-          state: sourceQuotation.quotation.deliveryAddress.state || "",
-          country: sourceQuotation.quotation.deliveryAddress.country || "",
-          email: sourceQuotation.quotation.deliveryAddress.email || "",
-          phone: sourceQuotation.quotation.deliveryAddress.phone || "",
+      } else if (sourceQuotation) {
+        form.reset({
+          invoiceNumber: initialGeneratedInvoiceNumber || "",
+          saleDate: new Date(),
+          customerId: sourceQuotation.quotation.customerId,
+          storeId: stores[0]?.id || "",
+          notes: sourceQuotation.quotation.notes,
+          quotationId: sourceQuotation.quotation.id,
+          attachments: sourceQuotation.quotation.attachments || [],
+          isDeliveryAddressAdded:
+            sourceQuotation.quotation.isDeliveryAddressAdded,
+          deliveryAddress: sourceQuotation.quotation.deliveryAddress
+            ? {
+                addressName:
+                  sourceQuotation.quotation.deliveryAddress.addressName || "",
+                address:
+                  sourceQuotation.quotation.deliveryAddress.address || "",
+                city: sourceQuotation.quotation.deliveryAddress.city || "",
+                state: sourceQuotation.quotation.deliveryAddress.state || "",
+                country:
+                  sourceQuotation.quotation.deliveryAddress.country || "",
+                email: sourceQuotation.quotation.deliveryAddress.email || "",
+                phone: sourceQuotation.quotation.deliveryAddress.phone || "",
+              }
+            : {
+                addressName: "",
+                address: "",
+                city: "",
+                state: "",
+                country: "",
+                email: "",
+                phone: "",
+              },
+          products: sourceQuotation.products.map((qp) => ({
+            productId: qp.productId,
+            inventoryStock: [],
+            hasBackorder: false,
+            backorderQuantity: 0,
+            quantity: qp.quantity,
+            unitPrice: qp.unitPrice,
+            totalPrice: 0,
+            subTotal: 0,
+            taxAmount: 0,
+            taxRate: qp.taxRate,
+            discountRate: qp.discountRate,
+            taxRateId: qp.taxRateId,
+            discountAmount: 0,
+            productID: qp.productID,
+            productName: qp.productName,
+          })),
+          amountPaid: 0,
+          discountAmount: 0,
+          totalTaxAmount: 0,
+          subTotal: 0,
+          totalAmount: 0,
+          paymentMethod: PaymentMethod.Cash,
+          paymentStatus: PaymentStatus.Pending,
+          status: SaleStatus.Pending,
+          selectedProductId: "",
         });
 
-        if (sourceQuotation.quotation.deliveryAddress.country) {
+        if (sourceQuotation.quotation.deliveryAddress?.country) {
           setStates(
             State.getStatesOfCountry(
               sourceQuotation.quotation.deliveryAddress.country
             ) || []
           );
-          if (sourceQuotation.quotation.deliveryAddress.state) {
+          if (sourceQuotation.quotation.deliveryAddress?.state) {
             setCities(
               City.getCitiesOfState(
                 sourceQuotation.quotation.deliveryAddress.country,
@@ -373,40 +363,29 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
             );
           }
         }
+      } else if (mode === "create" && initialGeneratedInvoiceNumber) {
+        form.setValue("invoiceNumber", initialGeneratedInvoiceNumber);
       }
-
-      if (inventoryStock) {
-        const quotationProducts = sourceQuotation.products.map((qp) => ({
-          productId: qp.productId,
-          inventoryStock: [],
-          hasBackorder: false,
-          backorderQuantity: 0,
-          quantity: qp.quantity,
-          unitPrice: qp.unitPrice,
-          totalPrice: 0,
-          subTotal: 0,
-          taxAmount: 0,
-          taxRate: qp.taxRate,
-          discountRate: qp.discountRate,
-          taxRateId: qp.taxRateId,
-          discountAmount: 0,
-          productID: qp.productID,
-          productName: qp.productName,
-        }));
-        replace(quotationProducts);
-      }
+      initialMount.current = false;
     }
-  }, [sourceQuotation, mode, stores, inventoryStock, form, replace]);
+  }, [
+    initialData,
+    sourceQuotation,
+    initialGeneratedInvoiceNumber,
+    mode,
+    form,
+    stores,
+  ]);
 
   useEffect(() => {
     if (
       mode === "create" &&
-      generatedInvoiceNumber &&
+      initialGeneratedInvoiceNumber &&
       form.getValues("invoiceNumber") === ""
     ) {
-      form.setValue("invoiceNumber", generatedInvoiceNumber);
+      form.setValue("invoiceNumber", initialGeneratedInvoiceNumber);
     }
-  }, [generatedInvoiceNumber, form, mode]);
+  }, [initialGeneratedInvoiceNumber, form, mode]);
 
   // Effects for country/state/city changes (these are fine as they are, independent)
   useEffect(() => {
@@ -445,13 +424,15 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
   const handleRefreshInvoiceNumber = async () => {
     if (mode === "create") {
       try {
-        await refetch();
-        if (generatedInvoiceNumber) {
-          form.setValue("invoiceNumber", generatedInvoiceNumber);
-        }
+        setIsRefetchingInvoiceNumber(true);
+        const newInvoiceNumber = await generateInvoiceNumber();
+        form.setValue("invoiceNumber", newInvoiceNumber);
       } catch (error) {
+        setIsRefetchingInvoiceNumber(false);
         console.error("Error refreshing invoice number:", error);
         toast.error("Failed to refresh invoice number");
+      } finally {
+        setIsRefetchingInvoiceNumber(false);
       }
     }
   };
@@ -460,7 +441,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
   const handleCancel = () => {
     if (mode === "create") {
       form.reset(defaultValues);
-      refetch();
+      form.setValue("invoiceNumber", initialGeneratedInvoiceNumber || "");
     } else {
       form.reset(
         initialData
@@ -526,7 +507,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
       return;
     }
 
-    append({
+    prepend({
       productId: selectedProduct.product.id,
       inventoryStock: [],
       hasBackorder: false,
@@ -598,7 +579,6 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
     },
     [addTax, closeDialog]
   );
-
   const handleAddStore = useCallback(
     async (data: StoreFormValues): Promise<void> => {
       return new Promise((resolve, reject) => {
@@ -615,7 +595,6 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
     },
     [addStore, closeDialog]
   );
-
   const validateInvoiceNumber = useCallback(
     (invoiceNumber: string) => {
       const existingSale = sales?.find(
@@ -649,27 +628,32 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
         return;
       }
 
-      if (mode === "create") {
-        await addSale(
-          { data: values },
-          {
-            onSuccess: () => {
-              toast.success("Sale created successfully!");
-              form.reset(defaultValues);
-              router.push("/sales");
-            },
-            onError: (error) => {
-              console.error("Create sale error:", error);
-              toast.error("Failed to create sale");
-            },
-          }
-        );
-      }
-      if (mode === "edit" && initialData) {
-        if (initialData?.sale.attachments?.length > 0) {
-          const prevIds = initialData?.sale.attachments.map(
-            (attachment: Attachment) => attachment.id
+      // Show a loading toast immediately
+      const loadingToastId = toast.loading(
+        mode === "create" ? "Creating sale..." : "Updating sale..."
+      );
+
+      try {
+        if (mode === "create") {
+          await addSale(
+            { data: values },
+            {
+              onSuccess: () => {
+                toast.success("Sale created successfully!", {
+                  id: loadingToastId,
+                });
+                router.push("/sales");
+                router.refresh();
+                form.reset(defaultValues);
+              },
+            }
           );
+        }
+        if (mode === "edit" && initialData) {
+          const prevIds =
+            initialData?.sale.attachments.map(
+              (attachment: Attachment) => attachment.id
+            ) || [];
           await editSale(
             {
               id: initialData?.sale.id,
@@ -678,35 +662,22 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
             },
             {
               onSuccess: () => {
-                toast.success("Sale updated successfully!");
-                form.reset(initialData);
+                toast.success("Sale updated successfully!", {
+                  id: loadingToastId,
+                });
                 router.push("/sales");
-              },
-              onError: (error) => {
-                console.error("Update sale error:", error);
-                toast.error("Failed to update sale");
-              },
-            }
-          );
-        } else {
-          await editSale(
-            {
-              id: initialData?.sale.id,
-              data: values,
-            },
-            {
-              onSuccess: () => {
-                toast.success("Sale updated successfully!");
-                form.reset(initialData);
-                router.push("/sales");
-              },
-              onError: (error) => {
-                console.error("Update sale error:", error);
-                toast.error("Failed to update sale");
+                router.refresh();
+                form.reset(defaultValues);
               },
             }
           );
         }
+      } catch (error) {
+        console.error("Sale error:", error);
+        toast.error(
+          `Failed to ${mode === "create" ? "create" : "update"} sale`,
+          { id: loadingToastId }
+        );
       }
     } catch (error) {
       console.error("Error submitting form:", error);
@@ -880,57 +851,60 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
     const overallTotalAmount = overallSubTotal + overallTotalTaxAmount;
 
     // Set overall sale values only if they've changed
-    if (form.getValues("subTotal") !== overallSubTotal)
+    if (form.getValues("subTotal") !== overallSubTotal) {
       form.setValue("subTotal", overallSubTotal);
-    if (form.getValues("discountAmount") !== overallDiscountAmount)
+    }
+    if (form.getValues("discountAmount") !== overallDiscountAmount) {
       form.setValue("discountAmount", overallDiscountAmount);
-    if (form.getValues("totalAmount") !== overallTotalAmount)
+    }
+    if (form.getValues("totalAmount") !== overallTotalAmount) {
       form.setValue("totalAmount", overallTotalAmount);
-    if (form.getValues("totalTaxAmount") !== overallTotalTaxAmount)
+    }
+    if (form.getValues("totalTaxAmount") !== overallTotalTaxAmount) {
       form.setValue("totalTaxAmount", overallTotalTaxAmount);
+    }
   }, [
-    watchedProductFields,
-    fields.length,
+    watchedFields,
+    fields,
     form,
     getTaxRate,
+    calculateSubTotal,
+    calculateTotalAmount,
+    calculateTotalTaxAmount,
+    calculateEntryRawSubTotal,
     calculateEntryDiscountAmount,
     calculateEntryTaxableAmount,
     calculateEntryTaxAmount,
     calculateEntryTotalAmount,
-    fields,
+    calculateTotalDiscountAmount,
   ]);
 
-  // Effect for customer quotations
-  useEffect(() => {
-    if (selectedCustomerId && selectedCustomerId !== "") {
-      const customerQuotations =
-        quotations?.reduce(
-          (
-            acc: QuotationWithRelations[],
-            quotation: QuotationWithRelations
-          ) => {
-            if (!quotation.customer.id || !quotation.quotation.customerId) {
-              return acc;
-            }
-
-            const isNotConverted =
-              quotation.quotation.convertedToSale === false;
-            const isSameCustomer = quotation.customer.id === selectedCustomerId;
-
-            if (isNotConverted && isSameCustomer) {
-              acc.push(quotation);
-            }
-
+  // customer quotations
+  const customerQuotations = useMemo(() => {
+    if (!selectedCustomerId) return [];
+    return (
+      quotations?.reduce(
+        (acc: QuotationWithRelations[], quotation: QuotationWithRelations) => {
+          if (!quotation.customer.id || !quotation.quotation.customerId) {
             return acc;
-          },
-          []
-        ) || [];
+          }
 
-      setCustomerQuotations(customerQuotations);
-    } else {
-      setCustomerQuotations(null);
-    }
+          const isNotConverted = quotation.quotation.convertedToSale === false;
+          const isSameCustomer = quotation.customer.id === selectedCustomerId;
+
+          if (isNotConverted && isSameCustomer) {
+            acc.push(quotation);
+          }
+
+          return acc;
+        },
+        []
+      ) || []
+    );
   }, [quotations, selectedCustomerId]);
+
+  const isAnyMutationLoading =
+    isAddingSale || isEditingSale || isAddingStore || isAddingTax;
 
   return (
     <>
@@ -946,25 +920,25 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                 control={form.control}
                 name="invoiceNumber"
                 label="Invoice Number"
-                placeholder={
-                  isLoading || isRefetching
-                    ? "Generating..."
-                    : "Enter invoice number"
-                }
+                placeholder={"Enter invoice number"}
+                disabled={isAnyMutationLoading}
               />
-              <Button
-                type="button"
-                size={"icon"}
-                onClick={handleRefreshInvoiceNumber}
-                className="self-end shad-primary-btn px-5"
-                disabled={isLoading || isRefetching}
-              >
-                <RefreshCw
-                  className={`h-5 w-5 ${
-                    isLoading || isRefetching ? "animate-spin" : ""
-                  }`}
-                />
-              </Button>
+              {mode === "create" && (
+                <Button
+                  type="button"
+                  size={"icon"}
+                  onClick={handleRefreshInvoiceNumber}
+                  className="self-end shad-primary-btn px-5"
+                  disabled={isRefetchingInvoiceNumber || isAnyMutationLoading}
+                >
+                  <RefreshCw
+                    className={cn(
+                      "h-5 w-5",
+                      isRefetchingInvoiceNumber && "animate-spin"
+                    )}
+                  />
+                </Button>
+              )}
             </div>
             <CustomFormField
               fieldType={FormFieldType.DATE_PICKER}
@@ -972,6 +946,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
               name="saleDate"
               label="Sale Date"
               dateFormat="MM/dd/yyyy"
+              disabled={isAnyMutationLoading}
             />
           </div>
           <div className="w-full flex flex-col sm:flex-row gap-5">
@@ -980,18 +955,11 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
               control={form.control}
               name="customerId"
               label="Customer"
-              placeholder={`${
-                customersLoading ? "Loading..." : "Select customer"
-              }`}
+              placeholder={"Select customer"}
               onAddNew={() => setCustomerDialogOpen(true)}
               key={`customer-select-${form.watch("customerId") || ""}`}
-              disabled={!!sourceQuotation}
+              disabled={!!sourceQuotation || isAnyMutationLoading}
             >
-              {customersLoading && (
-                <div className="py-4">
-                  <Loading />
-                </div>
-              )}
               {customers?.map((customer: Customer) => (
                 <SelectItem
                   key={customer.id}
@@ -1011,12 +979,8 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
               placeholder="Select store"
               onAddNew={() => setStoreDialogOpen(true)}
               key={`store-select-${form.watch("storeId") || ""}`}
+              disabled={isAnyMutationLoading}
             >
-              {storesLoading && (
-                <div className="py-4">
-                  <Loading />
-                </div>
-              )}
               {stores?.map((store: Store) => (
                 <SelectItem
                   key={store.id}
@@ -1043,13 +1007,9 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                   name="selectedProductId"
                   label="Select Inventory"
                   placeholder={
-                    productsLoading
-                      ? "Loading..."
-                      : selectedStoreId
-                      ? "Select inventory"
-                      : "Select store first"
+                    selectedStoreId ? "Select inventory" : "Select store first"
                   }
-                  disabled={!selectedStoreId}
+                  disabled={!selectedStoreId || isAnyMutationLoading}
                   key={`inventory-select-${selectedProductId || ""}`}
                 >
                   <div className="py-3">
@@ -1061,7 +1021,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
-                        disabled={!selectedStoreId || productsLoading}
+                        disabled={!selectedStoreId || isAnyMutationLoading}
                       />
                       {searchQuery && (
                         <button
@@ -1074,11 +1034,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                       )}
                     </div>
                   </div>
-                  {productsLoading ? (
-                    <div className="py-4">
-                      <Loading />
-                    </div>
-                  ) : filteredProducts && filteredProducts.length > 0 ? (
+                  {filteredProducts && filteredProducts.length > 0 ? (
                     <>
                       <Table className="shad-table border border-light-200 rounded-lg">
                         <TableHeader>
@@ -1095,6 +1051,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                               key={product.id}
                               className="cursor-pointer hover:bg-blue-50"
                               onClick={() => {
+                                if (isAnyMutationLoading) return;
                                 form.setValue("selectedProductId", product.id);
                                 setPrevSelectedProductId(product.id);
                                 setSearchQuery("");
@@ -1149,7 +1106,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
               <Button
                 type="button"
                 onClick={handleAddProduct}
-                disabled={!selectedProductId}
+                disabled={!selectedProductId || isAnyMutationLoading}
                 className="self-end shad-primary-btn h-11"
               >
                 Add Inventory
@@ -1168,6 +1125,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                       e.stopPropagation();
                       setQuotationDialogOpen(true);
                     }}
+                    disabled={isAnyMutationLoading}
                   >
                     View Pending Quotations
                   </Button>
@@ -1227,7 +1185,8 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                           variant="outline"
                           onClick={() => setSelectedProductIndex(index)}
                           disabled={
-                            form.watch(`products.${index}.quantity`) <= 0
+                            form.watch(`products.${index}.quantity`) <= 0 ||
+                            isAnyMutationLoading
                           }
                           type="button"
                           className={cn(
@@ -1300,6 +1259,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                           name={`products.${index}.quantity`}
                           label=""
                           placeholder="Qty"
+                          disabled={isAnyMutationLoading}
                         />
                       </TableCell>
                       <TableCell>
@@ -1309,6 +1269,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                           name={`products.${index}.unitPrice`}
                           label=""
                           placeholder="Unit price"
+                          disabled={isAnyMutationLoading}
                         />
                       </TableCell>
                       <TableCell>
@@ -1322,12 +1283,8 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                           key={`tax-select-${
                             form.watch(`products.${index}.taxRateId`) || ""
                           }-${index}`}
+                          disabled={isAnyMutationLoading}
                         >
-                          {taxesLoading && (
-                            <div className="py-4">
-                              <Loading />
-                            </div>
-                          )}
                           {taxes?.map((tax: Tax) => (
                             <SelectItem
                               key={tax.id}
@@ -1354,6 +1311,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                           name={`products.${index}.discountRate`}
                           label=""
                           placeholder="Discount %"
+                          disabled={isAnyMutationLoading}
                         />
                       </TableCell>
                       <TableCell>
@@ -1371,8 +1329,16 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                       <TableCell>
                         <div className="flex flex-row items-center">
                           <span
-                            onClick={() => handleDeleteEntry(index)}
-                            className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
+                            onClick={() => {
+                              if (!isAnyMutationLoading)
+                                handleDeleteEntry(index);
+                            }}
+                            className={cn(
+                              "p-1 cursor-pointer",
+                              isAnyMutationLoading
+                                ? "text-gray-400 cursor-not-allowed"
+                                : "text-red-600 hover:bg-light-200 hover:rounded-md"
+                            )}
                           >
                             <DeleteIcon className="h-5 w-5" />
                           </span>
@@ -1458,6 +1424,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
               name="amountPaid"
               label="Amount Paid"
               placeholder="Amount paid"
+              disabled={isAnyMutationLoading}
             />
             <CustomFormField
               fieldType={FormFieldType.SELECT}
@@ -1466,6 +1433,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
               label="Payment Method"
               placeholder="Select payment method"
               key={`payment-select-${form.watch("status") || ""}`}
+              disabled={isAnyMutationLoading}
             >
               {Object.values(PaymentMethod).map((method) => (
                 <SelectItem
@@ -1485,6 +1453,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
               label="Payment Status"
               placeholder="Select payment status"
               key={`payment-status-${form.watch("status") || ""}`}
+              disabled={isAnyMutationLoading}
             >
               {Object.values(PaymentStatus).map((status) => (
                 <SelectItem
@@ -1503,6 +1472,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
               label="Sale Status"
               placeholder="Select status"
               key={`status-select-${form.watch("status") || ""}`}
+              disabled={isAnyMutationLoading}
             >
               {Object.values(SaleStatus).map((status) => (
                 <SelectItem
@@ -1522,6 +1492,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
               control={form.control}
               name="isDeliveryAddressAdded"
               label="Delivery address ?"
+              disabled={isAnyMutationLoading}
             />
             {isDeliveryAddressAdded && !sourceQuotation && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-4">
@@ -1531,6 +1502,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                   name="deliveryAddress.addressName"
                   label="Address Name"
                   placeholder="Enter address name"
+                  disabled={isAnyMutationLoading}
                 />
                 <CustomFormField
                   fieldType={FormFieldType.INPUT}
@@ -1538,6 +1510,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                   name="deliveryAddress.email"
                   label="Email"
                   placeholder="Enter address email"
+                  disabled={isAnyMutationLoading}
                 />
 
                 <CustomFormField
@@ -1545,6 +1518,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                   control={form.control}
                   name="deliveryAddress.phone"
                   label="Phone number"
+                  disabled={isAnyMutationLoading}
                 />
 
                 <CustomFormField
@@ -1554,6 +1528,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                   label="Country"
                   placeholder="Select a country"
                   onValueChange={handleCountryChange}
+                  disabled={isAnyMutationLoading}
                 >
                   {Country.getAllCountries().map((country) => (
                     <SelectItem
@@ -1577,7 +1552,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                       : "Select a country first"
                   }
                   onValueChange={handleStateChange}
-                  disabled={!selectedCountry}
+                  disabled={!selectedCountry || isAnyMutationLoading}
                 >
                   {states.map((state) => (
                     <SelectItem
@@ -1602,7 +1577,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                     form.setValue("deliveryAddress.city", value);
                     form.trigger("deliveryAddress.city");
                   }}
-                  disabled={!selectedState}
+                  disabled={!selectedState || isAnyMutationLoading}
                 >
                   {cities.map((city) => (
                     <SelectItem
@@ -1621,6 +1596,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                   name="deliveryAddress.address"
                   label="Address"
                   placeholder="Enter physical address"
+                  disabled={isAnyMutationLoading}
                 />
               </div>
             )}
@@ -1644,6 +1620,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
                       [".docx"],
                   }}
                   maxFiles={5}
+                  disabled={isAnyMutationLoading}
                 />
               </FormControl>
             )}
@@ -1654,6 +1631,7 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
             name="notes"
             label="Notes"
             placeholder="Enter sale notes"
+            disabled={isAnyMutationLoading}
           />
 
           <div className="flex justify-end gap-4">
@@ -1661,12 +1639,14 @@ const SaleForm = ({ mode, initialData, sourceQuotation }: SaleFormProps) => {
               type="button"
               onClick={handleCancel}
               className="shad-danger-btn"
+              disabled={isAnyMutationLoading}
             >
               Cancel
             </Button>
             <SubmitButton
               isLoading={isAddingSale || isEditingSale}
               className="shad-primary-btn"
+              disabled={isAnyMutationLoading}
             >
               {mode === "create" ? "Create Sale" : "Update Sale"}
             </SubmitButton>

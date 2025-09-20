@@ -1,9 +1,7 @@
-import { Suspense } from "react";
 import Overview from "@/components/dashboard/Overview";
 import DashboardSalesChart from "@/components/dashboard/DashboardSalesChart";
 import DashboardSalesTable from "@/components/dashboard/DashboardSalesTable";
 import DashboardPurchasesTable from "@/components/dashboard/DashboardPurchasesTable";
-import Loading from "./loading";
 
 export default async function Home(props: {
   searchParams: Promise<{
@@ -20,16 +18,14 @@ export default async function Home(props: {
 
       <Overview />
 
-      <Suspense fallback={<Loading />}>
-        <div className="grid grid-cols-1 w-full">
-          <DashboardSalesChart searchParams={searchParams} />
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 w-full">
-          <DashboardSalesTable />
+      <div className="grid grid-cols-1 w-full">
+        <DashboardSalesChart searchParams={searchParams} />
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 w-full">
+        <DashboardSalesTable />
 
-          <DashboardPurchasesTable />
-        </div>
-      </Suspense>
+        <DashboardPurchasesTable />
+      </div>
     </div>
   );
 }

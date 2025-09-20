@@ -87,7 +87,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
   );
 
   const { products, isLoading: productsLoading } = useProducts({
-    getAllProducts: true,
+    getAllActive: true,
   });
   const { inventoryStock } = useInventoryStock({
     getAllInventoryStocks: true,
@@ -211,7 +211,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
           },
   });
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, prepend, remove } = useFieldArray({
     control: form.control,
     name: "products",
   });
@@ -437,7 +437,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
       return;
     }
 
-    append({
+    prepend({
       productId: selectedProduct.product.id,
       quantity: 0,
       unitPrice: selectedProduct.product.sellingPrice,
@@ -534,9 +534,9 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
       if (mode === "create") {
         await addQuotation(values, {
           onSuccess: () => {
+            router.push("/quotations");
             toast.success("Quotation created successfully!");
             form.reset();
-            router.push("/quotations");
           },
           onError: (error) => {
             console.error("Create quotation error:", error);

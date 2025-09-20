@@ -1,7 +1,5 @@
 import PageWraper from "@/components/PageWraper";
 import dynamic from "next/dynamic";
-import { Suspense } from "react";
-import Loading from "../../loading";
 import { InventoryTransactionsFilters } from "@/hooks/useInventoryStockTransactions";
 import { getInventoryTransactions } from "@/lib/actions/inventoryStock.actions";
 
@@ -46,9 +44,7 @@ const InventoryAdjustmentList = async ({
   );
   return (
     <PageWraper title="Inventory Stock Logs">
-      <Suspense fallback={<Loading />}>
-        <InventoryTransactionsTable initialData={initialData} />
-      </Suspense>
+      <InventoryTransactionsTable initialData={initialData} />
     </PageWraper>
   );
 };

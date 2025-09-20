@@ -1,8 +1,6 @@
 import PageWraper from "@/components/PageWraper";
 import { InventoryStockFilters } from "@/hooks/useInventoryStock";
 import { getInventoryStock } from "@/lib/actions/inventoryStock.actions";
-import { Suspense } from "react";
-import Loading from "../../loading";
 import dynamic from "next/dynamic";
 import InventoryStats from "@/components/inventory/InventoryStats";
 
@@ -68,12 +66,10 @@ const InventoryStocks = async ({
       buttonText="Add New/Adjust"
       buttonPath="/inventory/adjust-inventory"
     >
-      <Suspense fallback={<Loading />}>
-        <div className="flex flex-col gap-5">
-          <InventoryStats />
-          <InventoryStockTable initialData={initialData} />
-        </div>
-      </Suspense>
+      <div className="flex flex-col gap-5">
+        <InventoryStats />
+        <InventoryStockTable initialData={initialData} />
+      </div>
     </PageWraper>
   );
 };
