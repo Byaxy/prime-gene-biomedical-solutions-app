@@ -16,9 +16,8 @@ import {
   Store,
 } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQuery } from "@tanstack/react-query";
 import { City, Country, ICity, IState, State } from "country-state-city";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import toast from "react-hot-toast";
 import { Form } from "../ui/form";
@@ -26,7 +25,6 @@ import { Button } from "../ui/button";
 import SubmitButton from "../SubmitButton";
 import CustomFormField, { FormFieldType } from "../CustomFormField";
 import { RefreshCw } from "lucide-react";
-import Loading from "../../app/(dashboard)/loading";
 import { SelectItem } from "../ui/select";
 import { useStores } from "@/hooks/useStores";
 import { useCustomers } from "@/hooks/useCustomers";
@@ -34,7 +32,6 @@ import CustomerDialog from "../customers/CustomerDialog";
 import StoreDialog from "../stores/StoreDialog";
 import { Search } from "lucide-react";
 import { Input } from "../ui/input";
-import { useSales } from "@/hooks/useSales";
 import { X } from "lucide-react";
 import {
   Table,
@@ -52,8 +49,25 @@ interface DeliveryFormProps {
   mode: "create" | "edit";
   initialData?: DeliveryWithRelations;
   sourceSale?: SaleWithRelations;
+  deliveries: DeliveryWithRelations[];
+  customers: Customer[];
+  stores: Store[];
+  sales: SaleWithRelations[];
+  generatedDeliveryRefNumber?: string;
 }
-const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
+
+const DeliveryForm = ({
+  mode,
+  initialData,
+  sourceSale,
+  deliveries,
+  customers,
+  stores,
+  sales,
+  generatedDeliveryRefNumber: initialGeneratedDeliveryRefNumber,
+}: DeliveryFormProps) => {
+  const [isRefetchingDeliveryRefNumber, setIsRefetchingDeliveryRefNumber] =
+    useState(false);
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
   const [storeDialogOpen, setStoreDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -62,46 +76,23 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
   );
   const [states, setStates] = useState<IState[]>([]);
   const [cities, setCities] = useState<ICity[]>([]);
-  const {
-    stores,
-    addStore,
-    isAddingStore,
-    isLoading: storesLoading,
-  } = useStores({
+  const { addStore, isAddingStore } = useStores({
     getAllStores: true,
   });
-  const {
-    customers,
-    addCustomer,
-    isLoading: customersLoading,
-  } = useCustomers({ getAllCustomers: true });
-  const { sales, isLoading: salesLoading } = useSales({ getAllSales: true });
+  const { addCustomer, isAddingCustomer } = useCustomers({
+    getAllCustomers: true,
+  });
   const { addDelivery, isAddingDelivery, editDelivery, isEditingDelivery } =
     useDeliveries();
 
   const router = useRouter();
-
-  // Generate Delivery Reference number
-  const {
-    data: generatedDeliveryRefNumber,
-    isLoading,
-    refetch,
-    isRefetching,
-  } = useQuery({
-    queryKey: ["delivery-ref-number"],
-    queryFn: async () => {
-      if (mode !== "create") return null;
-      const result = await generateDeliveryRefNumber();
-      return result;
-    },
-    enabled: mode === "create",
-  });
+  const initialMount = useRef(true);
 
   // Default values
   const defaultValues = useMemo(
     () => ({
       deliveryDate: new Date(),
-      deliveryRefNumber: generatedDeliveryRefNumber || "",
+      deliveryRefNumber: initialGeneratedDeliveryRefNumber || "",
       status: DeliveryStatus.Pending as DeliveryStatus,
       deliveryAddress: {
         addressName: "",
@@ -120,47 +111,15 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
       receivedBy: "",
       products: [],
     }),
-    [generatedDeliveryRefNumber]
+    [initialGeneratedDeliveryRefNumber]
   );
   const form = useForm<DeliveryFormValues>({
     resolver: zodResolver(DeliveryFormValidation),
     mode: "all",
-    defaultValues: initialData
-      ? {
-          deliveryDate: initialData.delivery.deliveryDate
-            ? new Date(initialData.delivery.deliveryDate)
-            : new Date(),
-          deliveryRefNumber: initialData.delivery.deliveryRefNumber || "",
-          status: initialData.delivery.status || DeliveryStatus.Pending,
-          deliveryAddress: {
-            addressName: initialData.delivery.deliveryAddress.addressName || "",
-            address: initialData.delivery.deliveryAddress.address || "",
-            city: initialData.delivery.deliveryAddress.city || "",
-            state: initialData.delivery.deliveryAddress.state || "",
-            country: initialData.delivery.deliveryAddress.country || "",
-            email: initialData.delivery.deliveryAddress.email || "",
-            phone: initialData.delivery.deliveryAddress.phone || "",
-          },
-          customerId: initialData.customer.id || "",
-          storeId: initialData.store.id || "",
-          saleId: initialData.delivery.saleId || "",
-          notes: initialData.delivery.notes || "",
-          deliveredBy: initialData.delivery.deliveredBy || "",
-          receivedBy: initialData.delivery.receivedBy || "",
-          products: initialData.products.map((product) => ({
-            deliveryId: product.deliveryId,
-            productId: product.productId,
-            quantityRequested: product.quantityRequested,
-            quantitySupplied: product.quantitySupplied,
-            balanceLeft: product.balanceLeft,
-            productName: product.productName || "",
-            productID: product.productID || "",
-          })),
-        }
-      : defaultValues,
+    defaultValues: defaultValues,
   });
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, prepend, remove } = useFieldArray({
     control: form.control,
     name: "products",
   });
@@ -168,143 +127,76 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
   const selectedCountry = form.watch("deliveryAddress.country");
   const selectedState = form.watch("deliveryAddress.state");
 
-  const filteredSales = sales?.filter((sale: SaleWithRelations) => {
-    if (mode === "edit") {
-      if (!searchQuery.trim()) return true;
+  const watchedFields = fields.map((_, index) => ({
+    quantitySupplied: form.watch(`products.${index}.quantitySupplied`),
+  }));
+
+  const filteredSales = useMemo(() => {
+    return sales?.filter((sale: SaleWithRelations) => {
+      const hasDeliveryNote = sales.some(
+        (existingSale) =>
+          existingSale.sale.id === sale.sale.id &&
+          existingSale.delivery &&
+          existingSale.delivery.id
+      );
+
+      if (mode === "edit") {
+        const isCurrentDeliverySale =
+          initialData?.delivery.saleId === sale.sale.id;
+        if (!searchQuery.trim()) return true;
+        const query = searchQuery.toLowerCase().trim();
+        return (
+          sale.sale.invoiceNumber?.toLowerCase().includes(query) &&
+          (!hasDeliveryNote || isCurrentDeliverySale)
+        );
+      }
+
+      if (!searchQuery.trim()) return !hasDeliveryNote;
+
       const query = searchQuery.toLowerCase().trim();
-      return sale.sale.invoiceNumber?.toLowerCase().includes(query);
-    }
-
-    if (!searchQuery.trim()) return !sale.sale.isDeliveryNoteCreated;
-
-    const query = searchQuery.toLowerCase().trim();
-    return (
-      sale.sale.invoiceNumber?.toLowerCase().includes(query) &&
-      !sale.sale.isDeliveryNoteCreated
-    );
-  });
+      return (
+        sale.sale.invoiceNumber?.toLowerCase().includes(query) &&
+        !hasDeliveryNote
+      );
+    });
+  }, [sales, searchQuery, mode, initialData]);
 
   // Handle products for selected sale.
-  const handleSaleSelection = (saleId: string) => {
-    if (!saleId) {
-      toast.error("Please select a Sale");
-      return;
-    }
-    if (!sales || sales.length === 0) {
-      toast.error("No sales available");
-      return;
-    }
-    const selectedSale: SaleWithRelations = sales?.find(
-      (sale: SaleWithRelations) => sale.sale.id === saleId
-    );
-
-    if (!selectedSale) {
-      toast.error("Selected sale not found");
-      return;
-    }
-
-    // Clear previous products
-    remove();
-
-    const deliveryAddress =
-      selectedSale.sale.isDeliveryAddressAdded &&
-      selectedSale.sale.deliveryAddress.address !== ""
-        ? selectedSale.sale.deliveryAddress
-        : {
-            ...selectedSale.customer.address,
-            email: selectedSale.customer.email,
-            phone: selectedSale.customer.phone,
-          };
-
-    if (deliveryAddress?.country) {
-      const countryStates =
-        State.getStatesOfCountry(deliveryAddress.country) || [];
-      setStates(countryStates);
-
-      if (deliveryAddress?.state) {
-        const stateCities =
-          City.getCitiesOfState(
-            deliveryAddress.country,
-            deliveryAddress.state
-          ) || [];
-        setCities(stateCities);
-      } else {
-        setCities([]);
+  const handleSaleSelection = useCallback(
+    (saleId: string) => {
+      if (!saleId) {
+        toast.error("Please select a Sale");
+        return;
       }
-    } else {
-      setStates([]);
-      setCities([]);
-    }
-
-    form.setValue("saleId", selectedSale.sale.id);
-    form.setValue("customerId", selectedSale.customer.id);
-    form.setValue("storeId", selectedSale.store.id);
-    form.setValue("deliveryAddress.country", deliveryAddress?.country || "");
-    form.setValue("deliveryAddress.state", deliveryAddress?.state || "");
-    form.setValue("deliveryAddress.city", deliveryAddress?.city || "");
-    form.setValue(
-      "deliveryAddress.addressName",
-      deliveryAddress?.addressName || ""
-    );
-    form.setValue("deliveryAddress.address", deliveryAddress?.address || "");
-    form.setValue("deliveryAddress.email", deliveryAddress?.email || "");
-    form.setValue("deliveryAddress.phone", deliveryAddress?.phone || "");
-
-    if (selectedSale.products.length > 0) {
-      selectedSale.products.forEach((product: SaleItem) => {
-        const suppliedQty = product.inventoryStock.reduce(
-          (total, stock) => total + stock.quantityToTake,
-          0
-        );
-
-        append({
-          productId: product.productId,
-          quantityRequested: product.quantity,
-          quantitySupplied: suppliedQty,
-          balanceLeft: product.quantity - suppliedQty,
-          productName: product.productName,
-          productID: product.productID,
-        });
-      });
-    }
-
-    // Add a small delay to ensure state updates are processed
-    setTimeout(() => {
-      form.trigger([
-        "deliveryAddress.country",
-        "deliveryAddress.state",
-        "deliveryAddress.city",
-        "deliveryAddress.addressName",
-        "deliveryAddress.address",
-        "deliveryAddress.email",
-        "deliveryAddress.phone",
-        "saleId",
-        "customerId",
-        "storeId",
-      ]);
-    }, 100);
-  };
-
-  useEffect(() => {
-    if (selectedCountry) {
-      setStates(State.getStatesOfCountry(selectedCountry) || []);
-      setCities([]);
-    }
-  }, [selectedCountry]);
-
-  useEffect(() => {
-    if (selectedState) {
-      setCities(
-        City.getCitiesOfState(selectedCountry ?? "", selectedState ?? "") || []
+      if (!sales || sales.length === 0) {
+        toast.error("No sales available");
+        return;
+      }
+      const selectedSale = sales?.find(
+        (sale: SaleWithRelations) => sale.sale.id === saleId
       );
-    }
-  }, [selectedState, selectedCountry]);
 
-  // Set initial values for the form
-  useEffect(() => {
-    if (initialData) {
+      if (!selectedSale) {
+        toast.error("Selected sale not found");
+        return;
+      }
+
+      // Clear previous products
       remove();
-      const deliveryAddress = initialData.delivery.deliveryAddress;
+
+      const deliveryAddress =
+        selectedSale.sale.isDeliveryAddressAdded &&
+        selectedSale.sale.deliveryAddress.address !== ""
+          ? selectedSale.sale.deliveryAddress
+          : {
+              addressName: selectedSale.customer.address?.addressName || "",
+              address: selectedSale.customer.address?.address || "",
+              city: selectedSale.customer.address?.city || "",
+              state: selectedSale.customer.address?.state || "",
+              country: selectedSale.customer.address?.country || "",
+              email: selectedSale.customer.email,
+              phone: selectedSale.customer.phone,
+            };
 
       if (deliveryAddress?.country) {
         const countryStates =
@@ -325,8 +217,80 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
         setStates([]);
         setCities([]);
       }
+      form.setValue("saleId", selectedSale.sale.id);
+      form.setValue("customerId", selectedSale.customer.id);
+      form.setValue("storeId", selectedSale.store.id);
+      form.setValue("deliveryAddress.country", deliveryAddress?.country || "");
+      form.setValue("deliveryAddress.state", deliveryAddress?.state || "");
+      form.setValue("deliveryAddress.city", deliveryAddress?.city || "");
+      form.setValue(
+        "deliveryAddress.addressName",
+        deliveryAddress?.addressName || ""
+      );
+      form.setValue("deliveryAddress.address", deliveryAddress?.address || "");
+      form.setValue("deliveryAddress.email", deliveryAddress?.email || "");
+      form.setValue("deliveryAddress.phone", deliveryAddress?.phone || "");
 
+      if (selectedSale.products.length > 0) {
+        selectedSale.products.forEach((product: SaleItem) => {
+          const suppliedQty = product.inventoryStock.reduce(
+            (total, stock) => total + stock.quantityToTake,
+            0
+          );
+
+          prepend({
+            productId: product.productId,
+            quantityRequested: product.quantity,
+            quantitySupplied: suppliedQty,
+            balanceLeft: product.quantity - suppliedQty,
+            productName: product.productName,
+            productID: product.productID,
+          });
+        });
+      }
+
+      // Add a small delay to ensure state updates are processed
       setTimeout(() => {
+        form.trigger([
+          "deliveryAddress.country",
+          "deliveryAddress.state",
+          "deliveryAddress.city",
+          "deliveryAddress.addressName",
+          "deliveryAddress.address",
+          "deliveryAddress.email",
+          "deliveryAddress.phone",
+          "saleId",
+          "customerId",
+          "storeId",
+        ]);
+      }, 100);
+    },
+    [sales, form, prepend, remove]
+  );
+
+  // Set initial values for the form
+  useEffect(() => {
+    if (initialMount.current) {
+      if (initialData) {
+        const deliveryAddress = initialData.delivery.deliveryAddress;
+
+        if (deliveryAddress?.country) {
+          setStates(State.getStatesOfCountry(deliveryAddress.country) || []);
+          if (deliveryAddress?.state) {
+            setCities(
+              City.getCitiesOfState(
+                deliveryAddress.country,
+                deliveryAddress.state
+              ) || []
+            );
+          } else {
+            setCities([]);
+          }
+        } else {
+          setStates([]);
+          setCities([]);
+        }
+
         form.reset({
           deliveryDate: new Date(
             initialData.delivery.deliveryDate || Date.now()
@@ -351,79 +315,108 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
             phone: initialData.delivery.deliveryAddress?.phone || "",
           },
         });
-      }, 100);
-    } else if (sourceSale) {
-      const { sale, customer, products } = sourceSale;
+        setPrevSelectedSaleId(initialData.delivery.saleId);
+      } else if (mode === "create" && sourceSale) {
+        const { sale, customer, products: saleProducts } = sourceSale;
 
-      const deliveryProducts = products?.map((product: SaleItem) => {
-        const suppliedQnty = product.inventoryStock.reduce(
-          (total, stock) => total + stock.quantityToTake,
-          0
-        );
-        return {
-          productId: product.productId,
-          quantityRequested: product.quantity,
-          quantitySupplied: suppliedQnty,
-          balanceLeft: product.quantity - suppliedQnty,
-          productName: product.productName,
-          productID: product.productID,
-        };
-      });
+        const deliveryProducts = saleProducts?.map((product: SaleItem) => {
+          const suppliedQnty = product.inventoryStock.reduce(
+            (total, stock) => total + stock.quantityToTake,
+            0
+          );
+          return {
+            productId: product.productId,
+            quantityRequested: product.quantity,
+            quantitySupplied: suppliedQnty,
+            balanceLeft: product.quantity - suppliedQnty,
+            productName: product.productName,
+            productID: product.productID,
+          };
+        });
 
-      const deliveryAddress =
-        sale.isDeliveryAddressAdded && sale.deliveryAddress.address !== ""
-          ? sale.deliveryAddress
-          : {
-              ...customer.address,
-              email: customer.email,
-              phone: customer.phone,
-            };
+        const deliveryAddress =
+          sale.isDeliveryAddressAdded &&
+          sale.deliveryAddress.address !== "" &&
+          sale.deliveryAddress.addressName !== ""
+            ? sale.deliveryAddress
+            : {
+                addressName: customer.name,
+                address: customer.address?.address || "",
+                city: customer.address?.city || "",
+                state: customer.address?.state || "",
+                country: customer.address?.country || "",
+                email: customer.email,
+                phone: customer.phone,
+              };
 
-      if (deliveryAddress?.country) {
-        const countryStates =
-          State.getStatesOfCountry(deliveryAddress.country) || [];
-        setStates(countryStates);
-
-        if (deliveryAddress?.state) {
-          const stateCities =
-            City.getCitiesOfState(
-              deliveryAddress.country,
-              deliveryAddress.state
-            ) || [];
-          setCities(stateCities);
+        if (deliveryAddress?.country) {
+          setStates(State.getStatesOfCountry(deliveryAddress.country) || []);
+          if (deliveryAddress?.state) {
+            setCities(
+              City.getCitiesOfState(
+                deliveryAddress.country,
+                deliveryAddress.state
+              ) || []
+            );
+          } else {
+            setCities([]);
+          }
         } else {
+          setStates([]);
           setCities([]);
         }
-      } else {
-        setStates([]);
-        setCities([]);
+
+        form.reset({
+          ...defaultValues,
+          deliveryRefNumber:
+            initialGeneratedDeliveryRefNumber ||
+            defaultValues.deliveryRefNumber,
+          customerId: sale.customerId,
+          storeId: sale.storeId,
+          saleId: sale.id,
+          deliveryAddress: {
+            addressName: deliveryAddress?.addressName || "",
+            address: deliveryAddress?.address || "",
+            city: deliveryAddress?.city || "",
+            state: deliveryAddress?.state || "",
+            country: deliveryAddress?.country || "",
+            email: deliveryAddress?.email || "",
+            phone: deliveryAddress?.phone || "",
+          },
+          products: deliveryProducts,
+        });
+        setPrevSelectedSaleId(sale.id);
+      } else if (mode === "create" && initialGeneratedDeliveryRefNumber) {
+        form.setValue("deliveryRefNumber", initialGeneratedDeliveryRefNumber);
       }
-      remove();
-      form.setValue("customerId", sale.customerId);
-      form.setValue("storeId", sale.storeId);
-      form.setValue("saleId", sale.id);
-      form.setValue(
-        "deliveryAddress.addressName",
-        deliveryAddress?.addressName
-      );
-      form.setValue("deliveryAddress.address", deliveryAddress?.address);
-      form.setValue("deliveryAddress.city", deliveryAddress?.city);
-      form.setValue("deliveryAddress.state", deliveryAddress?.state);
-      form.setValue("deliveryAddress.country", deliveryAddress?.country);
-      form.setValue("deliveryAddress.email", deliveryAddress?.email);
-      form.setValue("deliveryAddress.phone", deliveryAddress?.phone);
-      form.setValue("products", deliveryProducts);
+      initialMount.current = false;
     }
   }, [
     initialData,
     form,
-    stores,
-    remove,
-    append,
-    defaultValues,
     sourceSale,
-    generatedDeliveryRefNumber,
+    defaultValues,
+    mode,
+    initialGeneratedDeliveryRefNumber,
   ]);
+
+  useEffect(() => {
+    if (selectedCountry) {
+      setStates(State.getStatesOfCountry(selectedCountry) || []);
+      setCities([]);
+    } else {
+      setStates([]);
+      setCities([]);
+    }
+  }, [selectedCountry]);
+
+  useEffect(() => {
+    if (selectedState && selectedCountry) {
+      setCities(City.getCitiesOfState(selectedCountry, selectedState) || []);
+    } else {
+      setCities([]);
+    }
+  }, [selectedState, selectedCountry]);
 
   // Handle country change
   const handleCountryChange = (value: string) => {
@@ -449,39 +442,63 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
     form.trigger("deliveryAddress.state");
   };
 
-  // Set delivery ref number
-  useEffect(() => {
-    if (generatedDeliveryRefNumber && mode === "create") {
-      form.setValue("deliveryRefNumber", generatedDeliveryRefNumber);
-    }
-  }, [form, mode, generatedDeliveryRefNumber]);
-
   // Update the refresh button handler (deliveryRefNumber)
   const handleRefreshDeliveryRefNumber = async () => {
     if (mode === "create") {
       try {
-        await refetch();
-        if (generatedDeliveryRefNumber) {
-          form.setValue("deliveryRefNumber", generatedDeliveryRefNumber);
-        }
+        setIsRefetchingDeliveryRefNumber(true);
+        const newRefNumber = await generateDeliveryRefNumber();
+        form.setValue("deliveryRefNumber", newRefNumber);
       } catch (error) {
         console.error("Error refreshing delivery ref number:", error);
         toast.error("Failed to refresh delivery ref number");
+      } finally {
+        setIsRefetchingDeliveryRefNumber(false);
       }
     }
   };
-
   // Update the cancel button handler
   const handleCancel = () => {
     if (mode === "create") {
       form.reset(defaultValues);
-      refetch();
+      form.setValue(
+        "deliveryRefNumber",
+        initialGeneratedDeliveryRefNumber || ""
+      );
     } else {
-      form.reset();
+      if (initialData) {
+        form.reset({
+          deliveryDate: new Date(
+            initialData.delivery.deliveryDate || Date.now()
+          ),
+          deliveryRefNumber: initialData.delivery.deliveryRefNumber || "",
+          status: initialData.delivery.status,
+          customerId: initialData.delivery.customerId || "",
+          storeId: initialData.delivery.storeId || "",
+          saleId: initialData.delivery.saleId || "",
+          notes: initialData.delivery.notes || "",
+          deliveredBy: initialData.delivery.deliveredBy || "",
+          receivedBy: initialData.delivery.receivedBy || "",
+          products: initialData.products || [],
+          deliveryAddress: {
+            addressName:
+              initialData.delivery.deliveryAddress?.addressName || "",
+            address: initialData.delivery.deliveryAddress?.address || "",
+            city: initialData.delivery.deliveryAddress?.city || "",
+            state: initialData.delivery.deliveryAddress?.state || "",
+            country: initialData.delivery.deliveryAddress?.country || "",
+            email: initialData.delivery.deliveryAddress?.email || "",
+            phone: initialData.delivery.deliveryAddress?.phone || "",
+          },
+        });
+      } else {
+        form.reset(defaultValues);
+      }
     }
   };
   // handle close dialog
-  const closeDialog = () => {
+  const closeDialog = useCallback(() => {
+    // Memoized
     setCustomerDialogOpen(false);
     setStoreDialogOpen(false);
 
@@ -491,55 +508,99 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
         stuckSection.style.pointerEvents = "auto";
       }
     }, 100);
-  };
+  }, []);
+
+  const validateDeliveryRefNumber = useCallback(
+    (deliveryRefNumber: string) => {
+      const existingDelivery = deliveries?.find(
+        (delivery: DeliveryWithRelations) =>
+          delivery.delivery.deliveryRefNumber === deliveryRefNumber
+      );
+      if (mode === "create" && existingDelivery) return false;
+
+      if (
+        mode === "edit" &&
+        initialData?.delivery.deliveryRefNumber !== deliveryRefNumber &&
+        existingDelivery
+      )
+        return false;
+      return true;
+    },
+    [deliveries, mode, initialData]
+  );
 
   // Handle submit
   const handleSubmit = async () => {
     try {
       const values = form.getValues();
+
       const saleHasDelivery = sales.find(
         (sale: SaleWithRelations) =>
           sale.sale.id === values.saleId && sale.delivery && sale.delivery.id
       );
-
-      if (saleHasDelivery) {
+      if (mode === "create" && saleHasDelivery) {
         toast.error("This sale already has a delivery note");
         return;
       }
 
-      if (mode === "create") {
-        await addDelivery(
-          { data: values },
-          {
-            onSuccess: () => {
-              toast.success("Delivery created successfully!");
-              form.reset();
-              router.push("/deliveries");
-            },
-            onError: (error) => {
-              console.error("Create delivery error:", error);
-              toast.error("Failed to create delivery");
-            },
-          }
+      if (
+        mode === "edit" &&
+        saleHasDelivery &&
+        saleHasDelivery.delivery?.id !== initialData?.delivery.id
+      ) {
+        toast.error("Another delivery already exists for this sale.");
+        return;
+      }
+
+      if (!validateDeliveryRefNumber(values.deliveryRefNumber)) {
+        toast.error(
+          "A Delivery with the same delivery refference number already exists."
         );
-      } else if (mode === "edit") {
-        if (!initialData?.delivery.id) {
-          toast.error("Delivery ID is required for editing");
-          return;
-        }
-        await editDelivery(
-          { id: initialData.delivery.id, data: values },
-          {
-            onSuccess: () => {
-              toast.success("Delivery updated successfully!");
-              form.reset();
-              router.push("/deliveries");
-            },
-            onError: (error) => {
-              console.error("Edit delivery error:", error);
-              toast.error("Failed to update delivery");
-            },
+        return;
+      }
+
+      const loadingToastId = toast.loading(
+        mode === "create" ? "Creating delivery..." : "Updating delivery..."
+      );
+
+      try {
+        if (mode === "create") {
+          await addDelivery(
+            { data: values },
+            {
+              onSuccess: () => {
+                toast.success("Delivery created successfully!", {
+                  id: loadingToastId,
+                });
+                router.push("/deliveries");
+                router.refresh();
+                form.reset(defaultValues);
+              },
+            }
+          );
+        } else if (mode === "edit") {
+          if (!initialData?.delivery.id) {
+            throw new Error("Delivery ID is required for editing");
           }
+          await editDelivery(
+            { id: initialData.delivery.id, data: values },
+            {
+              onSuccess: () => {
+                toast.success("Delivery updated successfully!", {
+                  id: loadingToastId,
+                });
+                router.push("/deliveries");
+                router.refresh();
+                form.reset(defaultValues);
+              },
+            }
+          );
+        }
+      } catch (error) {
+        console.error("Delivery operation error:", error);
+        toast.error(
+          `Failed to ${mode === "create" ? "create" : "update"} delivery`,
+          { id: loadingToastId }
         );
       }
     } catch (error) {
@@ -587,6 +648,21 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
     });
   };
 
+  useEffect(() => {
+    if (fields.length > 0) {
+      fields.forEach((field, index) => {
+        const entryBalanceLeft = calculateEntryBalanceLeft(index);
+
+        form.setValue(`products.${index}.balanceLeft`, entryBalanceLeft);
+      });
+
+      console.log("Updated product fields with balance left.");
+    }
+  }, [watchedFields, fields, form, calculateEntryBalanceLeft]);
+
+  const isAnyMutationLoading =
+    isAddingDelivery || isEditingDelivery || isAddingCustomer || isAddingStore;
+
   return (
     <>
       <Form {...form}>
@@ -602,21 +678,22 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
                 name="deliveryRefNumber"
                 label="Delivery Reference Number"
                 placeholder={
-                  isLoading || isRefetching
+                  isAnyMutationLoading
                     ? "Generating..."
                     : "Enter delivery reference number"
                 }
+                disabled={isAnyMutationLoading || isRefetchingDeliveryRefNumber}
               />
               <Button
                 type="button"
                 size={"icon"}
                 onClick={handleRefreshDeliveryRefNumber}
                 className="self-end shad-primary-btn px-5"
-                disabled={isLoading || isRefetching}
+                disabled={isAnyMutationLoading || isRefetchingDeliveryRefNumber}
               >
                 <RefreshCw
                   className={`h-5 w-5 ${
-                    isLoading || isRefetching ? "animate-spin" : ""
+                    isRefetchingDeliveryRefNumber ? "animate-spin" : ""
                   }`}
                 />
               </Button>
@@ -627,6 +704,7 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
               name="deliveryDate"
               label="Delivery Date"
               dateFormat="MM/dd/yyyy"
+              disabled={isAnyMutationLoading}
             />
           </div>
           <div className="w-full flex flex-col sm:flex-row gap-5">
@@ -640,11 +718,6 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
               key={`customer-select-${form.watch("customerId") || ""}`}
               disabled={true}
             >
-              {customersLoading && (
-                <div className="py-4">
-                  <Loading />
-                </div>
-              )}
               {customers?.map((customer: Customer) => (
                 <SelectItem
                   key={customer.id}
@@ -666,11 +739,6 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
               key={`store-select-${form.watch("storeId") || ""}`}
               disabled={true}
             >
-              {storesLoading && (
-                <div className="py-4">
-                  <Loading />
-                </div>
-              )}
               {stores?.map((store: Store) => (
                 <SelectItem
                   key={store.id}
@@ -698,7 +766,9 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
                   label="Select Sale"
                   placeholder={"Select Sale"}
                   key={`sale-select-${form.watch("saleId") || ""}`}
-                  disabled={!!sourceSale || !!initialData}
+                  disabled={
+                    !!sourceSale || !!initialData || isAnyMutationLoading
+                  }
                 >
                   <div className="py-3">
                     <div className="relative flex items-center rounded-md border border-dark-700 bg-white">
@@ -709,7 +779,7 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
-                        disabled={salesLoading}
+                        disabled={isAnyMutationLoading}
                       />
                       {searchQuery && (
                         <button
@@ -722,11 +792,7 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
                       )}
                     </div>
                   </div>
-                  {salesLoading ? (
-                    <div className="py-4">
-                      <Loading />
-                    </div>
-                  ) : filteredSales && filteredSales.length > 0 ? (
+                  {filteredSales && filteredSales.length > 0 ? (
                     <>
                       <Table className="shad-table border border-light-200 rounded-lg">
                         <TableHeader>
@@ -742,6 +808,7 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
                               key={sale.sale.id}
                               className="cursor-pointer hover:bg-blue-50"
                               onClick={() => {
+                                if (isAnyMutationLoading) return;
                                 setPrevSelectedSaleId(sale.sale.id);
                                 setSearchQuery("");
                                 handleSaleSelection(sale.sale.id);
@@ -828,6 +895,7 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
                         name={`products.${index}.quantitySupplied`}
                         label=""
                         placeholder="Qty supplied"
+                        disabled={isAnyMutationLoading}
                       />
                     </TableCell>
                     <TableCell>
@@ -854,6 +922,7 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
               name="deliveryAddress.addressName"
               label="Address Name"
               placeholder="Enter address name"
+              disabled={isAnyMutationLoading}
             />
             <CustomFormField
               fieldType={FormFieldType.INPUT}
@@ -861,6 +930,7 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
               name="deliveryAddress.email"
               label="Email"
               placeholder="Enter address email"
+              disabled={isAnyMutationLoading}
             />
 
             <CustomFormField
@@ -868,6 +938,7 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
               control={form.control}
               name="deliveryAddress.phone"
               label="Phone number"
+              disabled={isAnyMutationLoading}
             />
 
             <CustomFormField
@@ -878,6 +949,7 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
               placeholder="Select a country"
               onValueChange={handleCountryChange}
               key={`country-${form.watch("deliveryAddress.country")}`}
+              disabled={isAnyMutationLoading}
             >
               {Country.getAllCountries().map((country) => (
                 <SelectItem
@@ -899,7 +971,7 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
                 selectedCountry ? "Select a state" : "Select a country first"
               }
               onValueChange={handleStateChange}
-              disabled={!selectedCountry}
+              disabled={!selectedCountry || isAnyMutationLoading}
               key={`state-${form.watch("deliveryAddress.state")}`}
             >
               {states.map((state) => (
@@ -925,7 +997,7 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
                 form.setValue("deliveryAddress.city", value);
                 form.trigger("deliveryAddress.city");
               }}
-              disabled={!selectedState}
+              disabled={!selectedState || isAnyMutationLoading}
               key={`city-${form.watch("deliveryAddress.city")}`}
             >
               {cities.map((city) => (
@@ -945,6 +1017,7 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
               name="deliveryAddress.address"
               label="Address"
               placeholder="Enter physical address"
+              disabled={isAnyMutationLoading}
             />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-x-5 gap-y-4">
@@ -955,6 +1028,7 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
               label="Delivery Status"
               placeholder="Select status"
               key={`status-select-${form.watch("status") || ""}`}
+              disabled={isAnyMutationLoading}
             >
               {Object.values(DeliveryStatus).map((status) => (
                 <SelectItem
@@ -975,6 +1049,7 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
               name="deliveredBy"
               label="Delivered By:"
               placeholder="Enter name"
+              disabled={isAnyMutationLoading}
             />
             <CustomFormField
               fieldType={FormFieldType.INPUT}
@@ -982,6 +1057,7 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
               name="receivedBy"
               label="Received By:"
               placeholder="Enter name"
+              disabled={isAnyMutationLoading}
             />
           </div>
 
@@ -991,6 +1067,7 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
             name="notes"
             label="Notes"
             placeholder="Enter delivery notes"
+            disabled={isAnyMutationLoading}
           />
 
           <div className="flex justify-end gap-4">
@@ -998,12 +1075,14 @@ const DeliveryForm = ({ mode, initialData, sourceSale }: DeliveryFormProps) => {
               type="button"
               onClick={handleCancel}
               className="shad-danger-btn"
+              disabled={isAnyMutationLoading}
             >
               Cancel
             </Button>
             <SubmitButton
               isLoading={isAddingDelivery || isEditingDelivery}
               className="shad-primary-btn"
+              disabled={isAnyMutationLoading}
             >
               {mode === "create" ? "Create Delivery" : "Update Delivery"}
             </SubmitButton>

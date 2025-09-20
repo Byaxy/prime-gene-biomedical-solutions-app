@@ -1,18 +1,22 @@
-import Loading from "@/app/(dashboard)/loading";
-import CreateDeliveryFromSalePage from "@/components/deliveries/CreateDeliveryFromSalePage";
+import DeliveryFormWrapper from "@/components/deliveries/DeliveryFormWrapper";
 import PageWraper from "@/components/PageWraper";
-import { Suspense, use } from "react";
+import FormSkeleton from "@/components/ui/form-skeleton";
+import { Suspense } from "react";
 
-interface Props {
-  params: Promise<{ id: string }>;
+export interface Params {
+  id: string;
 }
 
-const CreateDeliveryFromSale = ({ params }: Props) => {
-  const { id } = use(params);
+const CreateDeliveryFromSale = async ({
+  params,
+}: {
+  params: Promise<Params>;
+}) => {
+  const { id } = await params;
   return (
     <PageWraper title="Create Delivery">
-      <Suspense fallback={<Loading />}>
-        <CreateDeliveryFromSalePage saleId={id} />
+      <Suspense fallback={<FormSkeleton />}>
+        <DeliveryFormWrapper mode="create" sourceSaleId={id} />
       </Suspense>
     </PageWraper>
   );

@@ -125,6 +125,7 @@ export const addDelivery = async (delivery: DeliveryFormValues) => {
     });
 
     revalidatePath("/deliveries");
+    revalidatePath("/sales");
     return parseStringify(result);
   } catch (error) {
     console.error("Error creating delivery:", error);
@@ -352,6 +353,8 @@ export const editDelivery = async (
     });
 
     revalidatePath("/deliveries");
+    revalidatePath(`/deliveries/edit-delivery/${deliveryId}`);
+    revalidatePath("/sales");
     return parseStringify(result);
   } catch (error) {
     console.error("Error editing delivery:", error);
