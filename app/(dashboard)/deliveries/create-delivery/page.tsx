@@ -1,10 +1,14 @@
-import DeliveryForm from "@/components/forms/DeliveryForm";
+import DeliveryFormWrapper from "@/components/deliveries/DeliveryFormWrapper";
 import PageWraper from "@/components/PageWraper";
+import FormSkeleton from "@/components/ui/form-skeleton";
+import { Suspense } from "react";
 
 const CreateDelivery = () => {
   return (
     <PageWraper title="Create Delivery Note">
-      <DeliveryForm mode={"create"} />
+      <Suspense fallback={<FormSkeleton />}>
+        <DeliveryFormWrapper mode="create" />
+      </Suspense>
     </PageWraper>
   );
 };
