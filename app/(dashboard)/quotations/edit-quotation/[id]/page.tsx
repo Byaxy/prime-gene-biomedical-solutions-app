@@ -1,36 +1,21 @@
-"use client";
-
-import QuotationForm from "@/components/forms/QuotationForm";
-import Loading from "@/app/(dashboard)/loading";
 import PageWraper from "@/components/PageWraper";
-import { getQuotationById } from "@/lib/actions/quotation.actions";
-import { useQuery } from "@tanstack/react-query";
-import { useParams } from "next/navigation";
+import { Suspense } from "react";
+import FormSkeleton from "@/components/ui/form-skeleton";
+import QuotationFormWrapper from "@/components/quotations/QuotationFormWrapper";
 
-const EditQuotation = () => {
-  const { id } = useParams();
+export interface Params {
+  id: string;
+}
 
-  const { data: quotation, isLoading } = useQuery({
-    queryKey: ["quotations", id],
-    queryFn: async () => {
-      if (!id) return null;
-      return await getQuotationById(id as string);
-    },
-    enabled: !!id,
-    staleTime: 0,
-  });
-
-  if (isLoading) {
-    return <Loading />;
-  }
+const EditQuotation = async ({ params }: { params: Promise<Params> }) => {
+  const { id } = await params;
 
   return (
     <PageWraper title="Edit Quotation">
       <section className="space-y-6">
-        <QuotationForm
-          mode={"edit"}
-          initialData={quotation ? quotation : undefined}
-        />
+        <Suspense fallback={<FormSkeleton />}>
+          <QuotationFormWrapper mode="edit" quotationId={id} />
+        </Suspense>
       </section>
     </PageWraper>
   );

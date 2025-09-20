@@ -3,11 +3,28 @@ import PageWraper from "@/components/PageWraper";
 import { Suspense } from "react";
 import dynamic from "next/dynamic";
 import { getQuotations } from "@/lib/actions/quotation.actions";
-import Loading from "../loading";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 
-const QuotationsTable = dynamic(
-  () => import("@/components/quotations/QuotationsTable")
-);
+const QuotationsTableData = async ({
+  currentPage,
+  currentPageSize,
+  filters,
+}: {
+  currentPage: number;
+  currentPageSize: number;
+  filters: QuotationFilters;
+}) => {
+  const initialData = await getQuotations(
+    currentPage,
+    currentPageSize,
+    currentPageSize === 0,
+    filters
+  );
+  const QuotationsTable = dynamic(
+    () => import("@/components/quotations/QuotationsTable")
+  );
+  return <QuotationsTable initialData={initialData} />;
+};
 
 export interface SearchParams {
   page?: string;
@@ -44,21 +61,18 @@ const Quotations = async ({
     convertedToSale: sp.convertedToSale || undefined,
   };
 
-  const initialData = await getQuotations(
-    currentPage,
-    currentPageSize,
-    currentPageSize === 0,
-    filtersForServer
-  );
-
   return (
     <PageWraper
       title="Quotations"
       buttonText="Add Quotation"
       buttonPath="/quotations/create-quotation"
     >
-      <Suspense fallback={<Loading />}>
-        <QuotationsTable initialData={initialData} />
+      <Suspense fallback={<TableSkeleton />}>
+        <QuotationsTableData
+          currentPage={currentPage}
+          currentPageSize={currentPageSize}
+          filters={filtersForServer}
+        />
       </Suspense>
     </PageWraper>
   );
