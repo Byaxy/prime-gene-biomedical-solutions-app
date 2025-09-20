@@ -1,6 +1,5 @@
 "use client";
 
-import { useProducts } from "@/hooks/useProducts";
 import {
   CustomerFormValues,
   QuotationFormValidation,
@@ -8,7 +7,7 @@ import {
   TaxFormValues,
 } from "@/lib/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import toast from "react-hot-toast";
 import { Form, FormControl } from "../ui/form";
@@ -40,12 +39,10 @@ import {
   Tax,
 } from "@/types";
 import CustomerDialog from "../customers/CustomerDialog";
-import { useQuery } from "@tanstack/react-query";
 import { generateQuotationNumber } from "@/lib/actions/quotation.actions";
 import { RefreshCw } from "lucide-react";
 import { useTaxes } from "@/hooks/useTaxes";
 import TaxDialog from "../taxes/TaxDialog";
-import Loading from "../../app/(dashboard)/loading";
 import { FileUploader } from "../FileUploader";
 import ProductSheet from "../products/ProductSheet";
 import { Country, State, City } from "country-state-city";
@@ -54,14 +51,31 @@ import { Check } from "lucide-react";
 import { Search } from "lucide-react";
 import { Input } from "../ui/input";
 import { X } from "lucide-react";
-import { useInventoryStock } from "@/hooks/useInventoryStock";
+import { cn } from "@/lib/utils";
 
 interface QuotationFormProps {
   mode: "create" | "edit";
   initialData?: QuotationWithRelations;
+  customers: Customer[];
+  products: ProductWithRelations[];
+  taxes: Tax[];
+  quotations: QuotationWithRelations[];
+  inventoryStock: InventoryStockWithRelations[];
+  generatedQuotationNumber?: string;
 }
 
-const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
+const QuotationForm = ({
+  mode,
+  initialData,
+  customers,
+  products,
+  taxes,
+  quotations,
+  inventoryStock,
+  generatedQuotationNumber: initialGeneratedQuotationNumber,
+}: QuotationFormProps) => {
+  const [isRefetchingQuotationNumber, setIsRefetchingQuotationNumber] =
+    useState(false);
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
   const [taxDialogOpen, setTaxDialogOpen] = useState(false);
   const [productDialogOpen, setProductDialogOpen] = useState(false);
@@ -70,145 +84,50 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
     string | null
   >(null);
 
-  const [states, setStates] = useState<IState[]>(() =>
-    initialData?.quotation.deliveryAddress?.country
-      ? State.getStatesOfCountry(
-          initialData?.quotation.deliveryAddress?.country
-        )
-      : []
-  );
-  const [cities, setCities] = useState<ICity[]>(() =>
-    initialData?.quotation.deliveryAddress?.state
-      ? City.getCitiesOfState(
-          initialData?.quotation.deliveryAddress?.country || "",
-          initialData?.quotation.deliveryAddress?.state
-        )
-      : []
-  );
-
-  const { products, isLoading: productsLoading } = useProducts({
-    getAllActive: true,
-  });
-  const { inventoryStock } = useInventoryStock({
-    getAllInventoryStocks: true,
-  });
-  const {
-    customers,
-    addCustomer,
-    isLoading: customersLoading,
-  } = useCustomers({ getAllCustomers: true });
-  const {
-    taxes,
-    isLoading: taxesLoading,
-    addTax,
-    isAddingTax,
-  } = useTaxes({ getAllTaxes: true });
-  const {
-    quotations,
-    addQuotation,
-    isAddingQuotation,
-    editQuotation,
-    isEditingQuotation,
-  } = useQuotations({
-    getAllQuotations: true,
-  });
-
-  // Generate quotation number
-  const {
-    data: generatedQuotationNumber,
-    isLoading,
-    refetch,
-    isRefetching,
-  } = useQuery({
-    queryKey: ["quotation-number"],
-    queryFn: async () => {
-      if (mode !== "create") return null;
-      const result = await generateQuotationNumber();
-      return result;
-    },
-    enabled: mode === "create",
-  });
+  const [states, setStates] = useState<IState[]>([]);
+  const [cities, setCities] = useState<ICity[]>([]);
+  const { addCustomer, isAddingCustomer } = useCustomers();
+  const { addTax, isAddingTax } = useTaxes();
+  const { addQuotation, isAddingQuotation, editQuotation, isEditingQuotation } =
+    useQuotations();
 
   const router = useRouter();
+  const initialMount = useRef(true);
 
-  const defaultValues = {
-    quotationNumber: generatedQuotationNumber || "",
-    rfqNumber: "",
-    quotationDate: new Date(),
-    products: [],
-    customerId: "",
-    status: QuotationStatus.Pending as QuotationStatus,
-    notes: "",
-    discountAmount: 0,
-    totalTaxAmount: 0,
-    subTotal: 0,
-    totalAmount: 0,
-    convertedToSale: false,
-    attachments: [],
-    isDeliveryAddressAdded: false,
-    deliveryAddress: {
-      addressName: "",
-      address: "",
-      city: "",
-      state: "",
-      country: "",
-      email: "",
-      phone: "",
-    },
-
-    selectedProductId: "",
-  };
+  const defaultValues = useMemo(
+    () => ({
+      quotationNumber: initialGeneratedQuotationNumber || "",
+      rfqNumber: "",
+      quotationDate: new Date(),
+      products: [],
+      customerId: "",
+      status: QuotationStatus.Pending as QuotationStatus,
+      notes: "",
+      discountAmount: 0,
+      totalTaxAmount: 0,
+      subTotal: 0,
+      totalAmount: 0,
+      convertedToSale: false,
+      attachments: [],
+      isDeliveryAddressAdded: false,
+      deliveryAddress: {
+        addressName: "",
+        address: "",
+        city: "",
+        state: "",
+        country: "",
+        email: "",
+        phone: "",
+      },
+      selectedProductId: "",
+    }),
+    [initialGeneratedQuotationNumber]
+  );
 
   const form = useForm<QuotationFormValues>({
     resolver: zodResolver(QuotationFormValidation),
     mode: "all",
-    defaultValues:
-      mode === "create"
-        ? defaultValues
-        : {
-            quotationNumber: initialData?.quotation.quotationNumber || "",
-            rfqNumber: initialData?.quotation.rfqNumber || "",
-            quotationDate: initialData?.quotation.quotationDate
-              ? new Date(initialData.quotation.quotationDate)
-              : new Date(),
-            products:
-              initialData?.products?.map((product) => ({
-                productId: product.productId,
-                quantity: product.quantity,
-                unitPrice: product.unitPrice,
-                subTotal: product.subTotal,
-                totalPrice: product.totalPrice,
-                taxAmount: product.taxAmount,
-                taxRate: product.taxRate,
-                taxRateId: product.taxRateId || "",
-                discountRate: product.discountRate,
-                discountAmount: product.discountAmount,
-                productID: product.productID,
-                productName: product.productName,
-              })) || [],
-            customerId: initialData?.quotation.customerId || "",
-            status: initialData?.quotation.status || QuotationStatus.Pending,
-            notes: initialData?.quotation.notes || "",
-            discountAmount: initialData?.quotation.discountAmount || 0,
-            totalTaxAmount: initialData?.quotation.totalTaxAmount || 0,
-            subTotal: initialData?.quotation.subTotal || 0,
-            totalAmount: initialData?.quotation.totalAmount || 0,
-            convertedToSale: initialData?.quotation.convertedToSale || false,
-            attachments: initialData?.quotation.attachments || [],
-            isDeliveryAddressAdded:
-              initialData?.quotation.isDeliveryAddressAdded || false,
-            deliveryAddress: {
-              addressName:
-                initialData?.quotation.deliveryAddress?.addressName || "",
-              address: initialData?.quotation.deliveryAddress?.address || "",
-              city: initialData?.quotation.deliveryAddress?.city || "",
-              state: initialData?.quotation.deliveryAddress?.state || "",
-              country: initialData?.quotation.deliveryAddress?.country || "",
-              email: initialData?.quotation.deliveryAddress?.email || "",
-              phone: initialData?.quotation.deliveryAddress?.phone || "",
-            },
-            selectedProductId: "",
-          },
+    defaultValues: defaultValues,
   });
 
   const { fields, prepend, remove } = useFieldArray({
@@ -228,8 +147,8 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
     discountRate: form.watch(`products.${index}.discountRate`),
   }));
 
-  const filteredProducts = products?.reduce(
-    (acc: Product[], product: ProductWithRelations) => {
+  const filteredProducts = useMemo(() => {
+    return products?.reduce((acc: Product[], product: ProductWithRelations) => {
       if (!product?.product?.id || !product?.product?.productID) {
         return acc;
       }
@@ -274,31 +193,13 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
 
       acc.push(updatedProduct);
       return acc;
-    },
-    []
-  );
+    }, []);
+  }, [products, inventoryStock, searchQuery]);
 
   // Set initial values for the form
   useEffect(() => {
-    if (initialData && mode === "edit") {
-      if (initialData.quotation.deliveryAddress?.country) {
-        const countryStates =
-          State.getStatesOfCountry(
-            initialData.quotation.deliveryAddress.country
-          ) || [];
-        setStates(countryStates);
-
-        if (initialData.quotation.deliveryAddress?.state) {
-          const stateCities =
-            City.getCitiesOfState(
-              initialData.quotation.deliveryAddress.country,
-              initialData.quotation.deliveryAddress.state
-            ) || [];
-          setCities(stateCities);
-        }
-      }
-
-      setTimeout(() => {
+    if (initialMount.current) {
+      if (mode === "edit" && initialData) {
         form.reset({
           quotationNumber: initialData.quotation.quotationNumber,
           rfqNumber: initialData.quotation.rfqNumber || "",
@@ -343,22 +244,44 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
           },
           selectedProductId: "",
         });
-      }, 100);
+
+        if (initialData.quotation.deliveryAddress?.country) {
+          setStates(
+            State.getStatesOfCountry(
+              initialData.quotation.deliveryAddress.country
+            ) || []
+          );
+          if (initialData.quotation.deliveryAddress?.state) {
+            setCities(
+              City.getCitiesOfState(
+                initialData.quotation.deliveryAddress.country,
+                initialData.quotation.deliveryAddress.state
+              ) || []
+            );
+          }
+        }
+      } else if (mode === "create" && initialGeneratedQuotationNumber) {
+        form.setValue("quotationNumber", initialGeneratedQuotationNumber);
+      }
+      initialMount.current = false;
     }
-  }, [initialData, form, mode]);
+  }, [initialData, form, mode, initialGeneratedQuotationNumber]);
 
   useEffect(() => {
     if (selectedCountry) {
       setStates(State.getStatesOfCountry(selectedCountry) || []);
       setCities([]);
+    } else {
+      setStates([]);
+      setCities([]);
     }
   }, [selectedCountry]);
 
   useEffect(() => {
-    if (selectedState) {
-      setCities(
-        City.getCitiesOfState(selectedCountry ?? "", selectedState ?? "") || []
-      );
+    if (selectedState && selectedCountry) {
+      setCities(City.getCitiesOfState(selectedCountry, selectedState) || []);
+    } else {
+      setCities([]);
     }
   }, [selectedState, selectedCountry]);
 
@@ -384,24 +307,18 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
     form.setValue("deliveryAddress.city", "");
   };
 
-  // Set quotation number
-  useEffect(() => {
-    if (generatedQuotationNumber && mode === "create") {
-      form.setValue("quotationNumber", generatedQuotationNumber);
-    }
-  }, [generatedQuotationNumber, form, mode]);
-
   // refresh button handler
   const handleRefreshQuotationNumber = async () => {
     if (mode === "create") {
       try {
-        await refetch();
-        if (generatedQuotationNumber) {
-          form.setValue("quotationNumber", generatedQuotationNumber);
-        }
+        setIsRefetchingQuotationNumber(true);
+        const newQuotationNumber = await generateQuotationNumber();
+        form.setValue("quotationNumber", newQuotationNumber);
       } catch (error) {
         console.error("Error refreshing quotation number:", error);
         toast.error("Failed to refresh quotation number");
+      } finally {
+        setIsRefetchingQuotationNumber(false);
       }
     }
   };
@@ -410,9 +327,71 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
   const handleCancel = () => {
     if (mode === "create") {
       form.reset(defaultValues);
-      refetch();
+      form.setValue("quotationNumber", initialGeneratedQuotationNumber || "");
     } else {
-      form.reset();
+      if (initialData) {
+        form.reset({
+          quotationNumber: initialData.quotation.quotationNumber,
+          rfqNumber: initialData.quotation.rfqNumber || "",
+          quotationDate: new Date(
+            initialData.quotation.quotationDate || Date.now()
+          ),
+          products:
+            initialData.products.map((product) => ({
+              productId: product.productId,
+              quantity: product.quantity,
+              unitPrice: product.unitPrice,
+              subTotal: product.subTotal,
+              totalPrice: product.totalPrice,
+              taxAmount: product.taxAmount,
+              taxRate: product.taxRate,
+              taxRateId: product.taxRateId || "",
+              discountRate: product.discountRate,
+              discountAmount: product.discountAmount,
+              productID: product.productID,
+              productName: product.productName,
+            })) || [],
+          customerId: initialData.quotation.customerId,
+          status: initialData.quotation.status,
+          notes: initialData.quotation.notes || "",
+          discountAmount: initialData.quotation.discountAmount || 0,
+          totalTaxAmount: initialData.quotation.totalTaxAmount || 0,
+          subTotal: initialData.quotation.subTotal || 0,
+          totalAmount: initialData.quotation.totalAmount || 0,
+          convertedToSale: initialData.quotation.convertedToSale || false,
+          attachments: initialData.quotation.attachments || [],
+          isDeliveryAddressAdded:
+            initialData.quotation.isDeliveryAddressAdded || false,
+          deliveryAddress: {
+            addressName:
+              initialData.quotation.deliveryAddress?.addressName || "",
+            address: initialData.quotation.deliveryAddress?.address || "",
+            city: initialData.quotation.deliveryAddress?.city || "",
+            state: initialData.quotation.deliveryAddress?.state || "",
+            country: initialData.quotation.deliveryAddress?.country || "",
+            email: initialData.quotation.deliveryAddress?.email || "",
+            phone: initialData.quotation.deliveryAddress?.phone || "",
+          },
+          selectedProductId: "",
+        });
+        if (initialData.quotation.deliveryAddress?.country) {
+          setStates(
+            State.getStatesOfCountry(
+              initialData.quotation.deliveryAddress.country
+            ) || []
+          );
+          if (initialData.quotation.deliveryAddress?.state) {
+            setCities(
+              City.getCitiesOfState(
+                initialData.quotation.deliveryAddress.country,
+                initialData.quotation.deliveryAddress.state
+              ) || []
+            );
+          }
+        }
+      } else {
+        form.reset(defaultValues);
+      }
     }
   };
 
@@ -422,7 +401,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
       return;
     }
 
-    const selectedProduct: ProductWithRelations = products?.find(
+    const selectedProduct = products?.find(
       (product: ProductWithRelations) =>
         product.product.id === selectedProductId
     );
@@ -459,7 +438,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
   };
 
   // handle close dialog
-  const closeDialog = () => {
+  const closeDialog = useCallback(() => {
     setCustomerDialogOpen(false);
     setTaxDialogOpen(false);
     setProductDialogOpen(false);
@@ -470,7 +449,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
         stuckSection.style.pointerEvents = "auto";
       }
     }, 100);
-  };
+  }, []);
 
   const handleAddCustomer = async (data: CustomerFormValues): Promise<void> => {
     return new Promise((resolve, reject) => {
@@ -499,21 +478,24 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
     });
   };
 
-  const validateQuotationNumber = (quotationNumber: string) => {
-    const existingQuotation = quotations?.find(
-      (quotation: QuotationWithRelations) =>
-        quotation.quotation.quotationNumber === quotationNumber
-    );
-    if (mode === "create" && existingQuotation) return false;
+  const validateQuotationNumber = useCallback(
+    (quotationNumber: string) => {
+      const existingQuotation = quotations?.find(
+        (quotation: QuotationWithRelations) =>
+          quotation.quotation.quotationNumber === quotationNumber
+      );
+      if (mode === "create" && existingQuotation) return false;
 
-    if (
-      mode === "edit" &&
-      initialData?.quotation.quotationNumber !== quotationNumber &&
-      existingQuotation
-    )
-      return false;
-    return true;
-  };
+      if (
+        mode === "edit" &&
+        initialData?.quotation.quotationNumber !== quotationNumber &&
+        existingQuotation
+      )
+        return false;
+      return true;
+    },
+    [quotations, mode, initialData]
+  );
 
   const handleSubmit = async () => {
     try {
@@ -531,24 +513,29 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
         return;
       }
 
-      if (mode === "create") {
-        await addQuotation(values, {
-          onSuccess: () => {
-            router.push("/quotations");
-            toast.success("Quotation created successfully!");
-            form.reset();
-          },
-          onError: (error) => {
-            console.error("Create quotation error:", error);
-            toast.error("Failed to create quotation");
-          },
-        });
-      }
-      if (mode === "edit" && initialData) {
-        if (initialData?.quotation.attachments?.length > 0) {
-          const prevIds = initialData?.quotation.attachments.map(
-            (attachment: Attachment) => attachment.id
-          );
+      const loadingToastId = toast.loading(
+        mode === "create" ? "Creating quotation..." : "Updating quotation..."
+      );
+
+      try {
+        if (mode === "create") {
+          await addQuotation(values, {
+            onSuccess: () => {
+              router.push("/quotations");
+              toast.success("Quotation created successfully!", {
+                id: loadingToastId,
+              });
+              router.push("/quotations");
+              router.refresh();
+              form.reset(defaultValues);
+            },
+          });
+        }
+        if (mode === "edit" && initialData) {
+          const prevIds =
+            initialData?.quotation.attachments.map(
+              (attachment: Attachment) => attachment.id
+            ) || [];
           await editQuotation(
             {
               id: initialData?.quotation.id,
@@ -557,33 +544,23 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
             },
             {
               onSuccess: () => {
-                toast.success("Quotation updated successfully!");
                 router.push("/quotations");
-              },
-              onError: (error) => {
-                console.error("Update quotation error:", error);
-                toast.error("Failed to update quotation");
-              },
-            }
-          );
-        } else {
-          await editQuotation(
-            {
-              id: initialData?.quotation.id,
-              data: values,
-            },
-            {
-              onSuccess: () => {
-                toast.success("Quotation updated successfully!");
+                toast.success("Quotation updated successfully!", {
+                  id: loadingToastId,
+                });
                 router.push("/quotations");
-              },
-              onError: (error) => {
-                console.error("Update quotation error:", error);
-                toast.error("Failed to update quotation");
+                router.refresh();
+                form.reset(defaultValues);
               },
             }
           );
         }
+      } catch (error) {
+        console.error("Quotation operation error:", error);
+        toast.error(
+          `Failed to ${mode === "create" ? "create" : "update"} quotation`,
+          { id: loadingToastId }
+        );
       }
     } catch (error) {
       console.error("Error submitting form:", error);
@@ -718,6 +695,9 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
     taxes,
   ]);
 
+  const isAnyMutationLoading =
+    isAddingQuotation || isEditingQuotation || isAddingTax || isAddingCustomer;
+
   return (
     <>
       <Form {...form}>
@@ -733,21 +713,22 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                 name="quotationNumber"
                 label="Quotation Number"
                 placeholder={
-                  isLoading || isRefetching
+                  isRefetchingQuotationNumber
                     ? "Generating..."
                     : "Enter quotation number"
                 }
+                disabled={isRefetchingQuotationNumber || isAnyMutationLoading}
               />
               <Button
                 type="button"
                 size={"icon"}
                 onClick={handleRefreshQuotationNumber}
                 className="self-end shad-primary-btn px-5"
-                disabled={isLoading || isRefetching}
+                disabled={isRefetchingQuotationNumber || isAnyMutationLoading}
               >
                 <RefreshCw
                   className={`h-5 w-5 ${
-                    isLoading || isRefetching ? "animate-spin" : ""
+                    isRefetchingQuotationNumber ? "animate-spin" : ""
                   }`}
                 />
               </Button>
@@ -758,6 +739,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
               name="quotationDate"
               label="Quotation Date"
               dateFormat="MM/dd/yyyy"
+              disabled={isAnyMutationLoading}
             />
           </div>
           <div className="w-full flex flex-col sm:flex-row gap-5">
@@ -769,12 +751,8 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
               placeholder="Select customer"
               onAddNew={() => setCustomerDialogOpen(true)}
               key={`customer-select-${form.watch("customerId") || ""}`}
+              disabled={isAnyMutationLoading}
             >
-              {customersLoading && (
-                <div className="py-4">
-                  <Loading />
-                </div>
-              )}
               {customers?.map((customer: Customer) => (
                 <SelectItem
                   key={customer.id}
@@ -792,6 +770,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
               name="rfqNumber"
               label="Request for Quotation Number"
               placeholder={"Request for quotation number"}
+              disabled={isAnyMutationLoading}
             />
             <CustomFormField
               fieldType={FormFieldType.SELECT}
@@ -800,6 +779,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
               label="Status"
               placeholder="Select status"
               key={`status-select-${form.watch("status") || ""}`}
+              disabled={isAnyMutationLoading}
             >
               {Object.values(QuotationStatus).map((status) => (
                 <SelectItem
@@ -826,10 +806,9 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                   control={form.control}
                   name="selectedProductId"
                   label="Select Inventory"
-                  placeholder={
-                    productsLoading ? "Loading..." : "Select inventory"
-                  }
+                  placeholder={"Select inventory"}
                   key={`inventory-select-${selectedProductId || ""}`}
+                  disabled={isAnyMutationLoading}
                 >
                   <div className="py-3">
                     <div className="relative flex items-center rounded-md border border-dark-700 bg-white">
@@ -840,7 +819,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
-                        disabled={productsLoading}
+                        disabled={isAnyMutationLoading}
                       />
                       {searchQuery && (
                         <button
@@ -853,11 +832,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                       )}
                     </div>
                   </div>
-                  {productsLoading ? (
-                    <div className="py-4">
-                      <Loading />
-                    </div>
-                  ) : filteredProducts && filteredProducts.length > 0 ? (
+                  {filteredProducts && filteredProducts.length > 0 ? (
                     <>
                       <Table className="shad-table border border-light-200 rounded-lg">
                         <TableHeader>
@@ -874,6 +849,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                               key={product.id}
                               className="cursor-pointer hover:bg-blue-50"
                               onClick={() => {
+                                if (isAnyMutationLoading) return;
                                 form.setValue("selectedProductId", product.id);
                                 setPrevSelectedProductId(product.id);
                                 setSearchQuery("");
@@ -924,7 +900,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
               <Button
                 type="button"
                 onClick={handleAddProduct}
-                disabled={!selectedProductId}
+                disabled={!selectedProductId || isAnyMutationLoading}
                 className="self-end mb-1 shad-primary-btn"
               >
                 Add Product
@@ -971,6 +947,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                         name={`products.${index}.quantity`}
                         label=""
                         placeholder="Qty"
+                        disabled={isAnyMutationLoading}
                       />
                     </TableCell>
                     <TableCell>
@@ -980,6 +957,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                         name={`products.${index}.unitPrice`}
                         label=""
                         placeholder="Unit price"
+                        disabled={isAnyMutationLoading}
                       />
                     </TableCell>
                     <TableCell>
@@ -993,12 +971,8 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                         key={`tax-select-${
                           form.watch(`products.${index}.taxRateId`) || ""
                         }-${index}`}
+                        disabled={isAnyMutationLoading}
                       >
-                        {taxesLoading && (
-                          <div className="py-4">
-                            <Loading />
-                          </div>
-                        )}
                         {taxes?.map((tax: Tax) => (
                           <SelectItem
                             key={tax.id}
@@ -1023,6 +997,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                         name={`products.${index}.discountRate`}
                         label=""
                         placeholder="Discount %"
+                        disabled={isAnyMutationLoading}
                       />
                     </TableCell>
                     <TableCell>
@@ -1040,8 +1015,15 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                     <TableCell>
                       <div className="flex flex-row items-center">
                         <span
-                          onClick={() => handleDeleteEntry(index)}
-                          className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
+                          onClick={() => {
+                            if (!isAnyMutationLoading) handleDeleteEntry(index);
+                          }}
+                          className={cn(
+                            "p-1 cursor-pointer",
+                            isAnyMutationLoading
+                              ? "text-gray-400 cursor-not-allowed"
+                              : "text-red-600 hover:bg-light-200 hover:rounded-md"
+                          )}
                         >
                           <DeleteIcon className="h-5 w-5" />
                         </span>
@@ -1125,6 +1107,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
               control={form.control}
               name="isDeliveryAddressAdded"
               label="Delivery address ?"
+              disabled={isAnyMutationLoading}
             />
             {isDeliveryAddressAdded && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-3">
@@ -1134,6 +1117,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                   name="deliveryAddress.addressName"
                   label="Address Name"
                   placeholder="Enter address name"
+                  disabled={isAnyMutationLoading}
                 />
                 <CustomFormField
                   fieldType={FormFieldType.INPUT}
@@ -1141,6 +1125,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                   name="deliveryAddress.email"
                   label="Email"
                   placeholder="Enter address email"
+                  disabled={isAnyMutationLoading}
                 />
 
                 <CustomFormField
@@ -1148,6 +1133,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                   control={form.control}
                   name="deliveryAddress.phone"
                   label="Phone number"
+                  disabled={isAnyMutationLoading}
                 />
 
                 <CustomFormField
@@ -1157,6 +1143,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                   label="Country"
                   placeholder="Select a country"
                   onValueChange={handleCountryChange}
+                  disabled={isAnyMutationLoading}
                 >
                   {Country.getAllCountries().map((country) => (
                     <SelectItem
@@ -1180,7 +1167,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                       : "Select a country first"
                   }
                   onValueChange={handleStateChange}
-                  disabled={!selectedCountry}
+                  disabled={!selectedCountry || isAnyMutationLoading}
                 >
                   {states.map((state) => (
                     <SelectItem
@@ -1204,7 +1191,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
                   onValueChange={(value) =>
                     form.setValue("deliveryAddress.city", value)
                   }
-                  disabled={!selectedState}
+                  disabled={!selectedState || isAnyMutationLoading}
                 >
                   {cities.map((city) => (
                     <SelectItem
@@ -1233,6 +1220,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
             control={form.control}
             name="attachments"
             label="Attachment"
+            disabled={isAnyMutationLoading}
             renderSkeleton={(field) => (
               <FormControl>
                 <FileUploader
@@ -1256,6 +1244,7 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
             name="notes"
             label="Notes"
             placeholder="Enter quotation notes"
+            disabled={isAnyMutationLoading}
           />
 
           <div className="flex justify-end gap-4">
@@ -1263,12 +1252,14 @@ const QuotationForm = ({ mode, initialData }: QuotationFormProps) => {
               type="button"
               onClick={handleCancel}
               className="shad-danger-btn"
+              disabled={isAnyMutationLoading}
             >
               Cancel
             </Button>
             <SubmitButton
               isLoading={isAddingQuotation || isEditingQuotation}
               className="shad-primary-btn"
+              disabled={isAnyMutationLoading}
             >
               {mode === "create" ? "Create Quotation" : "Update Quotation"}
             </SubmitButton>

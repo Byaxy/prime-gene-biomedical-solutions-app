@@ -428,7 +428,6 @@ const SaleForm = ({
         const newInvoiceNumber = await generateInvoiceNumber();
         form.setValue("invoiceNumber", newInvoiceNumber);
       } catch (error) {
-        setIsRefetchingInvoiceNumber(false);
         console.error("Error refreshing invoice number:", error);
         toast.error("Failed to refresh invoice number");
       } finally {
