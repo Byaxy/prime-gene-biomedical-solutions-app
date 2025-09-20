@@ -1,33 +1,21 @@
-"use client";
-
-import SaleForm from "@/components/forms/SaleForm";
-import Loading from "@/app/(dashboard)/loading";
 import PageWraper from "@/components/PageWraper";
-import { getSaleById } from "@/lib/actions/sale.actions";
-import { useQuery } from "@tanstack/react-query";
-import { useParams } from "next/navigation";
-import React from "react";
+import SaleFormWrapper from "@/components/sales/SaleFormWrapper";
+import FormSkeleton from "@/components/ui/form-skeleton";
+import { Suspense } from "react";
 
-const DuplicateInvoice = () => {
-  const { id } = useParams();
+export interface Params {
+  id: string;
+}
 
-  const { data: sale, isLoading } = useQuery({
-    queryKey: ["sales"],
-    queryFn: async () => {
-      if (!id) return null;
-      return await getSaleById(id as string);
-    },
-    enabled: !!id,
-    staleTime: 0,
-  });
+const DuplicateInvoice = async ({ params }: { params: Promise<Params> }) => {
+  const { id } = await params;
 
-  if (isLoading) {
-    return <Loading />;
-  }
   return (
     <PageWraper title="Duplicate Invoice">
       <section className="space-y-6">
-        <SaleForm mode={"create"} initialData={sale ? sale : undefined} />
+        <Suspense fallback={<FormSkeleton />}>
+          <SaleFormWrapper mode="duplicate" saleId={id} />
+        </Suspense>
       </section>
     </PageWraper>
   );

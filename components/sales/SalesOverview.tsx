@@ -16,10 +16,9 @@ import StatCard from "../StatCard";
 
 interface SalesOverviewProps {
   sales: SaleWithRelations[];
-  isLoading?: boolean;
 }
 
-const SalesOverview = ({ sales, isLoading }: SalesOverviewProps) => {
+const SalesOverview = ({ sales }: SalesOverviewProps) => {
   const statistics = useMemo(() => {
     if (!sales?.length) {
       return {
@@ -92,22 +91,6 @@ const SalesOverview = ({ sales, isLoading }: SalesOverviewProps) => {
     { name: "Pending", value: statistics.unpaidSales, color: "#f59e0b" },
     { name: "Due", value: statistics.dueSales, color: "#ef4444" },
   ].filter((item) => item.value > 0);
-
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Card key={i} className="animate-pulse bg-gray-100 rounded-lg">
-              <CardContent className="p-6">
-                <div className="h-12"></div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6 my-6">

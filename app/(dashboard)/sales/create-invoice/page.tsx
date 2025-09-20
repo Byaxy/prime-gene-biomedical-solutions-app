@@ -1,13 +1,15 @@
-"use client";
-
-import SaleForm from "@/components/forms/SaleForm";
 import PageWraper from "@/components/PageWraper";
+import { Suspense } from "react";
+import SaleFormWrapper from "@/components/sales/SaleFormWrapper";
+import FormSkeleton from "@/components/ui/form-skeleton";
 
-const CreateInvoice = () => {
+const CreateInvoice = async () => {
   return (
     <PageWraper title="Create Invoice">
       <section className="space-y-6">
-        <SaleForm mode={"create"} />
+        <Suspense fallback={<FormSkeleton />}>
+          <SaleFormWrapper mode="create" />
+        </Suspense>
       </section>
     </PageWraper>
   );

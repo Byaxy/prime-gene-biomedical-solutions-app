@@ -100,19 +100,6 @@ export const addSale = async (sale: SaleFormValues) => {
       (p) => p.isActive === false
     );
 
-    const existingProductIds = new Set(existingProducts.map((p) => p.id));
-    const missingProducts = sale.products.filter(
-      (p) => !existingProductIds.has(p.productId)
-    );
-
-    if (missingProducts.length > 0) {
-      throw new Error(
-        `Some products do not exist in the database: ${missingProducts
-          .map((p) => p.productID || p.productName)
-          .join(", ")}`
-      );
-    }
-
     // validate sale invoice number not taken
     const existingInvoiceNumber = await db
       .select({ invoiceNumber: salesTable.invoiceNumber })
@@ -1203,7 +1190,7 @@ export const softDeleteSale = async (saleId: string) => {
       await tx
         .update(saleItemInventoryTable)
         .set({ isActive: false })
-        .where(eq(saleItemInventoryTable.saleItemId, updatedSaleItem.id));
+        .where(inArray(saleItemInventoryTable.saleItemId, saleItemIds));
 
       if (
         updatedSaleItem.hasBackorder &&

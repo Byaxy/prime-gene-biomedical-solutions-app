@@ -1,13 +1,8 @@
 import PageWraper from "@/components/PageWraper";
 import { Suspense } from "react";
-import Loading from "../loading";
 import { DeliveryFilters } from "@/hooks/useDeliveries";
-import { getDeliveries } from "@/lib/actions/delivery.actions";
-import dynamic from "next/dynamic";
-
-const DeliveriesTable = dynamic(
-  () => import("@/components/deliveries/DeliveriesTable")
-);
+import DeliveriesPage from "@/components/deliveries/DeliveriesPage";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 
 export interface SearchParams {
   page?: string;
@@ -34,21 +29,18 @@ const Deliveries = async ({
     status: sp.status || undefined,
   };
 
-  const initialData = await getDeliveries(
-    currentPage,
-    currentPageSize,
-    currentPageSize === 0,
-    filtersForServer
-  );
-
   return (
     <PageWraper
       title="Deliveries"
       buttonText="Add Delivery"
       buttonPath="/deliveries/create-delivery"
     >
-      <Suspense fallback={<Loading />}>
-        <DeliveriesTable initialData={initialData} />
+      <Suspense fallback={<TableSkeleton />}>
+        <DeliveriesPage
+          currentPage={currentPage}
+          currentPageSize={currentPageSize}
+          filters={filtersForServer}
+        />
       </Suspense>
     </PageWraper>
   );

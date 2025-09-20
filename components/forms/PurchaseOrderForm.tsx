@@ -126,7 +126,7 @@ const PurchaseOrderForm = ({ mode, initialData }: Props) => {
           },
   });
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, prepend, remove } = useFieldArray({
     control: form.control,
     name: "products",
   });
@@ -271,7 +271,7 @@ const PurchaseOrderForm = ({ mode, initialData }: Props) => {
       return;
     }
 
-    append({
+    prepend({
       productId: selectedProduct.product.id,
       quantity: 0,
       costPrice: selectedProduct.product.costPrice,

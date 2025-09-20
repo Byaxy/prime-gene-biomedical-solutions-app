@@ -1,12 +1,65 @@
 import { SaleFilters } from "@/hooks/useSales";
 import PageWraper from "@/components/PageWraper";
-import { Suspense } from "react";
 import SalesOverview from "@/components/sales/SalesOverview";
 import dynamic from "next/dynamic";
-import Loading from "../loading";
 import { getSales } from "@/lib/actions/sale.actions";
+import { Suspense } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 
-const SalesTable = dynamic(() => import("@/components/sales/SalesTable"));
+const SalesTableData = async ({
+  currentPage,
+  currentPageSize,
+  filters,
+}: {
+  currentPage: number;
+  currentPageSize: number;
+  filters: SaleFilters;
+}) => {
+  const initialData = await getSales(
+    currentPage,
+    currentPageSize,
+    currentPageSize === 0,
+    filters
+  );
+  const SalesTable = dynamic(() => import("@/components/sales/SalesTable"), {
+    ssr: true,
+  });
+  return <SalesTable initialData={initialData} />;
+};
+
+const SalesOverviewDataLoader = async () => {
+  const allSales = await getSales(0, 0, true);
+  return <SalesOverview sales={allSales.documents || []} />;
+};
+
+const SalesOverviewSkeleton = () => {
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Card key={i} className="animate-pulse bg-gray-100 rounded-lg">
+            <CardContent className="p-6">
+              <div className="h-12" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="animate-pulse bg-gray-100 rounded-lg">
+          <CardContent>
+            <div className="h-36 lg:h-48" />
+          </CardContent>
+        </Card>
+        <Card className="animate-pulse bg-gray-100 rounded-lg">
+          <CardContent>
+            <div className="h-36 lg:h-48" />
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+};
 
 export interface SearchParams {
   page?: string;
@@ -47,28 +100,25 @@ const Sales = async ({
     paymentStatus: sp.paymentStatus || undefined,
   };
 
-  const initialData = await getSales(
-    currentPage,
-    currentPageSize,
-    currentPageSize === 0,
-    filtersForServer
-  );
-  const allSales = await getSales(0, 0, true);
-  const isLoadingAllSales = allSales.total === 0;
-
   return (
     <PageWraper
       title="Sales"
       buttonText="Create Invoice"
       buttonPath="/sales/create-invoice"
     >
-      <Suspense fallback={<Loading />}>
-        <SalesOverview
-          sales={allSales.documents || []}
-          isLoading={isLoadingAllSales}
-        />
-        <SalesTable initialData={initialData} />
-      </Suspense>
+      <>
+        <Suspense fallback={<SalesOverviewSkeleton />}>
+          <SalesOverviewDataLoader />
+        </Suspense>
+
+        <Suspense fallback={<TableSkeleton />}>
+          <SalesTableData
+            currentPage={currentPage}
+            currentPageSize={currentPageSize}
+            filters={filtersForServer}
+          />
+        </Suspense>
+      </>
     </PageWraper>
   );
 };

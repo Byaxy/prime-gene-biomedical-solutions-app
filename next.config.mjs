@@ -14,13 +14,6 @@ const nextConfig = {
       },
     ],
   },
-  // Force dynamic rendering for all pages
-  staticPageGenerationTimeout: 0,
-  experimental: {
-    workerThreads: false,
-    cpus: 1,
-  },
-  staticPageGenerationTimeout: 120,
 
   async headers() {
     return [
