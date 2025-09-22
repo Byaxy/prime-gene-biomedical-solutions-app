@@ -276,7 +276,7 @@ const PromissoryNoteForm = ({
         return acc;
       }, []) || []
     );
-  }, [sales, searchQuery, mode, initialData]);
+  }, [sales, mode, searchQuery, initialData]);
 
   // initialize data
   useEffect(() => {
@@ -303,22 +303,25 @@ const PromissoryNoteForm = ({
           promissoryNoteDate: new Date(),
           totalAmount: sourceSale.sale.totalAmount || 0,
           notes: sourceSale.sale.notes || "",
-          products: sourceSale.products.map((product) => {
-            const remainingQuantity =
-              product.quantity - product.fulfilledQuantity;
+          products:
+            sourceSale.products
+              .map((product) => {
+                const remainingQuantity =
+                  product.quantity - product.fulfilledQuantity;
 
-            if (remainingQuantity > 0) {
-              return {
-                saleItemId: product.id,
-                productId: product.productId,
-                quantity: remainingQuantity,
-                unitPrice: product.unitPrice,
-                subTotal: remainingQuantity * product.unitPrice,
-                productName: product.productName,
-                productID: product.productID,
-              };
-            }
-          }),
+                if (remainingQuantity > 0) {
+                  return {
+                    saleItemId: product.id,
+                    productId: product.productId,
+                    quantity: remainingQuantity,
+                    unitPrice: product.unitPrice,
+                    subTotal: remainingQuantity * product.unitPrice,
+                    productName: product.productName,
+                    productID: product.productID,
+                  };
+                }
+              })
+              .filter(Boolean) || [],
         });
       } else if (mode === "create" && initialGeneratedPromissoryNoteRefNumber) {
         form.setValue(
