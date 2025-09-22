@@ -219,9 +219,12 @@ export const addSale = async (sale: SaleFormValues) => {
         SaleBackorder,
         "id" | "isActive" | "createdAt" | "updatedAt"
       >;
+      type SaleItemInventoryRecord = SaleInventoryStock & {
+        saleItemId: string;
+      };
 
       // BATCH INSERT: Create all inventory records
-      const inventoryRecords: SaleInventoryStock[] = [];
+      const inventoryRecords: SaleItemInventoryRecord[] = [];
       sale.products.forEach((product, productIndex) => {
         product.inventoryStock.forEach((inventory) => {
           inventoryRecords.push({

@@ -430,7 +430,6 @@ export interface SaleItem {
 }
 
 export interface SaleInventoryStock {
-  saleItemId: string;
   inventoryStockId: string;
   lotNumber: string;
   quantityToTake: number;
