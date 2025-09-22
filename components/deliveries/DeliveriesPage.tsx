@@ -2,9 +2,6 @@ import { DeliveryFilters } from "@/hooks/useDeliveries";
 import { getDeliveries } from "@/lib/actions/delivery.actions";
 
 import dynamic from "next/dynamic";
-const DeliveriesTable = dynamic(
-  () => import("@/components/deliveries/DeliveriesTable")
-);
 
 interface PageProps {
   currentPage: number;
@@ -21,6 +18,9 @@ const DeliveriesPage = async ({
     currentPageSize,
     currentPageSize === 0,
     filters
+  );
+  const DeliveriesTable = dynamic(
+    () => import("@/components/deliveries/DeliveriesTable")
   );
   return <DeliveriesTable initialData={initialData} />;
 };
