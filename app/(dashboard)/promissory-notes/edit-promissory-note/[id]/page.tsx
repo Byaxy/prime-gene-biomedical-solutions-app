@@ -1,36 +1,19 @@
-"use client";
-
-import PromissoryNoteForm from "@/components/forms/PromissoryNoteForm";
-import Loading from "@/app/(dashboard)/loading";
 import PageWraper from "@/components/PageWraper";
-import { getPromissoryNoteById } from "@/lib/actions/promissoryNote.actions";
-import { useQuery } from "@tanstack/react-query";
-import { useParams } from "next/navigation";
+import { Suspense } from "react";
+import PromissoryNoteFormWrapper from "@/components/promissoryNotes/PromissoryNoteFormWrapper";
+import FormSkeleton from "@/components/ui/form-skeleton";
 
-const EditPromissoryNote = () => {
-  const { id } = useParams();
+export interface Params {
+  id: string;
+}
 
-  const { data: promissoryNote, isLoading } = useQuery({
-    queryKey: ["promissoryNotes"],
-    queryFn: async () => {
-      if (!id) return null;
-      return await getPromissoryNoteById(id as string);
-    },
-    enabled: !!id,
-    staleTime: 0,
-  });
-
-  if (isLoading) {
-    return <Loading />;
-  }
+const EditPromissoryNote = async ({ params }: { params: Promise<Params> }) => {
+  const { id } = await params;
   return (
     <PageWraper title="Edit Promissory Note Note">
-      <section className="space-y-6">
-        <PromissoryNoteForm
-          mode={"edit"}
-          initialData={promissoryNote ? promissoryNote : undefined}
-        />
-      </section>
+      <Suspense fallback={<FormSkeleton />}>
+        <PromissoryNoteFormWrapper mode="edit" promissoryNoteId={id} />
+      </Suspense>
     </PageWraper>
   );
 };

@@ -3,11 +3,28 @@ import { PromissoryNoteFilters } from "@/hooks/usePromissoryNote";
 import { getPromissoryNotes } from "@/lib/actions/promissoryNote.actions";
 import dynamic from "next/dynamic";
 import { Suspense } from "react";
-import Loading from "../loading";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 
-const PromissoryNotesTable = dynamic(
-  () => import("@/components/promissoryNotes/PromissoryNotesTable")
-);
+const PromissoryNotesTableData = async ({
+  currentPage,
+  currentPageSize,
+  filters,
+}: {
+  currentPage: number;
+  currentPageSize: number;
+  filters: PromissoryNoteFilters;
+}) => {
+  const initialData = await getPromissoryNotes(
+    currentPage,
+    currentPageSize,
+    currentPageSize === 0,
+    filters
+  );
+  const PromissoryNotesTable = dynamic(
+    () => import("@/components/promissoryNotes/PromissoryNotesTable")
+  );
+  return <PromissoryNotesTable initialData={initialData} />;
+};
 
 export interface SearchParams {
   page?: string;
@@ -34,21 +51,18 @@ const PromissoryNotes = async ({
     status: sp.status || undefined,
   };
 
-  const initialData = await getPromissoryNotes(
-    currentPage,
-    currentPageSize,
-    currentPageSize === 0,
-    filtersForServer
-  );
-
   return (
     <PageWraper
       title="Promissory Notes"
       buttonText="Add Promissory Note"
       buttonPath="/promissory-notes/create-promissory-note"
     >
-      <Suspense fallback={<Loading />}>
-        <PromissoryNotesTable initialData={initialData} />
+      <Suspense fallback={<TableSkeleton />}>
+        <PromissoryNotesTableData
+          currentPage={currentPage}
+          currentPageSize={currentPageSize}
+          filters={filtersForServer}
+        />
       </Suspense>
     </PageWraper>
   );

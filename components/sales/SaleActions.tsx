@@ -175,9 +175,13 @@ const SaleActions = ({ sale }: { sale: SaleWithRelations }) => {
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => {
-              router.push(
-                `/promissory-notes/create-promissory-note/from-sale/${sale.sale.id}`
-              );
+              if (sale.promissoryNote && sale.promissoryNote.id) {
+                toast.error("Promissory Note already created");
+              } else {
+                router.push(
+                  `/promissory-notes/create-promissory-note/from-sale/${sale.sale.id}`
+                );
+              }
             }}
             className="text-dark-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >

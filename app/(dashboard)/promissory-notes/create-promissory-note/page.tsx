@@ -1,12 +1,14 @@
-import PromissoryNoteForm from "@/components/forms/PromissoryNoteForm";
 import PageWraper from "@/components/PageWraper";
+import PromissoryNoteFormWrapper from "@/components/promissoryNotes/PromissoryNoteFormWrapper";
+import FormSkeleton from "@/components/ui/form-skeleton";
+import { Suspense } from "react";
 
 const CreatePromissoryNote = () => {
   return (
     <PageWraper title="Create Promissory Note">
-      <section className="space-y-6">
-        <PromissoryNoteForm mode={"create"} />
-      </section>
+      <Suspense fallback={<FormSkeleton />}>
+        <PromissoryNoteFormWrapper mode="create" />
+      </Suspense>
     </PageWraper>
   );
 };
