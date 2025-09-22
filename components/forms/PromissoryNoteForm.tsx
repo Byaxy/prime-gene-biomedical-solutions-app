@@ -11,18 +11,14 @@ import {
   SaleWithRelations,
 } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { Form } from "../ui/form";
 import CustomFormField, { FormFieldType } from "../CustomFormField";
 import { Button } from "../ui/button";
 import { RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
-import { useCustomers } from "@/hooks/useCustomers";
-import Loading from "../../app/(dashboard)/loading";
 import { SelectItem } from "../ui/select";
-import { useSales } from "@/hooks/useSales";
 import { Search } from "lucide-react";
 import { Input } from "../ui/input";
 import { X } from "lucide-react";
@@ -45,20 +41,34 @@ import { generatePromissoryNoteRefNumber } from "@/lib/actions/promissoryNote.ac
 interface PromissoryNoteFormProps {
   mode: "create" | "edit";
   initialData?: PromissoryNoteWithRelations;
+  promissoryNotes: PromissoryNoteWithRelations[];
+  customers: Customer[];
+  sales: SaleWithRelations[];
+  sourceSale?: SaleWithRelations;
+  generatedPromissoryNoteRefNumber?: string;
 }
 
-const PromissoryNoteForm = ({ mode, initialData }: PromissoryNoteFormProps) => {
+const PromissoryNoteForm = ({
+  mode,
+  initialData,
+  promissoryNotes,
+  customers,
+  sales,
+  sourceSale,
+  generatedPromissoryNoteRefNumber: initialGeneratedPromissoryNoteRefNumber,
+}: PromissoryNoteFormProps) => {
+  const [
+    isRefetchingPromissoryNoteRefNumber,
+    setIsRefetchingPromissoryNoteRefNumber,
+  ] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [prevSelectedSaleId, setPrevSelectedSaleId] = useState<string | null>(
     null
   );
 
   const router = useRouter();
+  const initialMount = useRef(true);
 
-  const { customers, isLoading: customersLoading } = useCustomers({
-    getAllCustomers: true,
-  });
-  const { sales, isLoading: salesLoading } = useSales({ getAllSales: true });
   const {
     addPromissoryNote,
     editPromissoryNote,
@@ -66,25 +76,9 @@ const PromissoryNoteForm = ({ mode, initialData }: PromissoryNoteFormProps) => {
     isEditingPromissoryNote,
   } = usePromissoryNote();
 
-  // Generate Promissory note reference number
-  const {
-    data: generatedPromissoryNoteRefNumber,
-    isLoading,
-    refetch,
-    isRefetching,
-  } = useQuery({
-    queryKey: ["promissory-note-ref-number"],
-    queryFn: async () => {
-      if (mode !== "create") return null;
-      const result = await generatePromissoryNoteRefNumber();
-      return result;
-    },
-    enabled: mode === "create",
-  });
-
   const defaultValues = useMemo(
     () => ({
-      promissoryNoteRefNumber: "",
+      promissoryNoteRefNumber: initialGeneratedPromissoryNoteRefNumber || "",
       customerId: "",
       saleId: "",
       promissoryNoteDate: new Date(),
@@ -92,94 +86,106 @@ const PromissoryNoteForm = ({ mode, initialData }: PromissoryNoteFormProps) => {
       notes: "",
       products: [],
     }),
-    []
+    [initialGeneratedPromissoryNoteRefNumber]
   );
   const form = useForm<PromissoryNoteFormValues>({
     resolver: zodResolver(PromissoryNoteFormValidation),
     mode: "all",
-    defaultValues: initialData
-      ? {
-          customerId: initialData.promissoryNote.customerId || "",
-          saleId: initialData.promissoryNote.saleId || "",
-          promissoryNoteRefNumber:
-            initialData.promissoryNote.promissoryNoteRefNumber || "",
-          promissoryNoteDate: initialData.promissoryNote.promissoryNoteDate
-            ? new Date(initialData.promissoryNote.promissoryNoteDate)
-            : new Date(),
-          totalAmount: initialData.promissoryNote.totalAmount || 0,
-          notes: initialData.promissoryNote.notes || "",
-          products: initialData?.products || [],
-        }
-      : defaultValues,
+    defaultValues: defaultValues,
   });
 
   // Update the refresh button handler (PromissoryNoteRefNumber)
   const handleRefreshPromissoryNoteRefNumber = async () => {
     if (mode === "create") {
       try {
-        await refetch();
-        if (generatedPromissoryNoteRefNumber) {
-          form.setValue(
-            "promissoryNoteRefNumber",
-            generatedPromissoryNoteRefNumber
-          );
-        }
+        setIsRefetchingPromissoryNoteRefNumber(true);
+        const newRefNumber = await generatePromissoryNoteRefNumber();
+        form.setValue("promissoryNoteRefNumber", newRefNumber);
       } catch (error) {
         console.error("Error refreshing promissory note ref number:", error);
         toast.error("Failed to refresh promissory note ref number");
+      } finally {
+        setIsRefetchingPromissoryNoteRefNumber(false);
       }
     }
   };
+
+  const validateRefNumber = useCallback(
+    (refNumber: string) => {
+      const promissoryNote = promissoryNotes?.find(
+        (note) => note.promissoryNote.promissoryNoteRefNumber === refNumber
+      );
+      if (mode === "create" && promissoryNote) return false;
+
+      if (
+        mode === "edit" &&
+        initialData?.promissoryNote.promissoryNoteRefNumber !== refNumber &&
+        promissoryNote
+      )
+        return false;
+      return true;
+    },
+    [promissoryNotes, mode, initialData]
+  );
 
   // Handle submit
   const handleSubmit = async () => {
     try {
       const values = form.getValues();
-      const saleHasPromissoryNote = sales.find(
-        (sale: SaleWithRelations) =>
-          sale.sale.id === values.saleId &&
-          sale.promissoryNote &&
-          sale.promissoryNote.id
+
+      if (!validateRefNumber(values.promissoryNoteRefNumber)) {
+        toast.error(
+          "A Promissory Note with the same refference number already exists."
+        );
+        return;
+      }
+
+      const loadingToastId = toast.loading(
+        mode === "create"
+          ? "Creating Promissory Note..."
+          : "Updating Promissory Note..."
       );
 
-      if (mode === "create") {
-        if (saleHasPromissoryNote) {
-          toast.error("This sale already has a promissory note");
-          return;
-        }
-
-        await addPromissoryNote(
-          { data: values },
-          {
-            onSuccess: () => {
-              toast.success("Promissory Note created successfully!");
-              form.reset();
-              router.push("/promissory-notes");
-            },
-            onError: (error) => {
-              console.error("Create Promissory Note error:", error);
-              toast.error("Failed to create Promissory Note");
-            },
+      try {
+        if (mode === "create") {
+          await addPromissoryNote(
+            { data: values },
+            {
+              onSuccess: () => {
+                toast.success("Promissory Note created successfully!", {
+                  id: loadingToastId,
+                });
+                router.push("/promissory-notes");
+                router.refresh();
+                form.reset(defaultValues);
+              },
+            }
+          );
+        } else if (mode === "edit") {
+          if (!initialData?.promissoryNote.id) {
+            throw new Error("Promissory Note ID is required for editing");
           }
-        );
-      } else if (mode === "edit") {
-        if (!initialData?.promissoryNote.id) {
-          toast.error("Promissory Note ID is required for editing");
-          return;
+          await editPromissoryNote(
+            { id: initialData.promissoryNote.id, data: values },
+            {
+              onSuccess: () => {
+                toast.success("Promissory Note updated successfully!", {
+                  id: loadingToastId,
+                });
+                router.push("/promissory-notes");
+                router.refresh();
+                form.reset(defaultValues);
+              },
+            }
+          );
         }
-        await editPromissoryNote(
-          { id: initialData.promissoryNote.id, data: values },
-          {
-            onSuccess: () => {
-              toast.success("Promissory Note updated successfully!");
-              form.reset();
-              router.push("/promissory-notes");
-            },
-            onError: (error) => {
-              console.error("Edit Promissory Note error:", error);
-              toast.error("Failed to update Promissory Note");
-            },
-          }
+      } catch (error) {
+        console.error("Promissory Note operation error:", error);
+        toast.error(
+          `Failed to ${
+            mode === "create" ? "create" : "update"
+          } Promissory Note`,
+          { id: loadingToastId }
         );
       }
     } catch (error) {
@@ -192,43 +198,143 @@ const PromissoryNoteForm = ({ mode, initialData }: PromissoryNoteFormProps) => {
   const handleCancel = () => {
     if (mode === "create") {
       form.reset(defaultValues);
-      refetch();
+      form.setValue(
+        "promissoryNoteRefNumber",
+        initialGeneratedPromissoryNoteRefNumber || ""
+      );
     } else {
-      form.reset();
+      if (initialData) {
+        form.reset({
+          customerId: initialData.promissoryNote.customerId || "",
+          saleId: initialData.promissoryNote.saleId || "",
+          promissoryNoteRefNumber:
+            initialData.promissoryNote.promissoryNoteRefNumber || "",
+          promissoryNoteDate: initialData.promissoryNote.promissoryNoteDate
+            ? new Date(initialData.promissoryNote.promissoryNoteDate)
+            : new Date(),
+          totalAmount: initialData.promissoryNote.totalAmount || 0,
+          notes: initialData.promissoryNote.notes || "",
+          products: initialData?.products || [],
+        });
+      } else {
+        form.reset(defaultValues);
+      }
     }
   };
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, prepend, remove } = useFieldArray({
     control: form.control,
     name: "products",
   });
 
   // Filter sales
-  const filteredSales =
-    sales?.reduce((acc: SaleWithRelations[], sale: SaleWithRelations) => {
-      if (!sale?.sale || !sale?.products) {
-        return acc;
-      }
-
-      if (mode === "edit") {
-        acc.push(sale);
-        return acc;
-      }
-
-      if (searchQuery?.trim()) {
-        const query = searchQuery.toLowerCase().trim();
-        const matchesSearch =
-          sale.sale.invoiceNumber?.toLowerCase().includes(query) || false;
-
-        if (matchesSearch) {
-          acc.push(sale);
+  const filteredSales = useMemo(() => {
+    return (
+      sales?.reduce((acc: SaleWithRelations[], sale: SaleWithRelations) => {
+        if (!sale?.sale || !sale?.products) {
+          return acc;
         }
-      } else {
-        acc.push(sale);
-      }
 
-      return acc;
-    }, []) || [];
+        const hasRemainingProducts = sale.products.some(
+          (product) => product.quantity - product.fulfilledQuantity > 0
+        );
+
+        const hasPromissoryNote = sale.promissoryNote && sale.promissoryNote.id;
+
+        if (mode === "create") {
+          if (!hasPromissoryNote && hasRemainingProducts) {
+            if (searchQuery.trim()) {
+              const query = searchQuery.toLowerCase().trim();
+              const matchesSearch =
+                sale.sale.invoiceNumber?.toLowerCase().includes(query) || false;
+              if (matchesSearch) {
+                acc.push(sale);
+              }
+            } else {
+              acc.push(sale);
+            }
+          }
+        } else if (mode === "edit") {
+          if (sale.sale.id === initialData?.promissoryNote.saleId) {
+            acc.push(sale);
+            return acc;
+          }
+          if (!hasPromissoryNote && hasRemainingProducts) {
+            if (searchQuery.trim()) {
+              const query = searchQuery.toLowerCase().trim();
+              const matchesSearch =
+                sale.sale.invoiceNumber?.toLowerCase().includes(query) || false;
+              if (matchesSearch) {
+                acc.push(sale);
+              }
+            } else {
+              acc.push(sale);
+            }
+          }
+        }
+
+        return acc;
+      }, []) || []
+    );
+  }, [sales, searchQuery, mode, initialData]);
+
+  // initialize data
+  useEffect(() => {
+    if (initialMount.current) {
+      if (initialData) {
+        form.reset({
+          promissoryNoteRefNumber:
+            initialData.promissoryNote.promissoryNoteRefNumber || "",
+          customerId: initialData.promissoryNote.customerId || "",
+          saleId: initialData.promissoryNote.saleId || "",
+          promissoryNoteDate: initialData.promissoryNote.promissoryNoteDate
+            ? new Date(initialData.promissoryNote.promissoryNoteDate)
+            : new Date(),
+          totalAmount: initialData.promissoryNote.totalAmount || 0,
+          notes: initialData.promissoryNote.notes || "",
+          products: initialData?.products || [],
+        });
+      } else if (sourceSale) {
+        form.reset({
+          promissoryNoteRefNumber:
+            initialGeneratedPromissoryNoteRefNumber || "",
+          customerId: sourceSale.sale.customerId || "",
+          saleId: sourceSale.sale.id || "",
+          promissoryNoteDate: new Date(),
+          totalAmount: sourceSale.sale.totalAmount || 0,
+          notes: sourceSale.sale.notes || "",
+          products: sourceSale.products.map((product) => {
+            const remainingQuantity =
+              product.quantity - product.fulfilledQuantity;
+
+            if (remainingQuantity > 0) {
+              return {
+                saleItemId: product.id,
+                productId: product.productId,
+                quantity: remainingQuantity,
+                unitPrice: product.unitPrice,
+                subTotal: remainingQuantity * product.unitPrice,
+                productName: product.productName,
+                productID: product.productID,
+              };
+            }
+          }),
+        });
+      } else if (mode === "create" && initialGeneratedPromissoryNoteRefNumber) {
+        form.setValue(
+          "promissoryNoteRefNumber",
+          initialGeneratedPromissoryNoteRefNumber
+        );
+      }
+      initialMount.current = false;
+    }
+  }, [
+    initialData,
+    sourceSale,
+    initialGeneratedPromissoryNoteRefNumber,
+    mode,
+    form,
+  ]);
 
   // Handle sale selection.
   const handleSaleSelection = (saleId: string) => {
@@ -240,7 +346,7 @@ const PromissoryNoteForm = ({ mode, initialData }: PromissoryNoteFormProps) => {
       toast.error("No sales available");
       return;
     }
-    const selectedSale: SaleWithRelations = sales?.find(
+    const selectedSale = sales?.find(
       (sale: SaleWithRelations) => sale.sale.id === saleId
     );
 
@@ -261,7 +367,7 @@ const PromissoryNoteForm = ({ mode, initialData }: PromissoryNoteFormProps) => {
         const remainingQuantity = product.quantity - product.fulfilledQuantity;
 
         if (remainingQuantity > 0) {
-          append({
+          prepend({
             saleItemId: product.id,
             productId: product.productId,
             quantity: remainingQuantity,
@@ -292,18 +398,23 @@ const PromissoryNoteForm = ({ mode, initialData }: PromissoryNoteFormProps) => {
   useEffect(() => {
     if (fields.length > 0) {
       form.setValue("totalAmount", calculateTotalAmount());
+    } else {
+      form.setValue("totalAmount", 0);
     }
   }, [fields, form, calculateTotalAmount]);
 
   // Set promissory note ref number
   useEffect(() => {
-    if (generatedPromissoryNoteRefNumber && mode === "create") {
+    if (initialGeneratedPromissoryNoteRefNumber && mode === "create") {
       form.setValue(
         "promissoryNoteRefNumber",
-        generatedPromissoryNoteRefNumber
+        initialGeneratedPromissoryNoteRefNumber
       );
     }
-  }, [form, mode, generatedPromissoryNoteRefNumber]);
+  }, [form, mode, initialGeneratedPromissoryNoteRefNumber]);
+
+  const isAnyMutationLoading =
+    isAddingPromissoryNote || isEditingPromissoryNote;
 
   return (
     <Form {...form}>
@@ -319,9 +430,12 @@ const PromissoryNoteForm = ({ mode, initialData }: PromissoryNoteFormProps) => {
               name="promissoryNoteRefNumber"
               label="Promissory Note Reference Number"
               placeholder={
-                isLoading || isRefetching
+                isRefetchingPromissoryNoteRefNumber
                   ? "Generating..."
                   : "Enter promissory note reference number"
+              }
+              disabled={
+                isRefetchingPromissoryNoteRefNumber || isAnyMutationLoading
               }
             />
             <Button
@@ -329,11 +443,13 @@ const PromissoryNoteForm = ({ mode, initialData }: PromissoryNoteFormProps) => {
               size={"icon"}
               onClick={handleRefreshPromissoryNoteRefNumber}
               className="self-end shad-primary-btn px-5"
-              disabled={isLoading || isRefetching}
+              disabled={
+                isRefetchingPromissoryNoteRefNumber || isAnyMutationLoading
+              }
             >
               <RefreshCw
                 className={`h-5 w-5 ${
-                  isLoading || isRefetching ? "animate-spin" : ""
+                  isRefetchingPromissoryNoteRefNumber ? "animate-spin" : ""
                 }`}
               />
             </Button>
@@ -344,6 +460,7 @@ const PromissoryNoteForm = ({ mode, initialData }: PromissoryNoteFormProps) => {
             name="promissoryNoteDate"
             label="Promissory Note Date"
             dateFormat="MM/dd/yyyy"
+            disabled={isAnyMutationLoading}
           />
         </div>
 
@@ -353,9 +470,9 @@ const PromissoryNoteForm = ({ mode, initialData }: PromissoryNoteFormProps) => {
             control={form.control}
             name="saleId"
             label="Select Sale"
-            placeholder={`${salesLoading ? "Loading..." : "Select sale"}`}
+            placeholder={"Select sale"}
             key={`inventory-select-${form.watch("saleId") || ""}`}
-            disabled={!!initialData}
+            disabled={!!initialData || !!sourceSale || isAnyMutationLoading}
           >
             <div className="py-3">
               <div className="relative flex items-center rounded-md border border-dark-700 bg-white">
@@ -366,7 +483,7 @@ const PromissoryNoteForm = ({ mode, initialData }: PromissoryNoteFormProps) => {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
-                  disabled={salesLoading || filteredSales?.length === 0}
+                  disabled={isAnyMutationLoading || filteredSales?.length === 0}
                 />
                 {searchQuery && (
                   <button
@@ -379,11 +496,7 @@ const PromissoryNoteForm = ({ mode, initialData }: PromissoryNoteFormProps) => {
                 )}
               </div>
             </div>
-            {salesLoading ? (
-              <div className="py-4">
-                <Loading />
-              </div>
-            ) : filteredSales && filteredSales.length > 0 ? (
+            {filteredSales && filteredSales.length > 0 ? (
               <>
                 <Table className="shad-table border border-light-200 rounded-lg">
                   <TableHeader>
@@ -399,6 +512,7 @@ const PromissoryNoteForm = ({ mode, initialData }: PromissoryNoteFormProps) => {
                         key={sale.sale.id}
                         className="cursor-pointer hover:bg-blue-50"
                         onClick={() => {
+                          if (isAnyMutationLoading) return;
                           setPrevSelectedSaleId(sale.sale.id);
                           setSearchQuery("");
                           handleSaleSelection(sale.sale.id);
@@ -453,13 +567,8 @@ const PromissoryNoteForm = ({ mode, initialData }: PromissoryNoteFormProps) => {
             label="Customer"
             placeholder="Select sale"
             key={`customer-select-${form.watch("customerId") || ""}`}
-            disabled
+            disabled={true}
           >
-            {customersLoading && (
-              <div className="py-4">
-                <Loading />
-              </div>
-            )}
             {customers?.map((customer: Customer) => (
               <SelectItem
                 key={customer.id}
@@ -553,6 +662,7 @@ const PromissoryNoteForm = ({ mode, initialData }: PromissoryNoteFormProps) => {
           name="notes"
           label="Notes"
           placeholder="Enter promissory notes"
+          disabled={isAnyMutationLoading}
         />
 
         <div className="flex justify-end gap-4">
@@ -560,12 +670,14 @@ const PromissoryNoteForm = ({ mode, initialData }: PromissoryNoteFormProps) => {
             type="button"
             onClick={handleCancel}
             className="shad-danger-btn"
+            disabled={isAnyMutationLoading}
           >
             Cancel
           </Button>
           <SubmitButton
             isLoading={isAddingPromissoryNote || isEditingPromissoryNote}
             className="shad-primary-btn"
+            disabled={isAnyMutationLoading}
           >
             {mode === "create"
               ? "Create Promissory Note"
