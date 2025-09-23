@@ -1,123 +1,74 @@
-"use client";
-
 import PageWraper from "@/components/PageWraper";
-import { groupedWaybillColumns } from "@/components/table/columns/waybillColumns";
-import { DataTable } from "@/components/table/DataTable";
-import WaybillListDialog from "@/components/waybills/WaybillListDialog";
-import { useWaybills } from "@/hooks/useWaybills";
-import { DeliveryStatus, GroupedWaybills, WaybillWithRelations } from "@/types";
-import { useMemo, useState } from "react";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
+import { WaybillFilters } from "@/hooks/useWaybills";
+import { getWaybills } from "@/lib/actions/waybill.actions";
+import dynamic from "next/dynamic";
+import { Suspense } from "react";
 
-const Waybills = () => {
-  const [openDialog, setOpenDialog] = useState(false);
-  const [selectedWaybill, setSelectedWaybill] = useState({} as GroupedWaybills);
-  const {
-    waybills,
-    isLoading,
-    totalItems,
-    page,
-    setPage,
-    pageSize,
-    setPageSize,
-    filters,
-    onFilterChange,
-    defaultFilterValues,
-    refetch,
-    isFetching,
-  } = useWaybills({ initialPageSize: 10 });
+const WaybillsTableData = async ({
+  currentPage,
+  currentPageSize,
+  filters,
+}: {
+  currentPage: number;
+  currentPageSize: number;
+  filters: WaybillFilters;
+}) => {
+  const initialData = await getWaybills(
+    currentPage,
+    currentPageSize,
+    currentPageSize === 0,
+    filters
+  );
+  const WaybillsTable = dynamic(
+    () => import("@/components/waybills/WaybillsTable")
+  );
+  return <WaybillsTable initialData={initialData} />;
+};
 
-  const handleRowClick = (rowData: GroupedWaybills) => {
-    setSelectedWaybill(rowData);
-    setOpenDialog(true);
+export interface SearchParams {
+  page?: string;
+  pageSize?: string;
+  search?: string;
+  waybillDate_start?: string;
+  waybillDate_end?: string;
+  status?: string;
+  waybillType?: string;
+  isConverted?: boolean;
+  conversionStatus?: string;
+}
+
+const Waybills = async ({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) => {
+  const sp = await searchParams;
+  const currentPage = Number(sp.page || 0);
+  const currentPageSize = sp.pageSize === "0" ? 0 : Number(sp.pageSize || 10);
+
+  const filtersForServer: WaybillFilters = {
+    search: sp.search || undefined,
+    waybillDate_start: sp.waybillDate_start || undefined,
+    waybillDate_end: sp.waybillDate_end || undefined,
+    status: sp.status || undefined,
+    isConverted: sp.isConverted || undefined,
+    waybillType: sp.waybillType || undefined,
+    conversionStatus: sp.conversionStatus || undefined,
   };
-
-  const waybillsFilters = {
-    waybillDate: {
-      type: "date" as const,
-      label: "Waybill Date",
-    },
-    status: {
-      type: "select" as const,
-      label: "Waybill Status",
-      options: Object.values(DeliveryStatus).map((item) => ({
-        label: item,
-        value: item,
-      })),
-    },
-  };
-
-  const groupedWaybills = useMemo<GroupedWaybills[]>(() => {
-    if (!waybills || waybills.length === 0) {
-      return [];
-    }
-
-    const grouped = waybills.reduce(
-      (acc: Record<string, GroupedWaybills>, waybill: WaybillWithRelations) => {
-        const saleKey = waybill.waybill.saleId || `loan-${waybill.waybill.id}`;
-
-        if (!acc[saleKey]) {
-          acc[saleKey] = {
-            id: saleKey,
-            customer: waybill.customer || null,
-            sale: waybill.sale || null,
-            totalWaybills: 0,
-            waybills: [],
-            latestWaybillDate: waybill.waybill.waybillDate,
-            latestWaybillRefNumber: waybill.waybill.waybillRefNumber,
-          };
-        }
-
-        const group = acc[saleKey];
-
-        // Add waybill item
-        group.waybills.push(waybill);
-
-        // Update totals
-        group.totalWaybills += 1;
-
-        if (waybill.waybill.waybillDate > group.latestWaybillDate) {
-          group.latestWaybillDate = waybill.waybill.waybillDate;
-          group.latestWaybillRefNumber = waybill.waybill.waybillRefNumber;
-        }
-
-        return acc;
-      },
-      {}
-    );
-
-    return Object.values(grouped);
-  }, [waybills]);
-
   return (
     <PageWraper
       title="Way Bills"
       buttonText="Add Waybill"
       buttonPath="/waybills/create-waybill"
     >
-      <>
-        <DataTable
-          columns={groupedWaybillColumns}
-          data={groupedWaybills || []}
-          isLoading={isLoading}
-          totalItems={totalItems}
-          page={page}
-          onPageChange={setPage}
-          pageSize={pageSize}
-          onPageSizeChange={setPageSize}
-          onRowClick={handleRowClick}
-          filters={waybillsFilters}
-          filterValues={filters}
-          onFilterChange={onFilterChange}
-          defaultFilterValues={defaultFilterValues}
-          refetch={refetch}
-          isFetching={isFetching}
+      <Suspense fallback={<TableSkeleton />}>
+        <WaybillsTableData
+          currentPage={currentPage}
+          currentPageSize={currentPageSize}
+          filters={filtersForServer}
         />
-        <WaybillListDialog
-          open={openDialog}
-          onOpenChange={setOpenDialog}
-          waybills={selectedWaybill.waybills || []}
-        />
-      </>
+      </Suspense>
     </PageWraper>
   );
 };

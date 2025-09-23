@@ -1,3 +1,5 @@
+"use client";
+
 import {
   addWaybill,
   convertLoanWaybill,
@@ -6,118 +8,256 @@ import {
   getWaybills,
   softDeleteWaybill,
 } from "@/lib/actions/waybill.actions";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   ConvertLoanWaybillFormValues,
   WaybillFormValues,
 } from "@/lib/validation";
+import { WaybillWithRelations } from "@/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useTransition } from "react";
 import toast from "react-hot-toast";
-
-export interface WaybillFilters {
-  waybillDate_start?: string;
-  waybillDate_end?: string;
-  status?: string;
-}
 
 interface UseWaybillsOptions {
   getAllWaybills?: boolean;
-  initialPageSize?: number;
+  initialData?: { documents: WaybillWithRelations[]; total: number };
 }
 
 export interface WaybillFilters {
+  search?: string;
   waybillDate_start?: string;
   waybillDate_end?: string;
   status?: string;
+  waybillType?: string;
+  isConverted?: boolean;
+  conversionStatus?: string;
 }
 
 export const defaultWaybillFilters: WaybillFilters = {
   waybillDate_start: undefined,
   waybillDate_end: undefined,
   status: undefined,
+  waybillType: undefined,
+  isConverted: undefined,
+  conversionStatus: undefined,
 };
 
 export const useWaybills = ({
   getAllWaybills = false,
-  initialPageSize = 10,
+  initialData,
 }: UseWaybillsOptions = {}) => {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(initialPageSize);
-  const [filters, setFilters] = useState<WaybillFilters>(defaultWaybillFilters);
+  const [isPending, startTransition] = useTransition();
 
-  const shouldFetchAll = getAllWaybills;
-
-  const isShowAllMode = pageSize === 0;
-
-  // Query for all Waybills
-  const allWaybillsQuery = useQuery({
-    queryKey: ["waybills", filters],
-    queryFn: async () => {
-      const result = await getWaybills(0, 0, true, filters);
-      return result.documents;
-    },
-    enabled: shouldFetchAll || isShowAllMode,
-  });
-
-  // Query for paginated Waybills
-  const paginatedWaybillsQuery = useQuery({
-    queryKey: ["waybills", "paginatedWaybills", page, pageSize, filters],
-    queryFn: async () => {
-      const result = await getWaybills(page, pageSize, false, filters);
-      return result;
-    },
-    enabled: !shouldFetchAll || !isShowAllMode,
-  });
-
-  // Determine which query data to use
-  const activeQuery =
-    shouldFetchAll || isShowAllMode ? allWaybillsQuery : paginatedWaybillsQuery;
-  const waybills =
-    (shouldFetchAll || isShowAllMode
-      ? activeQuery.data
-      : activeQuery.data?.documents) || [];
-  const totalItems = activeQuery.data?.total || 0;
-
-  // Prefetch next page for table view
-  useEffect(() => {
-    if (
-      !shouldFetchAll &&
-      !isShowAllMode &&
-      paginatedWaybillsQuery.data &&
-      page * pageSize < paginatedWaybillsQuery.data.total - pageSize
-    ) {
-      queryClient.prefetchQuery({
-        queryKey: [
-          "waybills",
-          "paginatedWaybills",
-          page + 1,
-          pageSize,
-          filters,
-        ],
-        queryFn: () => getWaybills(page + 1, pageSize, false, filters),
-      });
+  // Parse current state from URL - single source of truth
+  const currentState = useMemo(() => {
+    if (getAllWaybills) {
+      return {
+        page: 0,
+        pageSize: 0,
+        search: "",
+      };
     }
-  }, [
-    page,
-    pageSize,
-    paginatedWaybillsQuery.data,
-    queryClient,
-    shouldFetchAll,
-    isShowAllMode,
-    filters,
-  ]);
-  // Handle filter changes
-  const handleFilterChange = (newFilters: WaybillFilters) => {
-    setFilters(newFilters);
-    setPage(0);
-  };
 
-  // Handle page size changes
-  const handlePageSizeChange = (newPageSize: number) => {
-    setPageSize(newPageSize);
-    setPage(0);
-  };
+    const page = Number(searchParams.get("page") || 0);
+    const pageSize = Number(searchParams.get("pageSize") || 10);
+    const search = searchParams.get("search") || "";
+
+    const filters: WaybillFilters = {
+      search: search || undefined,
+      status: searchParams.get("status") || undefined,
+      waybillDate_start: searchParams.get("waybillDate_start") || undefined,
+      waybillDate_end: searchParams.get("waybillDate_end") || undefined,
+      waybillType: searchParams.get("waybillType") || undefined,
+      isConverted: searchParams.get("isConverted") === "true" || undefined,
+      conversionStatus: searchParams.get("conversionStatus") || undefined,
+    };
+
+    return { page, pageSize, filters, search };
+  }, [getAllWaybills, searchParams]);
+
+  // Create stable query key
+  const queryKey = useMemo(() => {
+    const { page, pageSize, filters } = currentState;
+    const filterString = JSON.stringify(filters);
+    return ["waybills", page, pageSize, filterString];
+  }, [currentState]);
+
+  // Main query with server state
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      const { page, pageSize, filters } = currentState;
+      return getWaybills(
+        page,
+        pageSize,
+        getAllWaybills || pageSize === 0,
+        filters
+      );
+    },
+    initialData: initialData ? () => initialData : undefined,
+    staleTime: getAllWaybills ? 60000 : 30000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
+
+  // Optimistic navigation function
+  const navigate = useCallback(
+    (
+      updates: Partial<{
+        page: number;
+        pageSize: number;
+        search: string;
+        filters: Partial<WaybillFilters>;
+      }>
+    ) => {
+      const params = new URLSearchParams(searchParams.toString());
+
+      // Apply updates
+      if (updates.page !== undefined) {
+        if (updates.page === 0) {
+          params.delete("page");
+        } else {
+          params.set("page", String(updates.page));
+        }
+      }
+
+      if (updates.pageSize !== undefined) {
+        if (updates.pageSize === 10) {
+          params.delete("pageSize");
+        } else {
+          params.set("pageSize", String(updates.pageSize));
+        }
+      }
+
+      if (updates.search !== undefined) {
+        if (updates.search.trim()) {
+          params.set("search", updates.search.trim());
+        } else {
+          params.delete("search");
+        }
+        params.delete("page");
+      }
+
+      if (updates.filters) {
+        Object.keys(defaultWaybillFilters).forEach((key) => params.delete(key));
+
+        Object.entries(updates.filters).forEach(([key, value]) => {
+          if (value === undefined || value === "" || value === null) {
+            params.delete(key);
+          } else {
+            params.set(key, String(value));
+          }
+        });
+        params.delete("page");
+      }
+
+      const newUrl = `?${params.toString()}`;
+
+      // Use startTransition for non-urgent updates
+      startTransition(() => {
+        router.push(newUrl, { scroll: false });
+      });
+
+      // Prefetch the new data immediately
+      const newParams = new URLSearchParams(newUrl.substring(1));
+      const newPage = Number(newParams.get("page") || 0);
+      const newPageSize = Number(newParams.get("pageSize") || 10);
+      const newFilters: WaybillFilters = {
+        search: newParams.get("search") || undefined,
+
+        status: newParams.get("status") || undefined,
+        waybillDate_start: newParams.get("waybillDate_start") || undefined,
+        waybillDate_end: newParams.get("waybillDate_end") || undefined,
+        waybillType: newParams.get("waybillType") || undefined,
+        isConverted: newParams.get("isConverted") === "true" || undefined,
+        conversionStatus: newParams.get("conversionStatus") || undefined,
+      };
+
+      const newQueryKey = [
+        "waybills",
+        newPage,
+        newPageSize,
+        JSON.stringify(newFilters),
+      ];
+
+      queryClient.prefetchQuery({
+        queryKey: newQueryKey,
+        queryFn: () =>
+          getWaybills(newPage, newPageSize, newPageSize === 0, newFilters),
+      });
+    },
+    [router, searchParams, queryClient]
+  );
+
+  const setPage = useCallback(
+    (page: number) => {
+      if (getAllWaybills) return;
+      navigate({ page });
+    },
+    [getAllWaybills, navigate]
+  );
+
+  const setPageSize = useCallback(
+    (pageSize: number) => {
+      if (getAllWaybills) return;
+      navigate({ pageSize, page: 0 });
+    },
+    [getAllWaybills, navigate]
+  );
+
+  const setSearch = useCallback(
+    (search: string) => {
+      if (getAllWaybills) return;
+      navigate({ search });
+    },
+    [getAllWaybills, navigate]
+  );
+
+  const setFilters = useCallback(
+    (filters: Partial<WaybillFilters>) => {
+      if (getAllWaybills) return;
+      navigate({ filters });
+    },
+    [getAllWaybills, navigate]
+  );
+
+  const clearFilters = useCallback(() => {
+    if (getAllWaybills) return;
+    navigate({
+      filters: defaultWaybillFilters,
+      search: "",
+      page: 0,
+      pageSize: 10,
+    });
+  }, [getAllWaybills, navigate]);
+
+  // Real-time updates
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+
+    const channel = supabase
+      .channel("waybills_changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "waybills",
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["waybills"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   // Add Waybill Mutation
   const { mutate: addWaybillMutation, status: addWaybillStatus } = useMutation({
@@ -164,7 +304,7 @@ export const useWaybills = ({
       }) => editWaybill(data, id, userId),
       onSuccess: () => {
         queryClient.invalidateQueries({
-          queryKey: ["waybills", "paginatedWaybills"],
+          queryKey: ["waybills"],
         });
       },
     });
@@ -175,7 +315,7 @@ export const useWaybills = ({
         deleteWaybill(id, userId),
       onSuccess: () => {
         queryClient.invalidateQueries({
-          queryKey: ["waybills", "paginatedWaybills"],
+          queryKey: ["waybills"],
         });
         toast.success("Waybill deleted successfully");
       },
@@ -191,25 +331,27 @@ export const useWaybills = ({
         softDeleteWaybill(id, userId),
       onSuccess: () => {
         queryClient.invalidateQueries({
-          queryKey: ["waybills", "paginatedWaybills"],
+          queryKey: ["waybills"],
         });
       },
     });
 
   return {
-    waybills,
-    totalItems,
-    isLoading: activeQuery.isLoading,
-    error: activeQuery.error,
-    setPageSize: handlePageSizeChange,
-    refetch: activeQuery.refetch,
-    isFetching: activeQuery.isFetching,
-    page,
+    waybills: data?.documents || [],
+    totalItems: data?.total || 0,
+    page: currentState.page,
+    pageSize: currentState.pageSize,
+    search: currentState.search,
+    filters: currentState.filters,
+    isLoading: isLoading || isPending,
+    isFetching,
+    error,
     setPage,
-    pageSize,
-    filters,
-    onFilterChange: handleFilterChange,
-    defaultFilterValues: defaultWaybillFilters,
+    setPageSize,
+    setSearch,
+    setFilters,
+    clearFilters,
+    refetch: refetch,
     addWaybill: addWaybillMutation,
     isAddingWaybill: addWaybillStatus === "pending",
     editWaybill: editWaybillMutation,

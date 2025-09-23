@@ -1,36 +1,20 @@
-"use client";
-
-import WaybillForm from "@/components/forms/WaybillForm";
-import Loading from "@/app/(dashboard)/loading";
 import PageWraper from "@/components/PageWraper";
-import { getWaybillById } from "@/lib/actions/waybill.actions";
-import { useQuery } from "@tanstack/react-query";
-import { useParams } from "next/navigation";
+import { Suspense } from "react";
+import WaybillFormWrapper from "@/components/waybills/WaybillFormWrapper";
+import FormSkeleton from "@/components/ui/form-skeleton";
 
-const EditWaybill = () => {
-  const { id } = useParams();
+export interface Params {
+  id: string;
+}
 
-  const { data: waybill, isLoading } = useQuery({
-    queryKey: ["waybills"],
-    queryFn: async () => {
-      if (!id) return null;
-      return await getWaybillById(id as string);
-    },
-    enabled: !!id,
-    staleTime: 0,
-  });
+const EditWaybill = async ({ params }: { params: Promise<Params> }) => {
+  const { id } = await params;
 
-  if (isLoading) {
-    return <Loading />;
-  }
   return (
-    <PageWraper title="Edit Delivery Note">
-      <section className="space-y-6">
-        <WaybillForm
-          mode={"edit"}
-          initialData={waybill ? waybill : undefined}
-        />
-      </section>
+    <PageWraper title="Edit Waybill">
+      <Suspense fallback={<FormSkeleton />}>
+        <WaybillFormWrapper mode="edit" waybillId={id} />
+      </Suspense>
     </PageWraper>
   );
 };

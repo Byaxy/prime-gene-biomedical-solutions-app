@@ -147,6 +147,7 @@ export function DataTable<TData, TValue>({
     },
     pageCount: Math.ceil(totalItems / pageSize),
     manualPagination: true,
+    enableRowSelection: true,
   });
 
   // Memoize pagination info
@@ -170,7 +171,12 @@ export function DataTable<TData, TValue>({
   const handleRowClick = useCallback(
     (rowData: TData, event: React.MouseEvent) => {
       const target = event.target as HTMLElement;
-      if (target.closest("[data-no-row-click]")) {
+      const shouldSkipRowClick =
+        target.closest("[data-no-row-click]") ||
+        target.getAttribute("role") === "checkbox" ||
+        target.closest('[role="checkbox"]') ||
+        target.closest("a");
+      if (shouldSkipRowClick) {
         return;
       }
       onRowClick?.(rowData);
@@ -485,6 +491,11 @@ export function DataTable<TData, TValue>({
                     "shad-table-row",
                     onRowClick && "cursor-pointer"
                   )}
+                  onClick={(e) => {
+                    if (onRowClick) {
+                      handleRowClick(row.original, e);
+                    }
+                  }}
                 >
                   {row.getVisibleCells().map((cell: any) => {
                     const skipRowClick =
@@ -493,13 +504,7 @@ export function DataTable<TData, TValue>({
                     return (
                       <TableCell
                         key={cell.id}
-                        onClick={(e) => {
-                          if (skipRowClick) {
-                            e.stopPropagation();
-                          } else if (onRowClick) {
-                            handleRowClick(row.original, e);
-                          }
-                        }}
+                        {...(skipRowClick && { "data-no-row-click": true })}
                         className={skipRowClick ? "relative" : ""}
                       >
                         {flexRender(
