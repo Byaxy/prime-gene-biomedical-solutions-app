@@ -1141,7 +1141,6 @@ const WaybillForm = ({
   const isAnyMutationLoading =
     isAddingWaybill || isEditingWaybill || isAddingCustomer || isAddingStore;
 
-  console.log("Form errors: ", form.formState.errors);
 
   return (
     <>
