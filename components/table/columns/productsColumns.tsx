@@ -35,6 +35,9 @@ export const productsColumns: ColumnDef<ProductWithRelations>[] = [
     ),
     enableSorting: false,
     enableHiding: false,
+    meta: {
+      skipRowClick: true,
+    },
   },
   {
     id: "index",
@@ -47,6 +50,9 @@ export const productsColumns: ColumnDef<ProductWithRelations>[] = [
       return <span className="text-sm text-dark-600">{globalIndex}</span>;
     },
     enableSorting: false,
+    meta: {
+      skipRowClick: true,
+    },
   },
   {
     header: "Image",
@@ -212,6 +218,9 @@ export const productsColumns: ColumnDef<ProductWithRelations>[] = [
     header: "Actions",
     cell: ({ row }) => {
       return <ProductActions product={row.original} />;
+    },
+    meta: {
+      skipRowClick: true,
     },
   },
 ];

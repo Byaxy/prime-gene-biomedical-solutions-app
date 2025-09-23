@@ -17,9 +17,73 @@ import {
   productsTable,
   backordersTable,
 } from "@/drizzle/schema";
-import { DeliveryStatus, WaybillConversionStatus, WaybillType } from "@/types";
-import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import {
+  DeliveryStatus,
+  InventoryTransactionType,
+  WaybillConversionStatus,
+  WaybillType,
+} from "@/types";
+import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import { WaybillFilters } from "@/hooks/useWaybills";
+
+const buildFilterConditions = (filters: WaybillFilters) => {
+  const conditions = [];
+
+  conditions.push(eq(waybillsTable.isActive, true));
+
+  // Search logic using ILIKE on joined tables.
+  // GIN indexes are crucial here.
+  if (filters.search?.trim()) {
+    const searchTerm = `%${filters.search.trim()}%`;
+    conditions.push(
+      or(
+        ilike(waybillsTable.waybillRefNumber, searchTerm),
+        ilike(salesTable.invoiceNumber, searchTerm),
+        ilike(customersTable.name, searchTerm),
+        ilike(storesTable.name, searchTerm)
+      )
+    );
+  }
+
+  // date range
+  if (filters.waybillDate_start) {
+    conditions.push(
+      gte(waybillsTable.waybillDate, new Date(filters.waybillDate_start))
+    );
+  }
+  if (filters.waybillDate_end) {
+    conditions.push(
+      lte(waybillsTable.waybillDate, new Date(filters.waybillDate_end))
+    );
+  }
+
+  // Status filter
+  if (filters.status) {
+    conditions.push(eq(waybillsTable.status, filters.status as DeliveryStatus));
+  }
+
+  // is converted filter
+  if (filters.isConverted !== undefined) {
+    conditions.push(eq(waybillsTable.isConverted, filters.isConverted));
+  }
+
+  // Payment Status filter
+  if (filters.waybillType) {
+    conditions.push(
+      eq(waybillsTable.waybillType, filters.waybillType as WaybillType)
+    );
+  }
+  if (filters.conversionStatus) {
+    conditions.push(
+      eq(
+        waybillsTable.conversionStatus,
+        filters.conversionStatus as WaybillConversionStatus
+      )
+    );
+  }
+
+  return conditions;
+};
 
 // Add a new waybill
 export const addWaybill = async (
@@ -32,6 +96,7 @@ export const addWaybill = async (
         waybill.saleId && !waybill.isLoanWaybill
           ? WaybillType.Sale
           : WaybillType.Loan;
+
       // Create main waybill record
       const [newWaybill] = await tx
         .insert(waybillsTable)
@@ -64,34 +129,65 @@ export const addWaybill = async (
         })
         .returning();
 
-      // Process each product in the waybill
-      const waybillItems = [];
-      for (const product of waybill.products) {
-        // Create waybill item
-        const [waybillItem] = await tx
-          .insert(waybillItemsTable)
-          .values({
-            waybillId: newWaybill.id,
-            productId: product.productId,
-            saleItemId:
-              waybillType === WaybillType.Sale ? product.saleItemId : null,
-            quantityRequested: product.quantityRequested,
-            quantitySupplied: product.quantitySupplied,
-            balanceLeft: product.balanceLeft,
-            fulfilledQuantity: product.fulfilledQuantity,
-            quantityConverted: product.quantityConverted,
-            productName: product.productName,
-            productID: product.productID,
-          })
-          .returning();
+      // Prepare batch data
 
-        // Process supplied inventory stock
+      interface InventoryUpdate {
+        id: string;
+        quantityReduction: number;
+        currentQuantity: number;
+      }
+
+      interface SaleItemUpdate {
+        id: string;
+        quantityIncrease: number;
+      }
+
+      const waybillItemsData = [];
+      const waybillItemInventoryData = [];
+      const inventoryUpdates: InventoryUpdate[] = [];
+      const inventoryTransactionsData = [];
+      const productUpdates = [];
+      const saleItemUpdates: SaleItemUpdate[] = [];
+
+      // Collect all inventory IDs that need to be validated
+      const inventoryIds = waybill.products.flatMap((product) =>
+        product.inventoryStock.map((inv) => inv.inventoryStockId)
+      );
+
+      // Batch fetch all required inventory records
+      const inventoryRecords =
+        inventoryIds.length > 0
+          ? await tx
+              .select()
+              .from(inventoryTable)
+              .where(inArray(inventoryTable.id, inventoryIds))
+          : [];
+
+      const inventoryMap = new Map(
+        inventoryRecords.map((inv) => [inv.id, inv])
+      );
+
+      // Process each product and prepare batch operations
+      for (const product of waybill.products) {
+        const waybillItemData = {
+          waybillId: newWaybill.id,
+          productId: product.productId,
+          saleItemId:
+            waybillType === WaybillType.Sale ? product.saleItemId : null,
+          quantityRequested: product.quantityRequested,
+          quantitySupplied: product.quantitySupplied,
+          balanceLeft: product.balanceLeft,
+          fulfilledQuantity: product.fulfilledQuantity,
+          quantityConverted: product.quantityConverted,
+          productName: product.productName,
+          productID: product.productID,
+        };
+        waybillItemsData.push(waybillItemData);
+
+        // Process inventory stock for this product
+        let totalQuantityTaken = 0;
         for (const inventory of product.inventoryStock) {
-          const [currentInventory] = await tx
-            .select()
-            .from(inventoryTable)
-            .where(eq(inventoryTable.id, inventory.inventoryStockId))
-            .limit(1);
+          const currentInventory = inventoryMap.get(inventory.inventoryStockId);
 
           if (!currentInventory) {
             throw new Error(
@@ -106,75 +202,149 @@ export const addWaybill = async (
             );
           }
 
-          // Create waybill item inventory record
-          await tx.insert(waybillItemInventoryTable).values({
-            waybillItemId: waybillItem.id,
-            inventoryStockId: inventory.inventoryStockId,
-            lotNumber: inventory.lotNumber,
-            quantityTaken: inventory.quantityTaken,
-            unitPrice: inventory.unitPrice,
-          });
+          totalQuantityTaken += inventory.quantityTaken;
 
-          // Update inventory quantity
-          const [updatedInventory] = await tx
-            .update(inventoryTable)
-            .set({
-              quantity: sql`${inventoryTable.quantity} - ${inventory.quantityTaken}`,
-            })
-            .where(eq(inventoryTable.id, inventory.inventoryStockId))
-            .returning();
+          // Prepare inventory update
+          const existingUpdate = inventoryUpdates.find(
+            (u) => u.id === inventory.inventoryStockId
+          );
+          if (existingUpdate) {
+            existingUpdate.quantityReduction += inventory.quantityTaken;
+          } else {
+            inventoryUpdates.push({
+              id: inventory.inventoryStockId,
+              quantityReduction: inventory.quantityTaken,
+              currentQuantity: currentInventory.quantity,
+            });
+          }
 
-          // Log the inventory transaction
-          await tx.insert(inventoryTransactionsTable).values({
+          // Prepare inventory transaction
+          inventoryTransactionsData.push({
             inventoryId: inventory.inventoryStockId,
             productId: product.productId,
             storeId: waybill.storeId,
             userId: userId,
-            transactionType: waybillType,
-            quantityBefore: updatedInventory.quantity + inventory.quantityTaken,
-            quantityAfter: updatedInventory.quantity,
+            transactionType:
+              waybillType === WaybillType.Sale
+                ? ("sale" as InventoryTransactionType)
+                : ("loan" as InventoryTransactionType),
+            quantityBefore: currentInventory.quantity,
+            quantityAfter: currentInventory.quantity - inventory.quantityTaken,
             transactionDate: new Date(),
             notes: `Stock reduced for ${waybillType}`,
           });
 
-          // Update product total quantity if this is a loan waybill
-          await tx
-            .update(productsTable)
-            .set({
-              quantity: sql`${productsTable.quantity} - ${inventory.quantityTaken}`,
-            })
-            .where(eq(productsTable.id, product.productId));
+          // We'll store the inventory data with a placeholder waybillItemId for now
+          waybillItemInventoryData.push({
+            productIndex: waybillItemsData.length - 1, // Reference to product index
+            inventory: {
+              inventoryStockId: inventory.inventoryStockId,
+              lotNumber: inventory.lotNumber,
+              quantityTaken: inventory.quantityTaken,
+              unitPrice: inventory.unitPrice,
+            },
+          });
+        }
 
-          // Update sale item fulfillment if this is a sale waybill
-          if (waybillType === WaybillType.Sale && product.saleItemId) {
-            await tx
-              .update(saleItemsTable)
-              .set({
-                fulfilledQuantity: sql`${saleItemsTable.fulfilledQuantity} + ${inventory.quantityTaken}`,
-              })
-              .where(eq(saleItemsTable.id, product.saleItemId));
+        // Prepare product quantity update
+        productUpdates.push({
+          id: product.productId,
+          quantityReduction: totalQuantityTaken,
+        });
+
+        // Prepare sale item fulfillment update
+        if (waybillType === WaybillType.Sale && product.saleItemId) {
+          const existingSaleUpdate = saleItemUpdates.find(
+            (u) => u.id === product.saleItemId
+          );
+          if (existingSaleUpdate) {
+            existingSaleUpdate.quantityIncrease += totalQuantityTaken;
+          } else {
+            saleItemUpdates.push({
+              id: product.saleItemId,
+              quantityIncrease: totalQuantityTaken,
+            });
           }
         }
-        waybillItems.push(waybillItem);
+      }
 
-        // Check if sale is fully fulfilled (only for sale waybills)
-        if (waybillType === WaybillType.Sale && waybill.saleId) {
-          const saleItems = await tx
-            .select()
-            .from(saleItemsTable)
-            .where(eq(saleItemsTable.saleId, waybill.saleId));
+      // Batch insert waybill items
+      const waybillItems = await tx
+        .insert(waybillItemsTable)
+        .values(waybillItemsData)
+        .returning();
 
-          const isFullyFulfilled = saleItems.every(
-            (item) => item.quantity <= item.fulfilledQuantity
-          );
+      // Prepare waybill item inventory data with actual waybill item IDs
+      const finalWaybillItemInventoryData = [];
+      for (const invData of waybillItemInventoryData) {
+        const waybillItemId = waybillItems[invData.productIndex].id;
+        finalWaybillItemInventoryData.push({
+          waybillItemId: waybillItemId,
+          ...invData.inventory,
+        });
+      }
 
-          // Mark sale as completed if fully fulfilled
-          if (isFullyFulfilled) {
-            await tx
-              .update(salesTable)
-              .set({ status: "completed" })
-              .where(eq(salesTable.id, waybill.saleId));
-          }
+      // Batch insert waybill item inventory
+      if (finalWaybillItemInventoryData.length > 0) {
+        await tx
+          .insert(waybillItemInventoryTable)
+          .values(finalWaybillItemInventoryData);
+      }
+
+      // Batch update inventory quantities
+      for (const update of inventoryUpdates) {
+        await tx
+          .update(inventoryTable)
+          .set({
+            quantity: sql`${inventoryTable.quantity} - ${update.quantityReduction}`,
+          })
+          .where(eq(inventoryTable.id, update.id));
+      }
+
+      // Batch insert inventory transactions
+      if (inventoryTransactionsData.length > 0) {
+        await tx
+          .insert(inventoryTransactionsTable)
+          .values(inventoryTransactionsData);
+      }
+
+      // Batch update product quantities
+      for (const update of productUpdates) {
+        await tx
+          .update(productsTable)
+          .set({
+            quantity: sql`${productsTable.quantity} - ${update.quantityReduction}`,
+          })
+          .where(eq(productsTable.id, update.id));
+      }
+
+      // Batch update sale item fulfillment
+      for (const update of saleItemUpdates) {
+        await tx
+          .update(saleItemsTable)
+          .set({
+            fulfilledQuantity: sql`${saleItemsTable.fulfilledQuantity} + ${update.quantityIncrease}`,
+          })
+          .where(eq(saleItemsTable.id, update.id));
+      }
+
+      // Check if sale is fully fulfilled (only for sale waybills)
+      if (waybillType === WaybillType.Sale && waybill.saleId) {
+        const saleItems = await tx
+          .select()
+          .from(saleItemsTable)
+          .where(eq(saleItemsTable.saleId, waybill.saleId));
+
+        const isFullyFulfilled = saleItems.every(
+          (item) => item.quantity <= item.fulfilledQuantity
+        );
+
+        // Mark sale as completed if fully fulfilled
+        if (isFullyFulfilled) {
+          await tx
+            .update(salesTable)
+            .set({ status: "completed" })
+            .where(eq(salesTable.id, waybill.saleId));
         }
       }
 
@@ -182,6 +352,7 @@ export const addWaybill = async (
     });
 
     revalidatePath("/waybills");
+    revalidatePath("/sales");
     return parseStringify(result);
   } catch (error) {
     console.error("Error creating waybill:", error);
@@ -295,38 +466,14 @@ export const getWaybills = async (
         .leftJoin(storesTable, eq(waybillsTable.storeId, storesTable.id))
         .$dynamic();
 
-      // Create conditions array
-      const conditions = [eq(waybillsTable.isActive, true)];
-
-      // Apply filters if provided
-      if (filters) {
-        // Waybill date range
-        if (filters.waybillDate_start) {
-          conditions.push(
-            gte(waybillsTable.waybillDate, new Date(filters.waybillDate_start))
-          );
-        }
-        if (filters.waybillDate_end) {
-          conditions.push(
-            lte(waybillsTable.waybillDate, new Date(filters.waybillDate_end))
-          );
-        }
-
-        // Status filter
-        if (filters.status) {
-          conditions.push(
-            eq(waybillsTable.status, filters.status as DeliveryStatus)
-          );
-        }
+      const conditions = await buildFilterConditions(filters ?? {});
+      if (conditions.length > 0) {
+        waybillsQuery = waybillsQuery.where(and(...conditions));
       }
 
-      // Apply where conditions
-      waybillsQuery = waybillsQuery.where(and(...conditions));
-
-      // Apply order by
       waybillsQuery = waybillsQuery.orderBy(desc(waybillsTable.createdAt));
 
-      if (!getAllWaybills) {
+      if (!getAllWaybills && limit > 0) {
         waybillsQuery = waybillsQuery.limit(limit).offset(page * limit);
       }
 
@@ -356,20 +503,33 @@ export const getWaybills = async (
         itemsMap.get(item.waybillId).push(item);
       });
 
+      const wabillsWithItems = waybills.map((bill) => ({
+        ...bill,
+        products: itemsMap.get(bill.waybill.id) || [],
+      }));
+
       // Get total count for pagination
+      let totalQuery = tx
+        .select({ count: sql<number>`count(*)` })
+        .from(waybillsTable)
+        .leftJoin(salesTable, eq(waybillsTable.saleId, salesTable.id))
+        .leftJoin(
+          customersTable,
+          eq(waybillsTable.customerId, customersTable.id)
+        )
+        .leftJoin(storesTable, eq(waybillsTable.storeId, storesTable.id))
+        .$dynamic();
+
+      if (conditions.length > 0) {
+        totalQuery = totalQuery.where(and(...conditions));
+      }
+
       const total = getAllWaybills
         ? waybills.length
-        : await tx
-            .select({ count: sql<number>`count(*)` })
-            .from(waybillsTable)
-            .where(and(...conditions))
-            .then((res) => res[0]?.count || 0);
+        : await totalQuery.then((res) => res[0]?.count || 0);
 
       return {
-        documents: waybills.map((bill) => ({
-          ...bill,
-          products: itemsMap.get(bill.waybill.id) || [],
-        })),
+        documents: wabillsWithItems,
         total,
       };
     });
@@ -384,7 +544,7 @@ export const getWaybills = async (
   }
 };
 
-// Edit Waybill
+// Edit waybill
 export const editWaybill = async (
   waybill: WaybillFormValues,
   waybillId: string,
@@ -412,10 +572,11 @@ export const editWaybill = async (
         throw new Error("Waybill not found");
       }
 
-      // Verify all sale items exist before processing
+      // Batch validate sale items and sale existence upfront
       const saleItemIds = waybill.products
         .map((p) => p.saleItemId)
         .filter(Boolean);
+
       if (saleItemIds.length > 0) {
         const existingSaleItems = await tx
           .select({ id: saleItemsTable.id })
@@ -436,7 +597,6 @@ export const editWaybill = async (
         }
       }
 
-      // Verify the sale exists
       if (waybill.saleId) {
         const saleExists = await tx
           .select({ id: salesTable.id })
@@ -451,7 +611,7 @@ export const editWaybill = async (
         }
       }
 
-      // Get existing waybill items and their inventory
+      // Get existing waybill items and their inventory in batch
       const existingItems = await tx
         .select()
         .from(waybillItemsTable)
@@ -481,7 +641,43 @@ export const editWaybill = async (
               )
           : [];
 
-      // Reverse all existing inventory transactions (return stock)
+      // Prepare batch restoration data
+      interface InventoryRestoreUpdate {
+        id: string;
+        quantityRestore: number;
+        currentQuantity: number;
+      }
+      interface ProductRestoreUpdate {
+        id: string;
+        quantityRestore: number;
+      }
+      interface SaleItemReduction {
+        id: string;
+        quantityReduction: number;
+      }
+
+      const inventoryRestoreUpdates: InventoryRestoreUpdate[] = [];
+      const productRestoreUpdates: ProductRestoreUpdate[] = [];
+      const saleItemReductions: SaleItemReduction[] = [];
+      const reversalTransactionsData = [];
+
+      // Collect inventory IDs for batch fetching
+      const inventoryIdsForRestore = existingInventory.map(
+        (inv) => inv.waybillInv.inventoryStockId
+      );
+      const currentInventories =
+        inventoryIdsForRestore.length > 0
+          ? await tx
+              .select()
+              .from(inventoryTable)
+              .where(inArray(inventoryTable.id, inventoryIdsForRestore))
+          : [];
+
+      const currentInventoryMap = new Map(
+        currentInventories.map((inv) => [inv.id, inv])
+      );
+
+      // Process existing inventory for restoration
       for (const invRecord of existingInventory) {
         if (!invRecord.waybillItem) {
           console.warn(
@@ -490,62 +686,110 @@ export const editWaybill = async (
           continue;
         }
 
-        // Return inventory quantity
-        const [updatedInventory] = await tx
-          .update(inventoryTable)
-          .set({
-            quantity: sql`${inventoryTable.quantity} + ${invRecord.waybillInv.quantityTaken}`,
-          })
-          .where(eq(inventoryTable.id, invRecord.waybillInv.inventoryStockId))
-          .returning();
+        const currentInventory = currentInventoryMap.get(
+          invRecord.waybillInv.inventoryStockId
+        );
+        if (!currentInventory) continue;
 
-        // Return product quantity
-        if (waybillType === WaybillType.Loan) {
-          await tx
-            .update(productsTable)
-            .set({
-              quantity: sql`${productsTable.quantity} + ${invRecord.waybillInv.quantityTaken}`,
-            })
-            .where(eq(productsTable.id, invRecord.waybillItem.productId));
+        // Prepare inventory restoration
+        const existingUpdate = inventoryRestoreUpdates.find(
+          (u) => u.id === invRecord.waybillInv.inventoryStockId
+        );
+        if (existingUpdate) {
+          existingUpdate.quantityRestore += invRecord.waybillInv.quantityTaken;
+        } else {
+          inventoryRestoreUpdates.push({
+            id: invRecord.waybillInv.inventoryStockId,
+            quantityRestore: invRecord.waybillInv.quantityTaken,
+            currentQuantity: currentInventory.quantity,
+          });
         }
 
-        // Log the reversal transaction with actual quantities
-        await tx.insert(inventoryTransactionsTable).values({
+        // Prepare product restoration (for loan waybills)
+        if (waybillType === WaybillType.Loan) {
+          const existingProductUpdate = productRestoreUpdates.find(
+            (u) => u.id === invRecord.waybillItem?.productId
+          );
+          if (existingProductUpdate) {
+            existingProductUpdate.quantityRestore +=
+              invRecord.waybillInv.quantityTaken;
+          } else {
+            productRestoreUpdates.push({
+              id: invRecord.waybillItem.productId,
+              quantityRestore: invRecord.waybillInv.quantityTaken,
+            });
+          }
+        }
+
+        // Prepare sale item fulfillment reduction
+        if (invRecord.waybillItem.saleItemId) {
+          const existingSaleUpdate = saleItemReductions.find(
+            (u) => u.id === invRecord.waybillItem?.saleItemId
+          );
+          if (existingSaleUpdate) {
+            existingSaleUpdate.quantityReduction +=
+              invRecord.waybillInv.quantityTaken;
+          } else {
+            saleItemReductions.push({
+              id: invRecord.waybillItem.saleItemId,
+              quantityReduction: invRecord.waybillInv.quantityTaken,
+            });
+          }
+        }
+
+        // Prepare reversal transaction
+        reversalTransactionsData.push({
           inventoryId: invRecord.waybillInv.inventoryStockId,
           productId: invRecord.waybillItem.productId,
           storeId: existingWaybill.storeId,
           userId: userId,
-          transactionType: "waybill_edit_reversal",
-          quantityBefore:
-            updatedInventory.quantity - invRecord.waybillInv.quantityTaken,
-          quantityAfter: updatedInventory.quantity,
+          transactionType: "waybill_edit_reversal" as InventoryTransactionType,
+          quantityBefore: currentInventory.quantity,
+          quantityAfter:
+            currentInventory.quantity + invRecord.waybillInv.quantityTaken,
           transactionDate: new Date(),
           notes: `Stock returned during waybill edit`,
         });
-
-        // Update sale item fulfillment (reduce fulfilled quantity) - with existence check
-        if (invRecord.waybillItem.saleItemId) {
-          const saleItemExists = await tx
-            .select({
-              id: saleItemsTable.id,
-              fulfilledQuantity: saleItemsTable.fulfilledQuantity,
-            })
-            .from(saleItemsTable)
-            .where(eq(saleItemsTable.id, invRecord.waybillItem.saleItemId))
-            .limit(1);
-
-          if (saleItemExists.length > 0) {
-            await tx
-              .update(saleItemsTable)
-              .set({
-                fulfilledQuantity: sql`GREATEST(0, ${saleItemsTable.fulfilledQuantity} - ${invRecord.waybillInv.quantityTaken})`,
-              })
-              .where(eq(saleItemsTable.id, invRecord.waybillItem.saleItemId));
-          }
-        }
       }
 
-      // Delete existing waybill item inventory records
+      // Batch restore inventory quantities
+      for (const update of inventoryRestoreUpdates) {
+        await tx
+          .update(inventoryTable)
+          .set({
+            quantity: sql`${inventoryTable.quantity} + ${update.quantityRestore}`,
+          })
+          .where(eq(inventoryTable.id, update.id));
+      }
+
+      // Batch restore product quantities
+      for (const update of productRestoreUpdates) {
+        await tx
+          .update(productsTable)
+          .set({
+            quantity: sql`${productsTable.quantity} + ${update.quantityRestore}`,
+          })
+          .where(eq(productsTable.id, update.id));
+      }
+
+      // Batch reduce sale item fulfillment
+      for (const update of saleItemReductions) {
+        await tx
+          .update(saleItemsTable)
+          .set({
+            fulfilledQuantity: sql`GREATEST(0, ${saleItemsTable.fulfilledQuantity} - ${update.quantityReduction})`,
+          })
+          .where(eq(saleItemsTable.id, update.id));
+      }
+
+      // Batch insert reversal transactions
+      if (reversalTransactionsData.length > 0) {
+        await tx
+          .insert(inventoryTransactionsTable)
+          .values(reversalTransactionsData);
+      }
+
+      // Delete existing records
       if (existingItemIds.length > 0) {
         await tx
           .delete(waybillItemInventoryTable)
@@ -554,7 +798,6 @@ export const editWaybill = async (
           );
       }
 
-      // Delete existing waybill items
       await tx
         .delete(waybillItemsTable)
         .where(eq(waybillItemsTable.waybillId, waybillId));
@@ -588,56 +831,75 @@ export const editWaybill = async (
         .where(eq(waybillsTable.id, waybillId))
         .returning();
 
-      // Process each product in the updated waybill
-      const waybillItems = [];
+      // Now re-create the waybill items using the optimized batch approach from addWaybill
+
+      interface NewInventoryUpdate {
+        id: string;
+        quantityReduction: number;
+        currentQuantity: number;
+      }
+
+      interface NewSaleItemUpdate {
+        id: string;
+        quantityIncrease: number;
+      }
+
+      const waybillItemsData = [];
+      const waybillItemInventoryData = [];
+      const newInventoryUpdates: NewInventoryUpdate[] = [];
+      const newInventoryTransactionsData = [];
+      const newProductUpdates = [];
+      const newSaleItemUpdates: NewSaleItemUpdate[] = [];
+
+      // Collect all new inventory IDs that need to be validated
+      const newInventoryIds = waybill.products.flatMap(
+        (product) =>
+          product.inventoryStock?.map((inv) => inv.inventoryStockId) || []
+      );
+
+      // Batch fetch all required inventory records for new data
+      const newInventoryRecords =
+        newInventoryIds.length > 0
+          ? await tx
+              .select()
+              .from(inventoryTable)
+              .where(inArray(inventoryTable.id, newInventoryIds))
+          : [];
+
+      const newInventoryMap = new Map(
+        newInventoryRecords.map((inv) => [inv.id, inv])
+      );
+
+      // Process each new product
       for (const product of waybill.products) {
-        // Validate product data
         if (!product.productId) {
           throw new Error("Invalid product data: missing productId");
         }
-        // For sale waybills, validate saleItemId
         if (waybillType === WaybillType.Sale && !product.saleItemId) {
           throw new Error(
             "Invalid product data: missing saleItemId for sale waybill"
           );
         }
 
-        // Double-check that the sale item still exists (extra safety) - only for sale waybills
-        if (waybillType === WaybillType.Sale && product.saleItemId) {
-          const saleItemExists = await tx
-            .select({ id: saleItemsTable.id })
-            .from(saleItemsTable)
-            .where(eq(saleItemsTable.id, product.saleItemId))
-            .then((res) => res.length > 0);
+        const waybillItemData = {
+          waybillId: updatedWaybill.id,
+          productId: product.productId,
+          saleItemId:
+            waybillType === WaybillType.Sale ? product.saleItemId : null,
+          quantityRequested: product.quantityRequested,
+          quantitySupplied: product.quantitySupplied,
+          balanceLeft: product.balanceLeft,
+          fulfilledQuantity: product.fulfilledQuantity,
+          productName: product.productName,
+          productID: product.productID,
+        };
+        waybillItemsData.push(waybillItemData);
 
-          if (!saleItemExists) {
-            throw new Error(
-              `Sale item ${product.saleItemId} no longer exists. Please refresh the page and try again.`
-            );
-          }
-        }
-
-        // Create new waybill item
-        const [waybillItem] = await tx
-          .insert(waybillItemsTable)
-          .values({
-            waybillId: updatedWaybill.id,
-            productId: product.productId,
-            saleItemId:
-              waybillType === WaybillType.Sale ? product.saleItemId : null,
-            quantityRequested: product.quantityRequested,
-            quantitySupplied: product.quantitySupplied,
-            balanceLeft: product.balanceLeft,
-            fulfilledQuantity: product.fulfilledQuantity,
-            productName: product.productName,
-            productID: product.productID,
-          })
-          .returning();
-
-        // Process supplied inventory stock
+        // Process new inventory stock
         if (product.inventoryStock && product.inventoryStock.length > 0) {
+          let totalQuantityTaken = 0;
+
           for (const inventory of product.inventoryStock) {
-            // Validate inventory data
             if (
               !inventory.inventoryStockId ||
               !inventory.quantityTaken ||
@@ -647,80 +909,149 @@ export const editWaybill = async (
               continue;
             }
 
-            const [currentInventory] = await tx
-              .select()
-              .from(inventoryTable)
-              .where(eq(inventoryTable.id, inventory.inventoryStockId))
-              .limit(1);
-
+            const currentInventory = newInventoryMap.get(
+              inventory.inventoryStockId
+            );
             if (!currentInventory) {
               throw new Error(
                 `Inventory stock with ID ${inventory.inventoryStockId} not found`
               );
             }
 
-            // Check if we have enough quantity available
             if (currentInventory.quantity < inventory.quantityTaken) {
               throw new Error(
                 `Insufficient stock available. Lot ${inventory.lotNumber} has ${currentInventory.quantity} available but ${inventory.quantityTaken} was requested. Please refresh and try again.`
               );
             }
 
-            // Create waybill item inventory record
-            await tx.insert(waybillItemInventoryTable).values({
-              waybillItemId: waybillItem.id,
-              inventoryStockId: inventory.inventoryStockId,
-              lotNumber: inventory.lotNumber,
-              quantityTaken: inventory.quantityTaken,
-              unitPrice: inventory.unitPrice,
-            });
+            totalQuantityTaken += inventory.quantityTaken;
 
-            // Update inventory quantity
-            const [updatedInventory] = await tx
-              .update(inventoryTable)
-              .set({
-                quantity: sql`${inventoryTable.quantity} - ${inventory.quantityTaken}`,
-              })
-              .where(eq(inventoryTable.id, inventory.inventoryStockId))
-              .returning();
+            // Prepare new inventory updates
+            const existingUpdate = newInventoryUpdates.find(
+              (u) => u.id === inventory.inventoryStockId
+            );
+            if (existingUpdate) {
+              existingUpdate.quantityReduction += inventory.quantityTaken;
+            } else {
+              newInventoryUpdates.push({
+                id: inventory.inventoryStockId,
+                quantityReduction: inventory.quantityTaken,
+                currentQuantity: currentInventory.quantity,
+              });
+            }
 
-            // Log the inventory transaction
-            await tx.insert(inventoryTransactionsTable).values({
+            // Prepare new inventory transactions
+            newInventoryTransactionsData.push({
               inventoryId: inventory.inventoryStockId,
               productId: product.productId,
               storeId: waybill.storeId,
               userId: userId,
-              transactionType: "waybill_edit",
-              quantityBefore:
-                updatedInventory.quantity + inventory.quantityTaken,
-              quantityAfter: updatedInventory.quantity,
+              transactionType: "waybill_edit" as InventoryTransactionType,
+              quantityBefore: currentInventory.quantity,
+              quantityAfter:
+                currentInventory.quantity - inventory.quantityTaken,
               transactionDate: new Date(),
               notes: `Stock reduced for waybill edit`,
             });
 
-            // Update product total quantity
-            if (waybillType === WaybillType.Loan) {
-              await tx
-                .update(productsTable)
-                .set({
-                  quantity: sql`${productsTable.quantity} - ${inventory.quantityTaken}`,
-                })
-                .where(eq(productsTable.id, product.productId));
-            }
+            // Store inventory data with placeholder
+            waybillItemInventoryData.push({
+              productIndex: waybillItemsData.length - 1,
+              inventory: {
+                inventoryStockId: inventory.inventoryStockId,
+                lotNumber: inventory.lotNumber,
+                quantityTaken: inventory.quantityTaken,
+                unitPrice: inventory.unitPrice,
+              },
+            });
+          }
 
-            // Update sale item fulfillment (only for sale waybills)
-            if (waybillType === WaybillType.Sale && product.saleItemId) {
-              await tx
-                .update(saleItemsTable)
-                .set({
-                  fulfilledQuantity: sql`${saleItemsTable.fulfilledQuantity} + ${inventory.quantityTaken}`,
-                })
-                .where(eq(saleItemsTable.id, product.saleItemId));
+          // Prepare new product updates
+          if (waybillType === WaybillType.Loan) {
+            newProductUpdates.push({
+              id: product.productId,
+              quantityReduction: totalQuantityTaken,
+            });
+          }
+
+          // Prepare new sale item updates
+          if (waybillType === WaybillType.Sale && product.saleItemId) {
+            const existingSaleUpdate = newSaleItemUpdates.find(
+              (u) => u.id === product.saleItemId
+            );
+            if (existingSaleUpdate) {
+              existingSaleUpdate.quantityIncrease += totalQuantityTaken;
+            } else {
+              newSaleItemUpdates.push({
+                id: product.saleItemId,
+                quantityIncrease: totalQuantityTaken,
+              });
             }
           }
         }
+      }
 
-        waybillItems.push(waybillItem);
+      // Batch insert new waybill items
+      const waybillItems =
+        waybillItemsData.length > 0
+          ? await tx
+              .insert(waybillItemsTable)
+              .values(waybillItemsData)
+              .returning()
+          : [];
+
+      // Prepare new waybill item inventory data with actual IDs
+      const finalNewWaybillItemInventoryData = [];
+      for (const invData of waybillItemInventoryData) {
+        const waybillItemId = waybillItems[invData.productIndex].id;
+        finalNewWaybillItemInventoryData.push({
+          waybillItemId: waybillItemId,
+          ...invData.inventory,
+        });
+      }
+
+      // Batch insert new waybill item inventory
+      if (finalNewWaybillItemInventoryData.length > 0) {
+        await tx
+          .insert(waybillItemInventoryTable)
+          .values(finalNewWaybillItemInventoryData);
+      }
+
+      // Batch update new inventory quantities
+      for (const update of newInventoryUpdates) {
+        await tx
+          .update(inventoryTable)
+          .set({
+            quantity: sql`${inventoryTable.quantity} - ${update.quantityReduction}`,
+          })
+          .where(eq(inventoryTable.id, update.id));
+      }
+
+      // Batch insert new inventory transactions
+      if (newInventoryTransactionsData.length > 0) {
+        await tx
+          .insert(inventoryTransactionsTable)
+          .values(newInventoryTransactionsData);
+      }
+
+      // Batch update new product quantities
+      for (const update of newProductUpdates) {
+        await tx
+          .update(productsTable)
+          .set({
+            quantity: sql`${productsTable.quantity} - ${update.quantityReduction}`,
+          })
+          .where(eq(productsTable.id, update.id));
+      }
+
+      // Batch update new sale item fulfillment
+      for (const update of newSaleItemUpdates) {
+        await tx
+          .update(saleItemsTable)
+          .set({
+            fulfilledQuantity: sql`${saleItemsTable.fulfilledQuantity} + ${update.quantityIncrease}`,
+          })
+          .where(eq(saleItemsTable.id, update.id));
       }
 
       // Recalculate sale fulfillment status (only for sale waybills)
@@ -740,7 +1071,6 @@ export const editWaybill = async (
             .set({ status: "completed" })
             .where(eq(salesTable.id, waybill.saleId));
         } else {
-          // If not fully fulfilled, ensure sale status is not "completed"
           await tx
             .update(salesTable)
             .set({ status: "pending" })
@@ -758,6 +1088,7 @@ export const editWaybill = async (
 
     revalidatePath("/waybills");
     revalidatePath(`/waybills/edit-waybill/${waybillId}`);
+    revalidatePath("/sales");
     return parseStringify(result);
   } catch (error) {
     console.error("Error editing waybill:", error);

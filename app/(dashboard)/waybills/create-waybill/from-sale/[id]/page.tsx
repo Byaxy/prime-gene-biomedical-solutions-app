@@ -1,30 +1,22 @@
-"use client";
-
-import WaybillForm from "@/components/forms/WaybillForm";
-import Loading from "@/app/(dashboard)/loading";
 import PageWraper from "@/components/PageWraper";
+import FormSkeleton from "@/components/ui/form-skeleton";
+import WaybillFormWrapper from "@/components/waybills/WaybillFormWrapper";
 import { getSaleById } from "@/lib/actions/sale.actions";
-import { useQuery } from "@tanstack/react-query";
-import { useParams } from "next/navigation";
+import { Suspense } from "react";
 
-const CreateWaybillFromSale = () => {
-  const { id } = useParams();
+export interface Params {
+  id: string;
+}
 
-  const { data: sale, isLoading } = useQuery({
-    queryKey: ["sales"],
-    queryFn: async () => {
-      if (!id) return null;
-      return await getSaleById(id as string);
-    },
-    enabled: !!id,
-    staleTime: 0,
-    refetchOnMount: true,
-    refetchOnWindowFocus: true,
-  });
+const CreateWaybillFromSale = async ({
+  params,
+}: {
+  params: Promise<Params>;
+}) => {
+  const { id } = await params;
 
-  if (isLoading) {
-    return <Loading />;
-  }
+  const sale = await getSaleById(id);
+
   return (
     <PageWraper title="Create Waybill">
       <section className="space-y-6">
@@ -33,7 +25,9 @@ const CreateWaybillFromSale = () => {
             Creating for Sale: {sale.sale.invoiceNumber}
           </p>
         </div>
-        <WaybillForm mode="create" sourceSale={sale} />
+        <Suspense fallback={<FormSkeleton />}>
+          <WaybillFormWrapper mode="create" sourceSaleId={id} />
+        </Suspense>
       </section>
     </PageWraper>
   );

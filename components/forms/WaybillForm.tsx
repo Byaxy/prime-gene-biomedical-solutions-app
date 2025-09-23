@@ -1,7 +1,6 @@
 "use client";
 
 import { useCustomers } from "@/hooks/useCustomers";
-import { useSales } from "@/hooks/useSales";
 import { useStores } from "@/hooks/useStores";
 import { useWaybills } from "@/hooks/useWaybills";
 import { generateWaybillRefNumber } from "@/lib/actions/waybill.actions";
@@ -27,17 +26,15 @@ import {
   WaybillWithRelations,
 } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQuery } from "@tanstack/react-query";
 import { City, Country, ICity, IState, State } from "country-state-city";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import toast from "react-hot-toast";
 import { Form } from "../ui/form";
 import CustomFormField, { FormFieldType } from "../CustomFormField";
 import { Button } from "../ui/button";
 import { RefreshCw } from "lucide-react";
-import Loading from "../../app/(dashboard)/loading";
 import { SelectItem } from "../ui/select";
 import { Search } from "lucide-react";
 import { Input } from "../ui/input";
@@ -57,9 +54,7 @@ import SubmitButton from "../SubmitButton";
 import CustomerDialog from "../customers/CustomerDialog";
 import StoreDialog from "../stores/StoreDialog";
 import WaybillStockDialog from "../waybills/WaybillStockDialog";
-import { useInventoryStock } from "@/hooks/useInventoryStock";
 import { useAuth } from "@/hooks/useAuth";
-import { useProducts } from "@/hooks/useProducts";
 import WaybillInventoryStockSelectDialog from "../waybills/WaybillInventoryStockSelectDialog";
 import LoanWaybillsDialog from "../waybills/LoanWaybillsDialog";
 
@@ -67,9 +62,29 @@ interface WaybillFormProps {
   mode: "create" | "edit";
   initialData?: WaybillWithRelations;
   sourceSale?: SaleWithRelations;
+  customers: Customer[];
+  stores: Store[];
+  sales: SaleWithRelations[];
+  products: ProductWithRelations[];
+  inventoryStock: InventoryStockWithRelations[];
+  waybills: WaybillWithRelations[];
+  generatedWaybillRefNumber?: string;
 }
 
-const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
+const WaybillForm = ({
+  mode,
+  initialData,
+  sourceSale,
+  customers,
+  stores,
+  sales,
+  products,
+  inventoryStock,
+  waybills,
+  generatedWaybillRefNumber: initialGeneratedWaybillRefNumber,
+}: WaybillFormProps) => {
+  const [isRefetchingWaybillRefNumber, setIsRefetchingWaybillRefNumber] =
+    useState(false);
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
   const [storeDialogOpen, setStoreDialogOpen] = useState(false);
   const [loanWaybillDialogOpen, setLoanWaybillDialogOpen] = useState(false);
@@ -88,73 +103,24 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
   const [selectedProductIndex, setSelectedProductIndex] = useState<
     number | null
   >(null);
-  const [states, setStates] = useState<IState[]>(() =>
-    initialData?.waybill.deliveryAddress
-      ? State.getStatesOfCountry(initialData?.waybill.deliveryAddress?.country)
-      : []
-  );
-  const [cities, setCities] = useState<ICity[]>(() =>
-    initialData?.waybill.deliveryAddress
-      ? City.getCitiesOfState(
-          initialData?.waybill.deliveryAddress?.country || "",
-          initialData?.waybill.deliveryAddress?.state
-        )
-      : []
-  );
+  const [states, setStates] = useState<IState[]>([]);
+  const [cities, setCities] = useState<ICity[]>([]);
 
   const { user } = useAuth();
 
-  const { products, isLoading: productsLoading } = useProducts({
-    getAllActive: true,
-  });
-
-  const { waybills } = useWaybills({
-    getAllWaybills: true,
-  });
-
-  const {
-    stores,
-    addStore,
-    isAddingStore,
-    isLoading: storesLoading,
-  } = useStores({
-    getAllStores: true,
-  });
-  const {
-    customers,
-    addCustomer,
-    isLoading: customersLoading,
-  } = useCustomers({ getAllCustomers: true });
-  const { sales, isLoading: salesLoading } = useSales({ getAllSales: true });
-  const { inventoryStock } = useInventoryStock({
-    getAllInventoryStocks: true,
-  });
+  const { addStore, isAddingStore } = useStores();
+  const { addCustomer, isAddingCustomer } = useCustomers();
   const { addWaybill, isAddingWaybill, editWaybill, isEditingWaybill } =
     useWaybills();
 
   const router = useRouter();
-
-  // Generate Waybill Reference number
-  const {
-    data: generatedWaybillRefNumber,
-    isLoading,
-    refetch,
-    isRefetching,
-  } = useQuery({
-    queryKey: ["waybill-ref-number"],
-    queryFn: async () => {
-      if (mode !== "create") return null;
-      const result = await generateWaybillRefNumber();
-      return result;
-    },
-    enabled: mode === "create",
-  });
+  const initialMount = useRef(true);
 
   // Default values
   const defaultValues = useMemo(
     () => ({
       waybillDate: new Date(),
-      waybillRefNumber: generatedWaybillRefNumber || "",
+      waybillRefNumber: initialGeneratedWaybillRefNumber || "",
       status: DeliveryStatus.Pending as DeliveryStatus,
       deliveryAddress: {
         addressName: "",
@@ -177,55 +143,12 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
       conversionDate: undefined,
       conversionStatus: WaybillConversionStatus.Partial,
     }),
-    [generatedWaybillRefNumber]
+    [initialGeneratedWaybillRefNumber]
   );
   const form = useForm<WaybillFormValues>({
     resolver: zodResolver(WaybillFormValidation),
     mode: "all",
-    defaultValues: initialData
-      ? {
-          waybillDate: initialData.waybill.waybillDate
-            ? new Date(initialData.waybill.waybillDate)
-            : new Date(),
-          waybillRefNumber: initialData.waybill.waybillRefNumber || "",
-          status: initialData.waybill.status || DeliveryStatus.Pending,
-          deliveryAddress: {
-            addressName: initialData.waybill.deliveryAddress.addressName || "",
-            address: initialData.waybill.deliveryAddress.address || "",
-            city: initialData.waybill.deliveryAddress.city || "",
-            state: initialData.waybill.deliveryAddress.state || "",
-            country: initialData.waybill.deliveryAddress.country || "",
-            email: initialData.waybill.deliveryAddress.email || "",
-            phone: initialData.waybill.deliveryAddress.phone || "",
-          },
-          customerId: initialData.customer.id || "",
-          storeId: initialData.store.id || "",
-          saleId: initialData.waybill.saleId || "",
-          isLoanWaybill:
-            initialData.waybill.waybillType === WaybillType.Loan || false,
-          isConverted: initialData.waybill.isConverted || false,
-          notes: initialData.waybill.notes || "",
-          deliveredBy: initialData.waybill.deliveredBy || "",
-          receivedBy: initialData.waybill.receivedBy || "",
-          products: initialData.products.map((product) => ({
-            productId: product.productId,
-            saleItemId: product.saleItemId || "",
-            inventoryStock: product.inventoryStock.map((stock) => ({
-              inventoryStockId: stock.inventoryStockId,
-              lotNumber: stock.lotNumber,
-              quantityTaken: stock.quantityTaken,
-              unitPrice: stock.unitPrice,
-            })),
-            quantityRequested: product.quantityRequested,
-            quantitySupplied: product.quantitySupplied,
-            balanceLeft: product.balanceLeft,
-            fulfilledQuantity: product.fulfilledQuantity,
-            quantityConverted: product.quantityConverted,
-            productName: product.productName || "",
-            productID: product.productID || "",
-          })),
-        }
-      : defaultValues,
+    defaultValues: defaultValues,
   });
 
   const { fields, prepend, remove } = useFieldArray({
@@ -240,529 +163,157 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
   const selectedState = form.watch("deliveryAddress.state");
 
   // helper function to check if sale has deliverable products
-  const hasDeliverableProducts = (sale: SaleWithRelations): boolean => {
-    if (!sale?.products?.length || !inventoryStock?.length) {
-      return false;
-    }
-
-    return sale.products.reduce((hasDeliverable: boolean, product) => {
-      if (hasDeliverable) return true;
-
-      if (
-        !product?.productId ||
-        !product.productID ||
-        !product?.storeId ||
-        typeof product.fulfilledQuantity !== "number" ||
-        typeof product.quantity !== "number"
-      ) {
+  const hasDeliverableProducts = useCallback(
+    (sale: SaleWithRelations): boolean => {
+      if (!sale?.products?.length || !inventoryStock?.length) {
         return false;
       }
 
-      const hasUnfulfilledQuantity =
-        product.fulfilledQuantity < product.quantity;
-      if (!hasUnfulfilledQuantity) return false;
+      return sale.products.reduce((hasDeliverable: boolean, product) => {
+        if (hasDeliverable) return true;
 
-      // Check if there's available inventory using reduce
-      const hasAvailableInventory = inventoryStock.reduce(
-        (hasStock: boolean, inv: InventoryStockWithRelations) => {
-          if (hasStock) return true;
+        if (
+          !product?.productId ||
+          !product.productID ||
+          !product?.storeId ||
+          typeof product.fulfilledQuantity !== "number" ||
+          typeof product.quantity !== "number"
+        ) {
+          return false;
+        }
 
-          // Validate inventory structure
-          if (
-            !inv?.product?.id ||
-            !inv?.product?.productID ||
-            !inv?.store?.id ||
-            !inv?.inventory?.quantity
-          ) {
-            return false;
-          }
+        const hasUnfulfilledQuantity =
+          product.fulfilledQuantity < product.quantity;
+        if (!hasUnfulfilledQuantity) return false;
 
-          // Check if inventory matches product and has positive quantity
-          return (
+        // Check if there's available inventory for this product and store
+        const hasAvailableInventory = inventoryStock.some(
+          (inv: InventoryStockWithRelations) =>
             inv.product.id === product.productId &&
             inv.product.productID === product.productID &&
             inv.store.id === product.storeId &&
             inv.inventory.quantity > 0
-          );
-        },
-        false
-      );
-
-      return hasAvailableInventory;
-    }, false);
-  };
-
-  const filteredProducts = products
-    ?.reduce((acc: Product[], product: ProductWithRelations) => {
-      if (
-        !selectedStoreId ||
-        !product?.product?.id ||
-        !product?.product?.productID
-      ) {
-        return acc;
-      }
-
-      const { product: pdt } = product;
-
-      const productQnty =
-        inventoryStock?.reduce(
-          (total: number, inv: InventoryStockWithRelations) => {
-            if (
-              !inv?.product?.id ||
-              !inv?.inventory?.quantity ||
-              !inv?.store?.id
-            ) {
-              return total;
-            }
-
-            if (
-              inv.product.id === pdt.id &&
-              inv.product.productID === pdt.productID &&
-              inv.store.id === selectedStoreId &&
-              inv.inventory.quantity > 0
-            ) {
-              return total + inv.inventory.quantity;
-            }
-
-            return total;
-          },
-          0
-        ) || 0;
-
-      const updatedProduct = { ...pdt, quantity: productQnty };
-
-      // Apply search filter
-      if (searchQuery?.trim()) {
-        const query = searchQuery.toLowerCase().trim();
-        const matchesSearch =
-          updatedProduct.productID?.toLowerCase().includes(query) ||
-          updatedProduct.name?.toLowerCase().includes(query);
-
-        if (!matchesSearch) return acc;
-      }
-
-      acc.push(updatedProduct);
-      return acc;
-    }, [])
-    .filter((pdt: Product) => pdt.quantity > 0);
-
-  // Filter sales
-  const filteredSales =
-    sales?.reduce((acc: SaleWithRelations[], sale: SaleWithRelations) => {
-      if (!sale?.sale || !sale?.products) {
-        return acc;
-      }
-
-      if (mode === "edit") {
-        acc.push(sale);
-        return acc;
-      }
-
-      const isDeliverable = hasDeliverableProducts(sale);
-      if (!isDeliverable) {
-        return acc;
-      }
-
-      if (searchQuery?.trim()) {
-        const query = searchQuery.toLowerCase().trim();
-        const matchesSearch =
-          sale.sale.invoiceNumber?.toLowerCase().includes(query) || false;
-
-        if (matchesSearch) {
-          acc.push(sale);
-        }
-      } else {
-        acc.push(sale);
-      }
-
-      return acc;
-    }, []) || [];
-
-  // Handle sale selection.
-  const handleSaleSelection = (saleId: string) => {
-    if (!saleId) {
-      toast.error("Please select a Sale");
-      return;
-    }
-    if (!sales || sales.length === 0) {
-      toast.error("No sales available");
-      return;
-    }
-    const selectedSale: SaleWithRelations = sales?.find(
-      (sale: SaleWithRelations) => sale.sale.id === saleId
-    );
-
-    if (!selectedSale) {
-      toast.error("Selected sale not found");
-      return;
-    }
-
-    // Clear previous products
-    remove();
-    setCustomerMatchingLoanWaybills(null);
-    setSelectedSale(selectedSale);
-
-    const matchingLoanWaybills: WaybillWithRelations[] = [];
-    const customerLoanWaybills =
-      waybills?.reduce(
-        (acc: WaybillWithRelations[], waybill: WaybillWithRelations) => {
-          if (!waybill.waybill?.waybillType || !waybill?.waybill?.customerId) {
-            return acc;
-          }
-
-          const isLoanWaybill = waybill.waybill.waybillType === "loan";
-          const isNotConverted = waybill.waybill.isConverted === false;
-          const hasNoSaleId =
-            !waybill.waybill.saleId ||
-            waybill.waybill.saleId === null ||
-            waybill.waybill.saleId === undefined;
-          const isForSelectedCustomer =
-            waybill.waybill.customerId === selectedSale.customer.id;
-
-          if (
-            isLoanWaybill &&
-            isNotConverted &&
-            hasNoSaleId &&
-            isForSelectedCustomer
-          ) {
-            acc.push(waybill);
-          }
-
-          return acc;
-        },
-        []
-      ) || [];
-
-    if (customerLoanWaybills.length > 0 && selectedSale.products.length > 0) {
-      customerLoanWaybills.forEach((loanWaybill: WaybillWithRelations) => {
-        // Check if ANY loan waybill product is present in sale products
-        const hasMatchingProduct = loanWaybill.products.some(
-          (loanProduct: WaybillItem) => {
-            return selectedSale.products.some(
-              (saleProduct: SaleItem) =>
-                saleProduct.productId === loanProduct.productId &&
-                saleProduct.productID === loanProduct.productID &&
-                loanProduct.quantitySupplied > loanProduct.quantityConverted
-            );
-          }
         );
 
-        // Add the waybill if it has at least one matching product
-        if (hasMatchingProduct) {
-          matchingLoanWaybills.push(loanWaybill);
+        return hasAvailableInventory;
+      }, false);
+    },
+    [inventoryStock]
+  );
+
+  // Filter products
+  const filteredProducts = useMemo(() => {
+    return products
+      ?.reduce((acc: Product[], product: ProductWithRelations) => {
+        if (
+          !selectedStoreId ||
+          !product?.product?.id ||
+          !product?.product?.productID
+        ) {
+          return acc;
         }
-      });
-    }
 
-    if (matchingLoanWaybills.length > 0) {
-      setCustomerMatchingLoanWaybills(matchingLoanWaybills);
-    }
+        const { product: pdt } = product;
 
-    const deliveryAddress =
-      selectedSale.sale.isDeliveryAddressAdded &&
-      selectedSale.sale.deliveryAddress.address !== ""
-        ? selectedSale.sale.deliveryAddress
-        : {
-            ...selectedSale.customer.address,
-            email: selectedSale.customer.email,
-            phone: selectedSale.customer.phone,
-          };
+        const productQnty =
+          inventoryStock?.reduce(
+            (total: number, inv: InventoryStockWithRelations) => {
+              if (
+                !inv?.product?.id ||
+                !inv?.inventory?.quantity ||
+                !inv?.store?.id
+              ) {
+                return total;
+              }
 
-    if (deliveryAddress?.country) {
-      const countryStates =
-        State.getStatesOfCountry(deliveryAddress.country) || [];
-      setStates(countryStates);
-
-      if (deliveryAddress?.state) {
-        const stateCities =
-          City.getCitiesOfState(
-            deliveryAddress.country,
-            deliveryAddress.state
-          ) || [];
-        setCities(stateCities);
-      } else {
-        setCities([]);
-      }
-    } else {
-      setStates([]);
-      setCities([]);
-    }
-
-    form.setValue("saleId", selectedSale.sale.id);
-    form.setValue("customerId", selectedSale.customer.id);
-    form.setValue("storeId", selectedSale.store.id);
-    form.setValue("deliveryAddress.country", deliveryAddress?.country || "");
-    form.setValue("deliveryAddress.state", deliveryAddress?.state || "");
-    form.setValue("deliveryAddress.city", deliveryAddress?.city || "");
-    form.setValue(
-      "deliveryAddress.addressName",
-      deliveryAddress?.addressName || ""
-    );
-    form.setValue("deliveryAddress.address", deliveryAddress?.address || "");
-    form.setValue("deliveryAddress.email", deliveryAddress?.email || "");
-    form.setValue("deliveryAddress.phone", deliveryAddress?.phone || "");
-
-    // Process products
-    if (selectedSale.products.length > 0) {
-      selectedSale.products.forEach(
-        (product: SaleItem, productIndex: number) => {
-          if (product.fulfilledQuantity >= product.quantity) {
-            return;
-          }
-
-          const remainingQuantity =
-            product.quantity - product.fulfilledQuantity;
-
-          const availableInventory =
-            inventoryStock?.filter((inv: InventoryStockWithRelations) => {
-              return (
-                inv.product.id === product.productId &&
-                inv.store.id === product.storeId &&
-                inv.product.productID === product.productID &&
+              if (
+                inv.product.id === pdt.id &&
+                inv.product.productID === pdt.productID &&
+                inv.store.id === selectedStoreId &&
                 inv.inventory.quantity > 0
-              );
-            }) || [];
-
-          if (availableInventory.length === 0) {
-            console.warn(
-              `No inventory available for product ${product.productID}`
-            );
-            return;
-          }
-
-          const totalAvailableQuantity = availableInventory.reduce(
-            (total: number, inv: InventoryStockWithRelations) =>
-              total + inv.inventory.quantity,
-            0
-          );
-
-          if (totalAvailableQuantity === 0) {
-            return;
-          }
-
-          const quantityToSupply = Math.min(
-            remainingQuantity,
-            totalAvailableQuantity
-          );
-
-          let remainingToAllocate = quantityToSupply;
-          const allocatedStock: WaybillInventoryStock[] = [];
-
-          for (const stockAllocation of product.inventoryStock) {
-            if (remainingToAllocate <= 0) break;
-
-            const inventoryItem = availableInventory.find(
-              (inv: InventoryStockWithRelations) =>
-                inv.inventory.id === stockAllocation.inventoryStockId
-            );
-
-            if (inventoryItem && inventoryItem.inventory.quantity > 0) {
-              const quantityFromThisStock = Math.min(
-                remainingToAllocate,
-                stockAllocation.quantityToTake,
-                inventoryItem.inventory.quantity
-              );
-
-              if (quantityFromThisStock > 0) {
-                allocatedStock.push({
-                  inventoryStockId: stockAllocation.inventoryStockId,
-                  lotNumber: stockAllocation.lotNumber,
-                  quantityTaken: quantityFromThisStock,
-                  unitPrice: product.unitPrice,
-                });
-
-                remainingToAllocate -= quantityFromThisStock;
+              ) {
+                return total + inv.inventory.quantity;
               }
-            }
-          }
 
-          // If we still have quantity to allocate, use remaining available inventory
-          if (remainingToAllocate > 0) {
-            for (const inventoryItem of availableInventory) {
-              if (remainingToAllocate <= 0) break;
-
-              // Check if this inventory is already allocated
-              const alreadyAllocated = allocatedStock.some(
-                (stock) => stock.inventoryStockId === inventoryItem.inventory.id
-              );
-
-              if (!alreadyAllocated && inventoryItem.inventory.quantity > 0) {
-                const quantityFromThisStock = Math.min(
-                  remainingToAllocate,
-                  inventoryItem.inventory.quantity
-                );
-
-                if (quantityFromThisStock > 0) {
-                  allocatedStock.push({
-                    inventoryStockId: inventoryItem.inventory.id,
-                    lotNumber: inventoryItem.inventory.lotNumber || "",
-                    quantityTaken: quantityFromThisStock,
-                    unitPrice: product.unitPrice,
-                  });
-
-                  remainingToAllocate -= quantityFromThisStock;
-                }
-              }
-            }
-          }
-
-          // Calculate actual supplied quantity from allocations
-          const actualSuppliedQuantity = allocatedStock.reduce(
-            (total, stock) => total + stock.quantityTaken,
+              return total;
+            },
             0
-          );
+          ) || 0;
 
-          const balanceLeft = remainingQuantity - actualSuppliedQuantity;
+        const updatedProduct = { ...pdt, quantity: productQnty };
 
-          // Set form error if there's insufficient inventory
-          if (
-            actualSuppliedQuantity < remainingQuantity &&
-            totalAvailableQuantity < remainingQuantity
-          ) {
-            form.setError(`products.${productIndex}.inventoryStock`, {
-              message: `Insufficient inventory. Available: ${totalAvailableQuantity}, Required: ${remainingQuantity}`,
-            });
-          }
+        // Apply search filter
+        if (searchQuery?.trim()) {
+          const query = searchQuery.toLowerCase().trim();
+          const matchesSearch =
+            updatedProduct.productID?.toLowerCase().includes(query) ||
+            updatedProduct.name?.toLowerCase().includes(query);
 
-          // Only add products that have some inventory allocation
-          if (allocatedStock.length > 0 && actualSuppliedQuantity > 0) {
-            prepend({
-              productId: product.productId,
-              saleItemId: product.id,
-              inventoryStock: allocatedStock,
-              quantityRequested: product.quantity,
-              quantitySupplied: actualSuppliedQuantity,
-              balanceLeft: balanceLeft,
-              fulfilledQuantity: product.fulfilledQuantity,
-              quantityConverted: 0,
-              productName: product.productName,
-              productID: product.productID,
-            });
-          } else {
-            console.warn(
-              `Product ${product.productID} skipped - no valid inventory allocation`
-            );
-          }
+          if (!matchesSearch) return acc;
         }
-      );
-    }
 
-    // Trigger form validation after a brief delay to ensure state updates
-    setTimeout(() => {
-      form.trigger([
-        "deliveryAddress.country",
-        "deliveryAddress.state",
-        "deliveryAddress.city",
-        "deliveryAddress.addressName",
-        "deliveryAddress.address",
-        "deliveryAddress.email",
-        "deliveryAddress.phone",
-        "saleId",
-        "customerId",
-        "storeId",
-        "products",
-      ]);
-    }, 100);
-  };
+        acc.push(updatedProduct);
+        return acc;
+      }, [])
+      .filter((pdt: Product) => pdt.quantity > 0);
+  }, [products, inventoryStock, selectedStoreId, searchQuery]);
 
-  useEffect(() => {
-    if (selectedCountry) {
-      setStates(State.getStatesOfCountry(selectedCountry) || []);
-      setCities([]);
-    }
-  }, [selectedCountry]);
+  // Filter sales
+  const filteredSales = useMemo(() => {
+    return (
+      sales?.reduce((acc: SaleWithRelations[], sale: SaleWithRelations) => {
+        if (!sale?.sale || !sale?.products) {
+          return acc;
+        }
+        if (mode === "edit") {
+          acc.push(sale);
+          return acc;
+        }
 
-  useEffect(() => {
-    if (selectedState) {
-      setCities(
-        City.getCitiesOfState(selectedCountry ?? "", selectedState ?? "") || []
-      );
-    }
-  }, [selectedState, selectedCountry]);
+        const isDeliverable = hasDeliverableProducts(sale);
+        if (!isDeliverable) {
+          return acc;
+        }
 
-  // Set initial values for the form
-  useEffect(() => {
-    if (initialData) {
-      remove();
-      const deliveryAddress = initialData.waybill.deliveryAddress;
+        if (searchQuery?.trim()) {
+          const query = searchQuery.toLowerCase().trim();
+          const matchesSearch =
+            sale.sale.invoiceNumber?.toLowerCase().includes(query) || false;
 
-      if (deliveryAddress?.country) {
-        const countryStates =
-          State.getStatesOfCountry(deliveryAddress.country) || [];
-        setStates(countryStates);
-
-        if (deliveryAddress?.state) {
-          const stateCities =
-            City.getCitiesOfState(
-              deliveryAddress.country,
-              deliveryAddress.state
-            ) || [];
-          setCities(stateCities);
+          if (matchesSearch) {
+            acc.push(sale);
+          }
         } else {
-          setCities([]);
+          acc.push(sale);
         }
-      } else {
-        setStates([]);
-        setCities([]);
+        return acc;
+      }, []) || []
+    );
+  }, [sales, searchQuery, mode, hasDeliverableProducts]);
+
+  // Handle sale selection.
+  const handleSaleSelection = useCallback(
+    (saleId: string) => {
+      if (!saleId) {
+        toast.error("Please select a Sale");
+        return;
       }
+      if (!sales || sales.length === 0) {
+        toast.error("No sales available");
+        return;
+      }
+      const selectedSale = sales?.find(
+        (sale: SaleWithRelations) => sale.sale.id === saleId
+      );
 
-      setTimeout(() => {
-        form.reset({
-          waybillDate: new Date(initialData.waybill.waybillDate || Date.now()),
-          waybillRefNumber: initialData.waybill.waybillRefNumber || "",
-          status: initialData.waybill.status,
-          customerId: initialData.waybill.customerId || "",
-          storeId: initialData.waybill.storeId || "",
-          saleId: initialData.waybill.saleId || "",
-          isLoanWaybill:
-            initialData.waybill.waybillType === WaybillType.Loan || false,
-          isConverted: initialData.waybill.isConverted || false,
-          notes: initialData.waybill.notes || "",
-          deliveredBy: initialData.waybill.deliveredBy || "",
-          receivedBy: initialData.waybill.receivedBy || "",
-          deliveryAddress: {
-            addressName: initialData.waybill.deliveryAddress?.addressName || "",
-            address: initialData.waybill.deliveryAddress?.address || "",
-            city: initialData.waybill.deliveryAddress?.city || "",
-            state: initialData.waybill.deliveryAddress?.state || "",
-            country: initialData.waybill.deliveryAddress?.country || "",
-            email: initialData.waybill.deliveryAddress?.email || "",
-            phone: initialData.waybill.deliveryAddress?.phone || "",
-          },
-          products: [],
-        });
+      if (!selectedSale) {
+        toast.error("Selected sale not found");
+        return;
+      }
+      setSelectedSale(selectedSale);
 
-        // Add products after form reset
-        if (initialData.products && initialData.products.length > 0) {
-          initialData.products.forEach((product) => {
-            prepend({
-              productId: product.productId,
-              saleItemId: product.saleItemId || "",
-              inventoryStock: product.inventoryStock.map((stock) => ({
-                inventoryStockId: stock.inventoryStockId,
-                lotNumber: stock.lotNumber,
-                quantityTaken: stock.quantityTaken,
-                unitPrice: stock.unitPrice,
-              })),
-              quantityRequested: product.quantityRequested,
-              quantitySupplied: product.quantitySupplied,
-              balanceLeft: product.balanceLeft,
-              fulfilledQuantity: product.fulfilledQuantity || 0,
-              quantityConverted: product.quantityConverted || 0,
-              productName: product.productName || "",
-              productID: product.productID || "",
-            });
-          });
-        }
-
-        // Trigger validation after initialization
-        setTimeout(() => {
-          form.trigger();
-        }, 100);
-      }, 100);
-    } else if (sourceSale) {
-      const { sale, customer, products } = sourceSale;
-
+      // Clear previous products
+      remove();
       setCustomerMatchingLoanWaybills(null);
 
       const matchingLoanWaybills: WaybillWithRelations[] = [];
@@ -783,7 +334,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
               waybill.waybill.saleId === null ||
               waybill.waybill.saleId === undefined;
             const isForSelectedCustomer =
-              waybill.waybill.customerId === customer.id;
+              waybill.waybill.customerId === selectedSale.customer.id;
 
             if (
               isLoanWaybill &&
@@ -799,12 +350,11 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
           []
         ) || [];
 
-      if (customerLoanWaybills.length > 0 && products.length > 0) {
+      if (customerLoanWaybills.length > 0 && selectedSale.products.length > 0) {
         customerLoanWaybills.forEach((loanWaybill: WaybillWithRelations) => {
-          // Check if ANY loan waybill product is present in sale products
           const hasMatchingProduct = loanWaybill.products.some(
             (loanProduct: WaybillItem) => {
-              return products.some(
+              return selectedSale.products.some(
                 (saleProduct: SaleItem) =>
                   saleProduct.productId === loanProduct.productId &&
                   saleProduct.productID === loanProduct.productID &&
@@ -813,7 +363,6 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
             }
           );
 
-          // Add the waybill if it has at least one matching product
           if (hasMatchingProduct) {
             matchingLoanWaybills.push(loanWaybill);
           }
@@ -825,146 +374,98 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
       }
 
       const deliveryAddress =
-        sale.isDeliveryAddressAdded && sale.deliveryAddress.address !== ""
-          ? sale.deliveryAddress
+        selectedSale.sale.isDeliveryAddressAdded &&
+        selectedSale.sale.deliveryAddress.address !== ""
+          ? selectedSale.sale.deliveryAddress
           : {
-              ...customer.address,
-              email: customer.email,
-              phone: customer.phone,
+              addressName: selectedSale.customer.name,
+              address: selectedSale.customer.address?.address || "",
+              city: selectedSale.customer.address?.city || "",
+              state: selectedSale.customer.address?.state || "",
+              country: selectedSale.customer.address?.country || "",
+              email: selectedSale.customer.email || "",
+              phone: selectedSale.customer.phone || "",
             };
 
-      if (deliveryAddress?.country) {
-        const countryStates =
-          State.getStatesOfCountry(deliveryAddress.country) || [];
-        setStates(countryStates);
-
-        if (deliveryAddress?.state) {
-          const stateCities =
-            City.getCitiesOfState(
-              deliveryAddress.country,
-              deliveryAddress.state
-            ) || [];
-          setCities(stateCities);
-        } else {
-          setCities([]);
-        }
-      } else {
-        setStates([]);
-        setCities([]);
-      }
-      remove();
-      form.setValue("customerId", sale.customerId);
-      form.setValue("storeId", sale.storeId);
-      form.setValue("saleId", sale.id);
+      form.setValue("saleId", selectedSale.sale.id);
+      form.setValue("customerId", selectedSale.customer.id);
+      form.setValue("storeId", selectedSale.store.id);
+      form.setValue("deliveryAddress.country", deliveryAddress?.country || "");
+      form.setValue("deliveryAddress.state", deliveryAddress?.state || "");
+      form.setValue("deliveryAddress.city", deliveryAddress?.city || "");
       form.setValue(
         "deliveryAddress.addressName",
-        deliveryAddress?.addressName
+        deliveryAddress?.addressName || ""
       );
-      form.setValue("deliveryAddress.address", deliveryAddress?.address);
-      form.setValue("deliveryAddress.city", deliveryAddress?.city);
-      form.setValue("deliveryAddress.state", deliveryAddress?.state);
-      form.setValue("deliveryAddress.country", deliveryAddress?.country);
-      form.setValue("deliveryAddress.email", deliveryAddress?.email);
-      form.setValue("deliveryAddress.phone", deliveryAddress?.phone);
+      form.setValue("deliveryAddress.address", deliveryAddress?.address || "");
+      form.setValue("deliveryAddress.email", deliveryAddress?.email || "");
+      form.setValue("deliveryAddress.phone", deliveryAddress?.phone || "");
 
       // Process products
-      if (products.length > 0) {
-        products.forEach((product: SaleItem, productIndex: number) => {
-          if (product.fulfilledQuantity >= product.quantity) {
-            return;
-          }
-
-          const remainingQuantity =
-            product.quantity - product.fulfilledQuantity;
-
-          const availableInventory =
-            inventoryStock?.filter((inv: InventoryStockWithRelations) => {
-              return (
-                inv.product.id === product.productId &&
-                inv.store.id === product.storeId &&
-                inv.product.productID === product.productID &&
-                inv.inventory.quantity > 0
-              );
-            }) || [];
-
-          if (availableInventory.length === 0) {
-            console.warn(
-              `No inventory available for product ${product.productID}`
-            );
-            return;
-          }
-
-          const totalAvailableQuantity = availableInventory.reduce(
-            (total: number, inv: InventoryStockWithRelations) =>
-              total + inv.inventory.quantity,
-            0
-          );
-
-          if (totalAvailableQuantity === 0) {
-            return;
-          }
-
-          const quantityToSupply = Math.min(
-            remainingQuantity,
-            totalAvailableQuantity
-          );
-
-          let remainingToAllocate = quantityToSupply;
-          const allocatedStock: Array<{
-            inventoryStockId: string;
-            lotNumber: string;
-            quantityTaken: number;
-            unitPrice: number;
-          }> = [];
-
-          for (const stockAllocation of product.inventoryStock) {
-            if (remainingToAllocate <= 0) break;
-
-            const inventoryItem = availableInventory.find(
-              (inv: InventoryStockWithRelations) =>
-                inv.inventory.id === stockAllocation.inventoryStockId
-            );
-
-            if (inventoryItem && inventoryItem.inventory.quantity > 0) {
-              const quantityFromThisStock = Math.min(
-                remainingToAllocate,
-                stockAllocation.quantityToTake,
-                inventoryItem.inventory.quantity
-              );
-
-              if (quantityFromThisStock > 0) {
-                allocatedStock.push({
-                  inventoryStockId: stockAllocation.inventoryStockId,
-                  lotNumber: stockAllocation.lotNumber,
-                  quantityTaken: quantityFromThisStock,
-                  unitPrice: product.unitPrice,
-                });
-
-                remainingToAllocate -= quantityFromThisStock;
-              }
+      if (selectedSale.products.length > 0) {
+        selectedSale.products.forEach(
+          (product: SaleItem, productIndex: number) => {
+            if (product.fulfilledQuantity >= product.quantity) {
+              return;
             }
-          }
 
-          // If we still have quantity to allocate, use remaining available inventory
-          if (remainingToAllocate > 0) {
-            for (const inventoryItem of availableInventory) {
+            const remainingQuantity =
+              product.quantity - product.fulfilledQuantity;
+
+            const availableInventory =
+              inventoryStock?.filter((inv: InventoryStockWithRelations) => {
+                return (
+                  inv.product.id === product.productId &&
+                  inv.store.id === product.storeId &&
+                  inv.product.productID === product.productID &&
+                  inv.inventory.quantity > 0
+                );
+              }) || [];
+
+            if (availableInventory.length === 0) {
+              console.warn(
+                `No inventory available for product ${product.productID}`
+              );
+              return;
+            }
+
+            const totalAvailableQuantity = availableInventory.reduce(
+              (total: number, inv: InventoryStockWithRelations) =>
+                total + inv.inventory.quantity,
+              0
+            );
+
+            if (totalAvailableQuantity === 0) {
+              return;
+            }
+
+            const quantityToSupply = Math.min(
+              remainingQuantity,
+              totalAvailableQuantity
+            );
+
+            let remainingToAllocate = quantityToSupply;
+            const allocatedStock: WaybillInventoryStock[] = [];
+
+            for (const stockAllocation of product.inventoryStock) {
               if (remainingToAllocate <= 0) break;
 
-              // Check if this inventory is already allocated
-              const alreadyAllocated = allocatedStock.some(
-                (stock) => stock.inventoryStockId === inventoryItem.inventory.id
+              const inventoryItem = availableInventory.find(
+                (inv: InventoryStockWithRelations) =>
+                  inv.inventory.id === stockAllocation.inventoryStockId
               );
 
-              if (!alreadyAllocated && inventoryItem.inventory.quantity > 0) {
+              if (inventoryItem && inventoryItem.inventory.quantity > 0) {
                 const quantityFromThisStock = Math.min(
                   remainingToAllocate,
+                  stockAllocation.quantityToTake,
                   inventoryItem.inventory.quantity
                 );
 
                 if (quantityFromThisStock > 0) {
                   allocatedStock.push({
-                    inventoryStockId: inventoryItem.inventory.id,
-                    lotNumber: inventoryItem.inventory.lotNumber || "",
+                    inventoryStockId: stockAllocation.inventoryStockId,
+                    lotNumber: stockAllocation.lotNumber,
                     quantityTaken: quantityFromThisStock,
                     unitPrice: product.unitPrice,
                   });
@@ -973,59 +474,199 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
                 }
               }
             }
+
+            // If we still have quantity to allocate, use remaining available inventory
+            if (remainingToAllocate > 0) {
+              for (const inventoryItem of availableInventory) {
+                if (remainingToAllocate <= 0) break;
+
+                // Check if this inventory is already allocated
+                const alreadyAllocated = allocatedStock.some(
+                  (stock) =>
+                    stock.inventoryStockId === inventoryItem.inventory.id
+                );
+
+                if (!alreadyAllocated && inventoryItem.inventory.quantity > 0) {
+                  const quantityFromThisStock = Math.min(
+                    remainingToAllocate,
+                    inventoryItem.inventory.quantity
+                  );
+
+                  if (quantityFromThisStock > 0) {
+                    allocatedStock.push({
+                      inventoryStockId: inventoryItem.inventory.id,
+                      lotNumber: inventoryItem.inventory.lotNumber || "",
+                      quantityTaken: quantityFromThisStock,
+                      unitPrice: product.unitPrice,
+                    });
+
+                    remainingToAllocate -= quantityFromThisStock;
+                  }
+                }
+              }
+            }
+
+            // Calculate actual supplied quantity from allocations
+            const actualSuppliedQuantity = allocatedStock.reduce(
+              (total, stock) => total + stock.quantityTaken,
+              0
+            );
+
+            const balanceLeft = remainingQuantity - actualSuppliedQuantity;
+
+            // Set form error if there's insufficient inventory
+            if (
+              actualSuppliedQuantity < remainingQuantity &&
+              totalAvailableQuantity < remainingQuantity
+            ) {
+              form.setError(`products.${productIndex}.inventoryStock`, {
+                message: `Insufficient inventory. Available: ${totalAvailableQuantity}, Required: ${remainingQuantity}`,
+              });
+            }
+
+            // Only add products that have some inventory allocation
+            if (allocatedStock.length > 0 && actualSuppliedQuantity > 0) {
+              prepend({
+                productId: product.productId,
+                saleItemId: product.id,
+                inventoryStock: allocatedStock,
+                quantityRequested: product.quantity,
+                quantitySupplied: actualSuppliedQuantity,
+                balanceLeft: balanceLeft,
+                fulfilledQuantity: product.fulfilledQuantity,
+                quantityConverted: 0,
+                productName: product.productName,
+                productID: product.productID,
+              });
+            } else {
+              console.warn(
+                `Product ${product.productID} skipped - no valid inventory allocation`
+              );
+            }
           }
+        );
+      }
 
-          // Calculate actual supplied quantity from allocations
-          const actualSuppliedQuantity = allocatedStock.reduce(
-            (total, stock) => total + stock.quantityTaken,
-            0
-          );
+      // Trigger form validation after a brief delay to ensure state updates
+      setTimeout(() => {
+        form.trigger([
+          "deliveryAddress.country",
+          "deliveryAddress.state",
+          "deliveryAddress.city",
+          "deliveryAddress.addressName",
+          "deliveryAddress.address",
+          "deliveryAddress.email",
+          "deliveryAddress.phone",
+          "saleId",
+          "customerId",
+          "storeId",
+          "products",
+        ]);
+      }, 100);
+    },
+    [form, sales, inventoryStock, waybills, remove, prepend]
+  );
 
-          const balanceLeft = remainingQuantity - actualSuppliedQuantity;
+  useEffect(() => {
+    if (selectedCountry) {
+      setStates(State.getStatesOfCountry(selectedCountry) || []);
+      setCities([]);
+    } else {
+      setStates([]);
+      setCities([]);
+    }
+  }, [selectedCountry]);
 
-          // Set form error if there's insufficient inventory
-          if (
-            actualSuppliedQuantity < remainingQuantity &&
-            totalAvailableQuantity < remainingQuantity
-          ) {
-            form.setError(`products.${productIndex}.inventoryStock`, {
-              message: `Insufficient inventory. Available: ${totalAvailableQuantity}, Required: ${remainingQuantity}`,
-            });
-          }
+  useEffect(() => {
+    if (selectedState && selectedCountry) {
+      setCities(City.getCitiesOfState(selectedCountry, selectedState) || []);
+    } else {
+      setCities([]);
+    }
+  }, [selectedState, selectedCountry]);
 
-          // Only add products that have some inventory allocation
-          if (allocatedStock.length > 0 && actualSuppliedQuantity > 0) {
-            prepend({
-              productId: product.productId,
-              saleItemId: product.id,
-              inventoryStock: allocatedStock,
-              quantityRequested: product.quantity,
-              quantitySupplied: actualSuppliedQuantity,
-              balanceLeft: balanceLeft,
-              fulfilledQuantity: product.fulfilledQuantity,
-              quantityConverted: 0,
-              productName: product.productName,
-              productID: product.productID,
-            });
-          } else {
-            console.warn(
-              `Product ${product.productID} skipped - no valid inventory allocation`
+  // Set initial values for the form
+  useEffect(() => {
+    if (initialMount.current) {
+      if (initialData) {
+        const deliveryAddress = initialData.waybill.deliveryAddress;
+        if (deliveryAddress?.country) {
+          setStates(State.getStatesOfCountry(deliveryAddress.country) || []);
+          if (deliveryAddress?.state) {
+            setCities(
+              City.getCitiesOfState(
+                deliveryAddress.country,
+                deliveryAddress.state
+              ) || []
             );
           }
+        }
+        form.reset({
+          waybillDate: new Date(initialData.waybill.waybillDate || Date.now()),
+          waybillRefNumber: initialData.waybill.waybillRefNumber || "",
+          status: initialData.waybill.status,
+          customerId: initialData.waybill.customerId || "",
+          storeId: initialData.waybill.storeId || "",
+          saleId: initialData.waybill.saleId || "",
+          isLoanWaybill: initialData.waybill.waybillType === WaybillType.Loan,
+          isConverted: initialData.waybill.isConverted || false,
+          notes: initialData.waybill.notes || "",
+          deliveredBy: initialData.waybill.deliveredBy || "",
+          receivedBy: initialData.waybill.receivedBy || "",
+          deliveryAddress: {
+            addressName: initialData.waybill.deliveryAddress?.addressName || "",
+            address: initialData.waybill.deliveryAddress?.address || "",
+            city: initialData.waybill.deliveryAddress?.city || "",
+            state: initialData.waybill.deliveryAddress?.state || "",
+            country: initialData.waybill.deliveryAddress?.country || "",
+            email: initialData.waybill.deliveryAddress?.email || "",
+            phone: initialData.waybill.deliveryAddress?.phone || "",
+          },
+          products: initialData.products.map((p) => ({
+            productId: p.productId,
+            saleItemId: p.saleItemId || "",
+            inventoryStock: (p.inventoryStock || []).map((stock) => ({
+              inventoryStockId: stock.inventoryStockId,
+              lotNumber: stock.lotNumber,
+              quantityTaken: stock.quantityTaken,
+              unitPrice: stock.unitPrice,
+            })),
+            quantityRequested: p.quantityRequested,
+            quantitySupplied: p.quantitySupplied,
+            balanceLeft: p.balanceLeft,
+            fulfilledQuantity: p.fulfilledQuantity,
+            quantityConverted: p.quantityConverted,
+            productName: p.productName || "",
+            productID: p.productID || "",
+          })),
         });
+        setSelectedSale(
+          sales.find((s) => s.sale.id === initialData.waybill.saleId) || null
+        );
+        setPrevSelectedSaleId(initialData.waybill.saleId);
+      } else if (mode === "create" && sourceSale) {
+        handleSaleSelection(sourceSale.sale.id);
+        form.setValue(
+          "waybillRefNumber",
+          initialGeneratedWaybillRefNumber || ""
+        );
+        setSelectedSale(sourceSale);
+        setPrevSelectedSaleId(sourceSale.sale.id);
+        form.setValue("isLoanWaybill", false);
+      } else if (mode === "create" && initialGeneratedWaybillRefNumber) {
+        form.setValue("waybillRefNumber", initialGeneratedWaybillRefNumber);
       }
+      initialMount.current = false;
     }
   }, [
     initialData,
     form,
-    stores,
-    remove,
-    prepend,
     defaultValues,
+    mode,
+    initialGeneratedWaybillRefNumber,
     sourceSale,
-    generatedWaybillRefNumber,
-    inventoryStock,
-    waybills,
+    sales,
+    handleSaleSelection,
   ]);
 
   // Handle country change
@@ -1054,26 +695,29 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
 
   // Set Waybill ref number
   useEffect(() => {
-    if (generatedWaybillRefNumber && mode === "create") {
-      form.setValue("waybillRefNumber", generatedWaybillRefNumber);
+    if (
+      initialGeneratedWaybillRefNumber &&
+      mode === "create" &&
+      form.getValues("waybillRefNumber") === ""
+    ) {
+      form.setValue("waybillRefNumber", initialGeneratedWaybillRefNumber);
     }
-  }, [form, mode, generatedWaybillRefNumber]);
+  }, [form, mode, initialGeneratedWaybillRefNumber]);
 
-  // Update the refresh button handler (waybillRefNumber)
   const handleRefreshWaybillRefNumber = async () => {
     if (mode === "create") {
       try {
-        await refetch();
-        if (generatedWaybillRefNumber) {
-          form.setValue("waybillRefNumber", generatedWaybillRefNumber);
-        }
+        setIsRefetchingWaybillRefNumber(true);
+        const newRefNumber = await generateWaybillRefNumber();
+        form.setValue("waybillRefNumber", newRefNumber);
       } catch (error) {
         console.error("Error refreshing waybill ref number:", error);
         toast.error("Failed to refresh waybill ref number");
+      } finally {
+        setIsRefetchingWaybillRefNumber(false);
       }
     }
   };
-
   // Handle add product
   const handleAddProduct = () => {
     if (!selectedProductId || !selectedStoreId) {
@@ -1120,13 +764,85 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
   const handleCancel = () => {
     if (mode === "create") {
       form.reset(defaultValues);
-      refetch();
+      form.setValue("waybillRefNumber", initialGeneratedWaybillRefNumber || "");
+      setSelectedSale(null);
+      setPrevSelectedSaleId(null);
+      setCustomerMatchingLoanWaybills(null);
+      setStates([]);
+      setCities([]);
     } else {
-      form.reset();
+      // Reset to initialData for edit mode
+      if (initialData) {
+        form.reset({
+          waybillDate: new Date(initialData.waybill.waybillDate || Date.now()),
+          waybillRefNumber: initialData.waybill.waybillRefNumber || "",
+          status: initialData.waybill.status,
+          customerId: initialData.waybill.customerId || "",
+          storeId: initialData.waybill.storeId || "",
+          saleId: initialData.waybill.saleId || "",
+          isLoanWaybill: initialData.waybill.waybillType === WaybillType.Loan,
+          isConverted: initialData.waybill.isConverted || false,
+          notes: initialData.waybill.notes || "",
+          deliveredBy: initialData.waybill.deliveredBy || "",
+          receivedBy: initialData.waybill.receivedBy || "",
+          deliveryAddress: {
+            addressName: initialData.waybill.deliveryAddress?.addressName || "",
+            address: initialData.waybill.deliveryAddress?.address || "",
+            city: initialData.waybill.deliveryAddress?.city || "",
+            state: initialData.waybill.deliveryAddress?.state || "",
+            country: initialData.waybill.deliveryAddress?.country || "",
+            email: initialData.waybill.deliveryAddress?.email || "",
+            phone: initialData.waybill.deliveryAddress?.phone || "",
+          },
+          products: initialData.products.map((p) => ({
+            productId: p.productId,
+            saleItemId: p.saleItemId || "",
+            inventoryStock: (p.inventoryStock || []).map((stock) => ({
+              inventoryStockId: stock.inventoryStockId,
+              lotNumber: stock.lotNumber,
+              quantityTaken: stock.quantityTaken,
+              unitPrice: stock.unitPrice,
+            })),
+            quantityRequested: p.quantityRequested,
+            quantitySupplied: p.quantitySupplied,
+            balanceLeft: p.balanceLeft,
+            fulfilledQuantity: p.fulfilledQuantity,
+            quantityConverted: p.quantityConverted,
+            productName: p.productName || "",
+            productID: p.productID || "",
+          })),
+        });
+        setSelectedSale(
+          sales.find((s) => s.sale.id === initialData.waybill.saleId) || null
+        );
+        setPrevSelectedSaleId(initialData.waybill.saleId);
+        if (initialData.waybill.deliveryAddress?.country) {
+          setStates(
+            State.getStatesOfCountry(
+              initialData.waybill.deliveryAddress.country
+            ) || []
+          );
+          if (initialData.waybill.deliveryAddress?.state) {
+            setCities(
+              City.getCitiesOfState(
+                initialData.waybill.deliveryAddress.country,
+                initialData.waybill.deliveryAddress.state
+              ) || []
+            );
+          }
+        }
+      } else {
+        form.reset(defaultValues);
+        setSelectedSale(null);
+        setPrevSelectedSaleId(null);
+        setCustomerMatchingLoanWaybills(null);
+        setStates([]);
+        setCities([]);
+      }
     }
   };
   // handle close dialog
-  const closeDialog = () => {
+  const closeDialog = useCallback(() => {
     setCustomerDialogOpen(false);
     setStoreDialogOpen(false);
     setLoanWaybillDialogOpen(false);
@@ -1137,46 +853,86 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
         stuckSection.style.pointerEvents = "auto";
       }
     }, 100);
-  };
+  }, []);
 
   // Handle submit
   const handleSubmit = async () => {
     try {
       const values = form.getValues();
       if (!user?.id) return;
-      if (mode === "create") {
-        await addWaybill(
-          { data: values, userId: user.id },
-          {
-            onSuccess: () => {
-              router.push("/waybills");
-              toast.success("Waybill created successfully!");
-              form.reset();
-            },
-            onError: (error) => {
-              console.error("Create waybill error:", error);
-              toast.error("Failed to create waybill");
-            },
-          }
+
+      if (values.products.length === 0) {
+        toast.error("At least one product is required");
+        return;
+      }
+      if (values.products.some((p) => p.quantitySupplied <= 0)) {
+        toast.error(
+          "Quantity supplied must be greater than zero for all products."
         );
-      } else if (mode === "edit") {
-        if (!initialData?.waybill.id || !user.id) {
-          toast.error("Waybill ID and User are required for editing");
-          return;
-        }
-        await editWaybill(
-          { id: initialData.waybill.id, data: values, userId: user.id },
-          {
-            onSuccess: () => {
-              toast.success("Waybill updated successfully!");
-              form.reset();
-              router.push("/waybills");
-            },
-            onError: (error) => {
-              console.error("Edit waybill error:", error);
-              toast.error("Failed to update waybill");
-            },
+        return;
+      }
+      if (
+        values.products.some(
+          (p) =>
+            p.inventoryStock.reduce((sum, s) => sum + s.quantityTaken, 0) !==
+            p.quantitySupplied
+        )
+      ) {
+        toast.error(
+          "Total allocated inventory must match quantity supplied for all products."
+        );
+        return;
+      }
+
+      // Show a loading toast immediately
+      const loadingToastId = toast.loading(
+        mode === "create" ? "Creating waybill..." : "Updating waybill..."
+      );
+      try {
+        if (mode === "create") {
+          await addWaybill(
+            { data: values, userId: user.id },
+            {
+              onSuccess: () => {
+                toast.success("Waybill created successfully!", {
+                  id: loadingToastId,
+                });
+                router.push("/waybills");
+                router.refresh();
+                form.reset(defaultValues);
+              },
+            }
+          );
+        } else if (mode === "edit") {
+          if (!initialData?.waybill.id) {
+            throw new Error("Waybill ID is required for editing");
           }
+          await editWaybill(
+            { id: initialData.waybill.id, data: values, userId: user.id },
+            {
+              onSuccess: () => {
+                toast.success("Waybill updated successfully!", {
+                  id: loadingToastId,
+                });
+                router.push("/waybills");
+                router.refresh();
+                form.reset(defaultValues);
+              },
+            }
+          );
+        }
+
+        // Reset local UI states after successful submission
+        setSelectedSale(null);
+        setPrevSelectedSaleId(null);
+        setCustomerMatchingLoanWaybills(null);
+        setStates([]);
+        setCities([]);
+      } catch (error) {
+        console.error("Waybill operation error:", error);
+        toast.error(
+          `Failed to ${mode === "create" ? "create" : "update"} waybill`,
+          { id: loadingToastId }
         );
       }
     } catch (error) {
@@ -1231,38 +987,42 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
   };
 
   // Enhanced validation for preventing over-allocation
-  const validateQuantitySupplied = (index: number, newQuantity: number) => {
-    const entryQntyRequested =
-      form.watch(`products.${index}.quantityRequested`) || 0;
-    const entryFulfilledQuantity =
-      form.watch(`products.${index}.fulfilledQuantity`) || 0;
-    const remainingNeeded = entryQntyRequested - entryFulfilledQuantity;
+  const validateQuantitySupplied = useCallback(
+    (index: number, newQuantity: number) => {
+      const entryQntyRequested =
+        form.watch(`products.${index}.quantityRequested`) || 0;
+      const entryFulfilledQuantity =
+        form.watch(`products.${index}.fulfilledQuantity`) || 0;
+      const remainingNeeded = entryQntyRequested - entryFulfilledQuantity;
 
-    if (newQuantity > remainingNeeded) {
-      form.setError(`products.${index}.quantitySupplied`, {
-        message: `Cannot supply more than remaining quantity (${remainingNeeded})`,
-      });
-      return false;
-    }
+      if (newQuantity > remainingNeeded && mode === "create") {
+        form.setError(`products.${index}.quantitySupplied`, {
+          message: `Cannot supply more than remaining quantity (${remainingNeeded})`,
+        });
+        return false;
+      }
 
-    // Check if we have enough inventory allocated
-    const allocatedStock = form.watch(`products.${index}.inventoryStock`) || [];
-    const totalAllocated = allocatedStock.reduce(
-      (total: number, stock: WaybillInventoryStock) =>
-        total + (stock.quantityTaken || 0),
-      0
-    );
+      // Check if we have enough inventory allocated
+      const allocatedStock =
+        form.watch(`products.${index}.inventoryStock`) || [];
+      const totalAllocated = allocatedStock.reduce(
+        (total: number, stock: WaybillInventoryStock) =>
+          total + (stock.quantityTaken || 0),
+        0
+      );
 
-    if (newQuantity > totalAllocated) {
-      form.setError(`products.${index}.quantitySupplied`, {
-        message: `Cannot supply more than allocated inventory (${totalAllocated})`,
-      });
-      return false;
-    }
+      if (newQuantity > totalAllocated) {
+        form.setError(`products.${index}.quantitySupplied`, {
+          message: `Cannot supply more than allocated inventory (${totalAllocated})`,
+        });
+        return false;
+      }
 
-    form.clearErrors(`products.${index}.quantitySupplied`);
-    return true;
-  };
+      form.clearErrors(`products.${index}.quantitySupplied`);
+      return true;
+    },
+    [form, mode]
+  );
 
   // get entry inventory stocks based on selected product and store
   const getEntryInventoryStocks = useCallback(
@@ -1342,10 +1102,26 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
             email: customer.email || "",
             phone: customer.phone || "",
           });
+
+          if (customer.address?.country) {
+            setStates(State.getStatesOfCountry(customer.address.country) || []);
+            if (customer.address?.state) {
+              setCities(
+                City.getCitiesOfState(
+                  customer.address.country,
+                  customer.address.state
+                ) || []
+              );
+            }
+          }
         }
+      } else if (!form.getValues("saleId")) {
+        form.setValue("deliveryAddress", defaultValues.deliveryAddress);
+        setStates([]);
+        setCities([]);
       }
     }
-  }, [customers, form, isLoanWaybill]);
+  }, [customers, defaultValues, form, isLoanWaybill]);
 
   useEffect(() => {
     if (fields.length > 0) {
@@ -1353,9 +1129,19 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
         const balanceLeft = calculateEntryBalanceLeft(index);
 
         form.setValue(`products.${index}.balanceLeft`, balanceLeft);
+
+        const currentQuantitySupplied = form.getValues(
+          `products.${index}.quantitySupplied`
+        );
+        validateQuantitySupplied(index, currentQuantitySupplied);
       });
     }
-  }, [calculateEntryBalanceLeft, fields, form]);
+  }, [calculateEntryBalanceLeft, fields, form, validateQuantitySupplied]);
+
+  const isAnyMutationLoading =
+    isAddingWaybill || isEditingWaybill || isAddingCustomer || isAddingStore;
+
+  console.log("Form errors: ", form.formState.errors);
 
   return (
     <>
@@ -1372,6 +1158,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
                 onValueChange={handleSwitchToggle}
                 name="isLoanWaybill"
                 label="Is this a Loan Waybill ?"
+                disabled={isAnyMutationLoading}
               />
             </div>
           )}
@@ -1383,21 +1170,22 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
                 name="waybillRefNumber"
                 label="Waybill Reference Number"
                 placeholder={
-                  isLoading || isRefetching
+                  isRefetchingWaybillRefNumber
                     ? "Generating..."
                     : "Enter waybill reference number"
                 }
+                disabled={isAnyMutationLoading || isRefetchingWaybillRefNumber}
               />
               <Button
                 type="button"
                 size={"icon"}
                 onClick={handleRefreshWaybillRefNumber}
                 className="self-end shad-primary-btn px-5"
-                disabled={isLoading || isRefetching}
+                disabled={isAnyMutationLoading || isRefetchingWaybillRefNumber}
               >
                 <RefreshCw
                   className={`h-5 w-5 ${
-                    isLoading || isRefetching ? "animate-spin" : ""
+                    isRefetchingWaybillRefNumber ? "animate-spin" : ""
                   }`}
                 />
               </Button>
@@ -1408,6 +1196,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
               name="waybillDate"
               label="Waybill Date"
               dateFormat="MM/dd/yyyy"
+              disabled={isAnyMutationLoading}
             />
           </div>
           <div className="w-full flex flex-col sm:flex-row gap-5">
@@ -1419,13 +1208,8 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
               placeholder="Select sale"
               onAddNew={() => setCustomerDialogOpen(true)}
               key={`customer-select-${form.watch("customerId") || ""}`}
-              disabled={!isLoanWaybill}
+              disabled={!isLoanWaybill || isAnyMutationLoading}
             >
-              {customersLoading && (
-                <div className="py-4">
-                  <Loading />
-                </div>
-              )}
               {customers?.map((customer: Customer) => (
                 <SelectItem
                   key={customer.id}
@@ -1445,13 +1229,8 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
               placeholder="Select sale"
               onAddNew={() => setStoreDialogOpen(true)}
               key={`store-select-${form.watch("storeId") || ""}`}
-              disabled={!isLoanWaybill}
+              disabled={!isLoanWaybill || isAnyMutationLoading}
             >
-              {storesLoading && (
-                <div className="py-4">
-                  <Loading />
-                </div>
-              )}
               {stores?.map((store: Store) => (
                 <SelectItem
                   key={store.id}
@@ -1480,13 +1259,11 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
                       name="selectedProductId"
                       label="Select Inventory"
                       placeholder={
-                        productsLoading
-                          ? "Loading..."
-                          : selectedStoreId
+                        selectedStoreId
                           ? "Select inventory"
                           : "Select store first"
                       }
-                      disabled={!selectedStoreId}
+                      disabled={!selectedStoreId || isAnyMutationLoading}
                       key={`inventory-select-${selectedProductId || ""}`}
                     >
                       <div className="py-3">
@@ -1498,7 +1275,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
-                            disabled={!selectedStoreId || productsLoading}
+                            disabled={!selectedStoreId || isAnyMutationLoading}
                           />
                           {searchQuery && (
                             <button
@@ -1511,11 +1288,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
                           )}
                         </div>
                       </div>
-                      {productsLoading ? (
-                        <div className="py-4">
-                          <Loading />
-                        </div>
-                      ) : filteredProducts && filteredProducts.length > 0 ? (
+                      {filteredProducts && filteredProducts.length > 0 ? (
                         <>
                           <Table className="shad-table border border-light-200 rounded-lg">
                             <TableHeader>
@@ -1535,6 +1308,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
                                       "bg-blue-50": index % 2 === 1,
                                     })}
                                     onClick={() => {
+                                      if (isAnyMutationLoading) return;
                                       form.setValue(
                                         "selectedProductId",
                                         product.id
@@ -1593,7 +1367,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
                   <Button
                     type="button"
                     onClick={handleAddProduct}
-                    disabled={!selectedProductId}
+                    disabled={!selectedProductId || isAnyMutationLoading}
                     className="self-end shad-primary-btn h-11"
                   >
                     Add Inventory
@@ -1644,7 +1418,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
                               disabled={
                                 form.watch(
                                   `products.${index}.quantityRequested`
-                                ) <= 0
+                                ) <= 0 || isAnyMutationLoading
                               }
                               type="button"
                               className={cn(
@@ -1729,13 +1503,22 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
                               name={`products.${index}.quantityRequested`}
                               label=""
                               placeholder="Qnty"
+                              disabled={isAnyMutationLoading}
                             />
                           </TableCell>
                           <TableCell>
                             <div className="flex flex-row items-center">
                               <span
-                                onClick={() => handleDeleteEntry(index)}
-                                className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
+                                onClick={() => {
+                                  if (!isAnyMutationLoading)
+                                    handleDeleteEntry(index);
+                                }}
+                                className={cn(
+                                  "p-1 cursor-pointer",
+                                  isAnyMutationLoading
+                                    ? "text-gray-400 cursor-not-allowed"
+                                    : "text-red-600 hover:bg-light-200 hover:rounded-md"
+                                )}
                               >
                                 <DeleteIcon className="h-5 w-5" />
                               </span>
@@ -1756,11 +1539,11 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
                       control={form.control}
                       name="saleId"
                       label="Select Sale"
-                      placeholder={`${
-                        salesLoading ? "Loading..." : "Select sale"
-                      }`}
+                      placeholder={"Select sale"}
                       key={`inventory-select-${form.watch("saleId") || ""}`}
-                      disabled={!!sourceSale || !!initialData}
+                      disabled={
+                        !!sourceSale || !!initialData || isAnyMutationLoading
+                      }
                     >
                       <div className="py-3">
                         <div className="relative flex items-center rounded-md border border-dark-700 bg-white">
@@ -1772,7 +1555,8 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
                             disabled={
-                              salesLoading || filteredSales?.length === 0
+                              filteredSales?.length === 0 ||
+                              isAnyMutationLoading
                             }
                           />
                           {searchQuery && (
@@ -1786,11 +1570,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
                           )}
                         </div>
                       </div>
-                      {salesLoading ? (
-                        <div className="py-4">
-                          <Loading />
-                        </div>
-                      ) : filteredSales && filteredSales.length > 0 ? (
+                      {filteredSales && filteredSales.length > 0 ? (
                         <>
                           <Table className="shad-table border border-light-200 rounded-lg">
                             <TableHeader>
@@ -1806,6 +1586,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
                                   key={sale.sale.id}
                                   className="cursor-pointer hover:bg-blue-50"
                                   onClick={() => {
+                                    if (isAnyMutationLoading) return;
                                     setPrevSelectedSaleId(sale.sale.id);
                                     setSearchQuery("");
                                     handleSaleSelection(sale.sale.id);
@@ -1868,6 +1649,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
                           e.stopPropagation();
                           setLoanWaybillDialogOpen(true);
                         }}
+                        disabled={isAnyMutationLoading}
                       >
                         View Matching Loan waybills
                       </Button>
@@ -1949,6 +1731,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
                               key={`qty-supplied-${form.watch(
                                 `products.${index}.quantitySupplied` || ""
                               )}`}
+                              disabled={isAnyMutationLoading}
                             />
                           </TableCell>
 
@@ -1970,6 +1753,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
                             <WaybillStockDialog
                               stock={entry.inventoryStock}
                               productID={entry.productID}
+                              isDisabled={isAnyMutationLoading}
                               qntyRequired={form.watch(
                                 `products.${index}.quantitySupplied`
                               )}
@@ -2032,8 +1816,16 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
                           <TableCell>
                             <div className="flex flex-row items-center">
                               <span
-                                onClick={() => handleDeleteEntry(index)}
-                                className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
+                                onClick={() => {
+                                  if (!isAnyMutationLoading)
+                                    handleDeleteEntry(index);
+                                }}
+                                className={cn(
+                                  "p-1 cursor-pointer",
+                                  isAnyMutationLoading
+                                    ? "text-gray-400 cursor-not-allowed"
+                                    : "text-red-600 hover:bg-light-200 hover:rounded-md"
+                                )}
                               >
                                 <DeleteIcon className="h-5 w-5" />
                               </span>
@@ -2062,6 +1854,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
               name="deliveryAddress.addressName"
               label="Address Name"
               placeholder="Enter address name"
+              disabled={isAnyMutationLoading}
             />
             <CustomFormField
               fieldType={FormFieldType.INPUT}
@@ -2069,6 +1862,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
               name="deliveryAddress.email"
               label="Email"
               placeholder="Enter address email"
+              disabled={isAnyMutationLoading}
             />
 
             <CustomFormField
@@ -2076,6 +1870,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
               control={form.control}
               name="deliveryAddress.phone"
               label="Phone number"
+              disabled={isAnyMutationLoading}
             />
 
             <CustomFormField
@@ -2086,6 +1881,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
               placeholder="Select a country"
               onValueChange={handleCountryChange}
               key={`country-${form.watch("deliveryAddress.country")}`}
+              disabled={isAnyMutationLoading}
             >
               {Country.getAllCountries().map((country) => (
                 <SelectItem
@@ -2107,7 +1903,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
                 selectedCountry ? "Select a state" : "Select a country first"
               }
               onValueChange={handleStateChange}
-              disabled={!selectedCountry}
+              disabled={!selectedCountry || isAnyMutationLoading}
               key={`state-${form.watch("deliveryAddress.state")}`}
             >
               {states.map((state) => (
@@ -2133,7 +1929,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
                 form.setValue("deliveryAddress.city", value);
                 form.trigger("deliveryAddress.city");
               }}
-              disabled={!selectedState}
+              disabled={!selectedState || isAnyMutationLoading}
               key={`city-${form.watch("deliveryAddress.city")}`}
             >
               {cities.map((city) => (
@@ -2153,6 +1949,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
               name="deliveryAddress.address"
               label="Address"
               placeholder="Enter physical address"
+              disabled={isAnyMutationLoading}
             />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-x-5 gap-y-4">
@@ -2163,6 +1960,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
               label="Waybill Status"
               placeholder="Select status"
               key={`status-select-${form.watch("status") || ""}`}
+              disabled={isAnyMutationLoading}
             >
               {Object.values(DeliveryStatus).map((status) => (
                 <SelectItem
@@ -2183,6 +1981,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
               name="deliveredBy"
               label="Delivered By:"
               placeholder="Enter name"
+              disabled={isAnyMutationLoading}
             />
             <CustomFormField
               fieldType={FormFieldType.INPUT}
@@ -2190,6 +1989,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
               name="receivedBy"
               label="Received By:"
               placeholder="Enter name"
+              disabled={isAnyMutationLoading}
             />
           </div>
 
@@ -2199,6 +1999,7 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
             name="notes"
             label="Notes"
             placeholder="Enter waybill notes"
+            disabled={isAnyMutationLoading}
           />
 
           <div className="flex justify-end gap-4">
@@ -2206,12 +2007,14 @@ const WaybillForm = ({ mode, initialData, sourceSale }: WaybillFormProps) => {
               type="button"
               onClick={handleCancel}
               className="shad-danger-btn"
+              disabled={isAnyMutationLoading}
             >
               Cancel
             </Button>
             <SubmitButton
               isLoading={isAddingWaybill || isEditingWaybill}
               className="shad-primary-btn"
+              disabled={isAnyMutationLoading}
             >
               {mode === "create" ? "Create Waybill" : "Update Waybill"}
             </SubmitButton>
