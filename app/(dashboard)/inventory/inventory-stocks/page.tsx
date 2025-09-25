@@ -3,10 +3,49 @@ import { InventoryStockFilters } from "@/hooks/useInventoryStock";
 import { getInventoryStock } from "@/lib/actions/inventoryStock.actions";
 import dynamic from "next/dynamic";
 import InventoryStats from "@/components/inventory/InventoryStats";
+import { Card, CardContent } from "@/components/ui/card";
+import { Suspense } from "react";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 
-const InventoryStockTable = dynamic(
-  () => import("@/components/inventory/InventoryStockTable")
-);
+const InventoryStockTableData = async ({
+  currentPage,
+  currentPageSize,
+  filters,
+}: {
+  currentPage: number;
+  currentPageSize: number;
+  filters: InventoryStockFilters;
+}) => {
+  const initialData = await getInventoryStock(
+    currentPage,
+    currentPageSize,
+    currentPageSize === 0,
+    filters
+  );
+  const InventoryStockTable = dynamic(
+    () => import("@/components/inventory/InventoryStockTable"),
+    {
+      ssr: true,
+    }
+  );
+  return <InventoryStockTable initialData={initialData} />;
+};
+
+const OverviewSkeleton = () => {
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Card key={i} className="animate-pulse bg-gray-100 rounded-lg">
+            <CardContent className="p-6">
+              <div className="h-12" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 export interface InventoryStockSearchParams {
   page?: string;
@@ -53,13 +92,6 @@ const InventoryStocks = async ({
     store: sp.store || undefined,
   };
 
-  const initialData = await getInventoryStock(
-    currentPage,
-    currentPageSize,
-    currentPageSize === 0,
-    filtersForServer
-  );
-
   return (
     <PageWraper
       title="Inventory Stock List"
@@ -67,8 +99,17 @@ const InventoryStocks = async ({
       buttonPath="/inventory/adjust-inventory"
     >
       <div className="flex flex-col gap-5">
-        <InventoryStats />
-        <InventoryStockTable initialData={initialData} />
+        <Suspense fallback={<OverviewSkeleton />}>
+          <InventoryStats />
+        </Suspense>
+
+        <Suspense fallback={<TableSkeleton />}>
+          <InventoryStockTableData
+            currentPage={currentPage}
+            currentPageSize={currentPageSize}
+            filters={filtersForServer}
+          />
+        </Suspense>
       </div>
     </PageWraper>
   );

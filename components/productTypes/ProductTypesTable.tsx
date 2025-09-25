@@ -1,14 +1,12 @@
 "use client";
 
 import { useDebounce } from "@/hooks/useDebounce";
-import { useDialogState } from "@/hooks/useDialogState";
 import { useTypes } from "@/hooks/useTypes";
 import { exportToExcel } from "@/lib/utils";
 import { ProductType } from "@/types";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { DataTable } from "../table/DataTable";
-import ProductTypeDialog from "./ProductTypeDialog";
 import { typesColumns } from "../table/columns/typesColumns";
 
 interface Props {
@@ -30,8 +28,6 @@ const ProductTypesTable = ({ initialData }: Props) => {
     setSearch,
     refetch,
   } = useTypes({ initialData });
-
-  const { isOpen, openDialog, closeDialog } = useDialogState();
 
   // Local search state for immediate UI feedback
   const [localSearch, setLocalSearch] = useState(search);
@@ -79,32 +75,24 @@ const ProductTypesTable = ({ initialData }: Props) => {
   };
 
   return (
-    <div>
-      {" "}
-      <DataTable
-        columns={typesColumns}
-        data={types || []}
-        isLoading={isLoading}
-        totalItems={totalItems}
-        page={page}
-        onPageChange={setPage}
-        pageSize={pageSize}
-        onPageSizeChange={setPageSize}
-        rowSelection={rowSelection}
-        onRowSelectionChange={setRowSelection}
-        onDownloadSelected={handleDownloadSelected}
-        refetch={refetch}
-        isFetching={isFetching}
-        searchTerm={localSearch}
-        onSearchChange={handleSearchChange}
-        onClearSearch={handleClearSearch}
-      />
-      <ProductTypeDialog
-        mode="add"
-        open={isOpen}
-        onOpenChange={(open) => (open ? openDialog() : closeDialog())}
-      />
-    </div>
+    <DataTable
+      columns={typesColumns}
+      data={types || []}
+      isLoading={isLoading}
+      totalItems={totalItems}
+      page={page}
+      onPageChange={setPage}
+      pageSize={pageSize}
+      onPageSizeChange={setPageSize}
+      rowSelection={rowSelection}
+      onRowSelectionChange={setRowSelection}
+      onDownloadSelected={handleDownloadSelected}
+      refetch={refetch}
+      isFetching={isFetching}
+      searchTerm={localSearch}
+      onSearchChange={handleSearchChange}
+      onClearSearch={handleClearSearch}
+    />
   );
 };
 

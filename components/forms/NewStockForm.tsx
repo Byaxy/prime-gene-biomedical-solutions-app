@@ -1,4 +1,5 @@
-import { useProducts } from "@/hooks/useProducts";
+"use client";
+
 import {
   StockAdjustmentFormValidation,
   StockAdjustmentFormValues,
@@ -12,7 +13,7 @@ import {
 } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import toast from "react-hot-toast";
 import { Form } from "../ui/form";
@@ -36,11 +37,16 @@ import SubmitButton from "../SubmitButton";
 import { useStores } from "@/hooks/useStores";
 import { useInventoryStock } from "@/hooks/useInventoryStock";
 import { useAuth } from "@/hooks/useAuth";
-import Loading from "../../app/(dashboard)/loading";
 import StoreDialog from "../stores/StoreDialog";
 import { Check } from "lucide-react";
 import { Input } from "../ui/input";
 import { Search } from "lucide-react";
+
+interface NewStockFormProps {
+  products: ProductWithRelations[];
+  stores: Store[];
+  inventoryStock: InventoryStockWithRelations[];
+}
 
 interface FormProduct {
   productId: string;
@@ -62,7 +68,11 @@ export type ExtendedStockAdjustmentFormValues = Omit<
   products: FormProduct[];
 };
 
-const NewStockForm = () => {
+const NewStockForm = ({
+  products,
+  stores,
+  inventoryStock,
+}: NewStockFormProps) => {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [selectedProductName, setSelectedProductName] = useState<string>("");
   const [selectedProductID, setSelectedProductID] = useState<string>("");
@@ -71,18 +81,8 @@ const NewStockForm = () => {
   const [prevSelectedProductId, setPrevSelectedProductId] = useState<
     string | null
   >(null);
-  const { products, isLoading: productsLoading } = useProducts({
-    getAllActive: true,
-  });
-  const { inventoryStock } = useInventoryStock({
-    getAllInventoryStocks: true,
-  });
-  const {
-    stores,
-    addStore,
-    isLoading: storesLoading,
-    isAddingStore,
-  } = useStores({
+
+  const { addStore, isAddingStore } = useStores({
     getAllStores: true,
   });
   const { addInventoryStock, isAddingInventoryStock } = useInventoryStock();
@@ -95,7 +95,6 @@ const NewStockForm = () => {
     receivedDate: new Date(),
     products: [] as FormProduct[],
     notes: "",
-
     selectedProduct: "",
     tempQuantity: 0,
     tempLotNumber: "",
@@ -111,15 +110,15 @@ const NewStockForm = () => {
     defaultValues: defaultValues,
   });
 
-  const { fields, append, update, remove } = useFieldArray({
+  const { fields, prepend, update, remove } = useFieldArray({
     control: form.control,
     name: "products",
   });
 
   const selectedProductId = form.watch("selectedProduct");
 
-  const filteredProducts = products?.reduce(
-    (acc: Product[], product: ProductWithRelations) => {
+  const filteredProducts = useMemo(() => {
+    return products?.reduce((acc: Product[], product: ProductWithRelations) => {
       if (!product?.product?.id || !product?.product?.productID) {
         return acc;
       }
@@ -164,9 +163,8 @@ const NewStockForm = () => {
 
       acc.push(updatedProduct);
       return acc;
-    },
-    []
-  );
+    }, []);
+  }, [inventoryStock, products, searchQuery]);
 
   // Handle product selection
   useEffect(() => {
@@ -178,6 +176,11 @@ const NewStockForm = () => {
           (product: ProductWithRelations) =>
             product.product.id === selectedProductId
         );
+
+        if (!product) {
+          toast.error("Product not found");
+          return;
+        }
         setSelectedProductName(product.product.name);
         setSelectedProductID(product.product.productID);
         form.setValue("tempCostPrice", product.product.costPrice);
@@ -255,7 +258,7 @@ const NewStockForm = () => {
         update(editingIndex, newProduct);
         setEditingIndex(null);
       } else {
-        append(newProduct);
+        prepend(newProduct);
       }
 
       handleCancel();
@@ -377,6 +380,8 @@ const NewStockForm = () => {
     }
   };
 
+  const isAnyMutationLoading = isAddingStore || isAddingInventoryStock;
+
   return (
     <>
       <Form {...form}>
@@ -391,6 +396,7 @@ const NewStockForm = () => {
               name="receivedDate"
               label="Recieved Date"
               dateFormat="MM/dd/yyyy"
+              disabled={isAnyMutationLoading}
             />
 
             <CustomFormField
@@ -401,12 +407,8 @@ const NewStockForm = () => {
               placeholder="Select store"
               onAddNew={() => setDialogOpen(true)}
               key={`store-select-${form.watch("storeId") || ""}`}
+              disabled={isAnyMutationLoading}
             >
-              {storesLoading && (
-                <div className="py-4">
-                  <Loading />
-                </div>
-              )}
               {stores &&
                 stores?.map((store: Store) => (
                   <SelectItem
@@ -433,10 +435,9 @@ const NewStockForm = () => {
                 control={form.control}
                 name="selectedProductId"
                 label="Select Inventory"
-                placeholder={
-                  productsLoading ? "Loading..." : "Select inventory"
-                }
+                placeholder={"Select inventory"}
                 key={`inventory-select-${selectedProductId || ""}`}
+                disabled={isAnyMutationLoading}
               >
                 <div className="py-3">
                   <div className="relative flex items-center rounded-md border border-dark-700 bg-white">
@@ -447,7 +448,7 @@ const NewStockForm = () => {
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
-                      disabled={productsLoading}
+                      disabled={isAnyMutationLoading}
                     />
                     {searchQuery && (
                       <button
@@ -460,11 +461,7 @@ const NewStockForm = () => {
                     )}
                   </div>
                 </div>
-                {productsLoading ? (
-                  <div className="py-4">
-                    <Loading />
-                  </div>
-                ) : filteredProducts && filteredProducts.length > 0 ? (
+                {filteredProducts && filteredProducts.length > 0 ? (
                   <>
                     <Table className="shad-table border border-light-200 rounded-lg">
                       <TableHeader>
@@ -481,6 +478,7 @@ const NewStockForm = () => {
                             key={product.id}
                             className="cursor-pointer hover:bg-blue-50"
                             onClick={() => {
+                              if (isAnyMutationLoading) return;
                               form.setValue("selectedProduct", product.id);
                               setPrevSelectedProductId(product.id);
                               setSearchQuery("");
@@ -549,6 +547,7 @@ const NewStockForm = () => {
                     name="tempLotNumber"
                     label="Lot Number"
                     placeholder="Enter Lot number"
+                    disabled={isAnyMutationLoading}
                   />
                   <CustomFormField
                     fieldType={FormFieldType.NUMBER}
@@ -556,6 +555,7 @@ const NewStockForm = () => {
                     name="tempQuantity"
                     label="Quantity"
                     placeholder="Enter quantity"
+                    disabled={isAnyMutationLoading}
                   />
                 </div>
                 <div className="flex w-full flex-col sm:flex-row gap-5">
@@ -565,6 +565,7 @@ const NewStockForm = () => {
                     name="tempCostPrice"
                     label="Cost Price"
                     placeholder="Enter cost price"
+                    disabled={isAnyMutationLoading}
                   />
                   <CustomFormField
                     fieldType={FormFieldType.AMOUNT}
@@ -572,6 +573,7 @@ const NewStockForm = () => {
                     name="tempSellingPrice"
                     label="Selling Price"
                     placeholder="Enter selling price"
+                    disabled={isAnyMutationLoading}
                   />
                   <CustomFormField
                     fieldType={FormFieldType.DATE_PICKER}
@@ -579,6 +581,7 @@ const NewStockForm = () => {
                     name="tempManufactureDate"
                     label="Manufacture Date"
                     dateFormat="MM/dd/yyyy"
+                    disabled={isAnyMutationLoading}
                   />
                   <CustomFormField
                     fieldType={FormFieldType.DATE_PICKER}
@@ -586,6 +589,7 @@ const NewStockForm = () => {
                     name="tempExpiryDate"
                     label="Expiry Date"
                     dateFormat="MM/dd/yyyy"
+                    disabled={isAnyMutationLoading}
                   />
                 </div>
               </div>
@@ -595,6 +599,7 @@ const NewStockForm = () => {
                   size={"icon"}
                   onClick={handleCancel}
                   className="self-end mb-1 shad-danger-btn"
+                  disabled={isAnyMutationLoading}
                 >
                   <X />
                 </Button>
@@ -603,6 +608,7 @@ const NewStockForm = () => {
                   type="button"
                   onClick={handleAddProduct}
                   className="self-end mb-1 shad-primary-btn"
+                  disabled={isAnyMutationLoading}
                 >
                   {editingIndex !== null ? "Update Product" : "Add Product"}
                 </Button>
@@ -661,13 +667,19 @@ const NewStockForm = () => {
                     <TableCell>
                       <div className="flex flex-row items-center">
                         <span
-                          onClick={() => handleEditEntry(index)}
+                          onClick={() => {
+                            if (isAnyMutationLoading) return;
+                            handleEditEntry(index);
+                          }}
                           className="text-[#475BE8] p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
                         >
                           <EditIcon className="h-5 w-5" />
                         </span>
                         <span
-                          onClick={() => handleDeleteEntry(index)}
+                          onClick={() => {
+                            if (isAnyMutationLoading) return;
+                            handleDeleteEntry(index);
+                          }}
                           className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
                         >
                           <DeleteIcon className="h-5 w-5" />
@@ -691,6 +703,7 @@ const NewStockForm = () => {
             name="notes"
             label="Notes"
             placeholder="Enter notes"
+            disabled={isAnyMutationLoading}
           />
 
           <div className="flex justify-end gap-4">
@@ -701,12 +714,14 @@ const NewStockForm = () => {
                 handleCancel();
               }}
               className="shad-danger-btn"
+              disabled={isAnyMutationLoading}
             >
               Cancel
             </Button>
             <SubmitButton
               isLoading={isAddingInventoryStock}
               className="shad-primary-btn"
+              disabled={isAnyMutationLoading}
             >
               Add Stock
             </SubmitButton>

@@ -2,10 +2,30 @@ import PageWraper from "@/components/PageWraper";
 import { BrandFilters } from "@/hooks/useBrands";
 import dynamic from "next/dynamic";
 import { Suspense } from "react";
-import Loading from "../../loading";
 import { getBrands } from "@/lib/actions/brand.actions";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
+import AddBrandButton from "@/components/brands/AddBrandButton";
 
-const BrandsTable = dynamic(() => import("@/components/brands/BrandsTable"));
+const BrandsTableData = async ({
+  currentPage,
+  currentPageSize,
+  filters,
+}: {
+  currentPage: number;
+  currentPageSize: number;
+  filters: BrandFilters;
+}) => {
+  const initialData = await getBrands(
+    currentPage,
+    currentPageSize,
+    currentPageSize === 0,
+    filters
+  );
+  const BrandsTable = dynamic(() => import("@/components/brands/BrandsTable"), {
+    ssr: true,
+  });
+  return <BrandsTable initialData={initialData} />;
+};
 
 export interface BrandsSearchParams {
   page?: string;
@@ -26,21 +46,14 @@ const Brands = async ({
     search: sp.search || undefined,
   };
 
-  const initialData = await getBrands(
-    currentPage,
-    currentPageSize,
-    currentPageSize === 0,
-    filtersForServer
-  );
-
   return (
-    <PageWraper
-      title="Product Brands"
-      buttonText="Add Brand"
-      buttonPath="/settings/brands?dialog=open"
-    >
-      <Suspense fallback={<Loading />}>
-        <BrandsTable initialData={initialData} />
+    <PageWraper title="Product Brands" buttonAction={<AddBrandButton />}>
+      <Suspense fallback={<TableSkeleton />}>
+        <BrandsTableData
+          currentPage={currentPage}
+          currentPageSize={currentPageSize}
+          filters={filtersForServer}
+        />
       </Suspense>
     </PageWraper>
   );

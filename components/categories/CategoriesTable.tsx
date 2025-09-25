@@ -8,8 +8,6 @@ import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { DataTable } from "../table/DataTable";
 import { categoriesColumns } from "../table/columns/categoriesColumns";
-import { CategoryDialog } from "./CategoryDialog";
-import { useDialogState } from "@/hooks/useDialogState";
 
 interface Props {
   initialData: { documents: Category[]; total: number };
@@ -30,8 +28,6 @@ const CategoriesTable = ({ initialData }: Props) => {
     setSearch,
     refetch,
   } = useCategories({ initialData });
-
-  const { isOpen, openDialog, closeDialog } = useDialogState();
 
   // Local search state for immediate UI feedback
   const [localSearch, setLocalSearch] = useState(search);
@@ -100,11 +96,6 @@ const CategoriesTable = ({ initialData }: Props) => {
         searchTerm={localSearch}
         onSearchChange={handleSearchChange}
         onClearSearch={handleClearSearch}
-      />
-      <CategoryDialog
-        mode="add"
-        open={isOpen}
-        onOpenChange={(open) => (open ? openDialog() : closeDialog())}
       />
     </div>
   );

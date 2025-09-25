@@ -2,12 +2,33 @@ import { Suspense } from "react";
 import PageWraper from "@/components/PageWraper";
 import { TypeFilters } from "@/hooks/useTypes";
 import dynamic from "next/dynamic";
-import Loading from "../../loading";
 import { getTypes } from "@/lib/actions/type.actions";
+import AddTypeButton from "@/components/productTypes/AddTypeButton";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 
-const ProductTypesTable = dynamic(
-  () => import("@/components/productTypes/ProductTypesTable")
-);
+const ProductTypesTableData = async ({
+  currentPage,
+  currentPageSize,
+  filters,
+}: {
+  currentPage: number;
+  currentPageSize: number;
+  filters: TypeFilters;
+}) => {
+  const initialData = await getTypes(
+    currentPage,
+    currentPageSize,
+    currentPageSize === 0,
+    filters
+  );
+  const ProductTypesTable = dynamic(
+    () => import("@/components/productTypes/ProductTypesTable"),
+    {
+      ssr: true,
+    }
+  );
+  return <ProductTypesTable initialData={initialData} />;
+};
 
 export interface TypesSearchParams {
   page?: string;
@@ -28,21 +49,14 @@ const Types = async ({
     search: sp.search || undefined,
   };
 
-  const initialData = await getTypes(
-    currentPage,
-    currentPageSize,
-    currentPageSize === 0,
-    filtersForServer
-  );
-
   return (
-    <PageWraper
-      title="Product Types"
-      buttonText="Add Type"
-      buttonPath="/settings/types?dialog=open"
-    >
-      <Suspense fallback={<Loading />}>
-        <ProductTypesTable initialData={initialData} />
+    <PageWraper title="Product Types" buttonAction={<AddTypeButton />}>
+      <Suspense fallback={<TableSkeleton />}>
+        <ProductTypesTableData
+          currentPage={currentPage}
+          currentPageSize={currentPageSize}
+          filters={filtersForServer}
+        />
       </Suspense>
     </PageWraper>
   );

@@ -348,13 +348,6 @@ export const addInventoryStock = async (
             .returning();
 
           transactions.push(transaction[0]);
-
-          await tx
-            .update(productsTable)
-            .set({
-              quantity: sql`${productsTable.quantity} + ${product.quantity}`,
-            })
-            .where(eq(productsTable.id, product.productId));
         } else {
           // Create new inventory record
           const [newInventory] = await tx
@@ -392,15 +385,8 @@ export const addInventoryStock = async (
 
           transactions.push(transaction[0]);
 
-          await tx
-            .update(productsTable)
-            .set({
-              quantity: sql`${productsTable.quantity} + ${product.quantity}`,
-            })
-            .where(eq(productsTable.id, product.productId));
-
           // Fulfill Backorders for new inventory
-          await fulfillBackorders(
+          fulfillBackorders(
             newInventory.productId,
             newInventory.storeId,
             newInventory.id,
@@ -502,34 +488,6 @@ export const adjustInventoryStock = async (
           .returning();
 
         transactions.push(transaction[0]);
-
-        // Update product total quantity
-        const currentProduct = await tx
-          .select()
-          .from(productsTable)
-          .where(eq(productsTable.id, existingInventory.productId))
-          .then((res) => res[0]);
-
-        if (!currentProduct) {
-          throw new Error(
-            `Product not found for ID: ${existingInventory.productId}`
-          );
-        }
-
-        let newProductQuantity = currentProduct.quantity;
-        if (entry.adjustmentType === "ADD") {
-          newProductQuantity += entry.adjustmentQuantity;
-        } else {
-          newProductQuantity -= entry.adjustmentQuantity;
-        }
-
-        await tx
-          .update(productsTable)
-          .set({
-            quantity: newProductQuantity,
-            updatedAt: new Date(),
-          })
-          .where(eq(productsTable.id, existingInventory.productId));
       }
 
       return { inventoryItems, transactions };

@@ -138,6 +138,8 @@ export interface ProductWithRelations {
   brand: Brand;
   type: ProductType;
   unit: Unit;
+  totalBackorderStockQuantity: number;
+  totalInventoryStockQuantity: number;
 }
 
 export interface Expense {

@@ -1,11 +1,34 @@
 import PageWraper from "@/components/PageWraper";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { ProductFilters } from "@/hooks/useProducts";
 import { getProducts } from "@/lib/actions/product.actions";
 import dynamic from "next/dynamic";
+import { Suspense } from "react";
 
-const ProductsTable = dynamic(
-  () => import("@/components/products/ProductsTable")
-);
+const ProductsTableData = async ({
+  currentPage,
+  currentPageSize,
+  filters,
+}: {
+  currentPage: number;
+  currentPageSize: number;
+  filters: ProductFilters;
+}) => {
+  const initialData = await getProducts(
+    currentPage,
+    currentPageSize,
+    currentPageSize === 0,
+    filters
+  );
+
+  const ProductsTable = dynamic(
+    () => import("@/components/products/ProductsTable"),
+    {
+      ssr: true,
+    }
+  );
+  return <ProductsTable initialData={initialData} />;
+};
 
 export interface InventorySearchParams {
   page?: string;
@@ -52,20 +75,19 @@ const Inventory = async ({
     quantity_max: sp.quantity_max ? Number(sp.quantity_max) : undefined,
   };
 
-  const initialData = await getProducts(
-    currentPage,
-    currentPageSize,
-    currentPageSize === 0,
-    filtersForServer
-  );
-
   return (
     <PageWraper
       title="Inventory List"
       buttonText="Add New"
       buttonPath="/inventory/add-inventory"
     >
-      <ProductsTable initialData={initialData} />
+      <Suspense fallback={<TableSkeleton />}>
+        <ProductsTableData
+          currentPage={currentPage}
+          currentPageSize={currentPageSize}
+          filters={filtersForServer}
+        />
+      </Suspense>
     </PageWraper>
   );
 };

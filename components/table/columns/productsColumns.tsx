@@ -171,7 +171,10 @@ export const productsColumns: ColumnDef<ProductWithRelations>[] = [
               : "bg-green-500"
           }`}
         >
-          <span>{product.product.quantity || 0}</span>
+          <span>
+            {product.totalInventoryStockQuantity -
+              product.totalBackorderStockQuantity}
+          </span>
           <span>{product?.unit ? product?.unit.code : "-"}</span>
         </div>
       );

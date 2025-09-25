@@ -1,3 +1,5 @@
+"use client";
+
 import { useInventoryStock } from "@/hooks/useInventoryStock";
 import {
   ExistingStockAdjustmentFormValidation,
@@ -16,7 +18,6 @@ import { Button } from "../ui/button";
 import SubmitButton from "../SubmitButton";
 import { useStores } from "@/hooks/useStores";
 import { useAuth } from "@/hooks/useAuth";
-import Loading from "../../app/(dashboard)/loading";
 import {
   Table,
   TableBody,
@@ -34,6 +35,11 @@ import { Input } from "../ui/input";
 import { Search } from "lucide-react";
 import { X } from "lucide-react";
 
+interface AdjustStockFormProps {
+  stores: Store[];
+  inventoryStock: InventoryStockWithRelations[];
+}
+
 interface AdjustmentEntry {
   inventoryStockId: string;
   productName?: string;
@@ -48,25 +54,17 @@ interface AdjustmentEntry {
   expiryDate?: Date;
 }
 
-const AdjustStockForm = () => {
+const AdjustStockForm = ({ stores, inventoryStock }: AdjustStockFormProps) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [prevSelectedInventoryStockId, setPrevSelectedInventoryStockId] =
     useState<string | null>(null);
-  const {
-    inventoryStock,
-    isLoading: inventoryStockLoading,
-    adjustInventoryStock,
-    isAdjustingInventoryStock,
-  } = useInventoryStock({
-    getAllInventoryStocks: true,
-  });
-  const {
-    stores,
-    addStore,
-    isAddingStore,
-    isLoading: storesLoading,
-  } = useStores({
+  const { adjustInventoryStock, isAdjustingInventoryStock } = useInventoryStock(
+    {
+      getAllInventoryStocks: true,
+    }
+  );
+  const { addStore, isAddingStore } = useStores({
     getAllStores: true,
   });
   const { user } = useAuth();
@@ -85,7 +83,7 @@ const AdjustStockForm = () => {
     defaultValues: defaultValues,
   });
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, prepend, remove } = useFieldArray({
     control: form.control,
     name: "entries",
   });
@@ -131,7 +129,7 @@ const AdjustStockForm = () => {
         (entry) => entry.inventoryStockId === selectedInventoryStockId
       )
     ) {
-      toast.error("This product is already added");
+      toast.error("This Inventory stock is already added");
       return;
     }
 
@@ -145,11 +143,15 @@ const AdjustStockForm = () => {
       adjustmentQuantity: 0,
       costPrice: selectedStock.inventory.costPrice,
       sellingPrice: selectedStock.inventory.sellingPrice,
-      manufactureDate: new Date(selectedStock.inventory.manufactureDate),
-      expiryDate: new Date(selectedStock.inventory.expiryDate),
+      manufactureDate: selectedStock.inventory.manufactureDate
+        ? new Date(selectedStock.inventory.manufactureDate)
+        : undefined,
+      expiryDate: selectedStock.inventory.expiryDate
+        ? new Date(selectedStock.inventory.expiryDate)
+        : undefined,
     };
 
-    append(newEntry);
+    prepend(newEntry);
     form.setValue("selectedInventoryStockId", "");
   };
 
@@ -268,6 +270,8 @@ const AdjustStockForm = () => {
     }
   };
 
+  const isAnyMutationLoading = isAddingStore || isAdjustingInventoryStock;
+
   return (
     <>
       <Form {...form}>
@@ -282,6 +286,7 @@ const AdjustStockForm = () => {
               name="receivedDate"
               label="Adjustment Date"
               dateFormat="MM/dd/yyyy"
+              disabled={isAnyMutationLoading}
             />
 
             <CustomFormField
@@ -292,12 +297,8 @@ const AdjustStockForm = () => {
               placeholder="Select store"
               onAddNew={() => setDialogOpen(true)}
               key={`store-select-${form.watch("storeId") || ""}`}
+              disabled={isAnyMutationLoading}
             >
-              {storesLoading && (
-                <div className="py-4">
-                  <Loading />
-                </div>
-              )}
               {stores?.map((store: Store) => (
                 <SelectItem
                   key={store.id}
@@ -329,7 +330,7 @@ const AdjustStockForm = () => {
                         ? "Select inventory stock"
                         : "Select store first"
                     }
-                    disabled={!selectedStoreId}
+                    disabled={!selectedStoreId || isAnyMutationLoading}
                     key={`inventory-select-${selectedInventoryStockId || ""}`}
                   >
                     <div className="py-3">
@@ -341,7 +342,7 @@ const AdjustStockForm = () => {
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
                           className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
-                          disabled={!selectedStoreId || inventoryStockLoading}
+                          disabled={!selectedStoreId || isAnyMutationLoading}
                         />
                         {searchQuery && (
                           <button
@@ -354,12 +355,8 @@ const AdjustStockForm = () => {
                         )}
                       </div>
                     </div>
-                    {inventoryStockLoading ? (
-                      <div className="py-4">
-                        <Loading />
-                      </div>
-                    ) : filteredInventoryStock &&
-                      filteredInventoryStock.length > 0 ? (
+                    {filteredInventoryStock &&
+                    filteredInventoryStock.length > 0 ? (
                       <>
                         <Table className="shad-table border border-light-200 rounded-lg">
                           <TableHeader>
@@ -379,6 +376,7 @@ const AdjustStockForm = () => {
                                   key={stock.inventory.id}
                                   className="cursor-pointer hover:bg-blue-50"
                                   onClick={() => {
+                                    if (isAnyMutationLoading) return;
                                     form.setValue(
                                       "selectedInventoryStockId",
                                       stock.inventory.id
@@ -458,7 +456,7 @@ const AdjustStockForm = () => {
                 <Button
                   type="button"
                   onClick={handleAddProduct}
-                  disabled={!selectedInventoryStockId}
+                  disabled={!selectedInventoryStockId || isAnyMutationLoading}
                   className="self-end shad-primary-btn h-11"
                 >
                   Add Inventory Stock
@@ -505,6 +503,7 @@ const AdjustStockForm = () => {
                           name={`entries.${index}.adjustmentType`}
                           label=""
                           placeholder=""
+                          disabled={isAnyMutationLoading}
                         >
                           <SelectItem className="cursor-pointer" value="ADD">
                             Addition
@@ -524,6 +523,7 @@ const AdjustStockForm = () => {
                           name={`entries.${index}.adjustmentQuantity`}
                           label=""
                           placeholder="Qty"
+                          disabled={isAnyMutationLoading}
                         />
                         {form.formState.errors.entries?.[index]
                           ?.adjustmentQuantity && (
@@ -567,7 +567,10 @@ const AdjustStockForm = () => {
                       </TableCell>
                       <TableCell>
                         <span
-                          onClick={() => handleRemoveEntry(index)}
+                          onClick={() => {
+                            if (isAnyMutationLoading) return;
+                            handleRemoveEntry(index);
+                          }}
                           className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
                         >
                           <DeleteIcon className="h-5 w-5" />
@@ -592,6 +595,7 @@ const AdjustStockForm = () => {
             name="notes"
             label="Notes"
             placeholder="Enter notes for this adjustment"
+            disabled={isAnyMutationLoading}
           />
 
           <div className="flex justify-end gap-4">
@@ -599,12 +603,14 @@ const AdjustStockForm = () => {
               type="button"
               onClick={handleCancel}
               className="shad-danger-btn"
+              disabled={isAnyMutationLoading}
             >
               Cancel
             </Button>
             <SubmitButton
               isLoading={isAdjustingInventoryStock}
               className="shad-primary-btn"
+              disabled={isAnyMutationLoading}
             >
               Adjust Stock
             </SubmitButton>

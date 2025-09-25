@@ -1,4 +1,3 @@
-import { Button } from "./ui/button";
 import AddIcon from "@mui/icons-material/Add";
 import Link from "next/link";
 import BackButton from "./BackButton";
@@ -6,7 +5,7 @@ import BackButton from "./BackButton";
 interface Props {
   title: string;
   buttonText?: string;
-  buttonAction?: () => void;
+  buttonAction?: React.ReactNode;
   buttonPath?: string;
   children: React.JSX.Element;
 }
@@ -38,17 +37,7 @@ const PageWraper = ({
             </Link>
           )}
 
-          {buttonAction && (
-            <Button
-              onClick={buttonAction}
-              className="shad-primary-btn flex flex-row items-center justify-center gap-1"
-            >
-              <AddIcon className="h-4 w-4" />
-              <span className="text-white font-medium capitalize">
-                {buttonText}
-              </span>
-            </Button>
-          )}
+          {buttonAction}
         </div>
       </div>
       <div className="w-full">{{ ...children }}</div>

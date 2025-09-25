@@ -314,6 +314,7 @@ export const useProducts = ({
         },
         () => {
           queryClient.invalidateQueries({ queryKey: ["products"] });
+          router.refresh();
         }
       )
       .subscribe();
@@ -321,7 +322,7 @@ export const useProducts = ({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [queryClient]);
+  }, [queryClient, router]);
 
   // Add product mutation
   const { mutate: addProductMutation, status: addProductStatus } = useMutation({

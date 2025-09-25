@@ -5,7 +5,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import ProductForm from "../forms/ProductForm";
+import ProductFormWrapper from "./ProductFormWrapper";
 
 interface ProductSheetProps {
   mode: "add" | "edit" | "delete" | "view";
@@ -31,7 +31,7 @@ const ProductSheet = ({ mode, open, onOpenChange }: ProductSheetProps) => {
                 </SheetDescription>
               </SheetHeader>
               <div className="max-h-[80vh] overflow-y-auto pb-8">
-                <ProductForm
+                <ProductFormWrapper
                   mode="create"
                   onCancel={() => onOpenChange(false)}
                 />

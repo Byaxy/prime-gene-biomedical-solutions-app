@@ -7,17 +7,12 @@ import { Form, FormControl } from "../ui/form";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "../ui/button";
-import { useCategories } from "@/hooks/useCategories";
 import { SelectItem } from "../ui/select";
-import { useTypes } from "@/hooks/useTypes";
-import { useUnits } from "@/hooks/useUnits";
 import { FileUploader } from "../FileUploader";
 import { useRouter } from "next/navigation";
-import { useBrands } from "@/hooks/useBrands";
-import { getFlattenedCategories } from "./CategoriesForm";
-import Loading from "../../app/(dashboard)/loading";
 import {
   Brand,
+  Category,
   Product,
   ProductType,
   ProductWithRelations,
@@ -29,39 +24,42 @@ import { CategoryDialog } from "../categories/CategoryDialog";
 import BrandDialog from "../brands/BrandDialog";
 import UnitsDialog from "../units/UnitsDialog";
 import ProductTypeDialog from "../productTypes/ProductTypeDialog";
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getFlattenedCategories } from "./CategoriesForm";
 
 interface ProductFormProps {
   mode: "create" | "edit";
   initialData?: Product;
+  categories: Category[];
+  types: ProductType[];
+  units: Unit[];
+  brands: Brand[];
+  products: ProductWithRelations[];
   onCancel?: () => void;
 }
-const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
+const ProductForm = ({
+  mode,
+  initialData,
+  categories,
+  types,
+  units,
+  brands,
+  products,
+  onCancel,
+}: ProductFormProps) => {
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
   const [brandDialogOpen, setBrandDialogOpen] = useState(false);
   const [unitDialogOpen, setUnitDialogOpen] = useState(false);
   const [typeDialogOpen, setTypeDialogOpen] = useState(false);
-  const { categories, isLoading: categoriesLoading } = useCategories({
-    getAllCategories: true,
-  });
-  const { types, isLoading: typesLoading } = useTypes({ getAllTypes: true });
-  const { units, isLoading: unitsLoading } = useUnits({ getAllUnits: true });
-  const { brands, isLoading: brandsLoading } = useBrands({
-    getAllBrands: true,
-  });
-  const {
-    products,
-    addProduct,
-    editProduct,
-    isAddingProduct,
-    isEditingProduct,
-  } = useProducts({ getAllProducts: true });
+
+  const { addProduct, editProduct, isAddingProduct, isEditingProduct } =
+    useProducts({ getAllProducts: true });
 
   const router = useRouter();
+  const initialMount = useRef(true);
 
-  const form = useForm<ProductFormValues>({
-    resolver: zodResolver(ProductFormValidation),
-    defaultValues: initialData || {
+  const defaultValues = useMemo(
+    () => ({
       productID: "",
       name: "",
       alertQuantity: 1,
@@ -75,11 +73,51 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
       costPrice: 0,
       sellingPrice: 0,
       image: [],
-    },
+    }),
+    []
+  );
+
+  const form = useForm<ProductFormValues>({
+    resolver: zodResolver(ProductFormValidation),
+    defaultValues: defaultValues,
   });
 
+  // Set initial form values
+  useEffect(() => {
+    if (initialMount.current) {
+      if (initialData) {
+        form.reset({
+          productID: initialData.productID,
+          name: initialData.name,
+          alertQuantity: initialData.alertQuantity,
+          maxAlertQuantity: initialData.maxAlertQuantity,
+          categoryId: initialData.categoryId,
+          typeId: initialData.typeId,
+          brandId: initialData.brandId,
+          unitId: initialData.unitId,
+          description: initialData.description,
+          quantity: initialData.quantity,
+          costPrice: initialData.costPrice,
+          sellingPrice: initialData.sellingPrice,
+          image: initialData.imageUrl
+            ? [
+                {
+                  id: initialData.imageId,
+                  url: initialData.imageUrl,
+                  name: "",
+                  size: 0,
+                  type: "",
+                },
+              ]
+            : [],
+        });
+      }
+      initialMount.current = false;
+    }
+  }, [initialData, form]);
+
   // handle close dialog
-  const closeDialog = () => {
+  const closeDialog = useCallback(() => {
     setCategoryDialogOpen(false);
     setBrandDialogOpen(false);
     setUnitDialogOpen(false);
@@ -91,95 +129,129 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
         stuckSection.style.pointerEvents = "auto";
       }
     }, 100);
-  };
+  }, []);
 
   const handleSubmit = async (values: ProductFormValues) => {
     try {
-      if (mode === "create") {
-        const existingProduct = products.find(
-          (product: ProductWithRelations) =>
-            product.product.productID === values.productID.trim()
-        );
+      const loadingToastId = toast.loading(
+        mode === "create" ? "Creating product..." : "Updating product..."
+      );
 
-        if (existingProduct) {
-          toast.error("Product ID already exists");
-          return;
-        }
-
-        await addProduct(values, {
-          onSuccess: () => {
-            toast.success("Inventory Added successfully!");
-            form.reset();
-            onCancel?.();
-            router.push("/inventory");
-          },
-          onError: (error) => {
-            console.error("Submission error:", error);
-            toast.error(error.message || "Failed to add inventory stock");
-          },
-        });
-      }
-      if (mode === "edit") {
-        if (initialData?.productID !== values.productID) {
+      try {
+        if (mode === "create") {
           const existingProduct = products.find(
             (product: ProductWithRelations) =>
               product.product.productID === values.productID.trim()
           );
 
           if (existingProduct) {
-            toast.error("Product ID already exists");
+            toast.error("Product ID already exists", { id: loadingToastId });
             return;
           }
-        }
 
-        if (values?.image && values?.image.length > 0 && initialData?.imageId) {
-          await editProduct(
-            {
-              id: initialData.id,
-              data: values,
-              prevImageId: initialData?.imageId,
-            },
-            {
-              onSuccess: () => {
-                toast.success("Inventory edited successfully!");
-                form.reset();
+          await addProduct(values, {
+            onSuccess: () => {
+              toast.success("Product created successfully!", {
+                id: loadingToastId,
+              });
+
+              if (onCancel) {
+                onCancel();
+              } else {
                 router.push("/inventory");
-              },
-              onError: (error) => {
-                console.error("Submission error:", error);
-                toast.error(error.message || "Failed to edit inventory stock");
-              },
-            }
-          );
-        } else {
-          await editProduct(
-            {
-              id: initialData?.id ?? "",
-              data: values,
+                router.refresh();
+              }
+              form.reset(defaultValues);
             },
-            {
-              onSuccess: () => {
-                toast.success("Inventory edited successfully!");
-                form.reset();
-                router.push("/inventory");
-              },
-              onError: (error) => {
-                console.error("Submission error:", error);
-                toast.error(error.message || "Failed to edit inventory stock");
-              },
-            }
-          );
+          });
         }
+        if (mode === "edit" && initialData) {
+          if (initialData?.productID !== values.productID) {
+            const existingProduct = products.find(
+              (product: ProductWithRelations) =>
+                product.product.productID === values.productID.trim()
+            );
+
+            if (existingProduct) {
+              toast.error("Product ID already exists", { id: loadingToastId });
+              return;
+            }
+          }
+
+          // Ensure `initialData.id` is available for edit
+          if (!initialData?.id) {
+            throw new Error("Product ID is required for editing.");
+          }
+
+          if (
+            values?.image &&
+            values?.image.length > 0 &&
+            initialData?.imageId
+          ) {
+            await editProduct(
+              {
+                id: initialData.id,
+                data: values,
+                prevImageId: initialData?.imageId,
+              },
+              {
+                onSuccess: () => {
+                  toast.success("Product updated successfully!", {
+                    id: loadingToastId,
+                  });
+
+                  if (onCancel) {
+                    onCancel();
+                  } else {
+                    router.push("/inventory");
+                    router.refresh();
+                  }
+                  form.reset(defaultValues);
+                },
+              }
+            );
+          } else {
+            await editProduct(
+              {
+                id: initialData?.id ?? "",
+                data: values,
+              },
+              {
+                onSuccess: () => {
+                  toast.success("Product updated successfully!", {
+                    id: loadingToastId,
+                  });
+
+                  if (onCancel) {
+                    onCancel();
+                  } else {
+                    router.push("/inventory");
+                    router.refresh();
+                  }
+                  form.reset(defaultValues);
+                },
+              }
+            );
+          }
+        }
+      } catch (error) {
+        console.error("Product operation error:", error);
+        toast.error(
+          `Failed to ${mode === "create" ? "create" : "update"} product`,
+          { id: loadingToastId }
+        );
       }
     } catch (error) {
       console.error("Error submitting form:", error);
     }
   };
 
-  // Create flattened categories with indentation
+  // Flatten categories for display
   const flattenedCategories = categories
     ? getFlattenedCategories(categories)
     : [];
+
+  const isAnyMutationLoading = isAddingProduct || isEditingProduct;
 
   return (
     <>
@@ -194,6 +266,7 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
             control={form.control}
             name="image"
             label="Image"
+            disabled={isAnyMutationLoading}
             renderSkeleton={(field) => (
               <FormControl>
                 <FileUploader
@@ -201,6 +274,7 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
                   onChange={field.onChange}
                   mode={mode}
                   currentImageUrl={initialData?.imageUrl}
+                  disabled={isAnyMutationLoading}
                 />
               </FormControl>
             )}
@@ -212,6 +286,7 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
               name="productID"
               label="Product ID"
               placeholder="Enter product ID"
+              disabled={isAnyMutationLoading}
             />
             <CustomFormField
               fieldType={FormFieldType.INPUT}
@@ -219,6 +294,7 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
               name="name"
               label="Product Name"
               placeholder="Enter product name"
+              disabled={isAnyMutationLoading}
             />
           </div>
 
@@ -231,12 +307,8 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
               placeholder="Select category"
               onAddNew={() => setCategoryDialogOpen(true)}
               key={`category-select-${form.watch("categoryId") || ""}`}
+              disabled={isAnyMutationLoading}
             >
-              {categoriesLoading && (
-                <div className="py-4">
-                  <Loading />
-                </div>
-              )}
               {categories &&
                 flattenedCategories &&
                 flattenedCategories.map((category) => (
@@ -259,12 +331,8 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
               placeholder="Select brand"
               onAddNew={() => setBrandDialogOpen(true)}
               key={`brand-select-${form.watch("brandId") || ""}`}
+              disabled={isAnyMutationLoading}
             >
-              {brandsLoading && (
-                <div className="py-4">
-                  <Loading />
-                </div>
-              )}
               {brands &&
                 brands?.map((brand: Brand) => (
                   <SelectItem
@@ -287,12 +355,8 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
               placeholder="Select product type"
               onAddNew={() => setTypeDialogOpen(true)}
               key={`type-select-${form.watch("typeId") || ""}`}
+              disabled={isAnyMutationLoading}
             >
-              {typesLoading && (
-                <div className="py-4">
-                  <Loading />
-                </div>
-              )}
               {types &&
                 types?.map((productType: ProductType) => (
                   <SelectItem
@@ -313,12 +377,8 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
               placeholder="Select unit of measure"
               onAddNew={() => setUnitDialogOpen(true)}
               key={`unit-select-${form.watch("unitId") || ""}`}
+              disabled={isAnyMutationLoading}
             >
-              {unitsLoading && (
-                <div className="py-4">
-                  <Loading />
-                </div>
-              )}
               {units &&
                 units?.map((unit: Unit) => (
                   <SelectItem
@@ -339,6 +399,7 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
               name="costPrice"
               label="Cost Price"
               placeholder="Enter cost price"
+              disabled={isAnyMutationLoading}
             />
             <CustomFormField
               fieldType={FormFieldType.AMOUNT}
@@ -346,6 +407,7 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
               name="sellingPrice"
               label="Selling Price"
               placeholder="Enter selling price"
+              disabled={isAnyMutationLoading}
             />
           </div>
 
@@ -356,6 +418,7 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
               name="alertQuantity"
               label="Min Reoder Level"
               placeholder="Enter min reoder level"
+              disabled={isAnyMutationLoading}
             />
             <CustomFormField
               fieldType={FormFieldType.NUMBER}
@@ -363,6 +426,7 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
               name="maxAlertQuantity"
               label="Max Reoder Level"
               placeholder="Enter max reoder level"
+              disabled={isAnyMutationLoading}
             />
             <CustomFormField
               fieldType={FormFieldType.NUMBER}
@@ -380,6 +444,7 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
             name="description"
             label="Description"
             placeholder="Enter product description"
+            disabled={isAnyMutationLoading}
           />
 
           <div className="flex justify-end gap-4 py-5">
@@ -390,6 +455,7 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
                 onCancel?.();
               }}
               className="shad-danger-btn"
+              disabled={isAnyMutationLoading}
             >
               Cancel
             </Button>
@@ -397,6 +463,7 @@ const ProductForm = ({ mode, initialData, onCancel }: ProductFormProps) => {
             <SubmitButton
               isLoading={isAddingProduct || isEditingProduct}
               className="shad-primary-btn"
+              disabled={isAnyMutationLoading}
             >
               {mode === "create" ? "Create Product" : "Update Product"}
             </SubmitButton>

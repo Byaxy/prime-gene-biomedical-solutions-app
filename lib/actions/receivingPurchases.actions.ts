@@ -7,7 +7,6 @@ import { ReceivingPurchaseFormValues } from "../validation";
 import {
   inventoryTable,
   inventoryTransactionsTable,
-  productsTable,
   purchaseItemsTable,
   purchasesTable,
   receivingItemsInvetoryTable,
@@ -211,16 +210,6 @@ export const addReceivedPurchase = async (
               eq(purchaseItemsTable.isActive, true)
             )
           );
-      }
-
-      // Update product quantities
-      for (const [productId, quantityAdded] of productUpdates) {
-        await tx
-          .update(productsTable)
-          .set({
-            quantity: sql`${productsTable.quantity} + ${quantityAdded}`,
-          })
-          .where(eq(productsTable.id, productId));
       }
 
       // Process backorder fulfillments
@@ -1004,17 +993,6 @@ export const editReceivedPurchase = async (
         }
       }
 
-      for (const [productId, adjustment] of productAdjustments) {
-        if (adjustment !== 0) {
-          await tx
-            .update(productsTable)
-            .set({
-              quantity: sql`${productsTable.quantity} + ${adjustment}`,
-            })
-            .where(eq(productsTable.id, productId));
-        }
-      }
-
       // FULFILL: Backorders for new inventory
       for (const fulfillment of backorderFulfillments) {
         if (fulfillment.inventoryId) {
@@ -1235,18 +1213,6 @@ export const deleteReceivedPurchase = async (
                 eq(purchaseItemsTable.isActive, true)
               )
             );
-        }
-      }
-
-      // Update product quantities
-      for (const [productId, adjustment] of productAdjustments) {
-        if (adjustment !== 0) {
-          await tx
-            .update(productsTable)
-            .set({
-              quantity: sql`${productsTable.quantity} + ${adjustment}`,
-            })
-            .where(eq(productsTable.id, productId));
         }
       }
 
@@ -1483,18 +1449,6 @@ export const softDeleteReceivedPurchase = async (
                 eq(purchaseItemsTable.isActive, true)
               )
             );
-        }
-      }
-
-      // Update product quantities
-      for (const [productId, adjustment] of productAdjustments) {
-        if (adjustment !== 0) {
-          await tx
-            .update(productsTable)
-            .set({
-              quantity: sql`${productsTable.quantity} + ${adjustment}`,
-            })
-            .where(eq(productsTable.id, productId));
         }
       }
 

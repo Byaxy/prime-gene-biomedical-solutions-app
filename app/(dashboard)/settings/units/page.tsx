@@ -2,10 +2,30 @@ import PageWraper from "@/components/PageWraper";
 import { UnitFilters } from "@/hooks/useUnits";
 import dynamic from "next/dynamic";
 import { Suspense } from "react";
-import Loading from "../../loading";
 import { getUnits } from "@/lib/actions/unit.actions";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
+import AddUnitButton from "@/components/units/AddUnitButton";
 
-const UnitsTable = dynamic(() => import("@/components/units/UnitsTable"));
+const UnitsTableData = async ({
+  currentPage,
+  currentPageSize,
+  filters,
+}: {
+  currentPage: number;
+  currentPageSize: number;
+  filters: UnitFilters;
+}) => {
+  const initialData = await getUnits(
+    currentPage,
+    currentPageSize,
+    currentPageSize === 0,
+    filters
+  );
+  const UnitsTable = dynamic(() => import("@/components/units/UnitsTable"), {
+    ssr: true,
+  });
+  return <UnitsTable initialData={initialData} />;
+};
 
 export interface UnitsSearchParams {
   page?: string;
@@ -26,21 +46,14 @@ const Units = async ({
     search: sp.search || undefined,
   };
 
-  const initialData = await getUnits(
-    currentPage,
-    currentPageSize,
-    currentPageSize === 0,
-    filtersForServer
-  );
-
   return (
-    <PageWraper
-      title="Product Units"
-      buttonText="Add Unit"
-      buttonPath="/settings/units?dialog=open"
-    >
-      <Suspense fallback={<Loading />}>
-        <UnitsTable initialData={initialData} />
+    <PageWraper title="Product Units" buttonAction={<AddUnitButton />}>
+      <Suspense fallback={<TableSkeleton />}>
+        <UnitsTableData
+          currentPage={currentPage}
+          currentPageSize={currentPageSize}
+          filters={filtersForServer}
+        />
       </Suspense>
     </PageWraper>
   );

@@ -2,12 +2,33 @@ import PageWraper from "@/components/PageWraper";
 import dynamic from "next/dynamic";
 import { getCategories } from "@/lib/actions/category.actions";
 import { Suspense } from "react";
-import Loading from "../../loading";
 import { CategoryFilters } from "@/hooks/useCategories";
+import AddCategoryButton from "@/components/categories/AddCategoryButton";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 
-const CategoriesTable = dynamic(
-  () => import("@/components/categories/CategoriesTable")
-);
+const CategoriesTableData = async ({
+  currentPage,
+  currentPageSize,
+  filters,
+}: {
+  currentPage: number;
+  currentPageSize: number;
+  filters: CategoryFilters;
+}) => {
+  const initialData = await getCategories(
+    currentPage,
+    currentPageSize,
+    currentPageSize === 0,
+    filters
+  );
+  const CategoriesTable = dynamic(
+    () => import("@/components/categories/CategoriesTable"),
+    {
+      ssr: true,
+    }
+  );
+  return <CategoriesTable initialData={initialData} />;
+};
 
 export interface CategoriesSearchParams {
   page?: string;
@@ -28,21 +49,14 @@ const Categories = async ({
     search: sp.search || undefined,
   };
 
-  const initialData = await getCategories(
-    currentPage,
-    currentPageSize,
-    currentPageSize === 0,
-    filtersForServer
-  );
-
   return (
-    <PageWraper
-      title="Categories"
-      buttonText="Add Category"
-      buttonPath="/settings/categories?dialog=open"
-    >
-      <Suspense fallback={<Loading />}>
-        <CategoriesTable initialData={initialData} />
+    <PageWraper title="Categories" buttonAction={<AddCategoryButton />}>
+      <Suspense fallback={<TableSkeleton />}>
+        <CategoriesTableData
+          currentPage={currentPage}
+          currentPageSize={currentPageSize}
+          filters={filtersForServer}
+        />
       </Suspense>
     </PageWraper>
   );

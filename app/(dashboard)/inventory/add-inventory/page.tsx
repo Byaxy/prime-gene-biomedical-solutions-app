@@ -1,26 +1,16 @@
-"use client";
-
-import ProductForm from "@/components/forms/ProductForm";
+import BulkUploadButton from "@/components/BulkUploadButton";
 import PageWraper from "@/components/PageWraper";
-import { ProductDialog } from "@/components/products/ProductDialog";
-import { useState } from "react";
+import ProductFormWrapper from "@/components/products/ProductFormWrapper";
+import FormSkeleton from "@/components/ui/form-skeleton";
+import { Suspense } from "react";
 
 const AddInventory = () => {
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   return (
-    <PageWraper
-      title="Add Inventory"
-      buttonText="Uplaod Bulk"
-      buttonAction={() => setIsAddDialogOpen(true)}
-    >
+    <PageWraper title="Add Inventory" buttonAction={<BulkUploadButton />}>
       <section className="space-y-6">
-        <ProductForm mode={"create"} />
-        <ProductDialog
-          mode={"add"}
-          open={isAddDialogOpen}
-          onOpenChange={setIsAddDialogOpen}
-          isBulkProductUpload={true}
-        />
+        <Suspense fallback={<FormSkeleton />}>
+          <ProductFormWrapper mode={"create"} />
+        </Suspense>
       </section>
     </PageWraper>
   );

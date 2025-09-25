@@ -180,36 +180,6 @@ export const addSale = async (sale: SaleFormValues) => {
         .values(saleItemsData)
         .returning();
 
-      // BATCH UPDATE: Update all product quantities at once using CASE statements
-      const productUpdates = sale.products
-        .map((product) => {
-          const allocatedQuantity =
-            product.inventoryStock.reduce(
-              (total, inv) => total + inv.quantityToTake,
-              0
-            ) + (product.backorderQuantity || 0);
-          return { productId: product.productId, allocatedQuantity };
-        })
-        .filter((update) => update.allocatedQuantity > 0);
-
-      if (productUpdates.length > 0) {
-        // Use parameterized query for safety
-        const productIds = productUpdates.map((u) => u.productId);
-        const whenClauses = productUpdates.map(
-          (update) =>
-            sql`WHEN ${productsTable.id} = ${update.productId} THEN ${productsTable.quantity} - ${update.allocatedQuantity}`
-        );
-
-        await tx
-          .update(productsTable)
-          .set({
-            quantity: sql`CASE ${sql.join(whenClauses, sql` `)} ELSE ${
-              productsTable.quantity
-            } END`,
-          })
-          .where(inArray(productsTable.id, productIds));
-      }
-
       type SaleItemBackorderUpdate = {
         id: string;
         hasBackorder: boolean;
@@ -584,34 +554,6 @@ export const editSale = async (sale: SaleFormValues, saleId: string) => {
             );
           }
         });
-
-        // BATCH UPDATE PRODUCT QUANTITIES
-        const productAdjustmentsToApply = Array.from(
-          productAllocationAdjustments.entries()
-        ).filter(([, quantity]) => quantity !== 0);
-
-        if (productAdjustmentsToApply.length > 0) {
-          const whenClauses = productAdjustmentsToApply.map(
-            ([productId, quantityChange]) => {
-              // quantityChange can be positive (restore) or negative (allocate)
-              return sql`WHEN ${productsTable.id} = ${productId} THEN ${productsTable.quantity} + ${quantityChange}`;
-            }
-          );
-
-          await tx
-            .update(productsTable)
-            .set({
-              quantity: sql`CASE ${sql.join(whenClauses, sql` `)} ELSE ${
-                productsTable.quantity
-              } END`,
-            })
-            .where(
-              inArray(
-                productsTable.id,
-                productAdjustmentsToApply.map(([id]) => id)
-              )
-            );
-        }
 
         // BATCH DEACTIVATE/DELETE related records
         const saleItemIdsToDeactivate = saleItemsToDeactivate.map(
@@ -1192,16 +1134,6 @@ export const deleteSale = async (saleId: string) => {
         }
       });
 
-      // Restore product quantities
-      for (const [productId, quantityToRestore] of productQuantityMap) {
-        await tx
-          .update(productsTable)
-          .set({
-            quantity: sql`${productsTable.quantity} + ${quantityToRestore}`,
-          })
-          .where(eq(productsTable.id, productId));
-      }
-
       for (const product of saleItems) {
         if (product.hasBackorder && product.backorderQuantity > 0) {
           await tx
@@ -1285,16 +1217,6 @@ export const softDeleteSale = async (saleId: string) => {
           );
         }
       });
-
-      // Restore product quantities
-      for (const [productId, quantityToRestore] of productQuantityMap) {
-        await tx
-          .update(productsTable)
-          .set({
-            quantity: sql`${productsTable.quantity} + ${quantityToRestore}`,
-          })
-          .where(eq(productsTable.id, productId));
-      }
 
       const [updatedSaleItem] = await tx
         .update(saleItemsTable)

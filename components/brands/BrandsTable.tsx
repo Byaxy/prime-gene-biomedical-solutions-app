@@ -2,13 +2,11 @@
 
 import { useBrands } from "@/hooks/useBrands";
 import { useDebounce } from "@/hooks/useDebounce";
-import { useDialogState } from "@/hooks/useDialogState";
 import { exportToExcel } from "@/lib/utils";
 import { Brand } from "@/types";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { DataTable } from "../table/DataTable";
-import BrandDialog from "./BrandDialog";
 import { brandColumns } from "../table/columns/brandColumns";
 
 interface Props {
@@ -17,6 +15,7 @@ interface Props {
 
 const BrandsTable = ({ initialData }: Props) => {
   const [rowSelection, setRowSelection] = useState({});
+
   const {
     brands,
     totalItems,
@@ -30,8 +29,6 @@ const BrandsTable = ({ initialData }: Props) => {
     setSearch,
     refetch,
   } = useBrands({ initialData });
-
-  const { isOpen, openDialog, closeDialog } = useDialogState();
 
   // Local search state for immediate UI feedback
   const [localSearch, setLocalSearch] = useState(search);
@@ -99,11 +96,6 @@ const BrandsTable = ({ initialData }: Props) => {
         searchTerm={localSearch}
         onSearchChange={handleSearchChange}
         onClearSearch={handleClearSearch}
-      />
-      <BrandDialog
-        mode="add"
-        open={isOpen}
-        onOpenChange={(open) => (open ? openDialog() : closeDialog())}
       />
     </div>
   );

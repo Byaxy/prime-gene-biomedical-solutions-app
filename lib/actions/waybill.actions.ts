@@ -14,7 +14,6 @@ import {
   waybillItemInventoryTable,
   inventoryTable,
   inventoryTransactionsTable,
-  productsTable,
   backordersTable,
 } from "@/drizzle/schema";
 import {
@@ -313,18 +312,6 @@ export const addWaybill = async (
           .insert(inventoryTransactionsTable)
           .values(inventoryTransactionsData);
       }
-
-      // 8. Batch update product quantities
-      const productUpdatePromises = Array.from(productUpdatesMap.entries()).map(
-        ([id, { quantityReduction }]) =>
-          tx
-            .update(productsTable)
-            .set({
-              quantity: sql`${productsTable.quantity} - ${quantityReduction}`,
-            })
-            .where(eq(productsTable.id, id))
-      );
-      await Promise.all(productUpdatePromises);
 
       // 9. Batch update sale item fulfillment
       const saleItemUpdatePromises = Array.from(
@@ -764,20 +751,7 @@ export const editWaybill = async (
       );
       await Promise.all(inventoryRestorePromises);
 
-      // 6. Batch restore product quantities
-      const productRestorePromises = Array.from(
-        productRestoreUpdatesMap.entries()
-      ).map(([id, { quantityRestore }]) =>
-        tx
-          .update(productsTable)
-          .set({
-            quantity: sql`${productsTable.quantity} + ${quantityRestore}`,
-          })
-          .where(eq(productsTable.id, id))
-      );
-      await Promise.all(productRestorePromises);
-
-      // 7. Batch reduce sale item fulfillment
+      //  Batch reduce sale item fulfillment
       const saleItemReductionPromises = Array.from(
         saleItemReductionsMap.entries()
       ).map(([id, { quantityReduction }]) =>
@@ -790,14 +764,14 @@ export const editWaybill = async (
       );
       await Promise.all(saleItemReductionPromises);
 
-      // 8. Batch insert reversal transactions
+      // Batch insert reversal transactions
       if (reversalTransactionsData.length > 0) {
         await tx
           .insert(inventoryTransactionsTable)
           .values(reversalTransactionsData);
       }
 
-      // 9. Delete existing records (old waybill items and their inventory)
+      // Delete existing records (old waybill items and their inventory)
       if (existingItemIds.length > 0) {
         await tx
           .delete(waybillItemInventoryTable)
@@ -809,7 +783,7 @@ export const editWaybill = async (
           .where(eq(waybillItemsTable.waybillId, waybillId));
       }
 
-      // 10. Update main waybill record
+      // Update main waybill record
       const [updatedWaybill] = await tx
         .update(waybillsTable)
         .set({
@@ -842,7 +816,7 @@ export const editWaybill = async (
         .where(eq(waybillsTable.id, waybillId))
         .returning();
 
-      // 11. Now re-create the waybill items and related records using optimized batch approach
+      // Now re-create the waybill items and related records using optimized batch approach
 
       const newWaybillItemsData: (typeof waybillItemsTable.$inferInsert)[] = [];
       const newWaybillItemInventoryData: Array<{
@@ -1055,19 +1029,6 @@ export const editWaybill = async (
           .values(newInventoryTransactionsData);
       }
 
-      // 17. Batch update new product quantities
-      const newProductUpdatePromises = Array.from(
-        newProductUpdatesMap.entries()
-      ).map(([id, { quantityReduction }]) =>
-        tx
-          .update(productsTable)
-          .set({
-            quantity: sql`${productsTable.quantity} - ${quantityReduction}`,
-          })
-          .where(eq(productsTable.id, id))
-      );
-      await Promise.all(newProductUpdatePromises);
-
       // 18. Batch update new sale item fulfillment
       const newSaleItemUpdatePromises = Array.from(
         newSaleItemUpdatesMap.entries()
@@ -1191,16 +1152,6 @@ export const deleteWaybill = async (waybillId: string, userId: string) => {
             })
             .where(eq(inventoryTable.id, invRecord.waybillInv.inventoryStockId))
             .returning();
-
-          // Restore product quantity
-          if (waybill.waybillType === WaybillType.Loan) {
-            await tx
-              .update(productsTable)
-              .set({
-                quantity: sql`${productsTable.quantity} + ${invRecord.waybillInv.quantityTaken}`,
-              })
-              .where(eq(productsTable.id, invRecord.waybillItem.productId));
-          }
 
           // Log the restoration transaction
           await tx.insert(inventoryTransactionsTable).values({
@@ -1341,16 +1292,6 @@ export const softDeleteWaybill = async (waybillId: string, userId: string) => {
             })
             .where(eq(inventoryTable.id, invRecord.waybillInv.inventoryStockId))
             .returning();
-
-          // Restore product quantity
-          if (waybill.waybillType === WaybillType.Loan) {
-            await tx
-              .update(productsTable)
-              .set({
-                quantity: sql`${productsTable.quantity} + ${invRecord.waybillInv.quantityTaken}`,
-              })
-              .where(eq(productsTable.id, invRecord.waybillItem.productId));
-          }
 
           // Log the restoration transaction
           await tx.insert(inventoryTransactionsTable).values({
@@ -1630,14 +1571,6 @@ export const convertLoanWaybill = async (
               hasBackorder: !isBackorderCompletelyFulfilled,
             })
             .where(eq(saleItemsTable.id, product.saleItemId));
-
-          // Update general product quantity
-          await tx
-            .update(productsTable)
-            .set({
-              quantity: sql`${productsTable.quantity} + ${product.quantityToConvert}`,
-            })
-            .where(eq(productsTable.id, product.productId));
 
           // Update corresponding backorder records in backorders table
           const backorders = await tx

@@ -1,3 +1,5 @@
+"use client";
+
 import { CategoryFormValidation, CategoryFormValues } from "@/lib/validation";
 import SubmitButton from "../SubmitButton";
 import CustomFormField, { FormFieldType } from "../CustomFormField";

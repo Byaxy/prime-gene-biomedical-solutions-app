@@ -2,10 +2,32 @@ import PageWraper from "@/components/PageWraper";
 import dynamic from "next/dynamic";
 import { InventoryTransactionsFilters } from "@/hooks/useInventoryStockTransactions";
 import { getInventoryTransactions } from "@/lib/actions/inventoryStock.actions";
+import { Suspense } from "react";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 
-const InventoryTransactionsTable = dynamic(
-  () => import("@/components/inventory/InventoryTransactionsTable")
-);
+const InventoryTransactionsTableData = async ({
+  currentPage,
+  currentPageSize,
+  filters,
+}: {
+  currentPage: number;
+  currentPageSize: number;
+  filters: InventoryTransactionsFilters;
+}) => {
+  const initialData = await getInventoryTransactions(
+    currentPage,
+    currentPageSize,
+    currentPageSize === 0,
+    filters
+  );
+  const InventoryTransactionsTable = dynamic(
+    () => import("@/components/inventory/InventoryTransactionsTable"),
+    {
+      ssr: true,
+    }
+  );
+  return <InventoryTransactionsTable initialData={initialData} />;
+};
 
 export interface InventoryTransactionsSearchParams {
   page?: string;
@@ -36,15 +58,15 @@ const InventoryAdjustmentList = async ({
     transactionDate_end: sp.transactionDate_end || undefined,
   };
 
-  const initialData = await getInventoryTransactions(
-    currentPage,
-    currentPageSize,
-    currentPageSize === 0,
-    filtersForServer
-  );
   return (
     <PageWraper title="Inventory Stock Logs">
-      <InventoryTransactionsTable initialData={initialData} />
+      <Suspense fallback={<TableSkeleton />}>
+        <InventoryTransactionsTableData
+          currentPage={currentPage}
+          currentPageSize={currentPageSize}
+          filters={filtersForServer}
+        />
+      </Suspense>
     </PageWraper>
   );
 };

@@ -3,16 +3,14 @@
 import PageWraper from "@/components/PageWraper";
 import { storesColumns } from "@/components/table/columns/storesColumns";
 import { DataTable } from "@/components/table/DataTable";
-import StoreDialog from "@/components/stores/StoreDialog";
 import { useStores } from "@/hooks/useStores";
-import { StoreFormValues } from "@/lib/validation";
 import { useState } from "react";
 import { Store } from "@/types";
 import toast from "react-hot-toast";
 import { exportToExcel } from "@/lib/utils";
+import AddStoreButton from "@/components/stores/AddStoreButton";
 
 const Stores = () => {
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [rowSelection, setRowSelection] = useState({});
 
   const {
@@ -23,25 +21,9 @@ const Stores = () => {
     setPage,
     pageSize,
     setPageSize,
-    addStore,
-    isAddingStore,
     refetch,
     isFetching,
   } = useStores({ initialPageSize: 10 });
-
-  const handleAddStore = async (data: StoreFormValues): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      addStore(data, {
-        onSuccess: () => {
-          setIsAddDialogOpen(false);
-          resolve();
-        },
-        onError: (error) => {
-          reject(error);
-        },
-      });
-    });
-  };
 
   const handleDownloadSelected = async (selectedItems: Store[]) => {
     try {
@@ -68,35 +50,22 @@ const Stores = () => {
   };
 
   return (
-    <PageWraper
-      title="Stores"
-      buttonText="Add Store"
-      buttonAction={() => setIsAddDialogOpen(true)}
-    >
-      <>
-        <DataTable
-          columns={storesColumns}
-          data={stores || []}
-          isLoading={isLoading}
-          totalItems={totalItems}
-          page={page}
-          onPageChange={setPage}
-          pageSize={pageSize}
-          onPageSizeChange={setPageSize}
-          rowSelection={rowSelection}
-          onRowSelectionChange={setRowSelection}
-          onDownloadSelected={handleDownloadSelected}
-          refetch={refetch}
-          isFetching={isFetching}
-        />
-        <StoreDialog
-          mode="add"
-          open={isAddDialogOpen}
-          onOpenChange={setIsAddDialogOpen}
-          isLoading={isAddingStore}
-          onSubmit={handleAddStore}
-        />
-      </>
+    <PageWraper title="Stores" buttonAction={<AddStoreButton />}>
+      <DataTable
+        columns={storesColumns}
+        data={stores || []}
+        isLoading={isLoading}
+        totalItems={totalItems}
+        page={page}
+        onPageChange={setPage}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
+        rowSelection={rowSelection}
+        onRowSelectionChange={setRowSelection}
+        onDownloadSelected={handleDownloadSelected}
+        refetch={refetch}
+        isFetching={isFetching}
+      />
     </PageWraper>
   );
 };

@@ -6,8 +6,10 @@ import { parseStringify } from "../utils";
 import { ProductFormValues } from "../validation";
 import { db } from "@/drizzle/db";
 import {
+  backordersTable,
   brandsTable,
   categoriesTable,
+  inventoryTable,
   productsTable,
   productTypesTable,
   unitsTable,
@@ -194,6 +196,50 @@ export const getProducts = async (
 ) => {
   try {
     const result = await db.transaction(async (tx) => {
+      const commonGroupByColumns = [
+        productsTable.id,
+        productsTable.productID,
+        productsTable.name,
+        productsTable.alertQuantity,
+        productsTable.maxAlertQuantity,
+        productsTable.quantity,
+        productsTable.costPrice,
+        productsTable.sellingPrice,
+        productsTable.description,
+        productsTable.imageId,
+        productsTable.imageUrl,
+        productsTable.isActive,
+        productsTable.createdAt,
+        productsTable.updatedAt,
+        categoriesTable.id,
+        categoriesTable.name,
+        categoriesTable.description,
+        categoriesTable.path,
+        categoriesTable.parentId,
+        categoriesTable.isActive,
+        categoriesTable.createdAt,
+        categoriesTable.updatedAt,
+        brandsTable.id,
+        brandsTable.name,
+        brandsTable.description,
+        brandsTable.isActive,
+        brandsTable.createdAt,
+        brandsTable.updatedAt,
+        productTypesTable.id,
+        productTypesTable.name,
+        productTypesTable.description,
+        productTypesTable.isActive,
+        productTypesTable.createdAt,
+        productTypesTable.updatedAt,
+        unitsTable.id,
+        unitsTable.name,
+        unitsTable.code,
+        unitsTable.description,
+        unitsTable.isActive,
+        unitsTable.createdAt,
+        unitsTable.updatedAt,
+      ];
+
       // Build the main products query
       let productsQuery = tx
         .select({
@@ -202,6 +248,8 @@ export const getProducts = async (
           brand: brandsTable,
           type: productTypesTable,
           unit: unitsTable,
+          totalInventoryStockQuantity: sql<number>`SUM(${inventoryTable.quantity})`,
+          totalBackorderStockQuantity: sql<number>`SUM(${backordersTable.pendingQuantity})`,
         })
         .from(productsTable)
         .leftJoin(
@@ -214,6 +262,17 @@ export const getProducts = async (
           eq(productsTable.typeId, productTypesTable.id)
         )
         .leftJoin(unitsTable, eq(productsTable.unitId, unitsTable.id))
+        .leftJoin(
+          inventoryTable,
+          eq(productsTable.id, inventoryTable.productId)
+        )
+        .leftJoin(
+          backordersTable,
+          and(
+            eq(productsTable.id, backordersTable.productId),
+            eq(backordersTable.isActive, true)
+          )
+        )
         .$dynamic();
 
       const conditions = await buildFilterConditions(filters ?? {});
@@ -221,17 +280,28 @@ export const getProducts = async (
         productsQuery = productsQuery.where(and(...conditions));
       }
 
-      productsQuery = productsQuery.orderBy(desc(productsTable.createdAt));
+      productsQuery = productsQuery
+        .groupBy(...commonGroupByColumns)
+        .orderBy(desc(productsTable.createdAt));
 
       if (!getAllProducts && limit > 0) {
         productsQuery = productsQuery.limit(limit).offset(page * limit);
       }
 
       const products = await productsQuery;
+      const productsWithCalculatedQuantity = products.map((p) => ({
+        ...p,
+        product: {
+          ...p.product,
+          quantity: Number(p.totalInventoryStockQuantity),
+        },
+        totalInventoryStockQuantity: Number(p.totalInventoryStockQuantity),
+        totalBackorderStockQuantity: Number(p.totalBackorderStockQuantity),
+      }));
 
       // Get total count for pagination
       let totalQuery = tx
-        .select({ count: sql<number>`count(*)` })
+        .select({ count: sql<number>`count(DISTINCT ${productsTable.id})` })
         .from(productsTable)
         .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id))
         .leftJoin(
@@ -250,11 +320,11 @@ export const getProducts = async (
       }
 
       const total = getAllProducts
-        ? products.length
+        ? productsWithCalculatedQuantity.length
         : await totalQuery.then((res) => res[0]?.count || 0);
 
       return {
-        documents: products,
+        documents: productsWithCalculatedQuantity,
         total,
       };
     });
@@ -272,29 +342,108 @@ export const getProducts = async (
 // Get Product by ID with relations
 export const getProductById = async (productId: string) => {
   try {
-    const response = await db
-      .select({
-        product: productsTable,
-        category: categoriesTable,
-        brand: brandsTable,
-        type: productTypesTable,
-        unit: unitsTable,
-      })
-      .from(productsTable)
-      .leftJoin(
-        categoriesTable,
-        eq(productsTable.categoryId, categoriesTable.id)
-      )
-      .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id))
-      .leftJoin(
-        productTypesTable,
-        eq(productsTable.typeId, productTypesTable.id)
-      )
-      .leftJoin(unitsTable, eq(productsTable.unitId, unitsTable.id))
-      .where(eq(productsTable.id, productId))
-      .then((res) => res[0]);
+    const commonGroupByColumns = [
+      productsTable.id,
+      productsTable.productID,
+      productsTable.name,
+      productsTable.alertQuantity,
+      productsTable.maxAlertQuantity,
+      productsTable.quantity,
+      productsTable.costPrice,
+      productsTable.sellingPrice,
+      productsTable.description,
+      productsTable.imageId,
+      productsTable.imageUrl,
+      productsTable.isActive,
+      productsTable.createdAt,
+      productsTable.updatedAt,
+      categoriesTable.id,
+      categoriesTable.name,
+      categoriesTable.description,
+      categoriesTable.path,
+      categoriesTable.parentId,
+      categoriesTable.isActive,
+      categoriesTable.createdAt,
+      categoriesTable.updatedAt,
+      brandsTable.id,
+      brandsTable.name,
+      brandsTable.description,
+      brandsTable.isActive,
+      brandsTable.createdAt,
+      brandsTable.updatedAt,
+      productTypesTable.id,
+      productTypesTable.name,
+      productTypesTable.description,
+      productTypesTable.isActive,
+      productTypesTable.createdAt,
+      productTypesTable.updatedAt,
+      unitsTable.id,
+      unitsTable.name,
+      unitsTable.code,
+      unitsTable.description,
+      unitsTable.isActive,
+      unitsTable.createdAt,
+      unitsTable.updatedAt,
+    ];
+    const result = await db.transaction(async (tx) => {
+      const response = await tx
+        .select({
+          product: productsTable,
+          category: categoriesTable,
+          brand: brandsTable,
+          type: productTypesTable,
+          unit: unitsTable,
+          totalInventoryStockQuantity: sql<number>`SUM(${inventoryTable.quantity})`,
+          totalBackorderStockQuantity: sql<number>`SUM(${backordersTable.pendingQuantity})`,
+        })
+        .from(productsTable)
+        .leftJoin(
+          categoriesTable,
+          eq(productsTable.categoryId, categoriesTable.id)
+        )
+        .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id))
+        .leftJoin(
+          productTypesTable,
+          eq(productsTable.typeId, productTypesTable.id)
+        )
+        .leftJoin(unitsTable, eq(productsTable.unitId, unitsTable.id))
+        .leftJoin(
+          inventoryTable,
+          eq(productsTable.id, inventoryTable.productId)
+        )
+        .leftJoin(
+          backordersTable,
+          and(
+            eq(productsTable.id, backordersTable.productId),
+            eq(backordersTable.isActive, true)
+          )
+        )
+        .where(eq(productsTable.id, productId))
+        .groupBy(...commonGroupByColumns)
+        .then((res) => res[0]);
 
-    return parseStringify(response);
+      if (!response) {
+        return null;
+      }
+
+      return response;
+    });
+
+    return result
+      ? parseStringify({
+          ...result,
+          product: {
+            ...result.product,
+            quantity: Number(result.totalInventoryStockQuantity),
+          },
+          totalInventoryStockQuantity: Number(
+            result.totalInventoryStockQuantity
+          ),
+          totalBackorderStockQuantity: Number(
+            result.totalBackorderStockQuantity
+          ),
+        })
+      : null;
   } catch (error) {
     console.error("Error getting product by ID:", error);
     throw error;
@@ -315,7 +464,6 @@ export const editProduct = async (
         name: productData.name,
         alertQuantity: productData.alertQuantity,
         maxAlertQuantity: productData.maxAlertQuantity,
-        quantity: productData.quantity,
         costPrice: productData.costPrice,
         sellingPrice: productData.sellingPrice,
         categoryId: productData.categoryId,
@@ -332,7 +480,6 @@ export const editProduct = async (
         name: productData.name,
         alertQuantity: productData.alertQuantity,
         maxAlertQuantity: productData.maxAlertQuantity,
-        quantity: productData.quantity,
         costPrice: productData.costPrice,
         sellingPrice: productData.sellingPrice,
         categoryId: productData.categoryId,
@@ -410,16 +557,17 @@ export const reactivateProduct = async (productId: string) => {
 
 export const reactivateMultipleProducts = async (productIds: string[]) => {
   try {
+    if (!productIds || productIds.length === 0) {
+      return parseStringify([]);
+    }
+
     const reactivatedProducts = await db.transaction(async (tx) => {
-      const results = [];
-      for (const id of productIds) {
-        const reactivated = await tx
-          .update(productsTable)
-          .set({ isActive: true })
-          .where(eq(productsTable.id, id))
-          .returning();
-        results.push(reactivated[0]);
-      }
+      const results = await tx
+        .update(productsTable)
+        .set({ isActive: true, updatedAt: new Date() })
+        .where(inArray(productsTable.id, productIds))
+        .returning();
+
       return results;
     });
 
@@ -600,7 +748,6 @@ export const bulkAddProducts = async (
                   productID: product.productID,
                   name: product.name,
                   description: product.description,
-                  quantity: product.quantity,
                   costPrice: product.costPrice,
                   sellingPrice: product.sellingPrice,
                   alertQuantity: product.alertQuantity,
@@ -625,7 +772,6 @@ export const bulkAddProducts = async (
       return results;
     });
 
-    // Revalidate path outside transaction for better performance
     revalidatePath("/inventory");
 
     return {
@@ -640,16 +786,17 @@ export const bulkAddProducts = async (
 };
 export const softDeleteMultipleProducts = async (productIds: string[]) => {
   try {
+    if (!productIds || productIds.length === 0) {
+      return parseStringify([]);
+    }
+
     const deletedProducts = await db.transaction(async (tx) => {
-      const results = [];
-      for (const id of productIds) {
-        const deleted = await tx
-          .update(productsTable)
-          .set({ isActive: false })
-          .where(eq(productsTable.id, id))
-          .returning();
-        results.push(deleted[0]);
-      }
+      const results = await tx
+        .update(productsTable)
+        .set({ isActive: false, updatedAt: new Date() })
+        .where(inArray(productsTable.id, productIds))
+        .returning();
+
       return results;
     });
 
@@ -663,15 +810,16 @@ export const softDeleteMultipleProducts = async (productIds: string[]) => {
 
 export const deleteMultipleProducts = async (productIds: string[]) => {
   try {
+    if (!productIds || productIds.length === 0) {
+      return parseStringify([]);
+    }
+
     const deletedProducts = await db.transaction(async (tx) => {
-      const results = [];
-      for (const id of productIds) {
-        const deleted = await tx
-          .delete(productsTable)
-          .where(eq(productsTable.id, id))
-          .returning();
-        results.push(deleted[0]);
-      }
+      const results = await tx
+        .delete(productsTable)
+        .where(inArray(productsTable.id, productIds))
+        .returning();
+
       return results;
     });
 

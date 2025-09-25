@@ -1,45 +1,20 @@
-"use client";
-
-import ProductForm from "@/components/forms/ProductForm";
-import Loading from "@/app/(dashboard)/loading";
 import PageWraper from "@/components/PageWraper";
-import { getProductById } from "@/lib/actions/product.actions";
-import { ProductWithRelations } from "@/types";
-import { useQuery } from "@tanstack/react-query";
-import { useParams } from "next/navigation";
+import { Suspense } from "react";
+import FormSkeleton from "@/components/ui/form-skeleton";
+import ProductFormWrapper from "@/components/products/ProductFormWrapper";
 
-const EditInventory = () => {
-  const { id } = useParams();
+export interface Params {
+  id: string;
+}
 
-  const { data: product, isLoading } = useQuery({
-    queryKey: [id],
-    queryFn: async () => {
-      if (!id) return null;
-      const result: ProductWithRelations = await getProductById(id as string);
-      return result;
-    },
-    enabled: !!id,
-    staleTime: 0,
-  });
-
-  if (isLoading) {
-    return <Loading />;
-  }
+const EditInventory = async ({ params }: { params: Promise<Params> }) => {
+  const { id } = await params;
 
   return (
     <PageWraper title="Edit Inventory">
-      <section className="space-y-6">
-        <ProductForm
-          mode={"edit"}
-          initialData={
-            product
-              ? {
-                  ...product.product,
-                }
-              : undefined
-          }
-        />
-      </section>
+      <Suspense fallback={<FormSkeleton />}>
+        <ProductFormWrapper mode="edit" productId={id} />
+      </Suspense>
     </PageWraper>
   );
 };
