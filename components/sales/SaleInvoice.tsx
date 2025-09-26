@@ -59,11 +59,12 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   col2: {
-    width: "8%",
+    width: "12%",
     paddingVertical: 5,
+    paddingRight: 5,
   },
   col3: {
-    width: "59%",
+    width: "55%",
     paddingVertical: 5,
   },
   col4: {

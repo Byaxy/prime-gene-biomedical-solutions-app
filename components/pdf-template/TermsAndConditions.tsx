@@ -42,11 +42,11 @@ const TermsAndConditions = () => {
         </Text>
         <Text style={styles.info}>Terms of payment is 30 days</Text>
         <Text style={styles.info}>
-          This certifies that the Pro-Forma invoice is true and correct
+          This certifies that the invoice is true and correct
         </Text>
         <Text style={styles.info}>
           When a dispute arises over subtotal or total prices, individual unit
-          prices
+          prices should be considered.
         </Text>
       </View>
     </View>

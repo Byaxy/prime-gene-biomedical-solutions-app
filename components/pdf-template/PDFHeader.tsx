@@ -5,10 +5,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 21,
     fontWeight: "bold",
+    marginBottom: 4,
   },
   companyInfo: {
     fontSize: 12,
-    marginBottom: 3,
+    marginBottom: 2,
   },
 });
 
@@ -21,7 +22,7 @@ const PDFHeader = () => {
         alignItems: "flex-start",
         justifyContent: "space-between",
         marginBottom: 20,
-        gap: 20,
+        gap: 18,
         color: "#002060",
       }}
       fixed
@@ -40,7 +41,7 @@ const PDFHeader = () => {
         />
         <Text
           style={{
-            fontSize: 9,
+            fontSize: 10,
             fontWeight: "bold",
             marginBottom: 2,
           }}
@@ -58,9 +59,11 @@ const PDFHeader = () => {
       >
         <Text style={styles.title}>NORTHLAND BIOMEDICAL SOLUTIONS</Text>
         <Text style={styles.companyInfo}>
-          Rockville Valley, Johnson Compound, Haile Selassie Avenue,
+          Rockville Valley, Johnson Compound, Haile Selassie
         </Text>
-        <Text style={styles.companyInfo}>Capitol Bypass, Monrovia-Liberia</Text>
+        <Text style={styles.companyInfo}>
+          Avenue, Capitol Bypass, Monrovia-Liberia
+        </Text>
         <Text style={styles.companyInfo}>+231 775508118 / +231 888725323</Text>
         <Text style={styles.companyInfo}>
           info@northlandbiomedicalsolutions.com
