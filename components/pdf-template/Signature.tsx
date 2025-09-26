@@ -2,12 +2,13 @@
 import { Text, View, StyleSheet, Image } from "@react-pdf/renderer";
 
 const styles = StyleSheet.create({
-  signatureSection: {
+  container: {
     display: "flex",
     flexDirection: "column",
+    flex: 1,
     gap: 2,
     marginBottom: 20,
-    marginLeft: 50,
+    color: "#000",
   },
 });
 
@@ -19,13 +20,13 @@ const Signature = ({
   title: string;
 }) => {
   return (
-    <View style={styles.signatureSection}>
-      <Text style={{ fontWeight: "bold" }}>Stamp & Signature:</Text>
+    <View style={styles.container}>
+      <Text style={{ fontWeight: "medium" }}>Stamp & Signature:</Text>
       {signatureUrl && (
         <Image src={signatureUrl} style={{ width: 60, height: 25 }} />
       )}
       <Text
-        style={{ fontWeight: "bold", marginTop: `${signatureUrl ? 2 : 30}` }}
+        style={{ fontWeight: "medium", marginTop: `${signatureUrl ? 2 : 30}` }}
       >
         {title}
       </Text>

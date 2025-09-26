@@ -11,11 +11,12 @@ import {
 } from "@react-pdf/renderer";
 import { SaleWithRelations } from "@/types";
 import { formatCurrency } from "@/lib/utils";
-import SignatureAndBankSection from "../pdf-template/SignatureAndBankSection";
 import PDFFooter from "../pdf-template/PDFFooter";
-import PDFTittle from "../pdf-template/PDFTittle";
 import PDFHeader from "../pdf-template/PDFHeader";
 import Address from "../pdf-template/Address";
+import Signature from "../pdf-template/Signature";
+import BankDetails from "../pdf-template/BankDetails";
+import TermsAndConditions from "../pdf-template/TermsAndConditions";
 
 // styles
 const styles = StyleSheet.create({
@@ -24,55 +25,134 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     padding: 20,
     fontSize: 10,
-    color: "#072a69",
+    color: "#000",
     fontFamily: "Times-Roman",
+    position: "relative",
+  },
+  backgroundImage: {
+    position: "absolute",
+    top: "25%",
+    left: "15%",
+    width: 440,
+    height: 420,
+    opacity: 0.1,
+    zIndex: -1,
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
     fontSize: 8,
-    paddingVertical: 2,
+    borderLeft: "1px solid #000",
   },
   headerRow: {
     flexDirection: "row",
-    backgroundColor: "#002060",
+    backgroundColor: "#b8c9c1e7",
     fontWeight: "bold",
-    color: "#00fdff",
+    color: "#000",
     fontSize: 9,
-    paddingVertical: 4,
+    borderLeft: "1px solid #000",
+    borderTop: "1px solid #000",
+    borderBottom: "1px solid #000",
   },
   evenRow: {
-    backgroundColor: "#E8E9E9",
+    backgroundColor: "#d8dfdca9",
   },
-  col1: { width: "5%", paddingHorizontal: 5 },
-  col2: { width: "8%" },
-  col3: { width: "59%" },
-  col4: { width: "8%", paddingHorizontal: 10 },
-  col5: { width: "10%" },
-  col6: { width: "10%" },
+  col1: {
+    width: "5%",
+    paddingHorizontal: 5,
+    paddingVertical: 5,
+    borderRight: "1px solid #000",
+  },
+  col2: {
+    width: "8%",
+    paddingHorizontal: 5,
+    paddingVertical: 5,
+    borderRight: "1px solid #000",
+  },
+  col3: {
+    width: "59%",
+    paddingHorizontal: 5,
+    paddingVertical: 5,
+    borderRight: "1px solid #000",
+  },
+  col4: {
+    width: "8%",
+    paddingHorizontal: 5,
+    paddingVertical: 5,
+    borderRight: "1px solid #000",
+  },
+  col5: {
+    width: "10%",
+    paddingHorizontal: 5,
+    paddingVertical: 5,
+    borderRight: "1px solid #000",
+  },
+  col6: {
+    width: "10%",
+    paddingHorizontal: 5,
+    paddingVertical: 5,
+    borderRight: "1px solid #000",
+  },
   title: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "bold",
+    color: "#000",
   },
   companyInfo: {
     fontSize: 9,
     marginBottom: 2,
   },
   summary: {
-    marginTop: 20,
+    marginTop: 10,
     alignSelf: "flex-end",
-    width: "40%",
+    width: "35%",
   },
   summaryRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 5,
+    paddingHorizontal: 5,
+  },
+  summaryRowWithBorder: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 5,
+    paddingHorizontal: 5,
+    fontWeight: "bold",
+    backgroundColor: "#b8c9c1e7",
+    border: "1px solid #000",
+  },
+  summaryLabel: {
+    borderRight: "1px solid #000",
+    paddingRight: 10,
+    paddingTop: 4,
+    paddingBottom: 4,
+    flex: 2,
+  },
+  summaryValue: {
+    display: "flex",
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    flex: 1,
+    paddingTop: 4,
+    paddingBottom: 4,
   },
   tableContainer: {
     flexGrow: 1,
+    color: "#000",
   },
   pageBreakAvoidContainer: {
     marginTop: "auto",
+  },
+  signatureSection: {
+    display: "flex",
+    flexDirection: "row",
+    gap: 40,
+  },
+  bankSection: {
+    display: "flex",
+    flexDirection: "row",
+    gap: 40,
   },
 });
 
@@ -88,32 +168,34 @@ const SaleInvoice = ({
   return (
     <Document>
       <Page size="A4" style={styles.page}>
+        {/* Background Image */}
+        <Image
+          style={styles.backgroundImage}
+          src="/assets/logos/logo3.jpeg"
+          fixed
+        />
         {/* Header */}
         <PDFHeader />
         {/* Title */}
-        <PDFTittle title="INVOICE" />
 
         {/* Invoice Info */}
         <View
           style={{
             display: "flex",
             flexDirection: "row",
-            marginVertical: 20,
+            marginBottom: 20,
             gap: 40,
           }}
         >
           <View
             style={{
               display: "flex",
-              flexDirection: "row",
-              flex: 1,
-              gap: 10,
+              flexDirection: "column",
+              alignItems: "flex-end",
+              flex: 1.5,
             }}
           >
-            <Image
-              src="/assets/images/qrcode.png"
-              style={{ width: 50, height: 50 }}
-            />
+            <Text style={styles.title}>INVOICE</Text>
           </View>
 
           <View
@@ -121,7 +203,8 @@ const SaleInvoice = ({
               display: "flex",
               flexDirection: "row",
               flex: 1,
-              gap: 20,
+              border: "1px solid #000",
+              color: "#000",
             }}
           >
             <View
@@ -129,20 +212,29 @@ const SaleInvoice = ({
                 display: "flex",
                 flexDirection: "column",
                 flex: 1,
+                borderRight: "1px solid #000",
               }}
             >
               <Text
                 style={{
-                  fontWeight: "bold",
+                  fontWeight: "medium",
                   textAlign: "center",
-                  backgroundColor: "#E8E9E9",
+                  backgroundColor: "#b8c9c1e7",
+                  paddingTop: 2,
+                  paddingBottom: 2,
+                  fontSize: 10,
+                }}
+              >
+                Date:
+              </Text>
+              <Text
+                style={{
+                  ...styles.companyInfo,
+                  textAlign: "center",
                   paddingVertical: 2,
                 }}
               >
-                INV #:
-              </Text>
-              <Text style={{ ...styles.companyInfo, textAlign: "center" }}>
-                {sal.invoiceNumber || "N/A"}
+                {new Date(sal.saleDate).toDateString()}
               </Text>
             </View>
             <View
@@ -154,16 +246,24 @@ const SaleInvoice = ({
             >
               <Text
                 style={{
-                  fontWeight: "bold",
+                  fontWeight: "medium",
                   textAlign: "center",
-                  backgroundColor: "#E8E9E9",
+                  backgroundColor: "#b8c9c1e7",
+                  paddingTop: 2,
+                  paddingBottom: 2,
+                  fontSize: 10,
+                }}
+              >
+                Invoice #:
+              </Text>
+              <Text
+                style={{
+                  ...styles.companyInfo,
+                  textAlign: "center",
                   paddingVertical: 2,
                 }}
               >
-                Date:
-              </Text>
-              <Text style={{ ...styles.companyInfo, textAlign: "center" }}>
-                {new Date(sal.saleDate).toLocaleDateString()}
+                {sal.invoiceNumber || "N/A"}
               </Text>
             </View>
           </View>
@@ -179,7 +279,7 @@ const SaleInvoice = ({
           }}
         >
           <Address
-            addressTitle="Billing Address:"
+            addressTitle="Billing Address"
             name={customer.name}
             address={customer.address.address}
             phone={customer.phone}
@@ -190,7 +290,7 @@ const SaleInvoice = ({
 
           {sal.isDeliveryAddressAdded ? (
             <Address
-              addressTitle="Delivery Address:"
+              addressTitle="Delivery Address"
               name={sal.deliveryAddress.addressName}
               address={sal.deliveryAddress.address}
               phone={sal.deliveryAddress.phone}
@@ -200,7 +300,7 @@ const SaleInvoice = ({
             />
           ) : (
             <Address
-              addressTitle="Delivery Address:"
+              addressTitle="Delivery Address"
               name={customer.name}
               address={customer.address.address || ""}
               phone={customer.phone || ""}
@@ -227,7 +327,13 @@ const SaleInvoice = ({
           {products.map((product, index) => (
             <View
               key={product.id}
-              style={[styles.row, index % 2 === 1 ? styles.evenRow : {}]}
+              style={[
+                styles.row,
+                index % 2 === 1 ? styles.evenRow : {},
+                index === products.length - 1
+                  ? { borderBottom: "1px solid #000" }
+                  : {},
+              ]}
             >
               <Text style={styles.col1}>
                 {index < 9 ? `0${index + 1}` : index + 1}
@@ -268,20 +374,42 @@ const SaleInvoice = ({
                 )}
               </Text>
             </View>
-            <View style={{ ...styles.summaryRow, fontWeight: "bold" }}>
-              <Text>Grand Total ({currencySymbol}):</Text>
-              <Text>
-                {formatCurrency(
-                  String(sal.totalAmount.toFixed(2)),
-                  currencySymbol
-                )}
+            <View style={styles.summaryRowWithBorder}>
+              <Text style={styles.summaryLabel}>
+                Grand Total ({currencySymbol}):
               </Text>
+              <View style={styles.summaryValue}>
+                <Text>
+                  {formatCurrency(
+                    String(sal.totalAmount.toFixed(2)),
+                    currencySymbol
+                  )}
+                </Text>
+              </View>
             </View>
           </View>
         </View>
 
         <View style={styles.pageBreakAvoidContainer}>
-          <SignatureAndBankSection />
+          <View wrap={false}>
+            {/* Signature */}
+            <View style={styles.signatureSection}>
+              <Signature
+                title="Sales Manager"
+                signatureUrl="/assets/images/signature.png"
+              />
+              <View style={{ marginRight: 20 }}>
+                <Signature title="Customer" />
+              </View>
+            </View>
+
+            {/* Bank Details - Terms & Conditions */}
+            <View style={styles.bankSection}>
+              <BankDetails />
+
+              <TermsAndConditions />
+            </View>
+          </View>
         </View>
 
         <PDFFooter />

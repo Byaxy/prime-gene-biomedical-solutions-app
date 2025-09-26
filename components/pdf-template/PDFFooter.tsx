@@ -6,22 +6,21 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
     justifyContent: "space-between",
-    backgroundColor: "#002060",
+    backgroundColor: "#b8c9c1e7",
     paddingVertical: 5,
     paddingHorizontal: 5,
     marginTop: 20,
+    color: "#000",
   },
   footerColumn: { display: "flex", flexDirection: "column" },
   footerColumnHeader: {
     fontWeight: "bold",
     marginBottom: 2,
-    color: "#FFFFFF",
     fontSize: 9,
   },
   footerInfo: {
     fontSize: 8,
     marginBottom: 2,
-    color: "#00fdff",
   },
 });
 

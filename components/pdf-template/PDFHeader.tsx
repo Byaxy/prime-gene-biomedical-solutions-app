@@ -7,7 +7,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   companyInfo: {
-    fontSize: 9,
+    fontSize: 10,
     marginBottom: 2,
   },
 });
@@ -22,6 +22,7 @@ const PDFHeader = () => {
         justifyContent: "space-between",
         marginBottom: 20,
         gap: 20,
+        color: "#072a69",
       }}
       fixed
     >
@@ -34,10 +35,18 @@ const PDFHeader = () => {
         }}
       >
         <Image
-          src="/assets/logos/logo2.png"
-          style={{ width: 100, height: 80 }}
+          src="/assets/logos/logo3.jpeg"
+          style={{ width: 120, height: 100 }}
         />
-        <Text style={styles.companyInfo}>Legacy of Quality Par Excellence</Text>
+        <Text
+          style={{
+            fontSize: 8,
+            fontWeight: "bold",
+            marginBottom: 2,
+          }}
+        >
+          Legacy of Quality Par Excellence
+        </Text>
       </View>
       <View
         style={{
@@ -55,8 +64,13 @@ const PDFHeader = () => {
         <Text style={styles.companyInfo}>
           +231 775508118 / +233 244364439 (whatsapp)
         </Text>
-        <Text style={styles.companyInfo}>biomedicalsolutionsgh@gmail.com</Text>
-        <Text style={styles.companyInfo}>primegenebiomedicalsolutions.com</Text>
+        <Text style={styles.companyInfo}>
+          info@northlandbiomedicalsolutions.com
+        </Text>
+        <Text style={styles.companyInfo}>
+          www.northlandbiomedicalsolutions.com
+        </Text>
+        {/* 
         <View
           style={{ width: "100%", height: 3, backgroundColor: "#0fa345" }}
         ></View>
@@ -74,6 +88,7 @@ const PDFHeader = () => {
         <View
           style={{ width: "100%", height: 3, backgroundColor: "#093c80" }}
         ></View>
+        */}
       </View>
     </View>
   );

@@ -32,16 +32,21 @@ const Address = ({
         flex: 1,
         display: "flex",
         flexDirection: "column",
+        color: "#000",
       }}
     >
       <View
         style={{
-          backgroundColor: "#E8E9E9",
-          paddingVertical: 2,
+          backgroundColor: "#b8c9c1e7",
+          paddingTop: 4,
+          paddingBottom: 4,
           paddingHorizontal: 5,
+          border: "1px solid #000",
         }}
       >
-        <Text style={{ fontWeight: "bold", fontSize: 10 }}>
+        <Text
+          style={{ fontWeight: "medium", fontSize: 10, textAlign: "center" }}
+        >
           {addressTitle}:
         </Text>
       </View>
