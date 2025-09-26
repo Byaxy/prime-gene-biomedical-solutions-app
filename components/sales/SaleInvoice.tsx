@@ -23,7 +23,7 @@ const styles = StyleSheet.create({
   page: {
     flexDirection: "column",
     backgroundColor: "#FFFFFF",
-    padding: 20,
+    padding: 15,
     fontSize: 10,
     color: "#000",
     fontFamily: "Times-Roman",
@@ -41,57 +41,43 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
-    fontSize: 8,
-    borderLeft: "1px solid #000",
+    fontSize: 10,
   },
   headerRow: {
     flexDirection: "row",
-    backgroundColor: "#b8c9c1e7",
+    backgroundColor: "#819AC2",
     fontWeight: "bold",
     color: "#000",
-    fontSize: 9,
-    borderLeft: "1px solid #000",
-    borderTop: "1px solid #000",
-    borderBottom: "1px solid #000",
+    fontSize: 10,
   },
   evenRow: {
-    backgroundColor: "#d8dfdca9",
+    backgroundColor: "#D5DCE4",
   },
   col1: {
     width: "5%",
     paddingHorizontal: 5,
     paddingVertical: 5,
-    borderRight: "1px solid #000",
   },
   col2: {
     width: "8%",
-    paddingHorizontal: 5,
     paddingVertical: 5,
-    borderRight: "1px solid #000",
   },
   col3: {
     width: "59%",
-    paddingHorizontal: 5,
     paddingVertical: 5,
-    borderRight: "1px solid #000",
   },
   col4: {
     width: "8%",
-    paddingHorizontal: 5,
+    paddingHorizontal: 12,
     paddingVertical: 5,
-    borderRight: "1px solid #000",
   },
   col5: {
     width: "10%",
-    paddingHorizontal: 5,
     paddingVertical: 5,
-    borderRight: "1px solid #000",
   },
   col6: {
     width: "10%",
-    paddingHorizontal: 5,
     paddingVertical: 5,
-    borderRight: "1px solid #000",
   },
   title: {
     fontSize: 18,
@@ -112,6 +98,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 5,
     paddingHorizontal: 5,
+    fontWeight: "bold",
   },
   summaryRowWithBorder: {
     flexDirection: "row",
@@ -119,11 +106,9 @@ const styles = StyleSheet.create({
     marginBottom: 5,
     paddingHorizontal: 5,
     fontWeight: "bold",
-    backgroundColor: "#b8c9c1e7",
-    border: "1px solid #000",
+    backgroundColor: "#819AC2",
   },
   summaryLabel: {
-    borderRight: "1px solid #000",
     paddingRight: 10,
     paddingTop: 4,
     paddingBottom: 4,
@@ -203,7 +188,6 @@ const SaleInvoice = ({
               display: "flex",
               flexDirection: "row",
               flex: 1,
-              border: "1px solid #000",
               color: "#000",
             }}
           >
@@ -212,14 +196,13 @@ const SaleInvoice = ({
                 display: "flex",
                 flexDirection: "column",
                 flex: 1,
-                borderRight: "1px solid #000",
               }}
             >
               <Text
                 style={{
-                  fontWeight: "medium",
+                  fontWeight: "bold",
                   textAlign: "center",
-                  backgroundColor: "#b8c9c1e7",
+                  backgroundColor: "#819AC2",
                   paddingTop: 2,
                   paddingBottom: 2,
                   fontSize: 10,
@@ -232,6 +215,7 @@ const SaleInvoice = ({
                   ...styles.companyInfo,
                   textAlign: "center",
                   paddingVertical: 2,
+                  fontWeight: "bold",
                 }}
               >
                 {new Date(sal.saleDate).toDateString()}
@@ -246,9 +230,9 @@ const SaleInvoice = ({
             >
               <Text
                 style={{
-                  fontWeight: "medium",
+                  fontWeight: "bold",
                   textAlign: "center",
-                  backgroundColor: "#b8c9c1e7",
+                  backgroundColor: "#819AC2",
                   paddingTop: 2,
                   paddingBottom: 2,
                   fontSize: 10,
@@ -261,6 +245,7 @@ const SaleInvoice = ({
                   ...styles.companyInfo,
                   textAlign: "center",
                   paddingVertical: 2,
+                  fontWeight: "bold",
                 }}
               >
                 {sal.invoiceNumber || "N/A"}
@@ -275,7 +260,7 @@ const SaleInvoice = ({
             display: "flex",
             flexDirection: "row",
             marginBottom: 20,
-            gap: 40,
+            gap: 80,
           }}
         >
           <Address
@@ -327,13 +312,7 @@ const SaleInvoice = ({
           {products.map((product, index) => (
             <View
               key={product.id}
-              style={[
-                styles.row,
-                index % 2 === 1 ? styles.evenRow : {},
-                index === products.length - 1
-                  ? { borderBottom: "1px solid #000" }
-                  : {},
-              ]}
+              style={[styles.row, index % 2 === 1 ? styles.evenRow : {}]}
             >
               <Text style={styles.col1}>
                 {index < 9 ? `0${index + 1}` : index + 1}
@@ -394,10 +373,7 @@ const SaleInvoice = ({
           <View wrap={false}>
             {/* Signature */}
             <View style={styles.signatureSection}>
-              <Signature
-                title="Sales Manager"
-                signatureUrl="/assets/images/signature.png"
-              />
+              <Signature title="Sales Manager" />
               <View style={{ marginRight: 20 }}>
                 <Signature title="Customer" />
               </View>

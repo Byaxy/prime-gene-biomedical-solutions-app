@@ -37,16 +37,13 @@ const Address = ({
     >
       <View
         style={{
-          backgroundColor: "#b8c9c1e7",
-          paddingTop: 4,
-          paddingBottom: 4,
+          backgroundColor: "#819AC2",
+          paddingTop: 3,
+          paddingBottom: 3,
           paddingHorizontal: 5,
-          border: "1px solid #000",
         }}
       >
-        <Text
-          style={{ fontWeight: "medium", fontSize: 10, textAlign: "center" }}
-        >
+        <Text style={{ fontWeight: "bold", fontSize: 10 }}>
           {addressTitle}:
         </Text>
       </View>
@@ -58,7 +55,9 @@ const Address = ({
           paddingTop: 2,
         }}
       >
-        <Text style={styles.addressInfo}>{name}</Text>
+        <Text style={{ ...styles.addressInfo, fontWeight: "bold" }}>
+          {name}
+        </Text>
         <Text style={styles.addressInfo}>
           {city ? `${city} -` : null}{" "}
           {country ? Country.getCountryByCode(country)?.name : null}

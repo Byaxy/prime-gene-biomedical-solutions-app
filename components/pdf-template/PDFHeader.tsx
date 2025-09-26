@@ -3,12 +3,12 @@ import { Text, View, StyleSheet, Image } from "@react-pdf/renderer";
 
 const styles = StyleSheet.create({
   title: {
-    fontSize: 20,
+    fontSize: 21,
     fontWeight: "bold",
   },
   companyInfo: {
-    fontSize: 10,
-    marginBottom: 2,
+    fontSize: 12,
+    marginBottom: 3,
   },
 });
 
@@ -22,7 +22,7 @@ const PDFHeader = () => {
         justifyContent: "space-between",
         marginBottom: 20,
         gap: 20,
-        color: "#072a69",
+        color: "#002060",
       }}
       fixed
     >
@@ -36,11 +36,11 @@ const PDFHeader = () => {
       >
         <Image
           src="/assets/logos/logo3.jpeg"
-          style={{ width: 120, height: 100 }}
+          style={{ width: 130, height: 90 }}
         />
         <Text
           style={{
-            fontSize: 8,
+            fontSize: 9,
             fontWeight: "bold",
             marginBottom: 2,
           }}
@@ -61,34 +61,13 @@ const PDFHeader = () => {
           Rockville Valley, Johnson Compound, Haile Selassie Avenue,
         </Text>
         <Text style={styles.companyInfo}>Capitol Bypass, Monrovia-Liberia</Text>
-        <Text style={styles.companyInfo}>
-          +231 775508118 / +233 244364439 (whatsapp)
-        </Text>
+        <Text style={styles.companyInfo}>+231 775508118 / +231 888725323</Text>
         <Text style={styles.companyInfo}>
           info@northlandbiomedicalsolutions.com
         </Text>
         <Text style={styles.companyInfo}>
           www.northlandbiomedicalsolutions.com
         </Text>
-        {/* 
-        <View
-          style={{ width: "100%", height: 3, backgroundColor: "#0fa345" }}
-        ></View>
-        <View
-          style={{ width: "100%", height: 3, backgroundColor: "#075323" }}
-        ></View>
-        <View
-          style={{
-            width: "100%",
-            height: 3,
-            backgroundColor: "#1a74e9",
-            borderColor: "#1a74e9",
-          }}
-        ></View>
-        <View
-          style={{ width: "100%", height: 3, backgroundColor: "#093c80" }}
-        ></View>
-        */}
       </View>
     </View>
   );

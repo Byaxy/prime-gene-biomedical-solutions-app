@@ -19,11 +19,10 @@ const TermsAndConditions = () => {
     >
       <View
         style={{
-          backgroundColor: "#b8c9c1e7",
+          backgroundColor: "#819AC2",
           paddingTop: 3,
           paddingBottom: 3,
           paddingHorizontal: 5,
-          border: "1px solid #000",
         }}
       >
         <Text style={{ fontWeight: "bold", fontSize: 9 }}>
