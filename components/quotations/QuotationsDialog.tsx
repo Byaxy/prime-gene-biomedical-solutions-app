@@ -10,7 +10,6 @@ import { QuotationWithRelations } from "@/types";
 import { PDFViewer } from "@react-pdf/renderer";
 import QuotationPDF from "./QuotationPDF";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
-import { useProducts } from "@/hooks/useProducts";
 import { useQuotations } from "@/hooks/useQuotations";
 import toast from "react-hot-toast";
 import { Mail, Download, FileText } from "lucide-react";
@@ -32,7 +31,6 @@ const QuotationDialog = ({
   quotation,
 }: QuotationDialogProps) => {
   const { companySettings } = useCompanySettings();
-  const { products } = useProducts({ getAllProducts: true });
   const { softDeleteQuotation, isSoftDeletingQuotation } = useQuotations();
 
   const router = useRouter();
@@ -121,7 +119,6 @@ const QuotationDialog = ({
         <QuotationPDF
           quotation={quotation}
           currencySymbol={companySettings?.currencySymbol || "$"}
-          allProducts={products || []}
         />
       ).toBlob();
       const url = URL.createObjectURL(blob);
@@ -238,7 +235,6 @@ const QuotationDialog = ({
                   <QuotationPDF
                     quotation={quotation}
                     currencySymbol={companySettings?.currencySymbol || "$"}
-                    allProducts={products || []}
                   />
                 }
               </PDFViewer>

@@ -10,50 +10,73 @@ import {
   StyleSheet,
   Image,
 } from "@react-pdf/renderer";
-import SignatureAndBankSection from "../pdf-template/SignatureAndBankSection";
 import PDFFooter from "../pdf-template/PDFFooter";
 import Address from "../pdf-template/Address";
 import PDFHeader from "../pdf-template/PDFHeader";
-import PDFTittle from "../pdf-template/PDFTittle";
 import { formatDateTime } from "@/lib/utils";
+import Signature from "../pdf-template/Signature";
+import DeliveryTermsAndConditions from "../pdf-template/DeliveryTermsAndConditions";
 
 // styles
 const styles = StyleSheet.create({
   page: {
     flexDirection: "column",
     backgroundColor: "#FFFFFF",
-    padding: 20,
+    padding: 15,
     fontSize: 10,
-    color: "#072a69",
+    color: "#000",
     fontFamily: "Times-Roman",
+    position: "relative",
+  },
+  backgroundImage: {
+    position: "absolute",
+    top: "25%",
+    left: "15%",
+    width: 440,
+    height: 420,
+    opacity: 0.1,
+    zIndex: -1,
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
-    fontSize: 8,
-    paddingVertical: 2,
+    fontSize: 10,
   },
   headerRow: {
     flexDirection: "row",
-    backgroundColor: "#002060",
+    backgroundColor: "#819AC2",
     fontWeight: "bold",
-    color: "#00fdff",
-    fontSize: 9,
-    paddingVertical: 4,
+    color: "#000",
+    fontSize: 10,
   },
   evenRow: {
-    backgroundColor: "#E8E9E9",
+    backgroundColor: "#D5DCE4",
   },
-  col1: { width: "5%", paddingHorizontal: 5 },
-  col2: { width: "8%" },
-  col3: { width: "50%" },
-  col4: { width: "15%", paddingHorizontal: 10 },
-  col5: { width: "12%" },
-  col6: { width: "10%" },
   title: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "bold",
+    color: "#000",
+    textAlign: "center",
   },
+  tableContainer: {
+    flexGrow: 1,
+    color: "#000",
+  },
+  pageBreakAvoidContainer: {
+    marginTop: "auto",
+  },
+  signatureSection: {
+    display: "flex",
+    flexDirection: "row",
+    gap: 40,
+  },
+  col1: { width: "5%", paddingHorizontal: 5, paddingVertical: 5 },
+  col2: { width: "10%", paddingVertical: 5 },
+  col3: { width: "50%", paddingVertical: 5 },
+  col4: { width: "13%", textAlign: "center", paddingVertical: 5 },
+  col5: { width: "12%", textAlign: "center", paddingVertical: 5 },
+  col6: { width: "10%", textAlign: "center", paddingVertical: 5 },
+
   deliveryInfo: {
     fontSize: 9,
     marginBottom: 2,
@@ -64,11 +87,10 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 20,
   },
-  tableContainer: {
-    flexGrow: 1,
-  },
-  pageBreakAvoidContainer: {
-    marginTop: "auto",
+  detailsSection: {
+    display: "flex",
+    flexDirection: "row",
+    gap: 40,
   },
 });
 
@@ -77,111 +99,126 @@ const DeliveryNote = ({ delivery }: { delivery: DeliveryWithRelations }) => {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
+        {/* Background Image */}
+        <Image
+          style={styles.backgroundImage}
+          src="/assets/logos/logo3.jpeg"
+          fixed
+        />
         {/* Header */}
         <PDFHeader />
-        {/* Title */}
-        <PDFTittle title="Delivery Note" />
 
         {/* Delivery Info */}
         <View
           style={{
             display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: 20,
+          }}
+        >
+          <Text style={styles.title}>DELIVERY NOTE</Text>
+        </View>
+
+        <View
+          style={{
+            display: "flex",
             flexDirection: "row",
-            marginVertical: 20,
+            marginBottom: 20,
             gap: 40,
+            color: "#000",
           }}
         >
           <View
             style={{
               display: "flex",
-              flexDirection: "row",
-              gap: 10,
+              flexDirection: "column",
+              flex: 1,
             }}
           >
-            <Image
-              src="/assets/images/qrcode.png"
-              style={{ width: 50, height: 50 }}
-            />
+            <Text
+              style={{
+                fontWeight: "bold",
+                textAlign: "center",
+                backgroundColor: "#819AC2",
+                paddingTop: 2,
+                paddingBottom: 2,
+                fontSize: 10,
+              }}
+            >
+              Invoice #
+            </Text>
+            <Text
+              style={{
+                ...styles.deliveryInfo,
+                textAlign: "center",
+                paddingVertical: 2,
+                fontWeight: "bold",
+              }}
+            >
+              {sale.invoiceNumber || "N/A"}
+            </Text>
           </View>
-
           <View
             style={{
               display: "flex",
               flexDirection: "column",
               flex: 1,
-              gap: 10,
             }}
           >
-            <View style={styles.deliveryInfoContainer}>
-              <Text style={{ ...styles.deliveryInfo, flex: 1 }}>
-                {"Delivery Date"}
-              </Text>
-              <Text
-                style={{ ...styles.deliveryInfo, fontWeight: "bold", flex: 4 }}
-              >
-                {formatDateTime(del.deliveryDate).dateTime}
-              </Text>
-            </View>
-            <View style={styles.deliveryInfoContainer}>
-              <Text style={{ ...styles.deliveryInfo, flex: 1 }}>
-                {"Delivery Ref No."}
-              </Text>
-              <Text
-                style={{ ...styles.deliveryInfo, fontWeight: "bold", flex: 4 }}
-              >
-                {del.deliveryRefNumber}
-              </Text>
-            </View>
-            <View style={styles.deliveryInfoContainer}>
-              <Text style={{ ...styles.deliveryInfo, flex: 1 }}>
-                {"Delivery Status"}
-              </Text>
-              <Text
-                style={{ ...styles.deliveryInfo, fontWeight: "bold", flex: 4 }}
-              >
-                {del.status}
-              </Text>
-            </View>
-            <View style={styles.deliveryInfoContainer}>
-              <Text style={{ ...styles.deliveryInfo, flex: 1 }}>
-                {"Sale Date"}
-              </Text>
-              <Text
-                style={{ ...styles.deliveryInfo, fontWeight: "bold", flex: 4 }}
-              >
-                {sale ? formatDateTime(sale.saleDate).dateTime : "N/A"}
-              </Text>
-            </View>
-            <View style={styles.deliveryInfoContainer}>
-              <Text style={{ ...styles.deliveryInfo, flex: 1 }}>
-                {"Invoice Ref No."}
-              </Text>
-              <Text
-                style={{ ...styles.deliveryInfo, fontWeight: "bold", flex: 4 }}
-              >
-                {sale ? sale.invoiceNumber : "N/A"}
-              </Text>
-            </View>
-            <View style={styles.deliveryInfoContainer}>
-              <Text style={{ ...styles.deliveryInfo, flex: 1 }}>
-                {"Purchase Order No."}
-              </Text>
-              <Text
-                style={{ ...styles.deliveryInfo, fontWeight: "bold", flex: 4 }}
-              >
-                {"N/A"}
-              </Text>
-            </View>
-            <View style={styles.deliveryInfoContainer}>
-              <Text style={{ ...styles.deliveryInfo, flex: 1 }}>
-                {"Purchase Order Date"}
-              </Text>
-              <Text
-                style={{ ...styles.deliveryInfo, fontWeight: "bold", flex: 4 }}
-              >
-                {"N/A"}
-              </Text>
-            </View>
+            <Text
+              style={{
+                fontWeight: "bold",
+                textAlign: "center",
+                backgroundColor: "#819AC2",
+                paddingTop: 2,
+                paddingBottom: 2,
+                fontSize: 10,
+              }}
+            >
+              Delivery Date
+            </Text>
+            <Text
+              style={{
+                ...styles.deliveryInfo,
+                textAlign: "center",
+                paddingVertical: 2,
+                fontWeight: "bold",
+              }}
+            >
+              {formatDateTime(del.deliveryDate).dateOnly}
+            </Text>
+          </View>
+          <View
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              flex: 1,
+            }}
+          >
+            <Text
+              style={{
+                fontWeight: "bold",
+                textAlign: "center",
+                backgroundColor: "#819AC2",
+                paddingTop: 2,
+                paddingBottom: 2,
+                fontSize: 10,
+              }}
+            >
+              DN #
+            </Text>
+            <Text
+              style={{
+                ...styles.deliveryInfo,
+                textAlign: "center",
+                paddingVertical: 2,
+                fontWeight: "bold",
+              }}
+            >
+              {del.deliveryRefNumber || "N/A"}
+            </Text>
           </View>
         </View>
 
@@ -191,7 +228,7 @@ const DeliveryNote = ({ delivery }: { delivery: DeliveryWithRelations }) => {
             display: "flex",
             flexDirection: "row",
             marginBottom: 20,
-            gap: 40,
+            gap: 80,
           }}
         >
           <Address
@@ -246,7 +283,38 @@ const DeliveryNote = ({ delivery }: { delivery: DeliveryWithRelations }) => {
         </View>
 
         <View style={styles.pageBreakAvoidContainer}>
-          <SignatureAndBankSection />
+          <View wrap={false}>
+            {/* Signature */}
+            <View style={styles.signatureSection}>
+              <Signature title="Sales Manager" />
+              <View style={{ marginRight: 20 }}>
+                <Signature title="Customer" />
+              </View>
+            </View>
+
+            <View style={styles.detailsSection}>
+              <DeliveryTermsAndConditions />
+            </View>
+          </View>
+        </View>
+        <View
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            marginTop: 15,
+          }}
+        >
+          <Text
+            style={{
+              textAlign: "center",
+              fontWeight: "bold",
+              fontSize: 10,
+              color: "#002060",
+            }}
+          >
+            Thank You for Doing Business with us
+          </Text>
         </View>
 
         <PDFFooter />

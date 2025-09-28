@@ -10,7 +10,7 @@ import {
   Image,
 } from "@react-pdf/renderer";
 import { SaleWithRelations } from "@/types";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDateTime } from "@/lib/utils";
 import PDFFooter from "../pdf-template/PDFFooter";
 import PDFHeader from "../pdf-template/PDFHeader";
 import Address from "../pdf-template/Address";
@@ -209,7 +209,7 @@ const SaleInvoice = ({
                   fontSize: 10,
                 }}
               >
-                Date:
+                Date
               </Text>
               <Text
                 style={{
@@ -219,7 +219,7 @@ const SaleInvoice = ({
                   fontWeight: "bold",
                 }}
               >
-                {new Date(sal.saleDate).toDateString()}
+                {formatDateTime(sal.saleDate).dateOnly}
               </Text>
             </View>
             <View
@@ -239,7 +239,7 @@ const SaleInvoice = ({
                   fontSize: 10,
                 }}
               >
-                Invoice #:
+                Invoice #
               </Text>
               <Text
                 style={{

@@ -13,7 +13,6 @@ import { Mail } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import QuotationPDF from "./QuotationPDF";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
-import { useProducts } from "@/hooks/useProducts";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,7 +29,6 @@ const QuotationActions = ({
   const [mode, setMode] = useState<"add" | "edit" | "delete" | "view">("add");
 
   const { companySettings } = useCompanySettings();
-  const { products } = useProducts({ getAllProducts: true });
 
   const router = useRouter();
   const supabase = createSupabaseBrowserClient();
@@ -109,7 +107,6 @@ const QuotationActions = ({
         <QuotationPDF
           quotation={quotation}
           currencySymbol={companySettings?.currencySymbol || "$"}
-          allProducts={products || []}
         />
       ).toBlob();
       const url = URL.createObjectURL(blob);
