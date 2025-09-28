@@ -16,6 +16,7 @@ import PDFHeader from "../pdf-template/PDFHeader";
 import { formatDateTime } from "@/lib/utils";
 import Signature from "../pdf-template/Signature";
 import DeliveryTermsAndConditions from "../pdf-template/DeliveryTermsAndConditions";
+import ThankYouNote from "../pdf-template/ThankYouNote";
 
 // styles
 const styles = StyleSheet.create({
@@ -297,25 +298,8 @@ const DeliveryNote = ({ delivery }: { delivery: DeliveryWithRelations }) => {
             </View>
           </View>
         </View>
-        <View
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            marginTop: 15,
-          }}
-        >
-          <Text
-            style={{
-              textAlign: "center",
-              fontWeight: "bold",
-              fontSize: 10,
-              color: "#002060",
-            }}
-          >
-            Thank You for Doing Business with us
-          </Text>
-        </View>
+
+        <ThankYouNote />
 
         <PDFFooter />
       </Page>

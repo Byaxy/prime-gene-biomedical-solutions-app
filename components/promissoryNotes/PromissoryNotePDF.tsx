@@ -11,73 +11,120 @@ import {
 import PDFFooter from "../pdf-template/PDFFooter";
 import Address from "../pdf-template/Address";
 import PDFHeader from "../pdf-template/PDFHeader";
-import PDFTittle from "../pdf-template/PDFTittle";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import Signature from "../pdf-template/Signature";
+import PromissoryTermsAndConditions from "../pdf-template/PromissoryTermsAndConditions";
+import ThankYouNote from "../pdf-template/ThankYouNote";
 
 // styles
 const styles = StyleSheet.create({
   page: {
     flexDirection: "column",
     backgroundColor: "#FFFFFF",
-    padding: 20,
+    padding: 15,
     fontSize: 10,
-    color: "#072a69",
+    color: "#000",
     fontFamily: "Times-Roman",
+    position: "relative",
+  },
+  backgroundImage: {
+    position: "absolute",
+    top: "25%",
+    left: "15%",
+    width: 440,
+    height: 420,
+    opacity: 0.1,
+    zIndex: -1,
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
-    fontSize: 8,
-    paddingVertical: 2,
+    fontSize: 10,
   },
   headerRow: {
     flexDirection: "row",
-    backgroundColor: "#002060",
+    backgroundColor: "#819AC2",
     fontWeight: "bold",
-    color: "#00fdff",
-    fontSize: 9,
-    paddingVertical: 4,
+    color: "#000",
+    fontSize: 10,
   },
   evenRow: {
-    backgroundColor: "#E8E9E9",
+    backgroundColor: "#D5DCE4",
   },
-  col1: { width: "5%", paddingHorizontal: 5 },
-  col2: { width: "8%" },
-  col3: { width: "50%" },
-  col4: { width: "15%", paddingHorizontal: 10 },
-  col5: { width: "12%" },
-  col6: { width: "10%" },
-  col7: { width: "90%" },
+  col1: {
+    width: "5%",
+    paddingHorizontal: 5,
+    paddingVertical: 5,
+  },
+  col2: {
+    width: "12%",
+    paddingVertical: 5,
+    paddingRight: 5,
+  },
+  col3: {
+    width: "55%",
+    paddingVertical: 5,
+  },
+  col4: {
+    width: "8%",
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  col5: {
+    width: "10%",
+    paddingVertical: 5,
+  },
+  col6: {
+    width: "10%",
+    paddingVertical: 5,
+  },
   title: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "bold",
+    color: "#000",
   },
-  info: {
+  companyInfo: {
     fontSize: 9,
     marginBottom: 2,
-  },
-  infoContainer: {
-    display: "flex",
-    flexDirection: "row",
-    flex: 1,
-    gap: 20,
-  },
-  tableContainer: {
-    flexGrow: 1,
-  },
-  pageBreakAvoidContainer: {
-    marginTop: "auto",
   },
   summary: {
     marginTop: 10,
     alignSelf: "flex-end",
-    width: "25%",
+    width: "30%",
   },
   summaryRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 5,
+    paddingHorizontal: 5,
+    fontWeight: "bold",
+  },
+  summaryRowWithBorder: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 5,
+    paddingHorizontal: 5,
+    paddingVertical: 4,
+    fontWeight: "bold",
+    backgroundColor: "#819AC2",
+  },
+
+  tableContainer: {
+    flexGrow: 1,
+    color: "#000",
+  },
+  pageBreakAvoidContainer: {
+    marginTop: "auto",
+  },
+  signatureSection: {
+    display: "flex",
+    flexDirection: "row",
+    gap: 40,
+  },
+  bankSection: {
+    display: "flex",
+    flexDirection: "row",
+    gap: 40,
   },
 });
 
@@ -92,91 +139,102 @@ const PromissoryNotePDF = ({
   return (
     <Document>
       <Page size="A4" style={styles.page}>
+        {/* Background Image */}
+        <Image
+          style={styles.backgroundImage}
+          src="/assets/logos/logo3.jpeg"
+          fixed
+        />
         {/* Header */}
         <PDFHeader />
         {/* Title */}
-        <PDFTittle title="Promisssory Note" />
 
         {/* Info */}
         <View
           style={{
             display: "flex",
             flexDirection: "row",
-            marginVertical: 20,
+            marginBottom: 20,
             gap: 40,
           }}
         >
           <View
             style={{
               display: "flex",
-              flexDirection: "row",
-              gap: 10,
+              flexDirection: "column",
+              alignItems: "flex-end",
+              flex: 2,
             }}
           >
-            <Image
-              src="/assets/images/qrcode.png"
-              style={{ width: 50, height: 50 }}
-            />
+            <Text style={styles.title}>PROMISSORY NOTE</Text>
           </View>
 
           <View
             style={{
               display: "flex",
-              flexDirection: "column",
+              flexDirection: "row",
               flex: 1,
-              gap: 10,
+              color: "#000",
             }}
           >
-            <View style={styles.infoContainer}>
-              <Text style={{ ...styles.info, flex: 1 }}>{"Delivery Date"}</Text>
-              <Text style={{ ...styles.info, fontWeight: "bold", flex: 4 }}>
-                {formatDateTime(note.promissoryNoteDate).dateTime}
+            <View
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                flex: 1,
+              }}
+            >
+              <Text
+                style={{
+                  fontWeight: "bold",
+                  textAlign: "center",
+                  backgroundColor: "#819AC2",
+                  paddingTop: 2,
+                  paddingBottom: 2,
+                  fontSize: 10,
+                }}
+              >
+                Date
+              </Text>
+              <Text
+                style={{
+                  ...styles.companyInfo,
+                  textAlign: "center",
+                  paddingVertical: 2,
+                  fontWeight: "bold",
+                }}
+              >
+                {formatDateTime(note.promissoryNoteDate).dateOnly}
               </Text>
             </View>
-            <View style={styles.infoContainer}>
-              <Text style={{ ...styles.info, flex: 1 }}>
-                {"Delivery Ref No."}
+            <View
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                flex: 1,
+              }}
+            >
+              <Text
+                style={{
+                  fontWeight: "bold",
+                  textAlign: "center",
+                  backgroundColor: "#819AC2",
+                  paddingTop: 2,
+                  paddingBottom: 2,
+                  fontSize: 10,
+                }}
+              >
+                Invoice #
               </Text>
-              <Text style={{ ...styles.info, fontWeight: "bold", flex: 4 }}>
-                {note.promissoryNoteRefNumber}
-              </Text>
-            </View>
-            <View style={styles.infoContainer}>
-              <Text style={{ ...styles.info, flex: 1 }}>
-                {"Delivery Status"}
-              </Text>
-              <Text style={{ ...styles.info, fontWeight: "bold", flex: 4 }}>
-                {note.status}
-              </Text>
-            </View>
-            <View style={styles.infoContainer}>
-              <Text style={{ ...styles.info, flex: 1 }}>{"Sale Date"}</Text>
-              <Text style={{ ...styles.info, fontWeight: "bold", flex: 4 }}>
-                {formatDateTime(sale.saleDate).dateTime}
-              </Text>
-            </View>
-            <View style={styles.infoContainer}>
-              <Text style={{ ...styles.info, flex: 1 }}>
-                {"Invoice Ref No."}
-              </Text>
-              <Text style={{ ...styles.info, fontWeight: "bold", flex: 4 }}>
-                {sale.invoiceNumber}
-              </Text>
-            </View>
-            <View style={styles.infoContainer}>
-              <Text style={{ ...styles.info, flex: 1 }}>
-                {"Purchase Order No."}
-              </Text>
-              <Text style={{ ...styles.info, fontWeight: "bold", flex: 4 }}>
-                {"N/A"}
-              </Text>
-            </View>
-            <View style={styles.infoContainer}>
-              <Text style={{ ...styles.info, flex: 1 }}>
-                {"Purchase Order Date"}
-              </Text>
-              <Text style={{ ...styles.info, fontWeight: "bold", flex: 4 }}>
-                {"N/A"}
+              <Text
+                style={{
+                  ...styles.companyInfo,
+                  textAlign: "center",
+                  paddingVertical: 2,
+                  fontWeight: "bold",
+                }}
+              >
+                {sale.invoiceNumber || "N/A"}
               </Text>
             </View>
           </View>
@@ -188,11 +246,11 @@ const PromissoryNotePDF = ({
             display: "flex",
             flexDirection: "row",
             marginBottom: 20,
-            gap: 40,
+            gap: 80,
           }}
         >
           <Address
-            addressTitle="Billing Address:"
+            addressTitle="Billing Address"
             name={customer.name}
             address={customer.address.address}
             phone={customer.phone}
@@ -202,12 +260,12 @@ const PromissoryNotePDF = ({
           />
 
           <Address
-            addressTitle="Delivery Address:"
+            addressTitle="Delivery Address"
             name={customer.name}
-            address={customer.address.address}
-            phone={customer.phone}
-            email={customer.email}
-            city={customer.address.city}
+            address={customer.address.address || ""}
+            phone={customer.phone || ""}
+            email={customer.email || ""}
+            city={customer.address.city || ""}
             country={customer.address.country}
           />
         </View>
@@ -216,12 +274,12 @@ const PromissoryNotePDF = ({
         <View style={styles.tableContainer}>
           {/* Table Header */}
           <View style={styles.headerRow}>
-            <Text style={styles.col1}>#</Text>
+            <Text style={styles.col1}>S/N</Text>
             <Text style={styles.col2}>PID</Text>
             <Text style={styles.col3}>Product Description</Text>
-            <Text style={styles.col4}>Quantity</Text>
+            <Text style={styles.col4}>Qnty</Text>
             <Text style={styles.col5}>Unit Price</Text>
-            <Text style={styles.col6}>Sub Total</Text>
+            <Text style={styles.col6}>Sub-Total</Text>
           </View>
 
           {/* Table Rows */}
@@ -236,94 +294,63 @@ const PromissoryNotePDF = ({
               <Text style={styles.col2}>{product.productID}</Text>
               <Text style={styles.col3}>{product.productName}</Text>
               <Text style={styles.col4}>{product.quantity}</Text>
-              <Text style={styles.col5}>{product.unitPrice}</Text>
-              <Text style={styles.col6}>
-                {formatCurrency(String(product.subTotal), currency)}
-              </Text>
+              <Text style={styles.col5}>{product.unitPrice.toFixed(2)}</Text>
+              <Text style={styles.col6}>{product.subTotal.toFixed(2)}</Text>
             </View>
           ))}
           {/* Summary */}
           <View style={styles.summary} wrap={false}>
-            <View style={{ ...styles.summaryRow, fontWeight: "bold" }}>
-              <Text>Grand Total:</Text>
-              <Text style={{ width: "40%" }}>
-                {formatCurrency(String(note.totalAmount), currency)}
+            <View style={styles.summaryRowWithBorder}>
+              <Text>Grand Total ({currency}):</Text>
+              <Text style={{ width: "32%" }}>
+                {formatCurrency(String(note.totalAmount.toFixed(2)), currency)}
               </Text>
             </View>
           </View>
         </View>
 
-        <View
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            paddingHorizontal: 40,
-            paddingTop: 2,
-            marginBottom: 20,
-          }}
-        >
-          <Text style={styles.info}>
-            In consideration of the valued to be received, NORTHLAND BIOMEDICAL
-            SOLUTION do hereby promise to supplied the above items. In event
-            this Note is in default and the collection proceedings are
-            instituted, NORTHLAN BIOMEDICAL SOLUTIONS agrees to pay back the
-            amount equivalent that will be due.
-          </Text>
-        </View>
-
         <View style={styles.pageBreakAvoidContainer}>
           <View
-            wrap={false}
             style={{
               display: "flex",
-              flexDirection: "row",
-              justifyContent: "space-between",
+              alignItems: "center",
+              justifyContent: "center",
+              marginVertical: 20,
+              paddingHorizontal: 60,
             }}
           >
-            <View style={{ width: "50%" }}>
-              <Signature
-                signatureUrl={"/assets/images/signature.png"}
-                title="Sales Manager"
-              />
+            <Text
+              style={{
+                textAlign: "justify",
+                fontSize: 10,
+                color: "#000",
+                lineHeight: 1.2,
+              }}
+            >
+              In consideration of the valued to be received, NORTHLAND
+              BIOMEDICAL SOLUTION do hereby promise to supplied the above items.
+              In the event this note is in default and the collection
+              proceedings are instituted, NBS agrees to pay back the amount
+              equivalent that will be due.
+            </Text>
+          </View>
+          <View wrap={false}>
+            {/* Signature */}
+            <View style={styles.signatureSection}>
+              <Signature title="Sales Manager" />
+              <View style={{ marginRight: 20 }}>
+                <Signature title="Customer" />
+              </View>
             </View>
-            <View style={{ width: "50%" }}>
-              <Signature title="Customer" />
+
+            {/* Bank Details - Terms & Conditions */}
+            <View style={styles.bankSection}>
+              <PromissoryTermsAndConditions />
             </View>
           </View>
         </View>
-        <View
-          style={{
-            flex: 1,
-            display: "flex",
-            flexDirection: "column",
-          }}
-        >
-          <View
-            style={{
-              backgroundColor: "#E8E9E9",
-              paddingVertical: 2,
-              paddingHorizontal: 5,
-              width: "20%",
-            }}
-          >
-            <Text style={{ fontWeight: "bold", fontSize: 9 }}>
-              Terms & Conditions
-            </Text>
-          </View>
-          <View
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              paddingHorizontal: 5,
-              paddingTop: 2,
-            }}
-          >
-            <Text style={styles.info}>
-              By signing above, you agree the terms on this Promissory note are
-              correct and accurate, no other terms & conditions shall apply.
-            </Text>
-          </View>
-        </View>
+
+        <ThankYouNote />
 
         <PDFFooter />
       </Page>
