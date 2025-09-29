@@ -495,18 +495,41 @@ export const getWaybills = async (
               )
           : [];
 
-      // Create a map of waybill ID to its items
-      const itemsMap = new Map();
-      items.forEach((item) => {
-        if (!itemsMap.has(item.waybillId)) {
-          itemsMap.set(item.waybillId, []);
+      // Get all inventory records for these waybill items
+      const waybillItemIds = items.map((item) => item.id);
+      const inventoryRecords =
+        waybillItemIds.length > 0
+          ? await tx
+              .select()
+              .from(waybillItemInventoryTable)
+              .where(
+                and(
+                  inArray(
+                    waybillItemInventoryTable.waybillItemId,
+                    waybillItemIds
+                  ),
+                  eq(waybillItemInventoryTable.isActive, true)
+                )
+              )
+          : [];
+
+      // Create a map of waybill item ID to its inventory records
+      const inventoryMap = new Map();
+      inventoryRecords.forEach((record) => {
+        if (!inventoryMap.has(record.waybillItemId)) {
+          inventoryMap.set(record.waybillItemId, []);
         }
-        itemsMap.get(item.waybillId).push(item);
+        inventoryMap.get(record.waybillItemId).push(record);
       });
 
       const waybillsWithItems = waybills.map((bill) => ({
         ...bill,
-        products: itemsMap.get(bill.waybill.id) || [],
+        products: items
+          .filter((item) => item.waybillId === bill.waybill.id)
+          .map((item) => ({
+            ...item,
+            inventoryStock: inventoryMap.get(item.id) || [],
+          })),
       }));
 
       // Get total count for pagination
@@ -1476,12 +1499,41 @@ export const convertLoanWaybill = async (
         .returning();
 
       const newLoanWaybillItems = [];
+      const newWaybillItemInventoryInserts: (typeof waybillItemInventoryTable.$inferInsert)[] =
+        [];
 
-      // Get all loan waybill items
+      // Get all loan waybill items and their associated inventory
       const loanWaybillItems = await tx
         .select()
         .from(waybillItemsTable)
         .where(eq(waybillItemsTable.waybillId, loanWaybillId));
+
+      // Fetch all inventory associated with the original loan waybill items
+      const loanWaybillItemIds = loanWaybillItems.map((item) => item.id);
+      const loanWaybillItemInventories =
+        loanWaybillItemIds.length > 0
+          ? await tx
+              .select()
+              .from(waybillItemInventoryTable)
+              .where(
+                inArray(
+                  waybillItemInventoryTable.waybillItemId,
+                  loanWaybillItemIds
+                )
+              )
+          : [];
+
+      // Create a map for quick lookup of inventory by waybillItemId
+      const loanWaybillInventoryMap = new Map<
+        string,
+        (typeof waybillItemInventoryTable.$inferSelect)[]
+      >();
+      for (const inv of loanWaybillItemInventories) {
+        if (!loanWaybillInventoryMap.has(inv.waybillItemId)) {
+          loanWaybillInventoryMap.set(inv.waybillItemId, []);
+        }
+        loanWaybillInventoryMap.get(inv.waybillItemId)?.push(inv);
+      }
 
       // Process each product to be converted
       for (const product of data.products) {
@@ -1515,6 +1567,41 @@ export const convertLoanWaybill = async (
             productID: product.productID,
           })
           .returning();
+
+        // **NEW LOGIC: Associate inventory from the original loan waybill item**
+        const associatedLoanInventories =
+          loanWaybillInventoryMap.get(waybillItem.id) || [];
+        let remainingQuantityToConvert = product.quantityToConvert;
+
+        for (const loanInv of associatedLoanInventories) {
+          if (remainingQuantityToConvert <= 0) break;
+
+          const quantityToTakeFromLoanInv = Math.min(
+            remainingQuantityToConvert,
+            loanInv.quantityTaken // Quantity originally taken for the loan
+          );
+
+          if (quantityToTakeFromLoanInv > 0) {
+            newWaybillItemInventoryInserts.push({
+              waybillItemId: newWaybillItem.id, // Link to the NEW conversion waybill item
+              inventoryStockId: loanInv.inventoryStockId,
+              lotNumber: loanInv.lotNumber,
+              quantityTaken: quantityToTakeFromLoanInv, // The portion being converted
+              unitPrice: loanInv.unitPrice,
+            });
+            remainingQuantityToConvert -= quantityToTakeFromLoanInv;
+          }
+        }
+
+        // If there's still quantity to convert but no more associated loan inventory
+        // (This scenario implies an inconsistency or partial conversion setup.
+        // For now, we'll throw an error to ensure data integrity)
+        if (remainingQuantityToConvert > 0) {
+          throw new Error(
+            `Could not find enough associated loan inventory for product ${product.productID} to match conversion quantity.`
+          );
+        }
+        // END NEW LOGIC
 
         // Calculate new converted quantity
         const newConvertedQuantity =
@@ -1627,6 +1714,14 @@ export const convertLoanWaybill = async (
 
         newLoanWaybillItems.push(newWaybillItem);
       }
+
+      // **NEW LOGIC: Insert the new waybill item inventory records**
+      if (newWaybillItemInventoryInserts.length > 0) {
+        await tx
+          .insert(waybillItemInventoryTable)
+          .values(newWaybillItemInventoryInserts);
+      }
+      // END NEW LOGIC
 
       // Update the loan waybill with sale information and conversion status
       const updatedLoanWaybillItems = await tx
