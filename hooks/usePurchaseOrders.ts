@@ -5,124 +5,278 @@ import {
   getPurchaseOrders,
   softDeletePurchaseOrder,
 } from "@/lib/actions/purchaseOrder.actions";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { PurchaseOrderFormValues } from "@/lib/validation";
+import { PurchaseOrderWithRelations } from "@/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useTransition } from "react";
 import toast from "react-hot-toast";
 
 interface UsePurchaseOrdersOptions {
   getAllPurchaseOrders?: boolean;
-  initialPageSize?: number;
+  initialData?: { documents: PurchaseOrderWithRelations[]; total: number };
 }
 
 export interface PurchaseOrderFilters {
+  search?: string;
   totalAmount_min?: number;
   totalAmount_max?: number;
   purchaseOrderDate_start?: string;
   purchaseOrderDate_end?: string;
   status?: string;
+  isConvertedToPurchase?: boolean;
 }
 
 export const defaultPurchaseOrderFilters: PurchaseOrderFilters = {
+  search: undefined,
   totalAmount_min: undefined,
   totalAmount_max: undefined,
   purchaseOrderDate_start: undefined,
   purchaseOrderDate_end: undefined,
   status: undefined,
+  isConvertedToPurchase: undefined,
 };
 
 export const usePurchaseOrders = ({
   getAllPurchaseOrders = false,
-  initialPageSize = 10,
+  initialData,
 }: UsePurchaseOrdersOptions = {}) => {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(initialPageSize);
-  const [filters, setFilters] = useState<PurchaseOrderFilters>(
-    defaultPurchaseOrderFilters
+  const [isPending, startTransition] = useTransition();
+
+  // Parse current state from URL - single source of truth
+  const currentState = useMemo(() => {
+    if (getAllPurchaseOrders) {
+      return {
+        page: 0,
+        pageSize: 0,
+        search: "",
+      };
+    }
+
+    const page = Number(searchParams.get("page") || 0);
+    const pageSize = Number(searchParams.get("pageSize") || 10);
+    const search = searchParams.get("search") || "";
+
+    const filters: PurchaseOrderFilters = {
+      search: search || undefined,
+      totalAmount_min: searchParams.get("totalAmount_min")
+        ? Number(searchParams.get("totalAmount_min"))
+        : undefined,
+      totalAmount_max: searchParams.get("totalAmount_max")
+        ? Number(searchParams.get("totalAmount_max"))
+        : undefined,
+
+      status: searchParams.get("status") || undefined,
+      purchaseOrderDate_start:
+        searchParams.get("purchaseOrderDate_start") || undefined,
+      purchaseOrderDate_end:
+        searchParams.get("purchaseOrderDate_end") || undefined,
+      isConvertedToPurchase: searchParams.get("isConvertedToPurchase")
+        ? searchParams.get("isConvertedToPurchase") === "true"
+        : undefined,
+    };
+
+    return { page, pageSize, filters, search };
+  }, [getAllPurchaseOrders, searchParams]);
+
+  // Create stable query key
+  const queryKey = useMemo(() => {
+    const { page, pageSize, filters } = currentState;
+    const filterString = JSON.stringify(filters);
+    return ["purchaseOrders", page, pageSize, filterString];
+  }, [currentState]);
+
+  // Main query with server state
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      const { page, pageSize, filters } = currentState;
+      return getPurchaseOrders(
+        page,
+        pageSize,
+        getAllPurchaseOrders || pageSize === 0,
+        filters
+      );
+    },
+    initialData: initialData ? () => initialData : undefined,
+    staleTime: getAllPurchaseOrders ? 60000 : 30000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
+
+  // Optimistic navigation function
+  const navigate = useCallback(
+    (
+      updates: Partial<{
+        page: number;
+        pageSize: number;
+        search: string;
+        filters: Partial<PurchaseOrderFilters>;
+      }>
+    ) => {
+      const params = new URLSearchParams(searchParams.toString());
+
+      // Apply updates
+      if (updates.page !== undefined) {
+        if (updates.page === 0) {
+          params.delete("page");
+        } else {
+          params.set("page", String(updates.page));
+        }
+      }
+
+      if (updates.pageSize !== undefined) {
+        if (updates.pageSize === 10) {
+          params.delete("pageSize");
+        } else {
+          params.set("pageSize", String(updates.pageSize));
+        }
+      }
+
+      if (updates.search !== undefined) {
+        if (updates.search.trim()) {
+          params.set("search", updates.search.trim());
+        } else {
+          params.delete("search");
+        }
+        params.delete("page");
+      }
+
+      if (updates.filters) {
+        Object.keys(defaultPurchaseOrderFilters).forEach((key) =>
+          params.delete(key)
+        );
+
+        Object.entries(updates.filters).forEach(([key, value]) => {
+          if (value === undefined || value === "" || value === null) {
+            params.delete(key);
+          } else {
+            params.set(key, String(value));
+          }
+        });
+        params.delete("page");
+      }
+
+      const newUrl = `?${params.toString()}`;
+
+      // Use startTransition for non-urgent updates
+      startTransition(() => {
+        router.push(newUrl, { scroll: false });
+      });
+
+      // Prefetch the new data immediately
+      const newParams = new URLSearchParams(newUrl.substring(1));
+      const newPage = Number(newParams.get("page") || 0);
+      const newPageSize = Number(newParams.get("pageSize") || 10);
+      const newFilters: PurchaseOrderFilters = {
+        search: newParams.get("search") || undefined,
+        totalAmount_min: newParams.get("totalAmount_min")
+          ? Number(newParams.get("totalAmount_min"))
+          : undefined,
+        totalAmount_max: newParams.get("totalAmount_max")
+          ? Number(newParams.get("totalAmount_max"))
+          : undefined,
+
+        status: newParams.get("status") || undefined,
+        purchaseOrderDate_start:
+          newParams.get("purchaseOrderDate_start") || undefined,
+        purchaseOrderDate_end:
+          newParams.get("purchaseOrderDate_end") || undefined,
+        isConvertedToPurchase: newParams.get("isConvertedToPurchase")
+          ? newParams.get("isConvertedToPurchase") === "true"
+          : undefined,
+      };
+
+      const newQueryKey = [
+        "purchaseOrders",
+        newPage,
+        newPageSize,
+        JSON.stringify(newFilters),
+      ];
+
+      queryClient.prefetchQuery({
+        queryKey: newQueryKey,
+        queryFn: () =>
+          getPurchaseOrders(
+            newPage,
+            newPageSize,
+            newPageSize === 0,
+            newFilters
+          ),
+      });
+    },
+    [router, searchParams, queryClient]
   );
 
-  const shouldFetchAll = getAllPurchaseOrders;
-
-  const isShowAllMode = pageSize === 0;
-
-  // Query for all Purchase orders
-  const allPurchaseOrdersQuery = useQuery({
-    queryKey: ["purchaseOrders", filters],
-    queryFn: async () => {
-      const result = await getPurchaseOrders(0, 0, true, filters);
-      return result.documents;
+  const setPage = useCallback(
+    (page: number) => {
+      if (getAllPurchaseOrders) return;
+      navigate({ page });
     },
-    enabled: shouldFetchAll || isShowAllMode,
-  });
+    [getAllPurchaseOrders, navigate]
+  );
 
-  // Query for paginated Purchase orders
-  const paginatedPurchaseOrdersQuery = useQuery({
-    queryKey: [
-      "purchaseOrders",
-      "paginatedPurchaseOrders",
-      page,
-      pageSize,
-      filters,
-    ],
-    queryFn: async () => {
-      const result = await getPurchaseOrders(page, pageSize, false, filters);
-      return result;
+  const setPageSize = useCallback(
+    (pageSize: number) => {
+      if (getAllPurchaseOrders) return;
+      navigate({ pageSize, page: 0 });
     },
-    enabled: !shouldFetchAll || !isShowAllMode,
-  });
+    [getAllPurchaseOrders, navigate]
+  );
 
-  // Determine which query data to use
-  const activeQuery =
-    shouldFetchAll || isShowAllMode
-      ? allPurchaseOrdersQuery
-      : paginatedPurchaseOrdersQuery;
-  const purchaseOrders =
-    (shouldFetchAll || isShowAllMode
-      ? activeQuery.data
-      : activeQuery.data?.documents) || [];
-  const totalItems = activeQuery.data?.total || 0;
+  const setSearch = useCallback(
+    (search: string) => {
+      if (getAllPurchaseOrders) return;
+      navigate({ search });
+    },
+    [getAllPurchaseOrders, navigate]
+  );
 
-  // Prefetch next page for table view
+  const setFilters = useCallback(
+    (filters: Partial<PurchaseOrderFilters>) => {
+      if (getAllPurchaseOrders) return;
+      navigate({ filters });
+    },
+    [getAllPurchaseOrders, navigate]
+  );
+
+  const clearFilters = useCallback(() => {
+    if (getAllPurchaseOrders) return;
+    navigate({
+      filters: defaultPurchaseOrderFilters,
+      search: "",
+      page: 0,
+      pageSize: 10,
+    });
+  }, [getAllPurchaseOrders, navigate]);
+
+  // Real-time updates
   useEffect(() => {
-    if (
-      !shouldFetchAll &&
-      !isShowAllMode &&
-      paginatedPurchaseOrdersQuery.data &&
-      page * pageSize < paginatedPurchaseOrdersQuery.data.total - pageSize
-    ) {
-      queryClient.prefetchQuery({
-        queryKey: [
-          "purchaseOrders",
-          "paginatedPurchaseOrders",
-          page + 1,
-          pageSize,
-          filters,
-        ],
-        queryFn: () => getPurchaseOrders(page + 1, pageSize, false, filters),
-      });
-    }
-  }, [
-    page,
-    pageSize,
-    paginatedPurchaseOrdersQuery.data,
-    queryClient,
-    shouldFetchAll,
-    isShowAllMode,
-    filters,
-  ]);
+    const supabase = createSupabaseBrowserClient();
 
-  // Handle filter changes
-  const handleFilterChange = (newFilters: PurchaseOrderFilters) => {
-    setFilters(newFilters);
-    setPage(0);
-  };
+    const channel = supabase
+      .channel("purchase_orders_changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "purchase_orders",
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["purchaseOrders"] });
+        }
+      )
+      .subscribe();
 
-  // Handle page size changes
-  const handlePageSizeChange = (newPageSize: number) => {
-    setPageSize(newPageSize);
-    setPage(0);
-  };
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   const { mutate: addPurchaseOrderMutation, status: addPurchaseOrderStatus } =
     useMutation({
@@ -131,7 +285,7 @@ export const usePurchaseOrders = ({
       },
       onSuccess: () => {
         queryClient.invalidateQueries({
-          queryKey: ["purchaseOrders", "paginatedPurchaseOrders"],
+          queryKey: ["purchaseOrders"],
         });
       },
       onError: (error) => {
@@ -152,7 +306,7 @@ export const usePurchaseOrders = ({
       },
       onSuccess: () => {
         queryClient.invalidateQueries({
-          queryKey: ["purchaseOrders", "paginatedPurchaseOrders"],
+          queryKey: ["purchaseOrders"],
         });
       },
       onError: (error) => {
@@ -167,7 +321,7 @@ export const usePurchaseOrders = ({
     mutationFn: (id: string) => softDeletePurchaseOrder(id),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["purchaseOrders", "paginatedPurchaseOrders"],
+        queryKey: ["purchaseOrders"],
       });
     },
     onError: (error) => {
@@ -182,7 +336,7 @@ export const usePurchaseOrders = ({
     mutationFn: (id: string) => deletePurchaseOrder(id),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["purchaseOrders", "paginatedPurchaseOrders"],
+        queryKey: ["purchaseOrders"],
       });
     },
     onError: (error) => {
@@ -192,19 +346,21 @@ export const usePurchaseOrders = ({
   });
 
   return {
-    purchaseOrders,
-    totalItems,
-    isLoading: activeQuery.isLoading,
-    error: activeQuery.error,
-    setPageSize: handlePageSizeChange,
-    refetch: activeQuery.refetch,
-    isFetching: activeQuery.isFetching,
-    page,
+    purchaseOrders: data?.documents || [],
+    totalItems: data?.total || 0,
+    page: currentState.page,
+    pageSize: currentState.pageSize,
+    search: currentState.search,
+    filters: currentState.filters,
+    isLoading: isLoading || isPending,
+    isFetching,
+    error,
     setPage,
-    pageSize,
-    filters,
-    onFilterChange: handleFilterChange,
-    defaultFilterValues: defaultPurchaseOrderFilters,
+    setPageSize,
+    setSearch,
+    setFilters,
+    clearFilters,
+    refetch: refetch,
     addPurchaseOrder: addPurchaseOrderMutation,
     isCreatingPurchaseOrder: addPurchaseOrderStatus === "pending",
     editPurchaseOrder: editPurchaseOrderMutation,

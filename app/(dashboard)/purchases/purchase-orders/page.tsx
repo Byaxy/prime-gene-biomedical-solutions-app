@@ -1,55 +1,64 @@
-"use client";
-
 import PageWraper from "@/components/PageWraper";
-import PurchaseOrderDialog from "@/components/purchaseOrders/PurchaseOrderDialog";
-import { purchaseOrderColumns } from "@/components/table/columns/purchaseOrderColumns";
-import { DataTable } from "@/components/table/DataTable";
-import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
-import { PurchaseOrderWithRelations, PurchaseStatus } from "@/types";
-import React, { useState } from "react";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
+import { PurchaseOrderFilters } from "@/hooks/usePurchaseOrders";
+import { getPurchaseOrders } from "@/lib/actions/purchaseOrder.actions";
+import dynamic from "next/dynamic";
+import React, { Suspense } from "react";
 
-const PurchaseOrders = () => {
-  const [openDialog, setOpenDialog] = useState(false);
-  const [selectedPurchaseOrder, setSelectedPurchaseOrder] = useState(
-    {} as PurchaseOrderWithRelations
+const PurchaseOrdersTableData = async ({
+  currentPage,
+  currentPageSize,
+  filters,
+}: {
+  currentPage: number;
+  currentPageSize: number;
+  filters: PurchaseOrderFilters;
+}) => {
+  const initialData = await getPurchaseOrders(
+    currentPage,
+    currentPageSize,
+    currentPageSize === 0,
+    filters
   );
-  const {
-    purchaseOrders,
-    totalItems,
-    page,
-    setPage,
-    pageSize,
-    setPageSize,
-    isLoading,
-    refetch,
-    isFetching,
-    filters,
-    onFilterChange,
-    defaultFilterValues,
-  } = usePurchaseOrders({ initialPageSize: 10 });
+  const PurchaseOrdersTable = dynamic(
+    () => import("@/components/purchaseOrders/PurchaseOrdersTable")
+  );
+  return <PurchaseOrdersTable initialData={initialData} />;
+};
 
-  const handleRowClick = (rowData: PurchaseOrderWithRelations) => {
-    setSelectedPurchaseOrder(rowData);
-    setOpenDialog(true);
-  };
+export interface SearchParams {
+  page?: string;
+  pageSize?: string;
+  search?: string;
+  totalAmount_min?: number;
+  totalAmount_max?: number;
+  purchaseOrderDate_start?: string;
+  purchaseOrderDate_end?: string;
+  status?: string;
+  isConvertedToPurchase?: boolean;
+}
 
-  const purchaseOrderFilters = {
-    totalAmount: {
-      type: "number" as const,
-      label: "Grand Total",
-    },
-    purchaseOrderDate: {
-      type: "date" as const,
-      label: "Purchase Order Date",
-    },
-    status: {
-      type: "select" as const,
-      label: "Purchase Order Status",
-      options: Object.values(PurchaseStatus).map((item) => ({
-        label: item,
-        value: item,
-      })),
-    },
+const PurchaseOrders = async ({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) => {
+  const sp = await searchParams;
+  const currentPage = Number(sp.page || 0);
+  const currentPageSize = sp.pageSize === "0" ? 0 : Number(sp.pageSize || 10);
+
+  const filtersForServer: PurchaseOrderFilters = {
+    search: sp.search || undefined,
+    totalAmount_min: sp.totalAmount_min
+      ? Number(sp.totalAmount_min)
+      : undefined,
+    totalAmount_max: sp.totalAmount_max
+      ? Number(sp.totalAmount_max)
+      : undefined,
+    purchaseOrderDate_start: sp.purchaseOrderDate_start || undefined,
+    purchaseOrderDate_end: sp.purchaseOrderDate_end || undefined,
+    status: sp.status || undefined,
+    isConvertedToPurchase: sp.isConvertedToPurchase || undefined,
   };
 
   return (
@@ -58,31 +67,13 @@ const PurchaseOrders = () => {
       buttonText="Add Purchase Order"
       buttonPath="/purchases/create-purchase-order"
     >
-      <>
-        <DataTable
-          columns={purchaseOrderColumns}
-          data={purchaseOrders || []}
-          isLoading={isLoading}
-          totalItems={totalItems}
-          page={page}
-          onPageChange={setPage}
-          pageSize={pageSize}
-          onPageSizeChange={setPageSize}
-          refetch={refetch}
-          isFetching={isFetching}
-          filters={purchaseOrderFilters}
-          filterValues={filters}
-          onFilterChange={onFilterChange}
-          defaultFilterValues={defaultFilterValues}
-          onRowClick={handleRowClick}
+      <Suspense fallback={<TableSkeleton />}>
+        <PurchaseOrdersTableData
+          currentPage={currentPage}
+          currentPageSize={currentPageSize}
+          filters={filtersForServer}
         />
-        <PurchaseOrderDialog
-          mode={"view"}
-          open={openDialog && !!selectedPurchaseOrder}
-          onOpenChange={setOpenDialog}
-          purchaseOrder={selectedPurchaseOrder}
-        />
-      </>
+      </Suspense>
     </PageWraper>
   );
 };

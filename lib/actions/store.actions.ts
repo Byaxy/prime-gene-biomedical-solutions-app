@@ -5,7 +5,28 @@ import { parseStringify } from "../utils";
 import { StoreFormValues } from "../validation";
 import { db } from "@/drizzle/db";
 import { storesTable } from "@/drizzle/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, or, ilike, and, sql } from "drizzle-orm";
+import { StoreFilters } from "@/hooks/useStores";
+
+const buildFilterConditions = (filters: StoreFilters) => {
+  const conditions = [];
+
+  conditions.push(eq(storesTable.isActive, true));
+
+  // Search logic using ILIKE on joined tables.
+  // GIN indexes are crucial here.
+  if (filters.search?.trim()) {
+    const searchTerm = `%${filters.search.trim()}%`;
+    conditions.push(
+      or(
+        ilike(storesTable.name, searchTerm),
+        ilike(storesTable.location, searchTerm)
+      )
+    );
+  }
+
+  return conditions;
+};
 
 // Add Store
 export const addStore = async (storeData: StoreFormValues) => {
@@ -43,59 +64,40 @@ export const getStoreById = async (storeId: string) => {
 export const getStores = async (
   page: number = 0,
   limit: number = 10,
-  getAllStores: boolean = false
+  getAllStores: boolean = false,
+  filters?: StoreFilters
 ) => {
   try {
-    let query = db
-      .select()
-      .from(storesTable)
-      .where(eq(storesTable.isActive, true))
-      .orderBy(desc(storesTable.createdAt));
+    let query = db.select().from(storesTable).$dynamic();
 
-    if (!getAllStores) {
+    const conditions = await buildFilterConditions(filters ?? {});
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+
+    query = query.orderBy(desc(storesTable.createdAt));
+
+    if (!getAllStores && limit > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       query = (query as any).limit(limit).offset(page * limit);
     }
 
     const stores = await query;
 
-    // For getAllStores, fetch all stores in batches (if needed)
-    if (getAllStores) {
-      let allStores: typeof stores = [];
-      let offset = 0;
-      const batchSize = 100;
+    // Get total count for pagination
+    let totalQuery = db
+      .select({ count: sql<number>`count(*)` })
+      .from(storesTable)
+      .$dynamic();
 
-      while (true) {
-        const batch = await db
-          .select()
-          .from(storesTable)
-          .where(eq(storesTable.isActive, true))
-          .orderBy(desc(storesTable.createdAt))
-          .limit(batchSize)
-          .offset(offset);
-
-        allStores = [...allStores, ...batch];
-
-        // If we got fewer stores than the batch size, we've reached the end
-        if (batch.length < batchSize) {
-          break;
-        }
-
-        offset += batchSize;
-      }
-
-      return {
-        documents: parseStringify(allStores),
-        total: allStores.length,
-      };
+    if (conditions.length > 0) {
+      totalQuery = totalQuery.where(and(...conditions));
     }
 
-    // For paginated results
-    const total = await db
-      .select()
-      .from(storesTable)
-      .where(eq(storesTable.isActive, true))
-      .then((res) => res.length);
+    const total = stores
+      ? stores.length
+      : await totalQuery.then((res) => res[0]?.count || 0);
 
     return {
       documents: parseStringify(stores),

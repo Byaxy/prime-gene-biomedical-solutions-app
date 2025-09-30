@@ -10,9 +10,64 @@ import {
   purchasesTable,
   vendorsTable,
 } from "@/drizzle/schema";
-import { PurchaseStatus } from "@/types";
-import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { PaymentStatus, PurchaseStatus } from "@/types";
+import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import { PurchaseFilters } from "@/hooks/usePurchases";
+
+const buildFilterConditions = (filters: PurchaseFilters) => {
+  const conditions = [];
+
+  conditions.push(eq(purchasesTable.isActive, true));
+
+  // Search logic using ILIKE on joined tables.
+  // GIN indexes are crucial here.
+  if (filters.search?.trim()) {
+    const searchTerm = `%${filters.search.trim()}%`;
+    conditions.push(
+      or(
+        ilike(purchasesTable.purchaseNumber, searchTerm),
+        ilike(purchasesTable.vendorInvoiceNumber, searchTerm),
+        ilike(vendorsTable.name, searchTerm)
+      )
+    );
+  }
+
+  // Total Amount range
+  if (filters.totalAmount_min !== undefined) {
+    conditions.push(gte(purchasesTable.totalAmount, filters.totalAmount_min));
+  }
+  if (filters.totalAmount_max !== undefined) {
+    conditions.push(lte(purchasesTable.totalAmount, filters.totalAmount_max));
+  }
+
+  // Sale date range
+  if (filters.purchaseDate_start) {
+    conditions.push(
+      gte(purchasesTable.purchaseDate, new Date(filters.purchaseDate_start))
+    );
+  }
+  if (filters.purchaseDate_end) {
+    conditions.push(
+      lte(purchasesTable.purchaseDate, new Date(filters.purchaseDate_end))
+    );
+  }
+
+  // Status filter
+  if (filters.status) {
+    conditions.push(
+      eq(purchasesTable.status, filters.status as PurchaseStatus)
+    );
+  }
+
+  // Status filter
+  if (filters.paymentStatus) {
+    conditions.push(
+      eq(purchasesTable.paymentStatus, filters.paymentStatus as PaymentStatus)
+    );
+  }
+
+  return conditions;
+};
 
 // add purchase
 export const addPurchase = async (purchase: PurchaseFormValues) => {
@@ -286,53 +341,14 @@ export const getPurchases = async (
         .leftJoin(vendorsTable, eq(purchasesTable.vendorId, vendorsTable.id))
         .$dynamic();
 
-      // Create conditions array
-      const conditions = [eq(purchasesTable.isActive, true)];
-
-      // Apply filters if provided
-      if (filters) {
-        // Total Amount range
-        if (filters.totalAmount_min !== undefined) {
-          conditions.push(
-            gte(purchasesTable.totalAmount, filters.totalAmount_min)
-          );
-        }
-        if (filters.totalAmount_max !== undefined) {
-          conditions.push(
-            lte(purchasesTable.totalAmount, filters.totalAmount_max)
-          );
-        }
-
-        // Purchase date range
-        if (filters.purchaseDate_start) {
-          conditions.push(
-            gte(
-              purchasesTable.purchaseDate,
-              new Date(filters.purchaseDate_start)
-            )
-          );
-        }
-        if (filters.purchaseDate_end) {
-          conditions.push(
-            lte(purchasesTable.purchaseDate, new Date(filters.purchaseDate_end))
-          );
-        }
-
-        // Status filter
-        if (filters.status) {
-          conditions.push(
-            eq(purchasesTable.status, filters.status as PurchaseStatus)
-          );
-        }
+      const conditions = await buildFilterConditions(filters ?? {});
+      if (conditions.length > 0) {
+        purchasesQuery = purchasesQuery.where(and(...conditions));
       }
 
-      // Apply where conditions
-      purchasesQuery = purchasesQuery.where(and(...conditions));
-
-      // Apply order by
       purchasesQuery = purchasesQuery.orderBy(desc(purchasesTable.createdAt));
 
-      if (!getAllPurchases) {
+      if (!getAllPurchases && limit > 0) {
         purchasesQuery.limit(limit).offset(page * limit);
       }
 
@@ -361,12 +377,19 @@ export const getPurchases = async (
       }));
 
       // Get total count for pagination
+      let totalQuery = tx
+        .select({ count: sql<number>`count(*)` })
+        .from(purchasesTable)
+        .leftJoin(vendorsTable, eq(purchasesTable.vendorId, vendorsTable.id))
+        .$dynamic();
+
+      if (conditions.length > 0) {
+        totalQuery = totalQuery.where(and(...conditions));
+      }
+
       const total = getAllPurchases
-        ? purchases.length
-        : await tx
-            .select({ count: sql<number>`count(*)` })
-            .from(purchasesTable)
-            .then((res) => res[0]?.count || 0);
+        ? purchasesWithItems.length
+        : await totalQuery.then((res) => res[0]?.count || 0);
 
       return {
         documents: purchasesWithItems,

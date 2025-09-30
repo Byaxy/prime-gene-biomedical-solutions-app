@@ -1,71 +1,58 @@
-"use client";
-
 import PageWraper from "@/components/PageWraper";
-import { storesColumns } from "@/components/table/columns/storesColumns";
-import { DataTable } from "@/components/table/DataTable";
-import { useStores } from "@/hooks/useStores";
-import { useState } from "react";
-import { Store } from "@/types";
-import toast from "react-hot-toast";
-import { exportToExcel } from "@/lib/utils";
+import { StoreFilters } from "@/hooks/useStores";
+import { Suspense } from "react";
 import AddStoreButton from "@/components/stores/AddStoreButton";
+import dynamic from "next/dynamic";
+import { getStores } from "@/lib/actions/store.actions";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 
-const Stores = () => {
-  const [rowSelection, setRowSelection] = useState({});
+const StoreTableData = async ({
+  currentPage,
+  currentPageSize,
+  filters,
+}: {
+  currentPage: number;
+  currentPageSize: number;
+  filters: StoreFilters;
+}) => {
+  const initialData = await getStores(
+    currentPage,
+    currentPageSize,
+    currentPageSize === 0,
+    filters
+  );
+  const StoreTable = dynamic(() => import("@/components/stores/StoreTable"));
+  return <StoreTable initialData={initialData} />;
+};
 
-  const {
-    stores,
-    isLoading,
-    totalItems,
-    page,
-    setPage,
-    pageSize,
-    setPageSize,
-    refetch,
-    isFetching,
-  } = useStores({ initialPageSize: 10 });
+export interface SearchParams {
+  page?: string;
+  pageSize?: string;
+  search?: string;
+}
 
-  const handleDownloadSelected = async (selectedItems: Store[]) => {
-    try {
-      if (selectedItems.length === 0) {
-        toast.error("No Items selected for download");
-        return;
-      }
+const Stores = async ({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) => {
+  const sp = await searchParams;
+  const currentPage = Number(sp.page || 0);
+  const currentPageSize = sp.pageSize === "0" ? 0 : Number(sp.pageSize || 10);
 
-      const exportData = selectedItems.map((item) => ({
-        id: item.id,
-        name: item.name,
-        location: item.location,
-        isActive: item.isActive,
-        createdAt: item.createdAt,
-        updatedAt: item.updatedAt,
-      }));
-      exportToExcel(exportData, "selected-stores");
-      setRowSelection({});
-      toast.success("Export started successfully");
-    } catch (error) {
-      console.error("Error exporting stores:", error);
-      toast.error("Failed to export stores");
-    }
+  const filtersForServer: StoreFilters = {
+    search: sp.search || undefined,
   };
 
   return (
     <PageWraper title="Stores" buttonAction={<AddStoreButton />}>
-      <DataTable
-        columns={storesColumns}
-        data={stores || []}
-        isLoading={isLoading}
-        totalItems={totalItems}
-        page={page}
-        onPageChange={setPage}
-        pageSize={pageSize}
-        onPageSizeChange={setPageSize}
-        rowSelection={rowSelection}
-        onRowSelectionChange={setRowSelection}
-        onDownloadSelected={handleDownloadSelected}
-        refetch={refetch}
-        isFetching={isFetching}
-      />
+      <Suspense fallback={<TableSkeleton />}>
+        <StoreTableData
+          currentPage={currentPage}
+          currentPageSize={currentPageSize}
+          filters={filtersForServer}
+        />
+      </Suspense>
     </PageWraper>
   );
 };

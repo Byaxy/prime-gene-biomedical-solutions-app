@@ -5,84 +5,224 @@ import {
   getTaxes,
   softDeleteTax,
 } from "@/lib/actions/tax.actions";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { TaxFormValues } from "@/lib/validation";
+import { Tax } from "@/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useTransition } from "react";
 import toast from "react-hot-toast";
 
 interface UseTaxesOptions {
   getAllTaxes?: boolean;
-  initialPageSize?: number;
+  initialData?: { documents: Tax[]; total: number };
 }
+
+export interface TaxFilters {
+  search?: string;
+}
+
+export const defaultTaxFilters: TaxFilters = {
+  search: undefined,
+};
 
 export const useTaxes = ({
   getAllTaxes = false,
-  initialPageSize = 10,
+  initialData,
 }: UseTaxesOptions = {}) => {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(initialPageSize);
+  const [isPending, startTransition] = useTransition();
 
-  const shouldFetchAll = getAllTaxes;
-
-  const isShowAllMode = pageSize === 0;
-
-  // Query for all Taxs
-  const allTaxesQuery = useQuery({
-    queryKey: ["taxes", "allTaxes"],
-    queryFn: async () => {
-      const result = await getTaxes(0, 0, true);
-      return result.documents;
-    },
-    enabled: shouldFetchAll || isShowAllMode,
-  });
-
-  // Query for paginated Taxs
-  const paginatedTaxesQuery = useQuery({
-    queryKey: ["taxes", "paginatedTaxes", page, pageSize],
-    queryFn: async () => {
-      const result = await getTaxes(page, pageSize, false);
-      return result;
-    },
-    enabled: !shouldFetchAll || !isShowAllMode,
-  });
-
-  // Determine which query data to use
-  const activeQuery =
-    shouldFetchAll || isShowAllMode ? allTaxesQuery : paginatedTaxesQuery;
-  const taxes =
-    (shouldFetchAll || isShowAllMode
-      ? activeQuery.data
-      : activeQuery.data?.documents) || [];
-  const totalItems = activeQuery.data?.total || 0;
-
-  // Prefetch next page for table view
-  useEffect(() => {
-    if (
-      !shouldFetchAll &&
-      !isShowAllMode &&
-      paginatedTaxesQuery.data &&
-      page * pageSize < paginatedTaxesQuery.data.total - pageSize
-    ) {
-      queryClient.prefetchQuery({
-        queryKey: ["taxes", "paginatedTaxes", page + 1, pageSize],
-        queryFn: () => getTaxes(page + 1, pageSize, false),
-      });
+  // Parse current state from URL - single source of truth
+  const currentState = useMemo(() => {
+    if (getAllTaxes) {
+      return {
+        page: 0,
+        pageSize: 0,
+        search: "",
+      };
     }
-  }, [
-    page,
-    pageSize,
-    paginatedTaxesQuery.data,
-    queryClient,
-    shouldFetchAll,
-    isShowAllMode,
-  ]);
 
-  // Handle page size changes
-  const handlePageSizeChange = (newPageSize: number) => {
-    setPageSize(newPageSize);
-    setPage(0);
-  };
+    const page = Number(searchParams.get("page") || 0);
+    const pageSize = Number(searchParams.get("pageSize") || 10);
+    const search = searchParams.get("search") || "";
+
+    const filters: TaxFilters = {
+      search: search || undefined,
+    };
+
+    return { page, pageSize, filters, search };
+  }, [getAllTaxes, searchParams]);
+
+  // Create stable query key
+  const queryKey = useMemo(() => {
+    const { page, pageSize, filters } = currentState;
+    const filterString = JSON.stringify(filters);
+    return ["taxes", page, pageSize, filterString];
+  }, [currentState]);
+
+  // Main query with server state
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      const { page, pageSize, filters } = currentState;
+      return getTaxes(page, pageSize, getAllTaxes || pageSize === 0, filters);
+    },
+    initialData: initialData ? () => initialData : undefined,
+    staleTime: getAllTaxes ? 60000 : 30000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
+
+  // Optimistic navigation function
+  const navigate = useCallback(
+    (
+      updates: Partial<{
+        page: number;
+        pageSize: number;
+        search: string;
+        filters: Partial<TaxFilters>;
+      }>
+    ) => {
+      const params = new URLSearchParams(searchParams.toString());
+
+      // Apply updates
+      if (updates.page !== undefined) {
+        if (updates.page === 0) {
+          params.delete("page");
+        } else {
+          params.set("page", String(updates.page));
+        }
+      }
+
+      if (updates.pageSize !== undefined) {
+        if (updates.pageSize === 10) {
+          params.delete("pageSize");
+        } else {
+          params.set("pageSize", String(updates.pageSize));
+        }
+      }
+
+      if (updates.search !== undefined) {
+        if (updates.search.trim()) {
+          params.set("search", updates.search.trim());
+        } else {
+          params.delete("search");
+        }
+        params.delete("page");
+      }
+
+      if (updates.filters) {
+        Object.keys(defaultTaxFilters).forEach((key) => params.delete(key));
+
+        Object.entries(updates.filters).forEach(([key, value]) => {
+          if (value === undefined || value === "" || value === null) {
+            params.delete(key);
+          } else {
+            params.set(key, String(value));
+          }
+        });
+        params.delete("page");
+      }
+
+      const newUrl = `?${params.toString()}`;
+
+      // Use startTransition for non-urgent updates
+      startTransition(() => {
+        router.push(newUrl, { scroll: false });
+      });
+
+      // Prefetch the new data immediately
+      const newParams = new URLSearchParams(newUrl.substring(1));
+      const newPage = Number(newParams.get("page") || 0);
+      const newPageSize = Number(newParams.get("pageSize") || 10);
+      const newFilters: TaxFilters = {
+        search: newParams.get("search") || undefined,
+      };
+
+      const newQueryKey = [
+        "taxes",
+        newPage,
+        newPageSize,
+        JSON.stringify(newFilters),
+      ];
+
+      queryClient.prefetchQuery({
+        queryKey: newQueryKey,
+        queryFn: () =>
+          getTaxes(newPage, newPageSize, newPageSize === 0, newFilters),
+      });
+    },
+    [router, searchParams, queryClient]
+  );
+
+  const setPage = useCallback(
+    (page: number) => {
+      if (getAllTaxes) return;
+      navigate({ page });
+    },
+    [getAllTaxes, navigate]
+  );
+
+  const setPageSize = useCallback(
+    (pageSize: number) => {
+      if (getAllTaxes) return;
+      navigate({ pageSize, page: 0 });
+    },
+    [getAllTaxes, navigate]
+  );
+
+  const setSearch = useCallback(
+    (search: string) => {
+      if (getAllTaxes) return;
+      navigate({ search });
+    },
+    [getAllTaxes, navigate]
+  );
+
+  const setFilters = useCallback(
+    (filters: Partial<TaxFilters>) => {
+      if (getAllTaxes) return;
+      navigate({ filters });
+    },
+    [getAllTaxes, navigate]
+  );
+
+  const clearFilters = useCallback(() => {
+    if (getAllTaxes) return;
+    navigate({
+      filters: defaultTaxFilters,
+      search: "",
+      page: 0,
+      pageSize: 10,
+    });
+  }, [getAllTaxes, navigate]);
+
+  // Real-time updates
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+
+    const channel = supabase
+      .channel("taxes_changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "taxes",
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["taxes"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   // Add Tax mutation
   const { mutate: addTaxMutation, status: addTaxStatus } = useMutation({
@@ -139,16 +279,21 @@ export const useTaxes = ({
   });
 
   return {
-    taxes,
-    totalItems,
-    isLoading: activeQuery.isLoading,
-    error: activeQuery.error,
-    setPageSize: handlePageSizeChange,
-    refetch: activeQuery.refetch,
-    isFetching: activeQuery.isFetching,
-    page,
+    taxes: data?.documents || [],
+    totalItems: data?.total || 0,
+    page: currentState.page,
+    pageSize: currentState.pageSize,
+    search: currentState.search,
+    filters: currentState.filters,
+    isLoading: isLoading || isPending,
+    isFetching,
+    error,
     setPage,
-    pageSize,
+    setPageSize,
+    setSearch,
+    setFilters,
+    clearFilters,
+    refetch: refetch,
     addTax: addTaxMutation,
     isAddingTax: addTaxStatus === "pending",
     editTax: editTaxMutation,

@@ -11,117 +11,260 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PurchaseFormValues } from "@/lib/validation";
 import toast from "react-hot-toast";
-import { useEffect, useState } from "react";
-import { Attachment } from "@/types";
+import { useCallback, useEffect, useMemo, useTransition } from "react";
+import { Attachment, PurchaseWithRelations } from "@/types";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { useRouter, useSearchParams } from "next/navigation";
 
 interface UsePurchasesOptions {
   getAllPurchases?: boolean;
-  initialPageSize?: number;
+  initialData?: { documents: PurchaseWithRelations[]; total: number };
 }
 
 export interface PurchaseFilters {
+  search?: string;
   totalAmount_min?: number;
   totalAmount_max?: number;
   purchaseDate_start?: string;
   purchaseDate_end?: string;
   status?: string;
+  paymentStatus?: string;
 }
 
 export const defaultPurchaseFilters: PurchaseFilters = {
+  search: undefined,
   totalAmount_min: undefined,
   totalAmount_max: undefined,
   purchaseDate_start: undefined,
   purchaseDate_end: undefined,
   status: undefined,
+  paymentStatus: undefined,
 };
 
 export const usePurchases = ({
   getAllPurchases = false,
-  initialPageSize = 10,
+  initialData,
 }: UsePurchasesOptions = {}) => {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(initialPageSize);
-  const [filters, setFilters] = useState<PurchaseFilters>(
-    defaultPurchaseFilters
+  const [isPending, startTransition] = useTransition();
+
+  // Parse current state from URL - single source of truth
+  const currentState = useMemo(() => {
+    if (getAllPurchases) {
+      return {
+        page: 0,
+        pageSize: 0,
+        search: "",
+      };
+    }
+
+    const page = Number(searchParams.get("page") || 0);
+    const pageSize = Number(searchParams.get("pageSize") || 10);
+    const search = searchParams.get("search") || "";
+
+    const filters: PurchaseFilters = {
+      search: search || undefined,
+      totalAmount_min: searchParams.get("totalAmount_min")
+        ? Number(searchParams.get("totalAmount_min"))
+        : undefined,
+      totalAmount_max: searchParams.get("totalAmount_max")
+        ? Number(searchParams.get("totalAmount_max"))
+        : undefined,
+      status: searchParams.get("status") || undefined,
+      purchaseDate_start: searchParams.get("purchaseDate_start") || undefined,
+      purchaseDate_end: searchParams.get("purchaseDate_end") || undefined,
+      paymentStatus: searchParams.get("paymentStatus") || undefined,
+    };
+
+    return { page, pageSize, filters, search };
+  }, [getAllPurchases, searchParams]);
+
+  // Create stable query key
+  const queryKey = useMemo(() => {
+    const { page, pageSize, filters } = currentState;
+    const filterString = JSON.stringify(filters);
+    return ["purchases", page, pageSize, filterString];
+  }, [currentState]);
+
+  // Main query with server state
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      const { page, pageSize, filters } = currentState;
+      return getPurchases(
+        page,
+        pageSize,
+        getAllPurchases || pageSize === 0,
+        filters
+      );
+    },
+    initialData: initialData ? () => initialData : undefined,
+    staleTime: getAllPurchases ? 60000 : 30000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
+
+  // Optimistic navigation function
+  const navigate = useCallback(
+    (
+      updates: Partial<{
+        page: number;
+        pageSize: number;
+        search: string;
+        filters: Partial<PurchaseFilters>;
+      }>
+    ) => {
+      const params = new URLSearchParams(searchParams.toString());
+
+      // Apply updates
+      if (updates.page !== undefined) {
+        if (updates.page === 0) {
+          params.delete("page");
+        } else {
+          params.set("page", String(updates.page));
+        }
+      }
+
+      if (updates.pageSize !== undefined) {
+        if (updates.pageSize === 10) {
+          params.delete("pageSize");
+        } else {
+          params.set("pageSize", String(updates.pageSize));
+        }
+      }
+
+      if (updates.search !== undefined) {
+        if (updates.search.trim()) {
+          params.set("search", updates.search.trim());
+        } else {
+          params.delete("search");
+        }
+        params.delete("page");
+      }
+
+      if (updates.filters) {
+        Object.keys(defaultPurchaseFilters).forEach((key) =>
+          params.delete(key)
+        );
+
+        Object.entries(updates.filters).forEach(([key, value]) => {
+          if (value === undefined || value === "" || value === null) {
+            params.delete(key);
+          } else {
+            params.set(key, String(value));
+          }
+        });
+        params.delete("page");
+      }
+
+      const newUrl = `?${params.toString()}`;
+
+      // Use startTransition for non-urgent updates
+      startTransition(() => {
+        router.push(newUrl, { scroll: false });
+      });
+
+      // Prefetch the new data immediately
+      const newParams = new URLSearchParams(newUrl.substring(1));
+      const newPage = Number(newParams.get("page") || 0);
+      const newPageSize = Number(newParams.get("pageSize") || 10);
+      const newFilters: PurchaseFilters = {
+        search: newParams.get("search") || undefined,
+        totalAmount_min: newParams.get("totalAmount_min")
+          ? Number(newParams.get("totalAmount_min"))
+          : undefined,
+        totalAmount_max: newParams.get("totalAmount_max")
+          ? Number(newParams.get("totalAmount_max"))
+          : undefined,
+        status: newParams.get("status") || undefined,
+        purchaseDate_start: newParams.get("purchaseDate_start") || undefined,
+        purchaseDate_end: newParams.get("purchaseDate_end") || undefined,
+        paymentStatus: newParams.get("paymentStatus") || undefined,
+      };
+
+      const newQueryKey = [
+        "purchases",
+        newPage,
+        newPageSize,
+        JSON.stringify(newFilters),
+      ];
+
+      queryClient.prefetchQuery({
+        queryKey: newQueryKey,
+        queryFn: () =>
+          getPurchases(newPage, newPageSize, newPageSize === 0, newFilters),
+      });
+    },
+    [router, searchParams, queryClient]
   );
 
-  const shouldFetchAll = getAllPurchases;
-
-  const isShowAllMode = pageSize === 0;
-
-  // Query for all Purchases
-  const allPurchasesQuery = useQuery({
-    queryKey: ["purchases", filters],
-    queryFn: async () => {
-      const result = await getPurchases(0, 0, true, filters);
-      return result.documents;
+  const setPage = useCallback(
+    (page: number) => {
+      if (getAllPurchases) return;
+      navigate({ page });
     },
-    enabled: shouldFetchAll || isShowAllMode,
-  });
+    [getAllPurchases, navigate]
+  );
 
-  // Query for paginated Purchases
-  const paginatedPurchasesQuery = useQuery({
-    queryKey: ["purchases", "paginatedPurchases", page, pageSize, filters],
-    queryFn: async () => {
-      const result = await getPurchases(page, pageSize, false, filters);
-      return result;
+  const setPageSize = useCallback(
+    (pageSize: number) => {
+      if (getAllPurchases) return;
+      navigate({ pageSize, page: 0 });
     },
-    enabled: !shouldFetchAll && !isShowAllMode,
-  });
+    [getAllPurchases, navigate]
+  );
 
-  // Determine which query data to use
-  const activeQuery =
-    shouldFetchAll || isShowAllMode
-      ? allPurchasesQuery
-      : paginatedPurchasesQuery;
-  const purchases =
-    (shouldFetchAll || isShowAllMode
-      ? activeQuery.data
-      : activeQuery.data?.documents) || [];
-  const totalItems = activeQuery.data?.total || 0;
+  const setSearch = useCallback(
+    (search: string) => {
+      if (getAllPurchases) return;
+      navigate({ search });
+    },
+    [getAllPurchases, navigate]
+  );
 
-  // Prefetch next page for table view
+  const setFilters = useCallback(
+    (filters: Partial<PurchaseFilters>) => {
+      if (getAllPurchases) return;
+      navigate({ filters });
+    },
+    [getAllPurchases, navigate]
+  );
+
+  const clearFilters = useCallback(() => {
+    if (getAllPurchases) return;
+    navigate({
+      filters: defaultPurchaseFilters,
+      search: "",
+      page: 0,
+      pageSize: 10,
+    });
+  }, [getAllPurchases, navigate]);
+
+  // Real-time updates
   useEffect(() => {
-    if (
-      !shouldFetchAll &&
-      !isShowAllMode &&
-      paginatedPurchasesQuery.data &&
-      page * pageSize < paginatedPurchasesQuery.data.total - pageSize
-    ) {
-      queryClient.prefetchQuery({
-        queryKey: [
-          "purchases",
-          "paginatedPurchases",
-          page + 1,
-          pageSize,
-          filters,
-        ],
-        queryFn: () => getPurchases(page + 1, pageSize, false, filters),
-      });
-    }
-  }, [
-    page,
-    pageSize,
-    paginatedPurchasesQuery.data,
-    queryClient,
-    shouldFetchAll,
-    isShowAllMode,
-    filters,
-  ]);
+    const supabase = createSupabaseBrowserClient();
 
-  // Handle filter changes
-  const handleFilterChange = (newFilters: PurchaseFilters) => {
-    setFilters(newFilters);
-    setPage(0);
-  };
+    const channel = supabase
+      .channel("purchases_changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "purchases",
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["purchases"] });
+        }
+      )
+      .subscribe();
 
-  // Handle page size changes
-  const handlePageSizeChange = (newPageSize: number) => {
-    setPageSize(newPageSize);
-    setPage(0);
-  };
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   const { mutate: addPurchaseMutation, status: addPurchaseStatus } =
     useMutation({
@@ -169,7 +312,7 @@ export const usePurchases = ({
       },
       onSuccess: () => {
         queryClient.invalidateQueries({
-          queryKey: ["purchases", "paginatedPurchases"],
+          queryKey: ["purchases"],
         });
       },
       onError: (error) => {
@@ -242,7 +385,7 @@ export const usePurchases = ({
       },
       onSuccess: () => {
         queryClient.invalidateQueries({
-          queryKey: ["purchases", "paginatedPurchases"],
+          queryKey: ["purchases"],
         });
       },
       onError: (error) => {
@@ -257,7 +400,7 @@ export const usePurchases = ({
     mutationFn: (id: string) => softDeletePurchase(id),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["purchases", "paginatedPurchases"],
+        queryKey: ["purchases"],
       });
     },
     onError: (error) => {
@@ -270,7 +413,7 @@ export const usePurchases = ({
       mutationFn: (id: string) => deletePurchase(id),
       onSuccess: () => {
         queryClient.invalidateQueries({
-          queryKey: ["purchases", "paginatedPurchases"],
+          queryKey: ["purchases"],
         });
       },
       onError: (error) => {
@@ -280,17 +423,21 @@ export const usePurchases = ({
     });
 
   return {
-    purchases,
-    totalItems,
-    isLoading: activeQuery.isLoading,
-    error: activeQuery.error,
-    page,
+    purchases: data?.documents || [],
+    totalItems: data?.total || 0,
+    page: currentState.page,
+    pageSize: currentState.pageSize,
+    search: currentState.search,
+    filters: currentState.filters,
+    isLoading: isLoading || isPending,
+    isFetching,
+    error,
     setPage,
-    pageSize,
-    setPageSize: handlePageSizeChange,
-    filters,
-    onFilterChange: handleFilterChange,
-    defaultFilterValues: defaultPurchaseFilters,
+    setPageSize,
+    setSearch,
+    setFilters,
+    clearFilters,
+    refetch: refetch,
     addPurchase: addPurchaseMutation,
     isCreatingPurchase: addPurchaseStatus === "pending",
     editPurchase: editPurchaseMutation,
@@ -299,7 +446,5 @@ export const usePurchases = ({
     isSoftDeletingPurchase: softDeletePurchaseStatus === "pending",
     deletePurchase: deletePurchaseMutation,
     isDeletingPurchase: deletePurchaseStatus === "pending",
-    refetch: activeQuery.refetch,
-    isFetching: activeQuery.isFetching,
   };
 };

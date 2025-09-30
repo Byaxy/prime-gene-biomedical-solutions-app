@@ -1,54 +1,46 @@
-"use client";
-
-import toast from "react-hot-toast";
 import PageWraper from "@/components/PageWraper";
-import { usersColumns } from "@/components/table/columns/usersColumns";
-import { DataTable } from "@/components/table/DataTable";
-import { useUsers } from "@/hooks/useUsers";
-import { exportToExcel } from "@/lib/utils";
-import { useState } from "react";
-import { User } from "@/types";
+import { UserFilters } from "@/hooks/useUsers";
+import { Suspense } from "react";
+import { getUsers } from "@/lib/actions/user.actions";
+import dynamic from "next/dynamic";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 
-const Users = () => {
-  const [rowSelection, setRowSelection] = useState({});
-  const {
-    users,
-    totalItems,
-    page,
-    setPage,
-    pageSize,
-    setPageSize,
-    isLoading,
-    refetch,
-    isFetching,
-  } = useUsers({ initialPageSize: 10 });
+const UsersTableData = async ({
+  currentPage,
+  currentPageSize,
+  filters,
+}: {
+  currentPage: number;
+  currentPageSize: number;
+  filters: UserFilters;
+}) => {
+  const initialData = await getUsers(
+    currentPage,
+    currentPageSize,
+    currentPageSize === 0,
+    filters
+  );
+  const UsersTable = dynamic(() => import("@/components/users/UsersTable"));
+  return <UsersTable initialData={initialData} />;
+};
 
-  const handleDownloadSelected = async (selectedItems: User[]) => {
-    try {
-      if (selectedItems.length === 0) {
-        toast.error("No Items selected for download");
-        return;
-      }
+export interface SearchParams {
+  page?: string;
+  pageSize?: string;
+  search?: string;
+}
 
-      const exportData = selectedItems.map((item) => ({
-        id: item.id,
-        name: item.name,
-        email: item.email,
-        phone: item.phone,
-        role: item.role,
-        profileImageId: item.profileImageId ?? "",
-        profileImageUrl: item.profileImageUrl ?? "",
-        isActive: item.isActive,
-        createdAt: item.createdAt,
-        updatedAt: item.updatedAt,
-      }));
-      exportToExcel(exportData, "selected-users");
-      setRowSelection({});
-      toast.success("Export started successfully");
-    } catch (error) {
-      console.error("Error exporting users:", error);
-      toast.error("Failed to export users");
-    }
+const Users = async ({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) => {
+  const sp = await searchParams;
+  const currentPage = Number(sp.page || 0);
+  const currentPageSize = sp.pageSize === "0" ? 0 : Number(sp.pageSize || 10);
+
+  const filtersForServer: UserFilters = {
+    search: sp.search || undefined,
   };
 
   return (
@@ -57,21 +49,13 @@ const Users = () => {
       buttonText="Add User"
       buttonPath="/users/add-user"
     >
-      <DataTable
-        columns={usersColumns}
-        data={users || []}
-        isLoading={isLoading}
-        totalItems={totalItems}
-        page={page}
-        onPageChange={setPage}
-        pageSize={pageSize}
-        onPageSizeChange={setPageSize}
-        rowSelection={rowSelection}
-        onRowSelectionChange={setRowSelection}
-        onDownloadSelected={handleDownloadSelected}
-        refetch={refetch}
-        isFetching={isFetching}
-      />
+      <Suspense fallback={<TableSkeleton />}>
+        <UsersTableData
+          currentPage={currentPage}
+          currentPageSize={currentPageSize}
+          filters={filtersForServer}
+        />
+      </Suspense>
     </PageWraper>
   );
 };

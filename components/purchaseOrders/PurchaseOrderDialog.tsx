@@ -1,3 +1,5 @@
+"use client";
+
 import { PurchaseOrderWithRelations } from "@/types";
 import toast from "react-hot-toast";
 import PurchaseOrderPDF from "./PurchaseOrderPDF";

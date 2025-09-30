@@ -5,65 +5,68 @@ import { revalidatePath } from "next/cache";
 import { VendorFormValues } from "../validation";
 import { db } from "@/drizzle/db";
 import { vendorsTable } from "@/drizzle/schema";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { VendorFilters } from "@/hooks/useVendors";
+
+const buildFilterConditions = (filters: VendorFilters) => {
+  const conditions = [];
+
+  conditions.push(eq(vendorsTable.isActive, true));
+
+  // Search logic using ILIKE on joined tables.
+  // GIN indexes are crucial here.
+  if (filters.search?.trim()) {
+    const searchTerm = `%${filters.search.trim()}%`;
+    conditions.push(
+      or(
+        ilike(vendorsTable.name, searchTerm),
+        ilike(vendorsTable.phone, searchTerm),
+        ilike(vendorsTable.email, searchTerm)
+      )
+    );
+  }
+
+  return conditions;
+};
 
 // Get Vendors
 export const getVendors = async (
   page: number = 0,
   limit: number = 10,
-  getAllVendors: boolean = false
+  getAllVendors: boolean = false,
+  filters?: VendorFilters
 ) => {
   try {
-    let query = db
-      .select()
-      .from(vendorsTable)
-      .where(eq(vendorsTable.isActive, true))
-      .orderBy(desc(vendorsTable.createdAt));
+    let query = db.select().from(vendorsTable).$dynamic();
 
-    if (!getAllVendors) {
+    const conditions = await buildFilterConditions(filters ?? {});
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+
+    query = query.orderBy(desc(vendorsTable.createdAt));
+
+    if (!getAllVendors && limit > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       query = (query as any).limit(limit).offset(page * limit);
     }
 
     const vendors = await query;
 
-    // For getAllVendors, fetch all vendors in batches (if needed)
-    if (getAllVendors) {
-      let allVendors: typeof vendors = [];
-      let offset = 0;
-      const batchSize = 100;
+    // Get total count for pagination
+    let totalQuery = db
+      .select({ count: sql<number>`count(*)` })
+      .from(vendorsTable)
+      .$dynamic();
 
-      while (true) {
-        const batch = await db
-          .select()
-          .from(vendorsTable)
-          .where(eq(vendorsTable.isActive, true))
-          .orderBy(desc(vendorsTable.createdAt))
-          .limit(batchSize)
-          .offset(offset);
-
-        allVendors = [...allVendors, ...batch];
-
-        // If we got fewer vendors than the batch size, we've reached the end
-        if (batch.length < batchSize) {
-          break;
-        }
-
-        offset += batchSize;
-      }
-
-      return {
-        documents: parseStringify(allVendors),
-        total: allVendors.length,
-      };
+    if (conditions.length > 0) {
+      totalQuery = totalQuery.where(and(...conditions));
     }
 
-    // For paginated results
-    const total = await db
-      .select()
-      .from(vendorsTable)
-      .where(eq(vendorsTable.isActive, true))
-      .then((res) => res.length);
+    const total = vendors
+      ? vendors.length
+      : await totalQuery.then((res) => res[0]?.count || 0);
 
     return {
       documents: parseStringify(vendors),

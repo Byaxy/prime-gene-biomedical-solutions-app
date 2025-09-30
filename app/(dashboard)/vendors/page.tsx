@@ -1,53 +1,48 @@
-"use client";
-
 import PageWraper from "@/components/PageWraper";
-import { vendorsColumns } from "@/components/table/columns/vendorsColumns";
-import { DataTable } from "@/components/table/DataTable";
-import { useVendors } from "@/hooks/useVendors";
-import { exportToExcel } from "@/lib/utils";
-import { Vendor } from "@/types";
-import { useState } from "react";
-import toast from "react-hot-toast";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
+import { VendorFilters } from "@/hooks/useVendors";
+import { getVendors } from "@/lib/actions/vendor.actions";
+import dynamic from "next/dynamic";
+import { Suspense } from "react";
 
-const Vendors = () => {
-  const [rowSelection, setRowSelection] = useState({});
+const VendorsTableData = async ({
+  currentPage,
+  currentPageSize,
+  filters,
+}: {
+  currentPage: number;
+  currentPageSize: number;
+  filters: VendorFilters;
+}) => {
+  const initialData = await getVendors(
+    currentPage,
+    currentPageSize,
+    currentPageSize === 0,
+    filters
+  );
+  const VendorsTable = dynamic(
+    () => import("@/components/vendors/VendorsTable")
+  );
+  return <VendorsTable initialData={initialData} />;
+};
 
-  const {
-    vendors,
-    isLoading,
-    totalItems,
-    page,
-    setPage,
-    pageSize,
-    setPageSize,
-    refetch,
-    isFetching,
-  } = useVendors({ initialPageSize: 10 });
+export interface SearchParams {
+  page?: string;
+  pageSize?: string;
+  search?: string;
+}
 
-  const handleDownloadSelected = async (selectedItems: Vendor[]) => {
-    try {
-      if (selectedItems.length === 0) {
-        toast.error("No Items selected for download");
-        return;
-      }
+const Vendors = async ({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) => {
+  const sp = await searchParams;
+  const currentPage = Number(sp.page || 0);
+  const currentPageSize = sp.pageSize === "0" ? 0 : Number(sp.pageSize || 10);
 
-      const exportData = selectedItems.map((item) => ({
-        id: item.id,
-        name: item.name,
-        email: item.email,
-        phone: item.phone,
-        address: item.address ?? "",
-        isActive: item.isActive,
-        createdAt: item.createdAt,
-        updatedAt: item.updatedAt,
-      }));
-      exportToExcel(exportData, "selected-vendors");
-      setRowSelection({});
-      toast.success("Export started successfully");
-    } catch (error) {
-      console.error("Error exporting vendors:", error);
-      toast.error("Failed to export vendors");
-    }
+  const filtersForServer: VendorFilters = {
+    search: sp.search || undefined,
   };
 
   return (
@@ -56,21 +51,13 @@ const Vendors = () => {
       buttonText="Add Vendor"
       buttonPath="/vendors/add-vendor"
     >
-      <DataTable
-        columns={vendorsColumns}
-        data={vendors || []}
-        isLoading={isLoading}
-        totalItems={totalItems}
-        page={page}
-        onPageChange={setPage}
-        pageSize={pageSize}
-        onPageSizeChange={setPageSize}
-        rowSelection={rowSelection}
-        onRowSelectionChange={setRowSelection}
-        onDownloadSelected={handleDownloadSelected}
-        refetch={refetch}
-        isFetching={isFetching}
-      />
+      <Suspense fallback={<TableSkeleton />}>
+        <VendorsTableData
+          currentPage={currentPage}
+          currentPageSize={currentPageSize}
+          filters={filtersForServer}
+        />
+      </Suspense>
     </PageWraper>
   );
 };

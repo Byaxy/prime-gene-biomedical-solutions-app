@@ -1,30 +1,28 @@
 "use client";
 
-import { ShipmentFilters, useShipments } from "@/hooks/useShipments";
-import { DataTable } from "../table/DataTable";
-import {
-  CarrierType,
-  ShipmentStatus,
-  ShipmentWithRelations,
-  ShipperType,
-  ShippingMode,
-} from "@/types";
-import { shipmentsColumns } from "../table/columns/shipmentsColumns";
-import { useCallback, useEffect, useState } from "react";
-import ShipmentDialog from "./ShipmentDialog";
 import { useDebounce } from "@/hooks/useDebounce";
+import {
+  PurchaseOrderFilters,
+  usePurchaseOrders,
+} from "@/hooks/usePurchaseOrders";
+import { PurchaseOrderWithRelations, PurchaseStatus } from "@/types";
+import { useCallback, useEffect, useState } from "react";
+import { DataTable } from "../table/DataTable";
+import { purchaseOrderColumns } from "../table/columns/purchaseOrderColumns";
+import PurchaseOrderDialog from "./PurchaseOrderDialog";
 
 interface Props {
-  initialData: { documents: ShipmentWithRelations[]; total: number };
+  initialData: { documents: PurchaseOrderWithRelations[]; total: number };
 }
 
-const ShipmentsTable = ({ initialData }: Props) => {
+const PurchaseOrdersTable = ({ initialData }: Props) => {
   const [openDialog, setOpenDialog] = useState(false);
-  const [selectedShipment, setSelectedShipment] = useState(
-    {} as ShipmentWithRelations
+  const [selectedRow, setSelectedRow] = useState<PurchaseOrderWithRelations>(
+    {} as PurchaseOrderWithRelations
   );
+
   const {
-    shipments,
+    purchaseOrders,
     totalItems,
     page,
     pageSize,
@@ -38,7 +36,7 @@ const ShipmentsTable = ({ initialData }: Props) => {
     setFilters,
     clearFilters,
     refetch,
-  } = useShipments({ initialData });
+  } = usePurchaseOrders({ initialData });
 
   // Local search state for immediate UI feedback
   const [localSearch, setLocalSearch] = useState(search);
@@ -51,52 +49,35 @@ const ShipmentsTable = ({ initialData }: Props) => {
     }
   }, [debouncedSearch, search, setSearch]);
 
-  const handleRowClick = (rowData: ShipmentWithRelations) => {
-    setSelectedShipment(rowData);
+  const handleRowClick = (rowData: PurchaseOrderWithRelations) => {
+    setSelectedRow(rowData);
     setOpenDialog(true);
   };
 
-  const shipmentFilters = {
+  const purchaseOrderFilters = {
     totalAmount: {
       type: "number" as const,
       label: "Grand Total",
     },
-    shippingDate: {
+    purchaseOrderDate: {
       type: "date" as const,
-      label: "Shipment Date",
+      label: "Purchase Order Date",
     },
-    shippingMode: {
-      type: "select" as const,
-      label: "Shipping Mode",
-      options: Object.values(ShippingMode).map((item) => ({
-        label: item,
-        value: item,
-      })),
-    },
-    shipperType: {
-      type: "select" as const,
-      label: "Shipper Type",
-      options: Object.values(ShipperType).map((item) => ({
-        label: item,
-        value: item,
-      })),
-    },
-    carrierType: {
-      type: "select" as const,
-      label: "Carrier Type",
-      options: Object.values(CarrierType).map((item) => ({
-        label: item,
-        value: item,
-      })),
-    },
-
     status: {
       type: "select" as const,
-      label: "Shipment Status",
-      options: Object.values(ShipmentStatus).map((item) => ({
+      label: "Purchase Order Status",
+      options: Object.values(PurchaseStatus).map((item) => ({
         label: item,
         value: item,
       })),
+    },
+    isConvertedToPurchase: {
+      type: "select" as const,
+      label: "Converted to Purchase?",
+      options: [
+        { value: "true", label: "True" },
+        { value: "false", label: "False" },
+      ],
     },
   };
 
@@ -117,17 +98,28 @@ const ShipmentsTable = ({ initialData }: Props) => {
   }, [clearFilters, setSearch]);
 
   const handleFilterChange = useCallback(
-    (newFilters: ShipmentFilters) => {
+    (newFilters: PurchaseOrderFilters) => {
       setFilters(newFilters);
     },
     [setFilters]
   );
+  // handle close dialog
+  const closeDialog = () => {
+    setOpenDialog(false);
+
+    setTimeout(() => {
+      const stuckSection = document.querySelector(".MuiBox-root.css-0");
+      if (stuckSection instanceof HTMLElement) {
+        stuckSection.style.pointerEvents = "auto";
+      }
+    }, 100);
+  };
 
   return (
-    <div>
+    <>
       <DataTable
-        columns={shipmentsColumns}
-        data={shipments || []}
+        columns={purchaseOrderColumns}
+        data={purchaseOrders || []}
         isLoading={isLoading}
         isFetching={isFetching}
         totalItems={totalItems}
@@ -137,7 +129,7 @@ const ShipmentsTable = ({ initialData }: Props) => {
         onPageSizeChange={setPageSize}
         onRowClick={handleRowClick}
         refetch={refetch}
-        filters={shipmentFilters}
+        filters={purchaseOrderFilters}
         filterValues={filters}
         onFilterChange={handleFilterChange}
         onClearFilters={handleClearFilters}
@@ -145,14 +137,14 @@ const ShipmentsTable = ({ initialData }: Props) => {
         onSearchChange={handleSearchChange}
         onClearSearch={handleClearSearch}
       />
-      <ShipmentDialog
+      <PurchaseOrderDialog
         mode={"view"}
-        open={openDialog && !!selectedShipment}
-        onOpenChange={setOpenDialog}
-        shipment={selectedShipment}
+        open={openDialog && !!selectedRow}
+        onOpenChange={closeDialog}
+        purchaseOrder={selectedRow}
       />
-    </div>
+    </>
   );
 };
 
-export default ShipmentsTable;
+export default PurchaseOrdersTable;

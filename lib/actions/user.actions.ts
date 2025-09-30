@@ -11,13 +11,36 @@ import {
 import { createSupabaseServerClient } from "../supabase/server";
 import { usersTable } from "@/drizzle/schema";
 import { db } from "@/drizzle/db";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import supabaseAdmin from "../supabase/admin";
+import { UserFilters } from "@/hooks/useUsers";
 
 interface UserDataWithImage extends Omit<CreateUserFormValues, "image"> {
   profileImageId: string;
   profileImageUrl: string;
 }
+
+const buildFilterConditions = (filters: UserFilters) => {
+  const conditions = [];
+
+  conditions.push(eq(usersTable.isActive, true));
+
+  // Search logic using ILIKE on joined tables.
+  // GIN indexes are crucial here.
+  if (filters.search?.trim()) {
+    const searchTerm = `%${filters.search.trim()}%`;
+    conditions.push(
+      or(
+        ilike(usersTable.name, searchTerm),
+        ilike(usersTable.email, searchTerm),
+        ilike(usersTable.phone, searchTerm),
+        ilike(usersTable.role, searchTerm)
+      )
+    );
+  }
+
+  return conditions;
+};
 
 // Create user
 export const addUser = async (user: UserDataWithImage) => {
@@ -130,25 +153,44 @@ export const editUser = async (user: EditUserWithImage, userId: string) => {
 export const getUsers = async (
   page: number = 0,
   limit: number = 10,
-  getAllUsers: boolean = false
+  getAllUsers: boolean = false,
+  filters?: UserFilters
 ) => {
   try {
-    let query = db
-      .select()
-      .from(usersTable)
-      .where(eq(usersTable.isActive, true))
-      .orderBy(desc(usersTable.createdAt));
+    let query = db.select().from(usersTable).$dynamic();
 
-    if (!getAllUsers) {
+    const conditions = await buildFilterConditions(filters ?? {});
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+
+    query = query.orderBy(desc(usersTable.createdAt));
+
+    if (!getAllUsers && limit > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       query = (query as any).limit(limit).offset(page * limit);
     }
 
     const users = await query;
 
+    // Get total count for pagination
+    let totalQuery = db
+      .select({ count: sql<number>`count(*)` })
+      .from(usersTable)
+      .$dynamic();
+
+    if (conditions.length > 0) {
+      totalQuery = totalQuery.where(and(...conditions));
+    }
+
+    const total = users
+      ? users.length
+      : await totalQuery.then((res) => res[0]?.count || 0);
+
     return {
       documents: parseStringify(users),
-      total: users.length,
+      total,
     };
   } catch (error) {
     console.error("Error getting users:", error);

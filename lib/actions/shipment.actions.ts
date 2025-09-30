@@ -19,9 +19,11 @@ import {
   desc,
   eq,
   gte,
+  ilike,
   inArray,
   InferInsertModel,
   lte,
+  or,
   sql,
 } from "drizzle-orm";
 import { ShipmentFormValues } from "../validation";
@@ -31,6 +33,78 @@ import { parseStringify } from "../utils";
 import { ShipmentFilters } from "@/hooks/useShipments";
 
 type NewShipment = InferInsertModel<typeof shipmentsTable>;
+
+const buildFilterConditions = (filters: ShipmentFilters) => {
+  const conditions = [];
+
+  conditions.push(eq(shipmentsTable.isActive, true));
+
+  // Search logic using ILIKE on joined tables.
+  // GIN indexes are crucial here.
+  if (filters.search?.trim()) {
+    const searchTerm = `%${filters.search.trim()}%`;
+    conditions.push(
+      or(
+        ilike(shipmentsTable.trackingNumber, searchTerm),
+        ilike(shipmentsTable.shipmentRefNumber, searchTerm),
+        ilike(shipmentsTable.shipperName, searchTerm),
+        ilike(shipmentsTable.carrierName, searchTerm),
+        ilike(shipmentsTable.containerNumber, searchTerm),
+        ilike(shipmentsTable.flightNumber, searchTerm),
+        ilike(shipmentsTable.destinationPort, searchTerm),
+        ilike(shipmentsTable.originPort, searchTerm),
+        ilike(vendorsTable.name, searchTerm)
+      )
+    );
+  }
+
+  // Total Amount range
+  if (filters.totalAmount_min !== undefined) {
+    conditions.push(gte(shipmentsTable.totalAmount, filters.totalAmount_min));
+  }
+  if (filters.totalAmount_max !== undefined) {
+    conditions.push(lte(shipmentsTable.totalAmount, filters.totalAmount_max));
+  }
+
+  // date range
+  if (filters.shippingDate_start) {
+    conditions.push(
+      gte(shipmentsTable.shippingDate, new Date(filters.shippingDate_start))
+    );
+  }
+  if (filters.shippingDate_end) {
+    conditions.push(
+      lte(shipmentsTable.shippingDate, new Date(filters.shippingDate_end))
+    );
+  }
+
+  // Status filter
+  if (filters.status) {
+    conditions.push(
+      eq(shipmentsTable.status, filters.status as ShipmentStatus)
+    );
+  }
+  // Payment Status filter
+  if (filters.shippingMode) {
+    conditions.push(
+      eq(shipmentsTable.shippingMode, filters.shippingMode as ShippingMode)
+    );
+  }
+
+  if (filters.carrierType) {
+    conditions.push(
+      eq(shipmentsTable.carrierType, filters.carrierType as CarrierType)
+    );
+  }
+
+  if (filters.shipperType) {
+    conditions.push(
+      eq(shipmentsTable.shipperType, filters.shipperType as ShipperType)
+    );
+  }
+
+  return conditions;
+};
 
 // Add Shipment
 export const addShipment = async (shipment: ShipmentFormValues) => {
@@ -545,41 +619,14 @@ export const getShipments = async (
         )
         .$dynamic();
 
-      const conditions = [eq(shipmentsTable.isActive, true)];
-
-      if (filters) {
-        if (filters.status) {
-          conditions.push(eq(shipmentsTable.status, filters.status));
-        }
-        if (filters.shippingMode) {
-          conditions.push(
-            eq(shipmentsTable.shippingMode, filters.shippingMode)
-          );
-        }
-        if (filters.carrierName) {
-          conditions.push(eq(shipmentsTable.carrierName, filters.carrierName));
-        }
-        if (filters.trackingNumber) {
-          conditions.push(
-            eq(shipmentsTable.trackingNumber, filters.trackingNumber)
-          );
-        }
-        if (filters.shippingDate_start) {
-          conditions.push(
-            gte(shipmentsTable.shippingDate, filters.shippingDate_start)
-          );
-        }
-        if (filters.shippingDate_end) {
-          conditions.push(
-            lte(shipmentsTable.shippingDate, filters.shippingDate_end)
-          );
-        }
+      const conditions = await buildFilterConditions(filters ?? {});
+      if (conditions.length > 0) {
+        shipmentsQuery = shipmentsQuery.where(and(...conditions));
       }
 
-      shipmentsQuery = shipmentsQuery.where(and(...conditions));
       shipmentsQuery = shipmentsQuery.orderBy(desc(shipmentsTable.createdAt));
 
-      if (!getAllShipments) {
+      if (!getAllShipments && limit > 0) {
         shipmentsQuery = shipmentsQuery.limit(limit).offset(page * limit);
       }
 
@@ -656,13 +703,23 @@ export const getShipments = async (
         };
       });
 
+      // Get total count for pagination
+      let totalQuery = tx
+        .select({ count: sql<number>`count(*)` })
+        .from(shipmentsTable)
+        .leftJoin(
+          vendorsTable,
+          eq(shipmentsTable.shippingVendorId, vendorsTable.id)
+        )
+        .$dynamic();
+
+      if (conditions.length > 0) {
+        totalQuery = totalQuery.where(and(...conditions));
+      }
+
       const total = getAllShipments
-        ? shipments.length
-        : await tx
-            .select({ count: sql<number>`count(*)` })
-            .from(shipmentsTable)
-            .where(and(...conditions))
-            .then((res) => res[0]?.count || 0);
+        ? shipmentsWithParcelsAndVendors.length
+        : await totalQuery.then((res) => res[0]?.count || 0);
 
       return {
         documents: shipmentsWithParcelsAndVendors,

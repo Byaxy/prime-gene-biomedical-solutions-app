@@ -1,144 +1,74 @@
-"use client";
-
 import PageWraper from "@/components/PageWraper";
-import ReceivedPurchasesListDialog from "@/components/receivingPurchases/ReceivedPurchasesListDialog";
-import { groupedReceivedPurchasesColumns } from "@/components/table/columns/receivedPurchasesColumns";
-import { DataTable } from "@/components/table/DataTable";
-import { useReceivingPurchases } from "@/hooks/useReceivingPurchases";
-import {
-  GroupedReceivedPurchases,
-  ReceivedPurchaseWithRelations,
-} from "@/types";
-import { useMemo, useState } from "react";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
+import { ReceivedPurchaseFilters } from "@/hooks/useReceivingPurchases";
+import { getReceivedPurchases } from "@/lib/actions/receivingPurchases.actions";
+import dynamic from "next/dynamic";
+import { Suspense } from "react";
 
-const ReceivedInventory = () => {
-  const [openDialog, setOpenDialog] = useState(false);
-  const [selectedRow, setSelectedRow] =
-    useState<GroupedReceivedPurchases | null>(null);
-  const {
-    receivedPurchases,
-    isLoading,
-    totalItems,
-    page,
-    setPage,
-    pageSize,
-    setPageSize,
-    refetch,
-    isFetching,
-    onFilterChange,
-    filters,
-    defaultFilterValues,
-  } = useReceivingPurchases({ initialPageSize: 10 });
+const ReceivedPurchasesTableData = async ({
+  currentPage,
+  currentPageSize,
+  filters,
+}: {
+  currentPage: number;
+  currentPageSize: number;
+  filters: ReceivedPurchaseFilters;
+}) => {
+  const initialData = await getReceivedPurchases(
+    currentPage,
+    currentPageSize,
+    currentPageSize === 0,
+    filters
+  );
+  const ReceivedPurchasesTable = dynamic(
+    () => import("@/components/receivingPurchases/ReceivedPurchasesTable")
+  );
+  return <ReceivedPurchasesTable initialData={initialData} />;
+};
 
-  const inventoryFilters = {
-    totalAmount: {
-      type: "number" as const,
-      label: "Grand Total",
-    },
-    receivingDate: {
-      type: "date" as const,
-      label: "Receiving Date",
-    },
+export interface SearchParams {
+  page?: string;
+  pageSize?: string;
+  search?: string;
+  totalAmount_min?: number;
+  totalAmount_max?: number;
+  receivingDate_start?: string;
+  receivingDate_end?: string;
+}
+
+const ReceivedInventory = async ({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) => {
+  const sp = await searchParams;
+  const currentPage = Number(sp.page || 0);
+  const currentPageSize = sp.pageSize === "0" ? 0 : Number(sp.pageSize || 10);
+
+  const filtersForServer: ReceivedPurchaseFilters = {
+    search: sp.search || undefined,
+    totalAmount_min: sp.totalAmount_min
+      ? Number(sp.totalAmount_min)
+      : undefined,
+    totalAmount_max: sp.totalAmount_max
+      ? Number(sp.totalAmount_max)
+      : undefined,
+    receivingDate_start: sp.receivingDate_start || undefined,
+    receivingDate_end: sp.receivingDate_end || undefined,
   };
-
-  const groupedReceivedPurchases = useMemo<GroupedReceivedPurchases[]>(() => {
-    if (!receivedPurchases || receivedPurchases.length === 0) {
-      return [];
-    }
-
-    const grouped = receivedPurchases.reduce(
-      (
-        acc: Record<string, GroupedReceivedPurchases>,
-        receivedPurchase: ReceivedPurchaseWithRelations
-      ) => {
-        const purchaseKey = receivedPurchase.purchase.purchaseNumber;
-
-        if (!acc[purchaseKey]) {
-          acc[purchaseKey] = {
-            id: purchaseKey,
-            purchase: receivedPurchase.purchase,
-            vendor: receivedPurchase.vendor,
-            store: receivedPurchase.store,
-            totalReceivedPurchases: 0,
-            totalAmount: 0,
-            receivedPurchases: [],
-            latestReceivingDate:
-              receivedPurchase.receivedPurchase.receivingDate,
-            latestVendorParkingListNumber:
-              receivedPurchase.receivedPurchase.vendorParkingListNumber,
-          };
-        }
-
-        const group = acc[purchaseKey];
-
-        // Add received purchase item
-        group.receivedPurchases.push(receivedPurchase);
-
-        // Update totals
-        group.totalReceivedPurchases += 1;
-        group.totalAmount += receivedPurchase.receivedPurchase.totalAmount;
-
-        // Update latest receiving date and parking list number
-        if (
-          receivedPurchase.receivedPurchase.receivingDate >
-          group.latestReceivingDate
-        ) {
-          group.latestReceivingDate =
-            receivedPurchase.receivedPurchase.receivingDate;
-          group.latestVendorParkingListNumber =
-            receivedPurchase.receivedPurchase.vendorParkingListNumber;
-        }
-
-        return acc;
-      },
-      {}
-    );
-
-    return Object.values(grouped);
-  }, [receivedPurchases]);
-
-  const handleRowClick = (rowData: GroupedReceivedPurchases) => {
-    setSelectedRow(rowData);
-    setOpenDialog(true);
-  };
-
-  const handleCloseDialog = (open: boolean) => {
-    setOpenDialog(open);
-    if (!open) {
-      setSelectedRow({} as GroupedReceivedPurchases);
-    }
-  };
-
   return (
     <PageWraper
       title="Received Inventory"
       buttonText="Receive Purchased Inventory."
       buttonPath="/purchases/receive-purchased-inventory"
     >
-      <>
-        <DataTable
-          columns={groupedReceivedPurchasesColumns}
-          data={groupedReceivedPurchases || []}
-          isLoading={isLoading}
-          totalItems={totalItems}
-          page={page}
-          onPageChange={setPage}
-          pageSize={pageSize}
-          onPageSizeChange={setPageSize}
-          refetch={refetch}
-          isFetching={isFetching}
-          filters={inventoryFilters}
-          filterValues={filters}
-          onFilterChange={onFilterChange}
-          defaultFilterValues={defaultFilterValues}
-          onRowClick={handleRowClick}
+      <Suspense fallback={<TableSkeleton />}>
+        <ReceivedPurchasesTableData
+          currentPage={currentPage}
+          currentPageSize={currentPageSize}
+          filters={filtersForServer}
         />
-        <ReceivedPurchasesListDialog
-          open={openDialog && !!selectedRow}
-          onOpenChange={handleCloseDialog}
-          receivedPurchases={selectedRow?.receivedPurchases || []}
-        />
-      </>
+      </Suspense>
     </PageWraper>
   );
 };

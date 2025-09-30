@@ -10,8 +10,75 @@ import { parseStringify } from "../utils";
 import { PurchaseOrderFormValues } from "../validation";
 import { PurchaseStatus } from "@/types";
 import { db } from "@/drizzle/db";
-import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import { PurchaseOrderFilters } from "@/hooks/usePurchaseOrders";
+
+const buildFilterConditions = (filters: PurchaseOrderFilters) => {
+  const conditions = [];
+
+  conditions.push(eq(purchaseOrdersTable.isActive, true));
+
+  // Search logic using ILIKE on joined tables.
+  // GIN indexes are crucial here.
+  if (filters.search?.trim()) {
+    const searchTerm = `%${filters.search.trim()}%`;
+    conditions.push(
+      or(
+        ilike(purchaseOrdersTable.purchaseOrderNumber, searchTerm),
+        ilike(vendorsTable.name, searchTerm)
+      )
+    );
+  }
+
+  // Total Amount range
+  if (filters.totalAmount_min !== undefined) {
+    conditions.push(
+      gte(purchaseOrdersTable.totalAmount, filters.totalAmount_min)
+    );
+  }
+  if (filters.totalAmount_max !== undefined) {
+    conditions.push(
+      lte(purchaseOrdersTable.totalAmount, filters.totalAmount_max)
+    );
+  }
+
+  // Sale date range
+  if (filters.purchaseOrderDate_start) {
+    conditions.push(
+      gte(
+        purchaseOrdersTable.purchaseOrderDate,
+        new Date(filters.purchaseOrderDate_start)
+      )
+    );
+  }
+  if (filters.purchaseOrderDate_end) {
+    conditions.push(
+      lte(
+        purchaseOrdersTable.purchaseOrderDate,
+        new Date(filters.purchaseOrderDate_end)
+      )
+    );
+  }
+
+  // Status filter
+  if (filters.status) {
+    conditions.push(
+      eq(purchaseOrdersTable.status, filters.status as PurchaseStatus)
+    );
+  }
+
+  // Converted to sale filter
+  if (filters.isConvertedToPurchase !== undefined) {
+    conditions.push(
+      eq(
+        purchaseOrdersTable.isConvertedToPurchase,
+        filters.isConvertedToPurchase
+      )
+    );
+  }
+
+  return conditions;
+};
 
 // Add Purchase Order
 export const addPurchaseOrder = async (
@@ -253,58 +320,16 @@ export const getPurchaseOrders = async (
         )
         .$dynamic();
 
-      // Create conditions array
-      const conditions = [eq(purchaseOrdersTable.isActive, true)];
-
-      // Apply filters if provided
-      if (filters) {
-        // Total Amount range
-        if (filters.totalAmount_min !== undefined) {
-          conditions.push(
-            gte(purchaseOrdersTable.totalAmount, filters.totalAmount_min)
-          );
-        }
-        if (filters.totalAmount_max !== undefined) {
-          conditions.push(
-            lte(purchaseOrdersTable.totalAmount, filters.totalAmount_max)
-          );
-        }
-
-        // Purchase order date range
-        if (filters.purchaseOrderDate_start) {
-          conditions.push(
-            gte(
-              purchaseOrdersTable.purchaseOrderDate,
-              new Date(filters.purchaseOrderDate_start)
-            )
-          );
-        }
-        if (filters.purchaseOrderDate_end) {
-          conditions.push(
-            lte(
-              purchaseOrdersTable.purchaseOrderDate,
-              new Date(filters.purchaseOrderDate_end)
-            )
-          );
-        }
-
-        // Status filter
-        if (filters.status) {
-          conditions.push(
-            eq(purchaseOrdersTable.status, filters.status as PurchaseStatus)
-          );
-        }
+      const conditions = await buildFilterConditions(filters ?? {});
+      if (conditions.length > 0) {
+        purchasesQuery = purchasesQuery.where(and(...conditions));
       }
 
-      // Apply where conditions
-      purchasesQuery = purchasesQuery.where(and(...conditions));
-
-      // Apply order by
       purchasesQuery = purchasesQuery.orderBy(
         desc(purchaseOrdersTable.createdAt)
       );
 
-      if (!getAllPurchaseOrders) {
+      if (!getAllPurchaseOrders && limit > 0) {
         purchasesQuery.limit(limit).offset(page * limit);
       }
 
@@ -333,12 +358,22 @@ export const getPurchaseOrders = async (
       }));
 
       // Get total count for pagination
+      let totalQuery = tx
+        .select({ count: sql<number>`count(*)` })
+        .from(purchaseOrdersTable)
+        .leftJoin(
+          vendorsTable,
+          eq(purchaseOrdersTable.vendorId, vendorsTable.id)
+        )
+        .$dynamic();
+
+      if (conditions.length > 0) {
+        totalQuery = totalQuery.where(and(...conditions));
+      }
+
       const total = getAllPurchaseOrders
-        ? purchases.length
-        : await tx
-            .select({ count: sql<number>`count(*)` })
-            .from(purchaseOrdersTable)
-            .then((res) => res[0]?.count || 0);
+        ? purchaseOrdersWithItems.length
+        : await totalQuery.then((res) => res[0]?.count || 0);
 
       return {
         documents: purchaseOrdersWithItems,

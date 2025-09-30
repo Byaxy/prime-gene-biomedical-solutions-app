@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback, useMemo, useEffect } from "react";
-import { ProductFilters } from "@/hooks/useOptimizedProducts";
 import { useBrands } from "@/hooks/useBrands";
 import { useCategories } from "@/hooks/useCategories";
 import { useTypes } from "@/hooks/useTypes";
@@ -18,7 +17,7 @@ import {
 import toast from "react-hot-toast";
 import { DataTable } from "../table/DataTable";
 import { productsColumns } from "../table/columns/productsColumns";
-import { useProducts } from "@/hooks/useProducts";
+import { ProductFilters, useProducts } from "@/hooks/useProducts";
 import { ProductDialog } from "./ProductDialog";
 
 interface Props {

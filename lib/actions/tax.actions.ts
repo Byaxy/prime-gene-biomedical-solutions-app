@@ -5,7 +5,29 @@ import { parseStringify } from "../utils";
 import { TaxFormValues } from "../validation";
 import { db } from "@/drizzle/db";
 import { taxRatesTable } from "@/drizzle/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, or, ilike, and, sql } from "drizzle-orm";
+import { TaxFilters } from "@/hooks/useTaxes";
+
+const buildFilterConditions = (filters: TaxFilters) => {
+  const conditions = [];
+
+  conditions.push(eq(taxRatesTable.isActive, true));
+
+  // Search logic using ILIKE on joined tables.
+  // GIN indexes are crucial here.
+  if (filters.search?.trim()) {
+    const searchTerm = `%${filters.search.trim()}%`;
+    conditions.push(
+      or(
+        ilike(taxRatesTable.name, searchTerm),
+        ilike(taxRatesTable.code, searchTerm),
+        ilike(taxRatesTable.description, searchTerm)
+      )
+    );
+  }
+
+  return conditions;
+};
 
 // Add Tax
 export const addTax = async (taxData: TaxFormValues) => {
@@ -44,59 +66,40 @@ export const getTaxById = async (taxId: string) => {
 export const getTaxes = async (
   page: number = 0,
   limit: number = 10,
-  getAllTaxes: boolean = false
+  getAllTaxes: boolean = false,
+  filters?: TaxFilters
 ) => {
   try {
-    let query = db
-      .select()
-      .from(taxRatesTable)
-      .where(eq(taxRatesTable.isActive, true))
-      .orderBy(desc(taxRatesTable.createdAt));
+    let query = db.select().from(taxRatesTable).$dynamic();
 
-    if (!getAllTaxes) {
+    const conditions = await buildFilterConditions(filters ?? {});
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+
+    query = query.orderBy(desc(taxRatesTable.createdAt));
+
+    if (!getAllTaxes && limit > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       query = (query as any).limit(limit).offset(page * limit);
     }
 
     const taxes = await query;
 
-    // For getAllTaxs, fetch all taxs in batches (if needed)
-    if (getAllTaxes) {
-      let allTaxes: typeof taxes = [];
-      let offset = 0;
-      const batchSize = 100;
+    // Get total count for pagination
+    let totalQuery = db
+      .select({ count: sql<number>`count(*)` })
+      .from(taxRatesTable)
+      .$dynamic();
 
-      while (true) {
-        const batch = await db
-          .select()
-          .from(taxRatesTable)
-          .where(eq(taxRatesTable.isActive, true))
-          .orderBy(desc(taxRatesTable.createdAt))
-          .limit(batchSize)
-          .offset(offset);
-
-        allTaxes = [...allTaxes, ...batch];
-
-        // If we got fewer taxes than the batch size, we've reached the end
-        if (batch.length < batchSize) {
-          break;
-        }
-
-        offset += batchSize;
-      }
-
-      return {
-        documents: parseStringify(allTaxes),
-        total: allTaxes.length,
-      };
+    if (conditions.length > 0) {
+      totalQuery = totalQuery.where(and(...conditions));
     }
 
-    // For paginated results
-    const total = await db
-      .select()
-      .from(taxRatesTable)
-      .where(eq(taxRatesTable.isActive, true))
-      .then((res) => res.length);
+    const total = taxes
+      ? taxes.length
+      : await totalQuery.then((res) => res[0]?.count || 0);
 
     return {
       documents: parseStringify(taxes),

@@ -1,9 +1,9 @@
 import CustomersTable from "@/components/customers/CustomersTable";
-import Loading from "@/app/(dashboard)/loading";
 import PageWraper from "@/components/PageWraper";
 import { Suspense } from "react";
 import { getCustomers } from "@/lib/actions/customer.actions";
 import { CustomerFilters } from "@/hooks/useCustomers";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 
 export interface SearchParams {
   page?: string;
@@ -37,7 +37,7 @@ const Customers = async ({
       buttonText="Add Customer"
       buttonPath="/customers/add-customer"
     >
-      <Suspense fallback={<Loading />}>
+      <Suspense fallback={<TableSkeleton />}>
         <CustomersTable initialData={initialData} />
       </Suspense>
     </PageWraper>

@@ -8,120 +8,269 @@ import {
 } from "@/lib/actions/shipment.actions";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ShipmentFormValues } from "@/lib/validation";
-import { Attachment, ShipmentStatus, ShippingMode } from "@/types";
+import { Attachment, ShipmentWithRelations } from "@/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useTransition } from "react";
 import toast from "react-hot-toast";
 
 interface UseShipmentsOptions {
   getAllShipments?: boolean;
-  initialPageSize?: number;
+  initialData?: { documents: ShipmentWithRelations[]; total: number };
 }
 
 export interface ShipmentFilters {
-  trackingNumber?: string;
-  shippingDate_start?: Date;
-  shippingDate_end?: Date;
-  carrierName?: string;
-  shippingMode?: ShippingMode;
-  status?: ShipmentStatus;
+  search?: string;
+  shippingDate_start?: string;
+  shippingDate_end?: string;
+  shippingMode?: string;
+  status?: string;
+  totalAmount_min?: number;
+  totalAmount_max?: number;
+  carrierType?: string;
+  shipperType?: string;
 }
 
 export const defaultShipmentFilters: ShipmentFilters = {
-  trackingNumber: undefined,
+  search: undefined,
   shippingDate_start: undefined,
   shippingDate_end: undefined,
-  carrierName: undefined,
   shippingMode: undefined,
   status: undefined,
+  totalAmount_min: undefined,
+  totalAmount_max: undefined,
+  carrierType: undefined,
+  shipperType: undefined,
 };
 
 export const useShipments = ({
   getAllShipments = false,
-  initialPageSize = 10,
+  initialData,
 }: UseShipmentsOptions = {}) => {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(initialPageSize);
-  const [filters, setFilters] = useState<ShipmentFilters>(
-    defaultShipmentFilters
+  const [isPending, startTransition] = useTransition();
+
+  // Parse current state from URL - single source of truth
+  const currentState = useMemo(() => {
+    if (getAllShipments) {
+      return {
+        page: 0,
+        pageSize: 0,
+        search: "",
+      };
+    }
+
+    const page = Number(searchParams.get("page") || 0);
+    const pageSize = Number(searchParams.get("pageSize") || 10);
+    const search = searchParams.get("search") || "";
+
+    const filters: ShipmentFilters = {
+      search: search || undefined,
+      totalAmount_min: searchParams.get("totalAmount_min")
+        ? Number(searchParams.get("totalAmount_min"))
+        : undefined,
+      totalAmount_max: searchParams.get("totalAmount_max")
+        ? Number(searchParams.get("totalAmount_max"))
+        : undefined,
+      status: searchParams.get("status") || undefined,
+      shippingDate_start: searchParams.get("shippingDate_start") || undefined,
+      shippingDate_end: searchParams.get("shippingDate_end") || undefined,
+      shippingMode: searchParams.get("shippingMode") || undefined,
+      carrierType: searchParams.get("carrierType") || undefined,
+      shipperType: searchParams.get("shipperType") || undefined,
+    };
+
+    return { page, pageSize, filters, search };
+  }, [getAllShipments, searchParams]);
+
+  // Create stable query key
+  const queryKey = useMemo(() => {
+    const { page, pageSize, filters } = currentState;
+    const filterString = JSON.stringify(filters);
+    return ["shipments", page, pageSize, filterString];
+  }, [currentState]);
+
+  // Main query with server state
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      const { page, pageSize, filters } = currentState;
+      return getShipments(
+        page,
+        pageSize,
+        getAllShipments || pageSize === 0,
+        filters
+      );
+    },
+    initialData: initialData ? () => initialData : undefined,
+    staleTime: getAllShipments ? 60000 : 30000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
+
+  // Optimistic navigation function
+  const navigate = useCallback(
+    (
+      updates: Partial<{
+        page: number;
+        pageSize: number;
+        search: string;
+        filters: Partial<ShipmentFilters>;
+      }>
+    ) => {
+      const params = new URLSearchParams(searchParams.toString());
+
+      // Apply updates
+      if (updates.page !== undefined) {
+        if (updates.page === 0) {
+          params.delete("page");
+        } else {
+          params.set("page", String(updates.page));
+        }
+      }
+
+      if (updates.pageSize !== undefined) {
+        if (updates.pageSize === 10) {
+          params.delete("pageSize");
+        } else {
+          params.set("pageSize", String(updates.pageSize));
+        }
+      }
+
+      if (updates.search !== undefined) {
+        if (updates.search.trim()) {
+          params.set("search", updates.search.trim());
+        } else {
+          params.delete("search");
+        }
+        params.delete("page");
+      }
+
+      if (updates.filters) {
+        Object.keys(defaultShipmentFilters).forEach((key) =>
+          params.delete(key)
+        );
+
+        Object.entries(updates.filters).forEach(([key, value]) => {
+          if (value === undefined || value === "" || value === null) {
+            params.delete(key);
+          } else {
+            params.set(key, String(value));
+          }
+        });
+        params.delete("page");
+      }
+
+      const newUrl = `?${params.toString()}`;
+
+      // Use startTransition for non-urgent updates
+      startTransition(() => {
+        router.push(newUrl, { scroll: false });
+      });
+
+      // Prefetch the new data immediately
+      const newParams = new URLSearchParams(newUrl.substring(1));
+      const newPage = Number(newParams.get("page") || 0);
+      const newPageSize = Number(newParams.get("pageSize") || 10);
+      const newFilters: ShipmentFilters = {
+        search: newParams.get("search") || undefined,
+        totalAmount_min: newParams.get("totalAmount_min")
+          ? Number(newParams.get("totalAmount_min"))
+          : undefined,
+        totalAmount_max: newParams.get("totalAmount_max")
+          ? Number(newParams.get("totalAmount_max"))
+          : undefined,
+        status: newParams.get("status") || undefined,
+        shippingDate_start: newParams.get("shippingDate_start") || undefined,
+        shippingDate_end: newParams.get("shippingDate_end") || undefined,
+        shippingMode: newParams.get("shippingMode") || undefined,
+        carrierType: newParams.get("carrierType") || undefined,
+        shipperType: newParams.get("shipperType") || undefined,
+      };
+
+      const newQueryKey = [
+        "shipments",
+        newPage,
+        newPageSize,
+        JSON.stringify(newFilters),
+      ];
+
+      queryClient.prefetchQuery({
+        queryKey: newQueryKey,
+        queryFn: () =>
+          getShipments(newPage, newPageSize, newPageSize === 0, newFilters),
+      });
+    },
+    [router, searchParams, queryClient]
   );
 
-  const shouldFetchAll = getAllShipments;
-
-  const isShowAllMode = pageSize === 0;
-
-  // Query for all Shipments
-  const allShipmentsQuery = useQuery({
-    queryKey: ["shipments", filters],
-    queryFn: async () => {
-      const result = await getShipments(0, 0, true, filters);
-      return result.documents;
+  const setPage = useCallback(
+    (page: number) => {
+      if (getAllShipments) return;
+      navigate({ page });
     },
-    enabled: shouldFetchAll || isShowAllMode,
-  });
+    [getAllShipments, navigate]
+  );
 
-  // Query for paginated Shipments
-  const paginatedShipmentsQuery = useQuery({
-    queryKey: ["shipments", "paginatedShipments", page, pageSize, filters],
-    queryFn: async () => {
-      const result = await getShipments(page, pageSize, false, filters);
-      return result;
+  const setPageSize = useCallback(
+    (pageSize: number) => {
+      if (getAllShipments) return;
+      navigate({ pageSize, page: 0 });
     },
-    enabled: !shouldFetchAll || !isShowAllMode,
-  });
+    [getAllShipments, navigate]
+  );
 
-  // Determine which query data to use
-  const activeQuery =
-    shouldFetchAll || isShowAllMode
-      ? allShipmentsQuery
-      : paginatedShipmentsQuery;
-  const shipments =
-    (shouldFetchAll || isShowAllMode
-      ? activeQuery.data
-      : activeQuery.data?.documents) || [];
-  const totalItems = activeQuery.data?.total || 0;
+  const setSearch = useCallback(
+    (search: string) => {
+      if (getAllShipments) return;
+      navigate({ search });
+    },
+    [getAllShipments, navigate]
+  );
 
-  // Prefetch next page for table view
+  const setFilters = useCallback(
+    (filters: Partial<ShipmentFilters>) => {
+      if (getAllShipments) return;
+      navigate({ filters });
+    },
+    [getAllShipments, navigate]
+  );
+
+  const clearFilters = useCallback(() => {
+    if (getAllShipments) return;
+    navigate({
+      filters: defaultShipmentFilters,
+      search: "",
+      page: 0,
+      pageSize: 10,
+    });
+  }, [getAllShipments, navigate]);
+
+  // Real-time updates
   useEffect(() => {
-    if (
-      !shouldFetchAll &&
-      !isShowAllMode &&
-      paginatedShipmentsQuery.data &&
-      page * pageSize < paginatedShipmentsQuery.data.total - pageSize
-    ) {
-      queryClient.prefetchQuery({
-        queryKey: [
-          "shipments",
-          "paginatedShipments",
-          page + 1,
-          pageSize,
-          filters,
-        ],
-        queryFn: () => getShipments(page + 1, pageSize, false, filters),
-      });
-    }
-  }, [
-    page,
-    pageSize,
-    paginatedShipmentsQuery.data,
-    queryClient,
-    shouldFetchAll,
-    isShowAllMode,
-    filters,
-  ]);
+    const supabase = createSupabaseBrowserClient();
 
-  // Handle filter changes
-  const handleFilterChange = (newFilters: ShipmentFilters) => {
-    setFilters(newFilters);
-    setPage(0);
-  };
+    const channel = supabase
+      .channel("shipments_changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "shipments",
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["shipments"] });
+        }
+      )
+      .subscribe();
 
-  // Handle page size changes
-  const handlePageSizeChange = (newPageSize: number) => {
-    setPageSize(newPageSize);
-    setPage(0);
-  };
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   const { mutate: addShipmentMutation, status: addShipmentStatus } =
     useMutation({
@@ -242,7 +391,7 @@ export const useShipments = ({
       },
       onSuccess: () => {
         queryClient.invalidateQueries({
-          queryKey: ["shipments", "paginatedShipments"],
+          queryKey: ["shipments"],
         });
       },
       onError: (error) => {
@@ -257,7 +406,7 @@ export const useShipments = ({
     mutationFn: (id: string) => softDeleteShipment(id),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["shipments", "paginatedShipments"],
+        queryKey: ["shipments"],
       });
     },
     onError: (error) => {
@@ -270,7 +419,7 @@ export const useShipments = ({
       mutationFn: (id: string) => deleteShipment(id),
       onSuccess: () => {
         queryClient.invalidateQueries({
-          queryKey: ["shipments", "paginatedShipments"],
+          queryKey: ["shipments"],
         });
       },
       onError: (error) => {
@@ -280,19 +429,21 @@ export const useShipments = ({
     });
 
   return {
-    shipments,
-    totalItems,
-    isLoading: activeQuery.isLoading,
-    error: activeQuery.error,
-    setPageSize: handlePageSizeChange,
-    refetch: activeQuery.refetch,
-    isFetching: activeQuery.isFetching,
-    page,
+    shipments: data?.documents || [],
+    totalItems: data?.total || 0,
+    page: currentState.page,
+    pageSize: currentState.pageSize,
+    search: currentState.search,
+    filters: currentState.filters,
+    isLoading: isLoading || isPending,
+    isFetching,
+    error,
     setPage,
-    pageSize,
-    filters,
-    onFilterChange: handleFilterChange,
-    defaultFilterValues: defaultShipmentFilters,
+    setPageSize,
+    setSearch,
+    setFilters,
+    clearFilters,
+    refetch: refetch,
     addShipment: addShipmentMutation,
     isCreatingShipment: addShipmentStatus === "pending",
     editShipment: editShipmentMutation,

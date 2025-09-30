@@ -13,84 +13,222 @@ import {
   UpdatePasswordFormValues,
 } from "@/lib/validation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useTransition } from "react";
 import toast from "react-hot-toast";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { User } from "@/types";
+import { useRouter, useSearchParams } from "next/navigation";
 
 interface UseUsersOptions {
   getAllUsers?: boolean;
-  initialPageSize?: number;
+  initialData?: { documents: User[]; total: number };
 }
+
+export interface UserFilters {
+  search?: string;
+}
+
+export const defaultUserFilters: UserFilters = {
+  search: undefined,
+};
 
 export const useUsers = ({
   getAllUsers = false,
-  initialPageSize = 10,
+  initialData,
 }: UseUsersOptions = {}) => {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(initialPageSize);
+  const [isPending, startTransition] = useTransition();
 
-  const shouldFetchAll = getAllUsers;
-
-  const isShowAllMode = pageSize === 0;
-
-  // Query for all Users
-  const allUsersQuery = useQuery({
-    queryKey: ["users", "allUsers"],
-    queryFn: async () => {
-      const result = await getUsers(0, 0, true);
-      return result.documents;
-    },
-    enabled: shouldFetchAll || isShowAllMode,
-  });
-
-  // Query for paginated Users
-  const paginatedUsersQuery = useQuery({
-    queryKey: ["users", "paginatedUsers", page, pageSize],
-    queryFn: async () => {
-      const result = await getUsers(page, pageSize, false);
-      return result;
-    },
-    enabled: !shouldFetchAll || !isShowAllMode,
-  });
-
-  // Determine which query data to use
-  const activeQuery =
-    shouldFetchAll || isShowAllMode ? allUsersQuery : paginatedUsersQuery;
-  const users =
-    (shouldFetchAll || isShowAllMode
-      ? activeQuery.data
-      : activeQuery.data?.documents) || [];
-  const totalItems = activeQuery.data?.total || 0;
-
-  // Prefetch next page for table view
-  useEffect(() => {
-    if (
-      !shouldFetchAll &&
-      !isShowAllMode &&
-      paginatedUsersQuery.data &&
-      page * pageSize < paginatedUsersQuery.data.total - pageSize
-    ) {
-      queryClient.prefetchQuery({
-        queryKey: ["users", "paginatedUsers", page + 1, pageSize],
-        queryFn: () => getUsers(page + 1, pageSize, false),
-      });
+  // Parse current state from URL - single source of truth
+  const currentState = useMemo(() => {
+    if (getAllUsers) {
+      return {
+        page: 0,
+        pageSize: 0,
+        search: "",
+      };
     }
-  }, [
-    page,
-    pageSize,
-    paginatedUsersQuery.data,
-    queryClient,
-    shouldFetchAll,
-    isShowAllMode,
-  ]);
 
-  // Handle page size changes
-  const handlePageSizeChange = (newPageSize: number) => {
-    setPageSize(newPageSize);
-    setPage(0);
-  };
+    const page = Number(searchParams.get("page") || 0);
+    const pageSize = Number(searchParams.get("pageSize") || 10);
+    const search = searchParams.get("search") || "";
+
+    const filters: UserFilters = {
+      search: search || undefined,
+    };
+
+    return { page, pageSize, filters, search };
+  }, [getAllUsers, searchParams]);
+
+  // Create stable query key
+  const queryKey = useMemo(() => {
+    const { page, pageSize, filters } = currentState;
+    const filterString = JSON.stringify(filters);
+    return ["users", page, pageSize, filterString];
+  }, [currentState]);
+
+  // Main query with server state
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      const { page, pageSize, filters } = currentState;
+      return getUsers(page, pageSize, getAllUsers || pageSize === 0, filters);
+    },
+    initialData: initialData ? () => initialData : undefined,
+    staleTime: getAllUsers ? 60000 : 30000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
+
+  // Optimistic navigation function
+  const navigate = useCallback(
+    (
+      updates: Partial<{
+        page: number;
+        pageSize: number;
+        search: string;
+        filters: Partial<UserFilters>;
+      }>
+    ) => {
+      const params = new URLSearchParams(searchParams.toString());
+
+      // Apply updates
+      if (updates.page !== undefined) {
+        if (updates.page === 0) {
+          params.delete("page");
+        } else {
+          params.set("page", String(updates.page));
+        }
+      }
+
+      if (updates.pageSize !== undefined) {
+        if (updates.pageSize === 10) {
+          params.delete("pageSize");
+        } else {
+          params.set("pageSize", String(updates.pageSize));
+        }
+      }
+
+      if (updates.search !== undefined) {
+        if (updates.search.trim()) {
+          params.set("search", updates.search.trim());
+        } else {
+          params.delete("search");
+        }
+        params.delete("page");
+      }
+
+      if (updates.filters) {
+        Object.keys(defaultUserFilters).forEach((key) => params.delete(key));
+
+        Object.entries(updates.filters).forEach(([key, value]) => {
+          if (value === undefined || value === "" || value === null) {
+            params.delete(key);
+          } else {
+            params.set(key, String(value));
+          }
+        });
+        params.delete("page");
+      }
+
+      const newUrl = `?${params.toString()}`;
+
+      // Use startTransition for non-urgent updates
+      startTransition(() => {
+        router.push(newUrl, { scroll: false });
+      });
+
+      // Prefetch the new data immediately
+      const newParams = new URLSearchParams(newUrl.substring(1));
+      const newPage = Number(newParams.get("page") || 0);
+      const newPageSize = Number(newParams.get("pageSize") || 10);
+      const newFilters: UserFilters = {
+        search: newParams.get("search") || undefined,
+      };
+
+      const newQueryKey = [
+        "users",
+        newPage,
+        newPageSize,
+        JSON.stringify(newFilters),
+      ];
+
+      queryClient.prefetchQuery({
+        queryKey: newQueryKey,
+        queryFn: () =>
+          getUsers(newPage, newPageSize, newPageSize === 0, newFilters),
+      });
+    },
+    [router, searchParams, queryClient]
+  );
+
+  const setPage = useCallback(
+    (page: number) => {
+      if (getAllUsers) return;
+      navigate({ page });
+    },
+    [getAllUsers, navigate]
+  );
+
+  const setPageSize = useCallback(
+    (pageSize: number) => {
+      if (getAllUsers) return;
+      navigate({ pageSize, page: 0 });
+    },
+    [getAllUsers, navigate]
+  );
+
+  const setSearch = useCallback(
+    (search: string) => {
+      if (getAllUsers) return;
+      navigate({ search });
+    },
+    [getAllUsers, navigate]
+  );
+
+  const setFilters = useCallback(
+    (filters: Partial<UserFilters>) => {
+      if (getAllUsers) return;
+      navigate({ filters });
+    },
+    [getAllUsers, navigate]
+  );
+
+  const clearFilters = useCallback(() => {
+    if (getAllUsers) return;
+    navigate({
+      filters: defaultUserFilters,
+      search: "",
+      page: 0,
+      pageSize: 10,
+    });
+  }, [getAllUsers, navigate]);
+
+  // Real-time updates
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+
+    const channel = supabase
+      .channel("users_changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "users",
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["users"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   // Create user mutation
   const { mutate: addUserMutation, status: addUserStatus } = useMutation({
@@ -266,16 +404,21 @@ export const useUsers = ({
   });
 
   return {
-    users,
-    totalItems,
-    isLoading: activeQuery.isLoading,
-    error: activeQuery.error,
-    setPageSize: handlePageSizeChange,
-    refetch: activeQuery.refetch,
-    isFetching: activeQuery.isFetching,
-    page,
+    users: data?.documents || [],
+    totalItems: data?.total || 0,
+    page: currentState.page,
+    pageSize: currentState.pageSize,
+    search: currentState.search,
+    filters: currentState.filters,
+    isLoading: isLoading || isPending,
+    isFetching,
+    error,
     setPage,
-    pageSize,
+    setPageSize,
+    setSearch,
+    setFilters,
+    clearFilters,
+    refetch: refetch,
     addUser: addUserMutation,
     isCreatingUser: addUserStatus === "pending",
     editUser: editUserMutation,

@@ -10,23 +10,26 @@ import {
 } from "@/lib/actions/receivingPurchases.actions";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ReceivingPurchaseFormValues } from "@/lib/validation";
-import { Attachment } from "@/types";
+import { Attachment, ReceivedPurchaseWithRelations } from "@/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useTransition } from "react";
 
 interface UseReceivingPurchaseOptions {
-  initialPageSize?: number;
   getAllReceivedPurchases?: boolean;
+  initialData?: { documents: ReceivedPurchaseWithRelations[]; total: number };
 }
 
 export interface ReceivedPurchaseFilters {
+  search?: string;
   totalAmount_min?: number;
   totalAmount_max?: number;
   receivingDate_start?: string;
   receivingDate_end?: string;
 }
 
-export const defaultFilters: ReceivedPurchaseFilters = {
+export const defaultReceivedPurchaseFilters: ReceivedPurchaseFilters = {
+  search: undefined,
   totalAmount_min: undefined,
   totalAmount_max: undefined,
   receivingDate_start: undefined,
@@ -35,95 +38,229 @@ export const defaultFilters: ReceivedPurchaseFilters = {
 
 export const useReceivingPurchases = ({
   getAllReceivedPurchases = false,
-  initialPageSize = 10,
+  initialData,
 }: UseReceivingPurchaseOptions = {}) => {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(initialPageSize);
-  const [filters, setFilters] =
-    useState<ReceivedPurchaseFilters>(defaultFilters);
+  const [isPending, startTransition] = useTransition();
 
-  const shouldFetchAll = getAllReceivedPurchases;
-
-  const isShowAllMode = pageSize === 0;
-
-  // Query for all Purchases
-  const allReceivedPurchasesQuery = useQuery({
-    queryKey: ["receivedPurchases", filters],
-    queryFn: async () => {
-      const result = await getReceivedPurchases(0, 0, true, filters);
-      return result.documents;
-    },
-    enabled: shouldFetchAll || isShowAllMode,
-  });
-
-  // Query for paginated Purchases
-  const paginatedReceivedPurchasesQuery = useQuery({
-    queryKey: [
-      "receivedPurchases",
-      "paginatedReceivedPurchases",
-      page,
-      pageSize,
-      filters,
-    ],
-    queryFn: async () => {
-      const result = await getReceivedPurchases(page, pageSize, false, filters);
-      return result;
-    },
-    enabled: !shouldFetchAll || !isShowAllMode,
-  });
-
-  // Determine which query data to use
-  const activeQuery =
-    shouldFetchAll || isShowAllMode
-      ? allReceivedPurchasesQuery
-      : paginatedReceivedPurchasesQuery;
-  const receivedPurchases =
-    (shouldFetchAll || isShowAllMode
-      ? activeQuery.data
-      : activeQuery.data?.documents) || [];
-  const totalItems = activeQuery.data?.total || 0;
-
-  // Prefetch next page for table view
-  useEffect(() => {
-    if (
-      !shouldFetchAll &&
-      !isShowAllMode &&
-      paginatedReceivedPurchasesQuery.data &&
-      page * pageSize < paginatedReceivedPurchasesQuery.data.total - pageSize
-    ) {
-      queryClient.prefetchQuery({
-        queryKey: [
-          "receivedPurchases",
-          "paginatedReceivedPurchases",
-          page + 1,
-          pageSize,
-          filters,
-        ],
-        queryFn: () => getReceivedPurchases(page + 1, pageSize, false, filters),
-      });
+  // Parse current state from URL - single source of truth
+  const currentState = useMemo(() => {
+    if (getAllReceivedPurchases) {
+      return {
+        page: 0,
+        pageSize: 0,
+        search: "",
+      };
     }
-  }, [
-    page,
-    pageSize,
-    paginatedReceivedPurchasesQuery.data,
-    queryClient,
-    shouldFetchAll,
-    isShowAllMode,
-    filters,
-  ]);
 
-  // Handle filter changes
-  const handleFilterChange = (newFilters: ReceivedPurchaseFilters) => {
-    setFilters(newFilters);
-    setPage(0);
-  };
+    const page = Number(searchParams.get("page") || 0);
+    const pageSize = Number(searchParams.get("pageSize") || 10);
+    const search = searchParams.get("search") || "";
 
-  // Handle page size changes
-  const handlePageSizeChange = (newPageSize: number) => {
-    setPageSize(newPageSize);
-    setPage(0);
-  };
+    const filters: ReceivedPurchaseFilters = {
+      search: search || undefined,
+      totalAmount_min: searchParams.get("totalAmount_min")
+        ? Number(searchParams.get("totalAmount_min"))
+        : undefined,
+      totalAmount_max: searchParams.get("totalAmount_max")
+        ? Number(searchParams.get("totalAmount_max"))
+        : undefined,
+      receivingDate_start: searchParams.get("receivingDate_start") || undefined,
+      receivingDate_end: searchParams.get("receivingDate_end") || undefined,
+    };
+
+    return { page, pageSize, filters, search };
+  }, [getAllReceivedPurchases, searchParams]);
+
+  // Create stable query key
+  const queryKey = useMemo(() => {
+    const { page, pageSize, filters } = currentState;
+    const filterString = JSON.stringify(filters);
+    return ["receivedPurchases", page, pageSize, filterString];
+  }, [currentState]);
+
+  // Main query with server state
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      const { page, pageSize, filters } = currentState;
+      return getReceivedPurchases(
+        page,
+        pageSize,
+        getAllReceivedPurchases || pageSize === 0,
+        filters
+      );
+    },
+    initialData: initialData ? () => initialData : undefined,
+    staleTime: getAllReceivedPurchases ? 60000 : 30000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
+
+  // Optimistic navigation function
+  const navigate = useCallback(
+    (
+      updates: Partial<{
+        page: number;
+        pageSize: number;
+        search: string;
+        filters: Partial<ReceivedPurchaseFilters>;
+      }>
+    ) => {
+      const params = new URLSearchParams(searchParams.toString());
+
+      // Apply updates
+      if (updates.page !== undefined) {
+        if (updates.page === 0) {
+          params.delete("page");
+        } else {
+          params.set("page", String(updates.page));
+        }
+      }
+
+      if (updates.pageSize !== undefined) {
+        if (updates.pageSize === 10) {
+          params.delete("pageSize");
+        } else {
+          params.set("pageSize", String(updates.pageSize));
+        }
+      }
+
+      if (updates.search !== undefined) {
+        if (updates.search.trim()) {
+          params.set("search", updates.search.trim());
+        } else {
+          params.delete("search");
+        }
+        params.delete("page");
+      }
+
+      if (updates.filters) {
+        Object.keys(defaultReceivedPurchaseFilters).forEach((key) =>
+          params.delete(key)
+        );
+
+        Object.entries(updates.filters).forEach(([key, value]) => {
+          if (value === undefined || value === "" || value === null) {
+            params.delete(key);
+          } else {
+            params.set(key, String(value));
+          }
+        });
+        params.delete("page");
+      }
+
+      const newUrl = `?${params.toString()}`;
+
+      // Use startTransition for non-urgent updates
+      startTransition(() => {
+        router.push(newUrl, { scroll: false });
+      });
+
+      // Prefetch the new data immediately
+      const newParams = new URLSearchParams(newUrl.substring(1));
+      const newPage = Number(newParams.get("page") || 0);
+      const newPageSize = Number(newParams.get("pageSize") || 10);
+      const newFilters: ReceivedPurchaseFilters = {
+        search: newParams.get("search") || undefined,
+        totalAmount_min: newParams.get("totalAmount_min")
+          ? Number(newParams.get("totalAmount_min"))
+          : undefined,
+        totalAmount_max: newParams.get("totalAmount_max")
+          ? Number(newParams.get("totalAmount_max"))
+          : undefined,
+        receivingDate_start: newParams.get("receivingDate_start") || undefined,
+        receivingDate_end: newParams.get("receivingDate_end") || undefined,
+      };
+
+      const newQueryKey = [
+        "receivedPurchases",
+        newPage,
+        newPageSize,
+        JSON.stringify(newFilters),
+      ];
+
+      queryClient.prefetchQuery({
+        queryKey: newQueryKey,
+        queryFn: () =>
+          getReceivedPurchases(
+            newPage,
+            newPageSize,
+            newPageSize === 0,
+            newFilters
+          ),
+      });
+    },
+    [router, searchParams, queryClient]
+  );
+
+  const setPage = useCallback(
+    (page: number) => {
+      if (getAllReceivedPurchases) return;
+      navigate({ page });
+    },
+    [getAllReceivedPurchases, navigate]
+  );
+
+  const setPageSize = useCallback(
+    (pageSize: number) => {
+      if (getAllReceivedPurchases) return;
+      navigate({ pageSize, page: 0 });
+    },
+    [getAllReceivedPurchases, navigate]
+  );
+
+  const setSearch = useCallback(
+    (search: string) => {
+      if (getAllReceivedPurchases) return;
+      navigate({ search });
+    },
+    [getAllReceivedPurchases, navigate]
+  );
+
+  const setFilters = useCallback(
+    (filters: Partial<ReceivedPurchaseFilters>) => {
+      if (getAllReceivedPurchases) return;
+      navigate({ filters });
+    },
+    [getAllReceivedPurchases, navigate]
+  );
+
+  const clearFilters = useCallback(() => {
+    if (getAllReceivedPurchases) return;
+    navigate({
+      filters: defaultReceivedPurchaseFilters,
+      search: "",
+      page: 0,
+      pageSize: 10,
+    });
+  }, [getAllReceivedPurchases, navigate]);
+
+  // Real-time updates
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+
+    const channel = supabase
+      .channel("receiving_changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "receiving",
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["receivedPurchases"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   const {
     mutate: addReceivedPurchaseMutation,
@@ -179,7 +316,7 @@ export const useReceivingPurchases = ({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["receivedPurchases", "paginatedReceivedPurchases"],
+        queryKey: ["receivedPurchases"],
       });
     },
     onError: (error) => {
@@ -256,7 +393,7 @@ export const useReceivingPurchases = ({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["receivedPurchases", "paginatedReceivedPurchases"],
+        queryKey: ["receivedPurchases"],
       });
     },
     onError: (error) => {
@@ -272,7 +409,7 @@ export const useReceivingPurchases = ({
       softDeleteReceivedPurchase(id, userId),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["receivedPurchases", "paginatedReceivedPurchases"],
+        queryKey: ["receivedPurchases"],
       });
     },
     onError: (error) => {
@@ -288,7 +425,7 @@ export const useReceivingPurchases = ({
       deleteReceivedPurchase(id, userId),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["receivedPurchases", "paginatedReceivedPurchases"],
+        queryKey: ["receivedPurchases"],
       });
     },
     onError: (error) => {
@@ -297,19 +434,21 @@ export const useReceivingPurchases = ({
   });
 
   return {
-    receivedPurchases,
-    totalItems,
-    isLoading: activeQuery.isLoading,
-    error: activeQuery.error,
-    setPageSize: handlePageSizeChange,
-    refetch: activeQuery.refetch,
-    isFetching: activeQuery.isFetching,
-    page,
+    receivedPurchases: data?.documents || [],
+    totalItems: data?.total || 0,
+    page: currentState.page,
+    pageSize: currentState.pageSize,
+    search: currentState.search,
+    filters: currentState.filters,
+    isLoading: isLoading || isPending,
+    isFetching,
+    error,
     setPage,
-    pageSize,
-    filters,
-    onFilterChange: handleFilterChange,
-    defaultFilterValues: defaultFilters,
+    setPageSize,
+    setSearch,
+    setFilters,
+    clearFilters,
+    refetch: refetch,
     addReceivedPurchase: addReceivedPurchaseMutation,
     isCreatingReceivedPurchase: addReceivedPurchaseStatus === "pending",
     editReceivedPurchase: editReceivedPurchaseMutation,

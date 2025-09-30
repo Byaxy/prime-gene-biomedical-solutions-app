@@ -18,13 +18,9 @@ import StatCard from "../StatCard";
 
 interface PurchasesOverviewProps {
   purchases: PurchaseWithRelations[];
-  isLoading?: boolean;
 }
 
-const PurchasesOverview = ({
-  purchases,
-  isLoading,
-}: PurchasesOverviewProps) => {
+const PurchasesOverview = ({ purchases }: PurchasesOverviewProps) => {
   const statistics = useMemo(() => {
     if (!purchases?.length) {
       return {
@@ -121,22 +117,6 @@ const PurchasesOverview = ({
       color: "#f59e0b",
     },
   ].filter((item) => item.value > 0);
-
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Card key={i} className="animate-pulse bg-gray-100 rounded-lg">
-              <CardContent className="p-6">
-                <div className="h-12"></div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6 my-6">

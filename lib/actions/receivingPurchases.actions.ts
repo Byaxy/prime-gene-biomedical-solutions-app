@@ -15,10 +15,63 @@ import {
   storesTable,
   vendorsTable,
 } from "@/drizzle/schema";
-import { and, desc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  isNull,
+  lte,
+  or,
+  sql,
+} from "drizzle-orm";
 import { fulfillBackorders } from "./inventoryStock.actions";
 import { ReceivedPurchaseFilters } from "@/hooks/useReceivingPurchases";
 import { InventoryTransactionType } from "@/types";
+
+const buildFilterConditions = (filters: ReceivedPurchaseFilters) => {
+  const conditions = [];
+
+  conditions.push(eq(receivingTable.isActive, true));
+
+  // Search logic using ILIKE on joined tables.
+  // GIN indexes are crucial here.
+  if (filters.search?.trim()) {
+    const searchTerm = `%${filters.search.trim()}%`;
+    conditions.push(
+      or(
+        ilike(receivingTable.vendorParkingListNumber, searchTerm),
+        ilike(purchasesTable.purchaseNumber, searchTerm),
+        ilike(purchasesTable.vendorInvoiceNumber, searchTerm),
+        ilike(vendorsTable.name, searchTerm)
+      )
+    );
+  }
+
+  // Total Amount range
+  if (filters.totalAmount_min !== undefined) {
+    conditions.push(gte(receivingTable.totalAmount, filters.totalAmount_min));
+  }
+  if (filters.totalAmount_max !== undefined) {
+    conditions.push(lte(receivingTable.totalAmount, filters.totalAmount_max));
+  }
+
+  // Sale date range
+  if (filters.receivingDate_start) {
+    conditions.push(
+      gte(receivingTable.receivingDate, new Date(filters.receivingDate_start))
+    );
+  }
+  if (filters.receivingDate_end) {
+    conditions.push(
+      lte(receivingTable.receivingDate, new Date(filters.receivingDate_end))
+    );
+  }
+
+  return conditions;
+};
 
 // add received purchase
 export const addReceivedPurchase = async (
@@ -464,51 +517,18 @@ export const getReceivedPurchases = async (
         )
         .$dynamic();
 
-      // Create conditions array
-      const conditions = [eq(receivingTable.isActive, true)];
-
-      // Apply filters if provided
-      if (filters) {
-        // Total Amount range
-        if (filters.totalAmount_min !== undefined) {
-          conditions.push(
-            gte(receivingTable.totalAmount, filters.totalAmount_min)
-          );
-        }
-        if (filters.totalAmount_max !== undefined) {
-          conditions.push(
-            lte(receivingTable.totalAmount, filters.totalAmount_max)
-          );
-        }
-
-        // Receiving date range
-        if (filters.receivingDate_start) {
-          conditions.push(
-            gte(
-              receivingTable.receivingDate,
-              new Date(filters.receivingDate_start)
-            )
-          );
-        }
-        if (filters.receivingDate_end) {
-          conditions.push(
-            lte(
-              receivingTable.receivingDate,
-              new Date(filters.receivingDate_end)
-            )
-          );
-        }
+      const conditions = await buildFilterConditions(filters ?? {});
+      if (conditions.length > 0) {
+        receivedPurchasesQuery = receivedPurchasesQuery.where(
+          and(...conditions)
+        );
       }
 
-      // Apply where conditions
-      receivedPurchasesQuery = receivedPurchasesQuery.where(and(...conditions));
-
-      // Apply order by
       receivedPurchasesQuery = receivedPurchasesQuery.orderBy(
         desc(receivingTable.createdAt)
       );
 
-      if (!getAllReceivedPurchases) {
+      if (!getAllReceivedPurchases && limit > 0) {
         receivedPurchasesQuery = receivedPurchasesQuery
           .limit(limit)
           .offset(page * limit);
@@ -593,13 +613,39 @@ export const getReceivedPurchases = async (
       }));
 
       // Get total count for pagination
+      let totalQuery = tx
+        .select({ count: sql<number>`count(*)` })
+        .from(receivingTable)
+        .leftJoin(
+          purchasesTable,
+          and(
+            eq(receivingTable.purchaseId, purchasesTable.id),
+            eq(purchasesTable.isActive, true)
+          )
+        )
+        .leftJoin(
+          vendorsTable,
+          and(
+            eq(receivingTable.vendorId, vendorsTable.id),
+            eq(vendorsTable.isActive, true)
+          )
+        )
+        .leftJoin(
+          storesTable,
+          and(
+            eq(receivingTable.storeId, storesTable.id),
+            eq(storesTable.isActive, true)
+          )
+        )
+        .$dynamic();
+
+      if (conditions.length > 0) {
+        totalQuery = totalQuery.where(and(...conditions));
+      }
+
       const total = getAllReceivedPurchases
-        ? receivedPurchases.length
-        : await tx
-            .select({ count: sql<number>`count(*)` })
-            .from(receivingTable)
-            .where(and(...conditions))
-            .then((res) => res[0]?.count || 0);
+        ? purchasesWithItems.length
+        : await totalQuery.then((res) => res[0]?.count || 0);
 
       return {
         documents: purchasesWithItems,

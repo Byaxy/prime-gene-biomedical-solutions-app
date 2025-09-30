@@ -1,73 +1,58 @@
-"use client";
-
 import PageWraper from "@/components/PageWraper";
-import { taxColumns } from "@/components/table/columns/taxColumns";
-import { DataTable } from "@/components/table/DataTable";
 import AddTaxButton from "@/components/taxes/AddTaxButton";
-import { useTaxes } from "@/hooks/useTaxes";
-import { exportToExcel } from "@/lib/utils";
-import { Tax } from "@/types";
-import { useState } from "react";
-import toast from "react-hot-toast";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
+import { TaxFilters } from "@/hooks/useTaxes";
+import { getTaxes } from "@/lib/actions/tax.actions";
+import dynamic from "next/dynamic";
+import { Suspense } from "react";
 
-const Taxes = () => {
-  const [rowSelection, setRowSelection] = useState({});
+const TaxesTableData = async ({
+  currentPage,
+  currentPageSize,
+  filters,
+}: {
+  currentPage: number;
+  currentPageSize: number;
+  filters: TaxFilters;
+}) => {
+  const initialData = await getTaxes(
+    currentPage,
+    currentPageSize,
+    currentPageSize === 0,
+    filters
+  );
+  const TaxesTable = dynamic(() => import("@/components/taxes/TaxesTable"));
+  return <TaxesTable initialData={initialData} />;
+};
 
-  const {
-    taxes,
-    isLoading,
-    totalItems,
-    page,
-    setPage,
-    pageSize,
-    setPageSize,
-    refetch,
-    isFetching,
-  } = useTaxes({ initialPageSize: 10 });
+export interface SearchParams {
+  page?: string;
+  pageSize?: string;
+  search?: string;
+}
 
-  const handleDownloadSelected = async (selectedItems: Tax[]) => {
-    try {
-      if (selectedItems.length === 0) {
-        toast.error("No Items selected for download");
-        return;
-      }
+const Taxes = async ({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) => {
+  const sp = await searchParams;
+  const currentPage = Number(sp.page || 0);
+  const currentPageSize = sp.pageSize === "0" ? 0 : Number(sp.pageSize || 10);
 
-      const exportData = selectedItems.map((item) => ({
-        id: item.id,
-        name: item.name,
-        description: item.description ?? "",
-        taxRate: `${item.taxRate}%`,
-        code: item.code,
-        isActive: item.isActive,
-        createdAt: item.createdAt,
-        updatedAt: item.updatedAt,
-      }));
-      exportToExcel(exportData, "selected-taxes");
-      setRowSelection({});
-      toast.success("Export started successfully");
-    } catch (error) {
-      console.error("Error exporting taxes:", error);
-      toast.error("Failed to export taxes");
-    }
+  const filtersForServer: TaxFilters = {
+    search: sp.search || undefined,
   };
 
   return (
     <PageWraper title="Taxes" buttonAction={<AddTaxButton />}>
-      <DataTable
-        columns={taxColumns}
-        data={taxes || []}
-        isLoading={isLoading}
-        totalItems={totalItems}
-        page={page}
-        onPageChange={setPage}
-        pageSize={pageSize}
-        onPageSizeChange={setPageSize}
-        rowSelection={rowSelection}
-        onRowSelectionChange={setRowSelection}
-        onDownloadSelected={handleDownloadSelected}
-        refetch={refetch}
-        isFetching={isFetching}
-      />
+      <Suspense fallback={<TableSkeleton />}>
+        <TaxesTableData
+          currentPage={currentPage}
+          currentPageSize={currentPageSize}
+          filters={filtersForServer}
+        />
+      </Suspense>
     </PageWraper>
   );
 };
