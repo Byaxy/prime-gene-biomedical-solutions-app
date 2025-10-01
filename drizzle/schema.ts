@@ -315,7 +315,21 @@ export const vendorsTable = pgTable(
     name: text("name").notNull(),
     email: text("email"),
     phone: text("phone").notNull(),
-    address: text("address"),
+    address: jsonb("address")
+      .$type<{
+        addressName: string;
+        address: string;
+        city: string;
+        state: string;
+        country: string;
+      }>()
+      .default({
+        addressName: "",
+        address: "",
+        city: "",
+        state: "",
+        country: "",
+      }),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),

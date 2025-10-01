@@ -10,6 +10,7 @@ import VendorForm from "../forms/VendorForm";
 import { Vendor } from "@/types";
 import { useVendors } from "@/hooks/useVendors";
 import toast from "react-hot-toast";
+import { cn } from "@/lib/utils";
 
 interface VendorDialogProps {
   mode: "add" | "edit" | "delete";
@@ -59,7 +60,12 @@ const VendorDialog = ({
   }[mode];
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl bg-light-200">
+      <DialogContent
+        className={cn(
+          "sm:max-w-3xl bg-light-200",
+          mode === "edit" && "sm:max-w-5xl"
+        )}
+      >
         <DialogHeader className="space-y-2">
           <DialogTitle className="text-xl text-blue-800">
             {dialogTitle}

@@ -1,6 +1,6 @@
 {
-  "id": "a678c2ea-ddc2-4225-82a2-244f417aacd7",
-  "prevId": "6d6ed7f1-7533-4c4f-8ea2-7035fb871dd6",
+  "id": "1630a145-5c43-4595-be1a-e538e5220e06",
+  "prevId": "a678c2ea-ddc2-4225-82a2-244f417aacd7",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -6025,9 +6025,10 @@
         },
         "address": {
           "name": "address",
-          "type": "text",
+          "type": "jsonb",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "default": "'{\"addressName\":\"\",\"address\":\"\",\"city\":\"\",\"state\":\"\",\"country\":\"\"}'::jsonb"
         },
         "is_active": {
           "name": "is_active",

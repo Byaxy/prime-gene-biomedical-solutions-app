@@ -86,7 +86,13 @@ export interface Vendor {
   name: string;
   email: string;
   phone: string;
-  address: string;
+  address: {
+    addressName: string;
+    address: string;
+    city: string;
+    state: string;
+    country: string;
+  };
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;

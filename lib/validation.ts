@@ -290,7 +290,13 @@ export const VendorFormValidation = z.object({
   name: z.string().nonempty("Name is required"),
   email: z.string().optional(),
   phone: z.string().nonempty("Phone number is required"),
-  address: z.string().optional(),
+  address: z.object({
+    addressName: z.string().optional(),
+    address: z.string().optional(),
+    city: z.string().optional(),
+    state: z.string().optional(),
+    country: z.string().optional(),
+  }),
 });
 export type VendorFormValues = z.infer<typeof VendorFormValidation>;
 

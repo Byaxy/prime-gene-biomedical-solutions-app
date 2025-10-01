@@ -442,6 +442,13 @@
       "when": 1756286266065,
       "tag": "0062_bent_yellow_claw",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1759308263332,
+      "tag": "0063_shocking_fallen_one",
+      "breakpoints": true
     }
   ]
 }

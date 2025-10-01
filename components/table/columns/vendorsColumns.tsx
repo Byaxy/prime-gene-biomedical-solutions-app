@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import VendorActions from "@/components/vendors/VendorActions";
 import { Vendor } from "@/types";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Country } from "country-state-city";
 
 export const vendorsColumns: ColumnDef<Vendor>[] = [
   {
@@ -86,7 +87,19 @@ export const vendorsColumns: ColumnDef<Vendor>[] = [
     header: "Address",
     cell: ({ row }) => {
       const vendor = row.original;
-      return <p className="text-14-medium ">{vendor.address || "-"}</p>;
+      const address = vendor.address.address ?? "";
+      const addressName = vendor.address.addressName ?? "";
+      const city = vendor.address.city ?? "";
+      const country =
+        Country.getCountryByCode(vendor.address.country)?.name ?? "";
+      return (
+        <p className="text-14-medium ">
+          {address ? `${address}, ` : ""}
+          {city ? `${city}, ` : ""}
+          {country}
+          {!address && !addressName && !city && !country && "-"}
+        </p>
+      );
     },
   },
   {

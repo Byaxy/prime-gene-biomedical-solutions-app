@@ -99,7 +99,18 @@ export const addVendor = async (vendorData: VendorFormValues) => {
   try {
     const insertedVendor = await db
       .insert(vendorsTable)
-      .values(vendorData)
+      .values({
+        ...vendorData,
+        address: vendorData.address
+          ? {
+              addressName: vendorData.address.addressName ?? "",
+              address: vendorData.address.address ?? "",
+              city: vendorData.address.city ?? "",
+              state: vendorData.address.state ?? "",
+              country: vendorData.address.country ?? "",
+            }
+          : undefined,
+      })
       .returning();
 
     revalidatePath("/vendors");
@@ -118,7 +129,18 @@ export const editVendor = async (
   try {
     const updatedVendor = await db
       .update(vendorsTable)
-      .set(vendorData)
+      .set({
+        ...vendorData,
+        address: vendorData.address
+          ? {
+              addressName: vendorData.address.addressName ?? "",
+              address: vendorData.address.address ?? "",
+              city: vendorData.address.city ?? "",
+              state: vendorData.address.state ?? "",
+              country: vendorData.address.country ?? "",
+            }
+          : undefined,
+      })
       .where(eq(vendorsTable.id, vendorId))
       .returning();
 
