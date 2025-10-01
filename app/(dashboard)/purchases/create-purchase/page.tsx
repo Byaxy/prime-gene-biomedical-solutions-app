@@ -1,14 +1,14 @@
-"use client";
-
-import PurchaseForm from "@/components/forms/PurchaseForm";
 import PageWraper from "@/components/PageWraper";
+import PurchaseFormWrapper from "@/components/purchases/PurchaseFormWrapper";
+import FormSkeleton from "@/components/ui/form-skeleton";
+import { Suspense } from "react";
 
 const CreatePurchase = () => {
   return (
     <PageWraper title="Create Purchase">
-      <section className="space-y-6">
-        <PurchaseForm mode={"create"} />
-      </section>
+      <Suspense fallback={<FormSkeleton />}>
+        <PurchaseFormWrapper mode="create" />
+      </Suspense>
     </PageWraper>
   );
 };

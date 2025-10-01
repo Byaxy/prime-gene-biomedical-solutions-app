@@ -130,5 +130,8 @@ export const customersColumns: ColumnDef<Customer>[] = [
     cell: ({ row }) => {
       return <CustomerActions customer={row.original} />;
     },
+    meta: {
+      skipRowClick: true,
+    },
   },
 ];

@@ -234,6 +234,9 @@ export const shipmentsColumns: ColumnDef<ShipmentWithRelations>[] = [
         </p>
       );
     },
+    meta: {
+      skipRowClick: true,
+    },
   },
   {
     id: "actions",

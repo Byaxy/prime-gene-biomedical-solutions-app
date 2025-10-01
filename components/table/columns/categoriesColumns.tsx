@@ -139,5 +139,8 @@ export const categoriesColumns: ColumnDef<Category>[] = [
     cell: ({ row }) => {
       return <CategoryActions category={row.original} />;
     },
+    meta: {
+      skipRowClick: true,
+    },
   },
 ];

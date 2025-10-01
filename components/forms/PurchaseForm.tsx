@@ -6,8 +6,7 @@ import { Form, FormControl } from "../ui/form";
 import { useFieldArray, useForm } from "react-hook-form";
 import { Button } from "../ui/button";
 import { SelectItem } from "../ui/select";
-import { useProducts } from "@/hooks/useProducts";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Table,
   TableBody,
@@ -22,10 +21,8 @@ import { X } from "lucide-react";
 import { PurchaseFormValidation, PurchaseFormValues } from "@/lib/validation";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import Loading from "@/app/(dashboard)/loading";
 import FormatNumber from "@/components/FormatNumber";
 import { usePurchases } from "@/hooks/usePurchases";
-import { useVendors } from "@/hooks/useVendors";
 import {
   Attachment,
   InventoryStockWithRelations,
@@ -36,8 +33,6 @@ import {
   PurchaseWithRelations,
   Vendor,
 } from "@/types";
-import { useInventoryStock } from "@/hooks/useInventoryStock";
-import { useQuery } from "@tanstack/react-query";
 import { generatePurchaseNumber } from "@/lib/actions/purchase.actions";
 import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
@@ -47,19 +42,32 @@ import { Input } from "../ui/input";
 import VendorDialog from "../vendors/VendorDialog";
 import { FileUploader } from "../FileUploader";
 import PendingPurchaseOrdersDialog from "../purchaseOrders/PendingPurchaseOrdersDialog";
-import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
+import { cn } from "@/lib/utils";
 
 interface PurchaseFormProps {
   mode: "create" | "edit";
   initialData?: PurchaseWithRelations;
   sourcePurchaseOrder?: PurchaseOrderWithRelations;
+  products: ProductWithRelations[];
+  inventoryStock: InventoryStockWithRelations[];
+  vendors: Vendor[];
+  purchaseOrders: PurchaseOrderWithRelations[];
+  generatedPurchaseNumber?: string;
+  purchases: PurchaseWithRelations[];
 }
 
 const PurchaseForm = ({
   mode,
   initialData,
   sourcePurchaseOrder,
+  products,
+  inventoryStock,
+  vendors,
+  purchaseOrders,
+  generatedPurchaseNumber: initialGeneratedPurchaseNumber,
+  purchases,
 }: PurchaseFormProps) => {
+  const [isRefetchingNumber, setIsRefetchingNumber] = useState(false);
   const [vendorDialogOpen, setVendorDialogOpen] = useState(false);
   const [purchaseOrderDialogOpen, setPurchaseOrderDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -69,82 +77,35 @@ const PurchaseForm = ({
   const [pendingPurchaseOrders, setPendingPurchaseOrders] = useState<
     PurchaseOrderWithRelations[] | null
   >(null);
-  const { products, isLoading: productsLoading } = useProducts({
-    getAllActive: true,
-  });
-  const { vendors, isLoading: vendorsLoading } = useVendors({
-    getAllVendors: true,
-  });
-  const {
-    purchases,
-    addPurchase,
-    editPurchase,
-    isCreatingPurchase,
-    isEditingPurchase,
-  } = usePurchases({ getAllPurchases: true });
-  const { purchaseOrders } = usePurchaseOrders({ getAllPurchaseOrders: true });
 
-  const { inventoryStock } = useInventoryStock({
-    getAllInventoryStocks: true,
-  });
+  const { addPurchase, editPurchase, isCreatingPurchase, isEditingPurchase } =
+    usePurchases({ getAllPurchases: true });
 
   const router = useRouter();
+  const initialMount = useRef(true);
 
-  // Generate purchase order number
-  const {
-    data: generatedPurchaseNumber,
-    isLoading,
-    refetch,
-    isRefetching,
-  } = useQuery({
-    queryKey: ["purchase-number"],
-    queryFn: async () => {
-      if (mode !== "create") return null;
-      const result = await generatePurchaseNumber();
-      return result;
-    },
-    enabled: mode === "create",
-  });
-
-  const defaultValues = {
-    purchaseNumber: generatedPurchaseNumber || "",
-    vendorInvoiceNumber: "",
-    purchaseDate: new Date(),
-    products: [],
-    vendorId: sourcePurchaseOrder?.purchaseOrder.vendorId || "",
-    purchaseOrderId: sourcePurchaseOrder?.purchaseOrder.id || undefined,
-    status: PurchaseStatus.Pending as PurchaseStatus,
-    notes: sourcePurchaseOrder?.purchaseOrder.notes || "",
-    totalAmount: 0,
-    amountPaid: 0,
-    attachments: [],
-    selectedProductId: "",
-  };
+  const defaultValues = useMemo(
+    () => ({
+      purchaseNumber: initialGeneratedPurchaseNumber || "",
+      vendorInvoiceNumber: "",
+      purchaseDate: new Date(),
+      products: [],
+      vendorId: "",
+      purchaseOrderId: undefined,
+      status: PurchaseStatus.Pending as PurchaseStatus,
+      notes: "",
+      totalAmount: 0,
+      amountPaid: 0,
+      attachments: [],
+      selectedProductId: "",
+    }),
+    [initialGeneratedPurchaseNumber]
+  );
 
   const form = useForm<PurchaseFormValues>({
     resolver: zodResolver(PurchaseFormValidation),
     mode: "all",
-    defaultValues:
-      mode === "create"
-        ? defaultValues
-        : {
-            purchaseNumber: initialData?.purchase.purchaseNumber || "",
-            vendorInvoiceNumber:
-              initialData?.purchase.vendorInvoiceNumber || "",
-            purchaseDate: initialData?.purchase.purchaseDate
-              ? new Date(initialData?.purchase.purchaseDate)
-              : new Date(),
-            products: initialData?.products || [],
-            vendorId: initialData?.purchase.vendorId || "",
-            purchaseOrderId: initialData?.purchase.purchaseOrderId || undefined,
-            status: initialData?.purchase.status || PurchaseStatus.Pending,
-            notes: initialData?.purchase.notes || "",
-            totalAmount: initialData?.purchase.totalAmount || 0,
-            amountPaid: initialData?.purchase.amountPaid || 0,
-            attachments: initialData?.purchase.attachments || [],
-
-            selectedProductId: "",
-          },
+    defaultValues: defaultValues,
   });
 
   const { fields, prepend, remove } = useFieldArray({
@@ -158,8 +119,8 @@ const PurchaseForm = ({
     quantity: form.watch(`products.${index}.quantity`),
   }));
 
-  const filteredProducts = products?.reduce(
-    (acc: Product[], product: ProductWithRelations) => {
+  const filteredProducts = useMemo(() => {
+    return products?.reduce((acc: Product[], product: ProductWithRelations) => {
       if (!product?.product?.id || !product?.product?.productID) {
         return acc;
       }
@@ -204,14 +165,13 @@ const PurchaseForm = ({
 
       acc.push(updatedProduct);
       return acc;
-    },
-    []
-  );
+    }, []);
+  }, [inventoryStock, products, searchQuery]);
 
   // Initialize edit mode data
   useEffect(() => {
-    if (initialData && mode === "edit") {
-      setTimeout(() => {
+    if (initialMount.current) {
+      if (initialData) {
         form.reset({
           purchaseNumber: initialData?.purchase.purchaseNumber || "",
           vendorInvoiceNumber: initialData?.purchase.vendorInvoiceNumber || "",
@@ -229,11 +189,9 @@ const PurchaseForm = ({
 
           selectedProductId: "",
         });
-      }, 100);
-    } else if (sourcePurchaseOrder) {
-      setTimeout(() => {
+      } else if (sourcePurchaseOrder) {
         form.reset({
-          purchaseNumber: generatedPurchaseNumber || "",
+          purchaseNumber: initialGeneratedPurchaseNumber || "",
           vendorInvoiceNumber: "",
           purchaseDate: new Date(),
           products: sourcePurchaseOrder?.products || [],
@@ -247,28 +205,31 @@ const PurchaseForm = ({
 
           selectedProductId: "",
         });
-      }, 100);
+      } else if (mode === "create" && initialGeneratedPurchaseNumber) {
+        form.setValue("purchaseNumber", initialGeneratedPurchaseNumber);
+      }
+      initialMount.current = false;
     }
-  }, [mode, initialData, form, sourcePurchaseOrder, generatedPurchaseNumber]);
-
-  // Set purchaseOrder number
-  useEffect(() => {
-    if (generatedPurchaseNumber && mode === "create") {
-      form.setValue("purchaseNumber", generatedPurchaseNumber);
-    }
-  }, [generatedPurchaseNumber, form, mode]);
+  }, [
+    mode,
+    initialData,
+    form,
+    sourcePurchaseOrder,
+    initialGeneratedPurchaseNumber,
+  ]);
 
   // Update the refresh button handler
   const handleRefreshPurchaseNumber = async () => {
     if (mode === "create") {
       try {
-        await refetch();
-        if (generatedPurchaseNumber) {
-          form.setValue("purchaseNumber", generatedPurchaseNumber);
-        }
+        setIsRefetchingNumber(true);
+        const newPurchaseNumber = await generatePurchaseNumber();
+        form.setValue("purchaseNumber", newPurchaseNumber);
       } catch (error) {
         console.error("Error refreshing purchase number:", error);
         toast.error("Failed to refresh purchase number");
+      } finally {
+        setIsRefetchingNumber(false);
       }
     }
   };
@@ -289,9 +250,29 @@ const PurchaseForm = ({
   const handleCancel = () => {
     if (mode === "create") {
       form.reset(defaultValues);
-      refetch();
+      form.setValue("purchaseNumber", initialGeneratedPurchaseNumber || "");
     } else {
-      form.reset();
+      if (initialData) {
+        form.reset({
+          purchaseNumber: initialData?.purchase.purchaseNumber || "",
+          vendorInvoiceNumber: initialData?.purchase.vendorInvoiceNumber || "",
+          purchaseDate: initialData?.purchase.purchaseDate
+            ? new Date(initialData?.purchase.purchaseDate)
+            : new Date(),
+          products: initialData?.products || [],
+          vendorId: initialData?.purchase.vendorId || "",
+          purchaseOrderId: initialData?.purchase.purchaseOrderId || undefined,
+          status: initialData?.purchase.status || PurchaseStatus.Pending,
+          notes: initialData?.purchase.notes || "",
+          totalAmount: initialData?.purchase.totalAmount || 0,
+          amountPaid: initialData?.purchase.amountPaid || 0,
+          attachments: initialData?.purchase.attachments || [],
+
+          selectedProductId: "",
+        });
+      } else {
+        form.reset(defaultValues);
+      }
     }
   };
 
@@ -301,7 +282,7 @@ const PurchaseForm = ({
       return;
     }
 
-    const selectedProduct: ProductWithRelations = products?.find(
+    const selectedProduct = products?.find(
       (product: ProductWithRelations) =>
         product.product.id === selectedProductId
     );
@@ -376,59 +357,71 @@ const PurchaseForm = ({
         return;
       }
 
-      if (mode === "create") {
-        await addPurchase(values, {
-          onSuccess: () => {
-            toast.success("Purchase order created successfully!");
-            form.reset();
-            router.push("/purchases");
-          },
-          onError: (error) => {
-            console.error("Create Purchase order error:", error);
-            toast.error("Failed to create Purchase order");
-          },
-        });
-      }
-      if (mode === "edit" && initialData) {
-        if (initialData?.purchase.attachments?.length > 0) {
-          const prevIds = initialData?.purchase.attachments.map(
-            (attachment: Attachment) => attachment.id
-          );
-          await editPurchase(
-            {
-              id: initialData?.purchase.id,
-              data: values,
-              prevAttachmentIds: prevIds,
+      const loadingToastId = toast.loading(
+        mode === "create" ? "Creating purchase..." : "Updating purchase..."
+      );
+
+      try {
+        if (mode === "create") {
+          await addPurchase(values, {
+            onSuccess: () => {
+              toast.success("Purchase created successfully!", {
+                id: loadingToastId,
+              });
+              router.push("/purchases");
+              router.refresh();
+              form.reset(defaultValues);
             },
-            {
-              onSuccess: () => {
-                toast.success("Purchase order updated successfully!");
-                router.push("/purchases");
-              },
-              onError: (error) => {
-                console.error("Update purchase order error:", error);
-                toast.error("Failed to update purchase order");
-              },
-            }
-          );
-        } else {
-          await editPurchase(
-            {
-              id: initialData?.purchase.id,
-              data: values,
-            },
-            {
-              onSuccess: () => {
-                toast.success("Purchase order updated successfully!");
-                router.push("/purchases");
-              },
-              onError: (error) => {
-                console.error("Update purchase order error:", error);
-                toast.error("Failed to update purchase order");
-              },
-            }
-          );
+          });
         }
+
+        if (mode === "edit" && initialData) {
+          if (initialData?.purchase.attachments?.length > 0) {
+            const prevIds = initialData?.purchase.attachments.map(
+              (attachment: Attachment) => attachment.id
+            );
+            await editPurchase(
+              {
+                id: initialData?.purchase.id,
+                data: values,
+                prevAttachmentIds: prevIds,
+              },
+              {
+                onSuccess: () => {
+                  toast.success("Purchase updated successfully!", {
+                    id: loadingToastId,
+                  });
+                  router.push("/purchases");
+                  router.refresh();
+                  form.reset(defaultValues);
+                },
+              }
+            );
+          } else {
+            await editPurchase(
+              {
+                id: initialData?.purchase.id,
+                data: values,
+              },
+              {
+                onSuccess: () => {
+                  toast.success("Purchase updated successfully!", {
+                    id: loadingToastId,
+                  });
+                  router.push("/purchases");
+                  router.refresh();
+                  form.reset(defaultValues);
+                },
+              }
+            );
+          }
+        }
+      } catch (error) {
+        console.error("Purchase operation error:", error);
+        toast.error(
+          `Failed to ${mode === "create" ? "create" : "update"} purchase order`,
+          { id: loadingToastId }
+        );
       }
     } catch (error) {
       console.error("Error submitting form:", error);
@@ -470,6 +463,8 @@ const PurchaseForm = ({
     calculateEntryTotalPrice,
   ]);
 
+  const isAnyMutationLoading = isCreatingPurchase || isEditingPurchase;
+
   return (
     <>
       <Form {...form}>
@@ -484,6 +479,7 @@ const PurchaseForm = ({
               name="purchaseDate"
               label="Purchase Date"
               dateFormat="MM/dd/yyyy"
+              disabled={isAnyMutationLoading}
             />
             <CustomFormField
               fieldType={FormFieldType.SELECT}
@@ -493,13 +489,8 @@ const PurchaseForm = ({
               placeholder="Select vendor"
               key={`vendor-select-${form.watch("vendorId") || ""}`}
               onAddNew={() => setVendorDialogOpen(true)}
-              disabled={!!sourcePurchaseOrder}
+              disabled={!!sourcePurchaseOrder || isAnyMutationLoading}
             >
-              {vendorsLoading && (
-                <div className="py-4">
-                  <Loading />
-                </div>
-              )}
               {vendors?.map((vendor: Vendor) => (
                 <SelectItem
                   key={vendor.id}
@@ -519,21 +510,20 @@ const PurchaseForm = ({
                 name="purchaseNumber"
                 label="Purchase Number"
                 placeholder={
-                  isLoading || isRefetching
-                    ? "Generating..."
-                    : "Enter purchase number"
+                  isRefetchingNumber ? "Generating..." : "Enter purchase number"
                 }
+                disabled={isRefetchingNumber || isAnyMutationLoading}
               />
               <Button
                 type="button"
                 size={"icon"}
                 onClick={handleRefreshPurchaseNumber}
                 className="self-end shad-primary-btn px-5"
-                disabled={isLoading || isRefetching}
+                disabled={isRefetchingNumber || isAnyMutationLoading}
               >
                 <RefreshCw
                   className={`h-5 w-5 ${
-                    isLoading || isRefetching ? "animate-spin" : ""
+                    isRefetchingNumber ? "animate-spin" : ""
                   }`}
                 />
               </Button>
@@ -544,6 +534,7 @@ const PurchaseForm = ({
               name="vendorInvoiceNumber"
               label="Vendor Proforma Invoice Number"
               placeholder={"Enter vendor proforma invoice number"}
+              disabled={isAnyMutationLoading}
             />
           </div>
 
@@ -561,10 +552,9 @@ const PurchaseForm = ({
                   control={form.control}
                   name="selectedProductId"
                   label="Select Inventory"
-                  placeholder={
-                    productsLoading ? "Loading..." : "Select inventory"
-                  }
+                  placeholder={"Select inventory"}
                   key={`inventory-select-${selectedProductId || ""}`}
+                  disabled={isAnyMutationLoading}
                 >
                   <div className="py-3">
                     <div className="relative flex items-center rounded-md border border-dark-700 bg-white">
@@ -575,7 +565,7 @@ const PurchaseForm = ({
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
-                        disabled={productsLoading}
+                        disabled={isAnyMutationLoading}
                       />
                       {searchQuery && (
                         <button
@@ -588,11 +578,7 @@ const PurchaseForm = ({
                       )}
                     </div>
                   </div>
-                  {productsLoading ? (
-                    <div className="py-4">
-                      <Loading />
-                    </div>
-                  ) : filteredProducts && filteredProducts.length > 0 ? (
+                  {filteredProducts && filteredProducts.length > 0 ? (
                     <>
                       <Table className="shad-table border border-light-200 rounded-lg">
                         <TableHeader>
@@ -609,6 +595,7 @@ const PurchaseForm = ({
                               key={product.id}
                               className="cursor-pointer hover:bg-blue-50"
                               onClick={() => {
+                                if (isAnyMutationLoading) return;
                                 form.setValue("selectedProductId", product.id);
                                 setPrevSelectedProductId(product.id);
                                 setSearchQuery("");
@@ -659,7 +646,7 @@ const PurchaseForm = ({
               <Button
                 type="button"
                 onClick={handleAddProduct}
-                disabled={!selectedProductId}
+                disabled={!selectedProductId || isAnyMutationLoading}
                 className="self-end mb-1 shad-primary-btn"
               >
                 Add Product
@@ -676,6 +663,7 @@ const PurchaseForm = ({
                     e.stopPropagation();
                     setPurchaseOrderDialogOpen(true);
                   }}
+                  disabled={isAnyMutationLoading}
                 >
                   View Pending Purchase Orders
                 </Button>
@@ -726,6 +714,7 @@ const PurchaseForm = ({
                         name={`products.${index}.quantity`}
                         label=""
                         placeholder="Qty"
+                        disabled={isAnyMutationLoading}
                       />
                     </TableCell>
                     <TableCell>
@@ -735,6 +724,7 @@ const PurchaseForm = ({
                         name={`products.${index}.costPrice`}
                         label=""
                         placeholder="Cost price"
+                        disabled={isAnyMutationLoading}
                       />
                     </TableCell>
 
@@ -746,8 +736,15 @@ const PurchaseForm = ({
                     <TableCell>
                       <div className="flex flex-row items-center">
                         <span
-                          onClick={() => handleDeleteEntry(index)}
-                          className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
+                          onClick={() => {
+                            if (!isAnyMutationLoading) handleDeleteEntry(index);
+                          }}
+                          className={cn(
+                            "p-1 cursor-pointer",
+                            isAnyMutationLoading
+                              ? "text-gray-400 cursor-not-allowed"
+                              : "text-red-600 hover:bg-light-200 hover:rounded-md"
+                          )}
                         >
                           <DeleteIcon className="h-5 w-5" />
                         </span>
@@ -791,6 +788,7 @@ const PurchaseForm = ({
               label="Purchase Status"
               placeholder="Select status"
               key={`status-select-${form.watch("status") || ""}`}
+              disabled={isAnyMutationLoading}
             >
               {Object.values(PurchaseStatus).map((status) => (
                 <SelectItem
@@ -807,6 +805,7 @@ const PurchaseForm = ({
               control={form.control}
               name="attachments"
               label="Attachments"
+              disabled={isAnyMutationLoading}
               renderSkeleton={(field) => (
                 <FormControl>
                   <FileUploader
@@ -820,6 +819,7 @@ const PurchaseForm = ({
                       "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
                         [".docx"],
                     }}
+                    disabled={isAnyMutationLoading}
                   />
                 </FormControl>
               )}
@@ -832,6 +832,7 @@ const PurchaseForm = ({
             name="notes"
             label="Notes"
             placeholder="Enter purchase notes"
+            disabled={isAnyMutationLoading}
           />
 
           <div className="flex justify-end gap-4">
@@ -839,12 +840,14 @@ const PurchaseForm = ({
               type="button"
               onClick={handleCancel}
               className="shad-danger-btn"
+              disabled={isAnyMutationLoading}
             >
               Cancel
             </Button>
             <SubmitButton
               isLoading={isCreatingPurchase || isEditingPurchase}
               className="shad-primary-btn"
+              disabled={isAnyMutationLoading}
             >
               {mode === "create" ? "Create Purchase" : "Update Purchase"}
             </SubmitButton>
@@ -860,6 +863,7 @@ const PurchaseForm = ({
 
       <PendingPurchaseOrdersDialog
         open={
+          !isAnyMutationLoading &&
           !!purchaseOrderDialogOpen &&
           !!pendingPurchaseOrders &&
           pendingPurchaseOrders.length > 0

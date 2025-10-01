@@ -147,6 +147,7 @@ const PurchaseOrderActions = ({
               <DropdownMenuItem
                 onClick={() => {
                   setMode("edit");
+                  setOpenDialog(false);
                   router.push(
                     `/purchases/edit-purchase-order/${purchaseOrder?.purchaseOrder.id}`
                   );
@@ -159,6 +160,7 @@ const PurchaseOrderActions = ({
               <DropdownMenuItem
                 onClick={() => {
                   setMode("edit");
+                  setOpenDialog(false);
                   router.push(
                     `/purchases/create-purchase/from-purchase-order/${purchaseOrder?.purchaseOrder.id}`
                   );

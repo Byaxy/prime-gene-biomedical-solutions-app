@@ -169,18 +169,14 @@ const SaleForm = ({
 
   const watchedFields = fields.map((_, index) => ({
     quantity: form.watch(`products.${index}.quantity`),
-
     unitPrice: form.watch(`products.${index}.unitPrice`),
-
     taxRateId: form.watch(`products.${index}.taxRateId`),
-
     discountRate: form.watch(`products.${index}.discountRate`),
-
     lotNumber: form.watch(`products.${index}.inventoryStock`),
   }));
 
-  const filteredProducts = products?.reduce(
-    (acc: Product[], product: ProductWithRelations) => {
+  const filteredProducts = useMemo(() => {
+    return products?.reduce((acc: Product[], product: ProductWithRelations) => {
       if (
         !selectedStoreId ||
         !product?.product?.id ||
@@ -230,9 +226,8 @@ const SaleForm = ({
 
       acc.push(updatedProduct);
       return acc;
-    },
-    []
-  );
+    }, []);
+  }, [inventoryStock, products, searchQuery, selectedStoreId]);
 
   // initialize data in edit mode
   useEffect(() => {

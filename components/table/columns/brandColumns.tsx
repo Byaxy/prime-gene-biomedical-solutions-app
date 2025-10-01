@@ -85,5 +85,8 @@ export const brandColumns: ColumnDef<Brand>[] = [
     cell: ({ row }) => {
       return <BrandActions brand={row.original} />;
     },
+    meta: {
+      skipRowClick: true,
+    },
   },
 ];

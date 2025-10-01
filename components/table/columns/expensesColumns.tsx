@@ -103,6 +103,9 @@ export const expensesColumns: ColumnDef<Expense>[] = [
       const expense = row.original;
       return <p className="text-14-medium ">{expense.description || "-"}</p>;
     },
+    meta: {
+      skipRowClick: true,
+    },
   },
   {
     id: "actions",
