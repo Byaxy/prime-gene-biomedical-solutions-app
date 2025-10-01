@@ -1,10 +1,8 @@
 "use client";
 
 import { useAuth } from "@/hooks/useAuth";
-import { usePurchases } from "@/hooks/usePurchases";
 import { useReceivingPurchases } from "@/hooks/useReceivingPurchases";
 import { useStores } from "@/hooks/useStores";
-import { useVendors } from "@/hooks/useVendors";
 import {
   ReceivedInventoryStockValues,
   ReceivingPurchaseFormValidation,
@@ -23,7 +21,13 @@ import {
 } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
-import React, { useCallback, useEffect, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import toast from "react-hot-toast";
 import VendorDialog from "../vendors/VendorDialog";
@@ -45,10 +49,8 @@ import { X } from "lucide-react";
 import { SelectItem } from "../ui/select";
 import FormatNumber from "../FormatNumber";
 import SubmitButton from "../SubmitButton";
-import Loading from "../../app/(dashboard)/loading";
 import { Check } from "lucide-react";
 import { cn, formatDateTime } from "@/lib/utils";
-import { useProducts } from "@/hooks/useProducts";
 import StoreDialog from "../stores/StoreDialog";
 import ReceiveInventoryStockDialog from "../receivingPurchases/ReceiveInventoryStockDialog";
 import { FileUploader } from "../FileUploader";
@@ -56,10 +58,18 @@ import { FileUploader } from "../FileUploader";
 interface RecievingPurchaseFormProps {
   mode: "create" | "edit";
   initialData?: ReceivedPurchaseWithRelations;
+  products: ProductWithRelations[];
+  vendors: Vendor[];
+  purchases: PurchaseWithRelations[];
+  stores: Store[];
 }
 const RecievingPurchaseForm = ({
   mode,
   initialData,
+  products: mainProducts,
+  vendors,
+  purchases,
+  stores,
 }: RecievingPurchaseFormProps) => {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [vendorDialogOpen, setVendorDialogOpen] = useState(false);
@@ -71,18 +81,8 @@ const RecievingPurchaseForm = ({
     string | null
   >(null);
 
-  const { vendors, isLoading: vendorsLoading } = useVendors({
-    getAllVendors: true,
-  });
-  const {
-    stores,
-    addStore,
-    isAddingStore,
-    isLoading: storesLoading,
-  } = useStores({ getAllStores: true });
-  const { purchases, isLoading: purchasesLoading } = usePurchases({
-    getAllPurchases: true,
-  });
+  const { addStore, isAddingStore } = useStores({ getAllStores: true });
+
   const {
     addReceivedPurchase,
     editReceivedPurchase,
@@ -92,11 +92,10 @@ const RecievingPurchaseForm = ({
     getAllReceivedPurchases: true,
   });
 
-  const { products: mainProducts } = useProducts({ getAllActive: true });
-
   const { user } = useAuth();
 
   const router = useRouter();
+  const initialMount = useRef(true);
 
   const defaultValues = {
     vendorParkingListNumber: "",
@@ -175,41 +174,47 @@ const RecievingPurchaseForm = ({
     });
   };
 
-  const filteredPurchases =
-    purchases?.reduce((acc: Purchase[], purchase: PurchaseWithRelations) => {
-      if (!selectedVendorId || !purchase?.purchase.vendorId) {
-        return acc;
-      }
+  const filteredPurchases = useMemo(() => {
+    return (
+      purchases?.reduce((acc: Purchase[], purchase: PurchaseWithRelations) => {
+        if (!selectedVendorId || !purchase?.purchase.vendorId) {
+          return acc;
+        }
 
-      if (selectedVendorId && purchase.purchase.vendorId !== selectedVendorId) {
-        return acc;
-      }
+        if (
+          selectedVendorId &&
+          purchase.purchase.vendorId !== selectedVendorId
+        ) {
+          return acc;
+        }
 
-      if (mode === "edit") {
+        if (mode === "edit") {
+          acc.push(purchase.purchase);
+          return acc;
+        }
+
+        if (searchQuery?.trim()) {
+          const query = searchQuery.toLowerCase().trim();
+          const matchesSearch =
+            purchase.purchase.purchaseNumber?.toLowerCase().includes(query) ||
+            purchase.vendor?.name?.toLowerCase().includes(query);
+          if (!matchesSearch) return acc;
+        }
+
+        if (!hasReceiveableProducts(purchase)) {
+          return acc;
+        }
+
         acc.push(purchase.purchase);
         return acc;
-      }
-
-      if (searchQuery?.trim()) {
-        const query = searchQuery.toLowerCase().trim();
-        const matchesSearch =
-          purchase.purchase.purchaseNumber?.toLowerCase().includes(query) ||
-          purchase.vendor?.name?.toLowerCase().includes(query);
-        if (!matchesSearch) return acc;
-      }
-
-      if (!hasReceiveableProducts(purchase)) {
-        return acc;
-      }
-
-      acc.push(purchase.purchase);
-      return acc;
-    }, [] as Purchase[]) || [];
+      }, [] as Purchase[]) || []
+    );
+  }, [mode, purchases, searchQuery, selectedVendorId]);
 
   // Initialize edit mode data
   useEffect(() => {
-    if (initialData && mode === "edit") {
-      setTimeout(() => {
+    if (initialMount.current) {
+      if (initialData && mode === "edit") {
         form.reset({
           purchaseId: initialData?.receivedPurchase.purchaseId || "",
           purchaseNumber: initialData.purchase.purchaseNumber || "",
@@ -238,7 +243,8 @@ const RecievingPurchaseForm = ({
           notes: initialData?.receivedPurchase.notes || "",
           attachments: initialData?.receivedPurchase.attachments || [],
         });
-      }, 100);
+      }
+      initialMount.current = false;
     }
   }, [mode, initialData, form]);
 
@@ -327,9 +333,10 @@ const RecievingPurchaseForm = ({
             productName: product.productName,
             productID: product.productID,
             pendingQuantity: product.quantity - product.quantityReceived,
-            costPrice: product.costPrice || mainPdt?.product.costPrice,
+            costPrice: product.costPrice || mainPdt?.product.costPrice || 0,
             sellingPrice: mainPdt?.product.sellingPrice || 0,
             inventoryStock: [],
+            totalCost: 0,
           };
         }
       );
@@ -346,64 +353,83 @@ const RecievingPurchaseForm = ({
         return;
       }
 
-      if (mode === "create") {
-        await addReceivedPurchase(
-          { data: values, userId: user.id },
-          {
-            onSuccess: () => {
-              toast.success("Purchase order received successfully!");
-              form.reset();
-              router.push("/purchases/received-inventory");
-            },
-            onError: (error) => {
-              console.error("Receive Purchase order error:", error);
-              toast.error("Failed to receive Purchase order");
-            },
-          }
-        );
-      }
-      if (mode === "edit" && initialData) {
-        if (initialData?.receivedPurchase.attachments?.length > 0) {
-          const prevIds = initialData?.receivedPurchase.attachments.map(
-            (attachment: Attachment) => attachment.id
-          );
-          await editReceivedPurchase(
-            {
-              id: initialData?.receivedPurchase.id,
-              data: values,
-              userId: user.id,
-              prevAttachmentIds: prevIds,
-            },
+      const loadingToastId = toast.loading(
+        mode === "create" ? "Creating..." : "Updating..."
+      );
+
+      try {
+        if (mode === "create") {
+          await addReceivedPurchase(
+            { data: values, userId: user.id },
             {
               onSuccess: () => {
-                toast.success("Received Purchase order updated successfully!");
+                toast.success("Purchase order received successfully!", {
+                  id: loadingToastId,
+                });
                 router.push("/purchases/receive-inventory");
-              },
-              onError: (error) => {
-                console.error("Update received purchase order error:", error);
-                toast.error("Failed to update purchase order");
-              },
-            }
-          );
-        } else {
-          await editReceivedPurchase(
-            {
-              id: initialData?.receivedPurchase.id,
-              data: values,
-              userId: user.id,
-            },
-            {
-              onSuccess: () => {
-                toast.success("Received Purchase order updated successfully!");
-                router.push("/purchases/receive-inventory");
-              },
-              onError: (error) => {
-                console.error("Update received purchase order error:", error);
-                toast.error("Failed to update purchase order");
+                router.refresh();
+                form.reset(defaultValues);
               },
             }
           );
         }
+        if (mode === "edit" && initialData) {
+          if (initialData?.receivedPurchase.attachments?.length > 0) {
+            const prevIds = initialData?.receivedPurchase.attachments.map(
+              (attachment: Attachment) => attachment.id
+            );
+            await editReceivedPurchase(
+              {
+                id: initialData?.receivedPurchase.id,
+                data: values,
+                userId: user.id,
+                prevAttachmentIds: prevIds,
+              },
+              {
+                onSuccess: () => {
+                  toast.success(
+                    "Received Purchase order updated successfully!",
+                    {
+                      id: loadingToastId,
+                    }
+                  );
+                  router.push("/purchases/receive-inventory");
+                  router.refresh();
+                  form.reset(defaultValues);
+                },
+              }
+            );
+          } else {
+            await editReceivedPurchase(
+              {
+                id: initialData?.receivedPurchase.id,
+                data: values,
+                userId: user.id,
+              },
+              {
+                onSuccess: () => {
+                  toast.success(
+                    "Received Purchase order updated successfully!",
+                    {
+                      id: loadingToastId,
+                    }
+                  );
+                  router.push("/purchases/receive-inventory");
+                  router.refresh();
+                  form.reset(defaultValues);
+                },
+              }
+            );
+          }
+        }
+      } catch (error) {
+        console.error("Receive Inventory operation error:", error);
+        toast.error(
+          `Failed to ${
+            mode === "create" ? "receive" : "update received"
+          } inventory`,
+          { id: loadingToastId }
+        );
       }
     } catch (error) {
       console.error("Error submitting form:", error);
@@ -449,6 +475,9 @@ const RecievingPurchaseForm = ({
     calculateEntryTotalCost,
   ]);
 
+  const isAnyMutationLoading =
+    isAddingStore || isCreatingReceivedPurchase || isEditingReceivedPurchase;
+
   return (
     <>
       <Form {...form}>
@@ -466,12 +495,8 @@ const RecievingPurchaseForm = ({
               onAddNew={() => setVendorDialogOpen(true)}
               onValueChange={(value) => handleVendorChange(value)}
               key={`vendor-select-${form.watch("vendorId") || ""}`}
+              disabled={isAnyMutationLoading}
             >
-              {vendorsLoading && (
-                <div className="py-4">
-                  <Loading />
-                </div>
-              )}
               {vendors?.map((vendor: Vendor) => (
                 <SelectItem
                   key={vendor.id}
@@ -489,6 +514,7 @@ const RecievingPurchaseForm = ({
               name="receivingDate"
               label="Receiving Date"
               dateFormat="MM/dd/yyyy"
+              disabled={isAnyMutationLoading}
             />
           </div>
           <div className="flex flex-col sm:flex-row gap-5">
@@ -500,12 +526,8 @@ const RecievingPurchaseForm = ({
               placeholder="Select store"
               onAddNew={() => setStoreDialogOpen(true)}
               key={`store-select-${form.watch("storeId") || ""}`}
+              disabled={isAnyMutationLoading}
             >
-              {storesLoading && (
-                <div className="py-4">
-                  <Loading />
-                </div>
-              )}
               {stores?.map((store: Store) => (
                 <SelectItem
                   key={store.id}
@@ -522,6 +544,7 @@ const RecievingPurchaseForm = ({
               name="vendorParkingListNumber"
               label="Vendor Parking List Number"
               placeholder={"Enter vendor parking list number"}
+              disabled={isAnyMutationLoading}
             />
           </div>
 
@@ -539,14 +562,12 @@ const RecievingPurchaseForm = ({
                 name="purchaseId"
                 label="Select Purchase Order"
                 placeholder={
-                  purchasesLoading
-                    ? "Loading..."
-                    : selectedVendorId
+                  selectedVendorId
                     ? "Select purchase order"
                     : "Select vendor first"
                 }
                 key={`purchase-select-${form.watch("purchaseId") || ""}`}
-                disabled={purchasesLoading || !selectedVendorId}
+                disabled={!selectedVendorId || isAnyMutationLoading}
               >
                 <div className="py-3">
                   <div className="relative flex items-center rounded-md border border-dark-700 bg-white">
@@ -557,7 +578,7 @@ const RecievingPurchaseForm = ({
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
-                      disabled={purchasesLoading || !selectedVendorId}
+                      disabled={!selectedVendorId || isAnyMutationLoading}
                     />
                     {searchQuery && (
                       <button
@@ -570,11 +591,7 @@ const RecievingPurchaseForm = ({
                     )}
                   </div>
                 </div>
-                {purchasesLoading ? (
-                  <div className="py-4">
-                    <Loading />
-                  </div>
-                ) : filteredPurchases && filteredPurchases.length > 0 ? (
+                {filteredPurchases && filteredPurchases.length > 0 ? (
                   <>
                     <Table className="shad-table border border-light-200 rounded-lg">
                       <TableHeader>
@@ -633,6 +650,7 @@ const RecievingPurchaseForm = ({
                 name="vendorInvoiceNumber"
                 label="Vendor Invoice Number"
                 placeholder={"Enter vendor invoice number"}
+                disabled={isAnyMutationLoading}
               />
             </div>
 
@@ -698,7 +716,8 @@ const RecievingPurchaseForm = ({
                           title="Manage Lot Numbers / Inventory stock"
                           disabled={
                             form.watch(`products.${index}.costPrice`) <= 0 ||
-                            entry.pendingQuantity <= 0
+                            entry.pendingQuantity <= 0 ||
+                            isAnyMutationLoading
                           }
                         >
                           {form.watch(`products.${index}.costPrice`) <= 0
@@ -734,6 +753,7 @@ const RecievingPurchaseForm = ({
                           name={`products.${index}.costPrice`}
                           label=""
                           placeholder="Cost price"
+                          disabled={isAnyMutationLoading}
                         />
                       </TableCell>
                       <TableCell>
@@ -743,6 +763,7 @@ const RecievingPurchaseForm = ({
                           name={`products.${index}.sellingPrice`}
                           label=""
                           placeholder="Selling price"
+                          disabled={isAnyMutationLoading}
                         />
                       </TableCell>
 
@@ -756,7 +777,10 @@ const RecievingPurchaseForm = ({
                       <TableCell>
                         <div className="flex flex-row items-center">
                           <span
-                            onClick={() => handleDeleteEntry(index)}
+                            onClick={() => {
+                              if (!isAnyMutationLoading)
+                                handleDeleteEntry(index);
+                            }}
                             className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
                           >
                             <DeleteIcon className="h-5 w-5" />
@@ -810,6 +834,7 @@ const RecievingPurchaseForm = ({
               control={form.control}
               name="attachments"
               label="Attachments"
+              disabled={isAnyMutationLoading}
               renderSkeleton={(field) => (
                 <FormControl>
                   <FileUploader
@@ -823,6 +848,7 @@ const RecievingPurchaseForm = ({
                       "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
                         [".docx"],
                     }}
+                    disabled={isAnyMutationLoading}
                   />
                 </FormControl>
               )}
@@ -835,6 +861,7 @@ const RecievingPurchaseForm = ({
             name="notes"
             label="Notes"
             placeholder="Enter purchase notes"
+            disabled={isAnyMutationLoading}
           />
 
           <div className="flex justify-end gap-4">
@@ -842,6 +869,7 @@ const RecievingPurchaseForm = ({
               type="button"
               onClick={handleCancel}
               className="shad-danger-btn"
+              disabled={isAnyMutationLoading}
             >
               Cancel
             </Button>
@@ -850,6 +878,7 @@ const RecievingPurchaseForm = ({
                 isCreatingReceivedPurchase || isEditingReceivedPurchase
               }
               className="shad-primary-btn"
+              disabled={isAnyMutationLoading}
             >
               {mode === "create"
                 ? "Receive Purchase"

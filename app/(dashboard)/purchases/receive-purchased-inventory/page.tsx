@@ -1,12 +1,14 @@
-import RecievingPurchaseForm from "@/components/forms/RecievingPurchaseForm";
 import PageWraper from "@/components/PageWraper";
+import RecievingPurchaseFormWrapper from "@/components/receivingPurchases/RecievingPurchaseFormWrapper";
+import FormSkeleton from "@/components/ui/form-skeleton";
+import { Suspense } from "react";
 
 const ReceiveInventory = () => {
   return (
     <PageWraper title="Receive Purchased Inventory">
-      <section className="space-y-6">
-        <RecievingPurchaseForm mode={"create"} />
-      </section>
+      <Suspense fallback={<FormSkeleton />}>
+        <RecievingPurchaseFormWrapper mode={"create"} />
+      </Suspense>
     </PageWraper>
   );
 };
