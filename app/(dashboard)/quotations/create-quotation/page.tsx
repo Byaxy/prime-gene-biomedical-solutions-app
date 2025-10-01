@@ -6,11 +6,9 @@ import { Suspense } from "react";
 const CreateQuotation = () => {
   return (
     <PageWraper title="Create Quotation">
-      <section className="space-y-6">
-        <Suspense fallback={<FormSkeleton />}>
-          <QuotationFormWrapper mode="create" />
-        </Suspense>
-      </section>
+      <Suspense fallback={<FormSkeleton />}>
+        <QuotationFormWrapper mode="create" />
+      </Suspense>
     </PageWraper>
   );
 };

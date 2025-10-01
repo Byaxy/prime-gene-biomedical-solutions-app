@@ -1,8 +1,6 @@
 "use client";
 
-import { useProducts } from "@/hooks/useProducts";
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
-import { useVendors } from "@/hooks/useVendors";
 import { generatePurchaseOrderNumber } from "@/lib/actions/purchaseOrder.actions";
 import {
   PurchaseOrderFormValidation,
@@ -31,99 +29,73 @@ import {
 } from "../ui/table";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { X } from "lucide-react";
-import Loading from "@/app/(dashboard)/loading";
 import FormatNumber from "@/components/FormatNumber";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import toast from "react-hot-toast";
 import VendorDialog from "../vendors/VendorDialog";
-import { useInventoryStock } from "@/hooks/useInventoryStock";
 import { Check } from "lucide-react";
 import { Search } from "lucide-react";
 import { Input } from "../ui/input";
 import { RefreshCw } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface Props {
   mode: "create" | "edit";
   initialData?: PurchaseOrderWithRelations;
+  products: ProductWithRelations[];
+  inventoryStock: InventoryStockWithRelations[];
+  vendors: Vendor[];
+  purchaseOrders: PurchaseOrderWithRelations[];
+  generatedPurchaseOrderNumber?: string;
 }
 
-const PurchaseOrderForm = ({ mode, initialData }: Props) => {
+const PurchaseOrderForm = ({
+  mode,
+  initialData,
+  products,
+  inventoryStock,
+  vendors,
+  purchaseOrders,
+  generatedPurchaseOrderNumber: initialGeneratedPurchaseOrderNumber,
+}: Props) => {
+  const [isRefetchingNumber, setIsRefetchingNumber] = useState(false);
   const [vendorDialogOpen, setVendorDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [prevSelectedProductId, setPrevSelectedProductId] = useState<
     string | null
   >(null);
-  const { products, isLoading: productsLoading } = useProducts({
-    getAllActive: true,
-  });
-  const { vendors, isLoading: vendorsLoading } = useVendors({
-    getAllVendors: true,
-  });
 
   const {
-    purchaseOrders,
     addPurchaseOrder,
     editPurchaseOrder,
     isCreatingPurchaseOrder,
     isEditingPurchaseOrder,
   } = usePurchaseOrders({ getAllPurchaseOrders: true });
 
-  const { inventoryStock } = useInventoryStock({
-    getAllInventoryStocks: true,
-  });
-
   const router = useRouter();
+  const initialMount = useRef(true);
 
-  // Generate purchase order number
-  const {
-    data: generatedPurchaseOrderNumber,
-    isLoading,
-    refetch,
-    isRefetching,
-  } = useQuery({
-    queryKey: ["purchase-order-number"],
-    queryFn: async () => {
-      if (mode !== "create") return null;
-      const result = await generatePurchaseOrderNumber();
-      return result;
-    },
-    enabled: mode === "create",
-  });
-
-  const defaultValues = {
-    purchaseOrderNumber: generatedPurchaseOrderNumber || "",
-    purchaseOrderDate: new Date(),
-    products: [],
-    vendorId: "",
-    status: PurchaseStatus.Pending as PurchaseStatus,
-    notes: "",
-    totalAmount: 0,
-    selectedProductId: "",
-  };
+  const defaultValues = useMemo(
+    () => ({
+      purchaseOrderNumber: initialGeneratedPurchaseOrderNumber || "",
+      purchaseOrderDate: new Date(),
+      products: [],
+      vendorId: "",
+      status: PurchaseStatus.Pending as PurchaseStatus,
+      notes: "",
+      totalAmount: 0,
+      selectedProductId: "",
+    }),
+    [initialGeneratedPurchaseOrderNumber]
+  );
 
   const form = useForm<PurchaseOrderFormValues>({
     resolver: zodResolver(PurchaseOrderFormValidation),
     mode: "all",
-    defaultValues:
-      mode === "create"
-        ? defaultValues
-        : {
-            purchaseOrderNumber:
-              initialData?.purchaseOrder.purchaseOrderNumber || "",
-            purchaseOrderDate: initialData?.purchaseOrder.purchaseOrderDate
-              ? new Date(initialData?.purchaseOrder.purchaseOrderDate)
-              : new Date(),
-            products: initialData?.products || [],
-            vendorId: initialData?.purchaseOrder.vendorId || "",
-            status: initialData?.purchaseOrder.status || PurchaseStatus.Pending,
-            notes: initialData?.purchaseOrder.notes || "",
-            totalAmount: initialData?.purchaseOrder.totalAmount || 0,
-            selectedProductId: "",
-          },
+    defaultValues: defaultValues,
   });
 
   const { fields, prepend, remove } = useFieldArray({
@@ -136,8 +108,8 @@ const PurchaseOrderForm = ({ mode, initialData }: Props) => {
     quantity: form.watch(`products.${index}.quantity`),
   }));
 
-  const filteredProducts = products?.reduce(
-    (acc: Product[], product: ProductWithRelations) => {
+  const filteredProducts = useMemo(() => {
+    return products?.reduce((acc: Product[], product: ProductWithRelations) => {
       if (!product?.product?.id || !product?.product?.productID) {
         return acc;
       }
@@ -182,14 +154,13 @@ const PurchaseOrderForm = ({ mode, initialData }: Props) => {
 
       acc.push(updatedProduct);
       return acc;
-    },
-    []
-  );
+    }, []);
+  }, [inventoryStock, products, searchQuery]);
 
   // Initialize edit mode data
   useEffect(() => {
-    if (initialData && mode === "edit") {
-      setTimeout(() => {
+    if (initialMount.current) {
+      if (initialData && mode === "edit") {
         form.reset({
           purchaseOrderNumber:
             initialData?.purchaseOrder.purchaseOrderNumber || "",
@@ -203,28 +174,28 @@ const PurchaseOrderForm = ({ mode, initialData }: Props) => {
           totalAmount: initialData?.purchaseOrder.totalAmount || 0,
           selectedProductId: "",
         });
-      }, 100);
+      } else if (mode === "create" && initialGeneratedPurchaseOrderNumber) {
+        form.setValue(
+          "purchaseOrderNumber",
+          initialGeneratedPurchaseOrderNumber
+        );
+      }
+      initialMount.current = false;
     }
-  }, [mode, initialData, form]);
-
-  // Set purchaseOrder number
-  useEffect(() => {
-    if (generatedPurchaseOrderNumber && mode === "create") {
-      form.setValue("purchaseOrderNumber", generatedPurchaseOrderNumber);
-    }
-  }, [generatedPurchaseOrderNumber, form, mode]);
+  }, [mode, initialData, form, initialGeneratedPurchaseOrderNumber]);
 
   // Update the refresh button handler
   const handleRefreshPurchaseOrderNumber = async () => {
     if (mode === "create") {
       try {
-        await refetch();
-        if (generatedPurchaseOrderNumber) {
-          form.setValue("purchaseOrderNumber", generatedPurchaseOrderNumber);
-        }
+        setIsRefetchingNumber(true);
+        const newPurchaseOrderNumber = await generatePurchaseOrderNumber();
+        form.setValue("purchaseOrderNumber", newPurchaseOrderNumber);
       } catch (error) {
         console.error("Error refreshing purchase order number:", error);
         toast.error("Failed to refresh purchase order number");
+      } finally {
+        setIsRefetchingNumber(false);
       }
     }
   };
@@ -244,9 +215,28 @@ const PurchaseOrderForm = ({ mode, initialData }: Props) => {
   const handleCancel = () => {
     if (mode === "create") {
       form.reset(defaultValues);
-      refetch();
+      form.setValue(
+        "purchaseOrderNumber",
+        initialGeneratedPurchaseOrderNumber || ""
+      );
     } else {
-      form.reset();
+      if (initialData) {
+        form.reset({
+          purchaseOrderNumber:
+            initialData?.purchaseOrder.purchaseOrderNumber || "",
+          purchaseOrderDate: initialData?.purchaseOrder.purchaseOrderDate
+            ? new Date(initialData?.purchaseOrder.purchaseOrderDate)
+            : new Date(),
+          products: initialData?.products || [],
+          vendorId: initialData?.purchaseOrder.vendorId || "",
+          status: initialData?.purchaseOrder.status || PurchaseStatus.Pending,
+          notes: initialData?.purchaseOrder.notes || "",
+          totalAmount: initialData?.purchaseOrder.totalAmount || 0,
+          selectedProductId: "",
+        });
+      } else {
+        form.reset(defaultValues);
+      }
     }
   };
 
@@ -256,7 +246,7 @@ const PurchaseOrderForm = ({ mode, initialData }: Props) => {
       return;
     }
 
-    const selectedProduct: ProductWithRelations = products?.find(
+    const selectedProduct = products?.find(
       (product: ProductWithRelations) =>
         product.product.id === selectedProductId
     );
@@ -330,38 +320,52 @@ const PurchaseOrderForm = ({ mode, initialData }: Props) => {
         return;
       }
 
-      if (mode === "create") {
-        await addPurchaseOrder(values, {
-          onSuccess: () => {
-            toast.success("Purchase order created successfully!");
-            form.reset();
-            router.push("/purchases/purchase-orders");
-          },
-          onError: (error) => {
-            console.error("Create Purchase order error:", error);
-            toast.error("Failed to create Purchase order");
-          },
-        });
-      }
-      if (mode === "edit" && initialData) {
-        if (initialData?.purchaseOrder.id) {
-          await editPurchaseOrder(
-            {
-              id: initialData?.purchaseOrder.id,
-              data: values,
+      const loadingToastId = toast.loading(
+        mode === "create"
+          ? "Creating purchase order..."
+          : "Updating purchase order..."
+      );
+
+      try {
+        if (mode === "create") {
+          await addPurchaseOrder(values, {
+            onSuccess: () => {
+              toast.success("Purchase order created successfully!", {
+                id: loadingToastId,
+              });
+              router.push("/purchases/purchase-orders");
+              router.refresh();
+              form.reset(defaultValues);
             },
-            {
-              onSuccess: () => {
-                toast.success("Purchase order updated successfully!");
-                router.push("/purchases/purchase-orders");
-              },
-              onError: (error) => {
-                console.error("Update purchase order error:", error);
-                toast.error("Failed to update purchase order");
-              },
-            }
-          );
+          });
         }
+
+        if (mode === "edit" && initialData) {
+          if (initialData?.purchaseOrder.id) {
+            await editPurchaseOrder(
+              {
+                id: initialData?.purchaseOrder.id,
+                data: values,
+              },
+              {
+                onSuccess: () => {
+                  toast.success("Purchase order updated successfully!", {
+                    id: loadingToastId,
+                  });
+                  router.push("/purchases/purchase-orders");
+                  router.refresh();
+                  form.reset(defaultValues);
+                },
+              }
+            );
+          }
+        }
+      } catch (error) {
+        console.error("Purchase order operation error:", error);
+        toast.error(
+          `Failed to ${mode === "create" ? "create" : "update"} purchase order`,
+          { id: loadingToastId }
+        );
       }
     } catch (error) {
       console.error("Error submitting form:", error);
@@ -388,6 +392,9 @@ const PurchaseOrderForm = ({ mode, initialData }: Props) => {
     calculateEntryTotalPrice,
   ]);
 
+  const isAnyMutationLoading =
+    isCreatingPurchaseOrder || isEditingPurchaseOrder;
+
   return (
     <>
       <Form {...form}>
@@ -404,12 +411,8 @@ const PurchaseOrderForm = ({ mode, initialData }: Props) => {
               placeholder="Select vendor"
               key={`vendor-select-${form.watch("vendorId") || ""}`}
               onAddNew={() => setVendorDialogOpen(true)}
+              disabled={isAnyMutationLoading}
             >
-              {vendorsLoading && (
-                <div className="py-4">
-                  <Loading />
-                </div>
-              )}
               {vendors?.map((vendor: Vendor) => (
                 <SelectItem
                   key={vendor.id}
@@ -428,21 +431,22 @@ const PurchaseOrderForm = ({ mode, initialData }: Props) => {
                 name="purchaseOrderNumber"
                 label="Purchase Order Number"
                 placeholder={
-                  isLoading || isRefetching
+                  isRefetchingNumber
                     ? "Generating..."
                     : "Enter purchase order number"
                 }
+                disabled={isAnyMutationLoading || isRefetchingNumber}
               />
               <Button
                 type="button"
                 size={"icon"}
                 onClick={handleRefreshPurchaseOrderNumber}
                 className="self-end shad-primary-btn px-5"
-                disabled={isLoading || isRefetching}
+                disabled={isRefetchingNumber || isAnyMutationLoading}
               >
                 <RefreshCw
                   className={`h-5 w-5 ${
-                    isLoading || isRefetching ? "animate-spin" : ""
+                    isRefetchingNumber ? "animate-spin" : ""
                   }`}
                 />
               </Button>
@@ -455,6 +459,7 @@ const PurchaseOrderForm = ({ mode, initialData }: Props) => {
               name="purchaseOrderDate"
               label="Purchase Order Date"
               dateFormat="MM/dd/yyyy"
+              disabled={isAnyMutationLoading}
             />
           </div>
 
@@ -472,10 +477,9 @@ const PurchaseOrderForm = ({ mode, initialData }: Props) => {
                   control={form.control}
                   name="selectedProductId"
                   label="Select Inventory"
-                  placeholder={
-                    productsLoading ? "Loading..." : "Select inventory"
-                  }
+                  placeholder={"Select inventory"}
                   key={`inventory-select-${selectedProductId || ""}`}
+                  disabled={isAnyMutationLoading}
                 >
                   <div className="py-3">
                     <div className="relative flex items-center rounded-md border border-dark-700 bg-white">
@@ -486,7 +490,7 @@ const PurchaseOrderForm = ({ mode, initialData }: Props) => {
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
-                        disabled={productsLoading}
+                        disabled={isAnyMutationLoading}
                       />
                       {searchQuery && (
                         <button
@@ -499,11 +503,7 @@ const PurchaseOrderForm = ({ mode, initialData }: Props) => {
                       )}
                     </div>
                   </div>
-                  {productsLoading ? (
-                    <div className="py-4">
-                      <Loading />
-                    </div>
-                  ) : filteredProducts && filteredProducts.length > 0 ? (
+                  {filteredProducts && filteredProducts.length > 0 ? (
                     <>
                       <Table className="shad-table border border-light-200 rounded-lg">
                         <TableHeader>
@@ -520,6 +520,7 @@ const PurchaseOrderForm = ({ mode, initialData }: Props) => {
                               key={product.id}
                               className="cursor-pointer hover:bg-blue-50"
                               onClick={() => {
+                                if (isAnyMutationLoading) return;
                                 form.setValue("selectedProductId", product.id);
                                 setPrevSelectedProductId(product.id);
                                 setSearchQuery("");
@@ -570,7 +571,7 @@ const PurchaseOrderForm = ({ mode, initialData }: Props) => {
               <Button
                 type="button"
                 onClick={handleAddProduct}
-                disabled={!selectedProductId}
+                disabled={!selectedProductId || isAnyMutationLoading}
                 className="self-end mb-1 shad-primary-btn"
               >
                 Add Product
@@ -613,6 +614,7 @@ const PurchaseOrderForm = ({ mode, initialData }: Props) => {
                         name={`products.${index}.quantity`}
                         label=""
                         placeholder="Qty"
+                        disabled={isAnyMutationLoading}
                       />
                     </TableCell>
                     <TableCell>
@@ -622,6 +624,7 @@ const PurchaseOrderForm = ({ mode, initialData }: Props) => {
                         name={`products.${index}.costPrice`}
                         label=""
                         placeholder="Cost price"
+                        disabled={isAnyMutationLoading}
                       />
                     </TableCell>
 
@@ -633,8 +636,15 @@ const PurchaseOrderForm = ({ mode, initialData }: Props) => {
                     <TableCell>
                       <div className="flex flex-row items-center">
                         <span
-                          onClick={() => handleDeleteEntry(index)}
-                          className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
+                          onClick={() => {
+                            if (!isAnyMutationLoading) handleDeleteEntry(index);
+                          }}
+                          className={cn(
+                            "p-1 cursor-pointer",
+                            isAnyMutationLoading
+                              ? "text-gray-400 cursor-not-allowed"
+                              : "text-red-600 hover:bg-light-200 hover:rounded-md"
+                          )}
                         >
                           <DeleteIcon className="h-5 w-5" />
                         </span>
@@ -678,6 +688,7 @@ const PurchaseOrderForm = ({ mode, initialData }: Props) => {
               label="Purchase Status"
               placeholder="Select status"
               key={`status-select-${form.watch("status") || ""}`}
+              disabled={isAnyMutationLoading}
             >
               {Object.values(PurchaseStatus).map((status) => (
                 <SelectItem
@@ -697,6 +708,7 @@ const PurchaseOrderForm = ({ mode, initialData }: Props) => {
             name="notes"
             label="Notes"
             placeholder="Enter purchase notes"
+            disabled={isAnyMutationLoading}
           />
 
           <div className="flex justify-end gap-4">
@@ -704,12 +716,14 @@ const PurchaseOrderForm = ({ mode, initialData }: Props) => {
               type="button"
               onClick={handleCancel}
               className="shad-danger-btn"
+              disabled={isAnyMutationLoading}
             >
               Cancel
             </Button>
             <SubmitButton
               isLoading={isCreatingPurchaseOrder || isEditingPurchaseOrder}
               className="shad-primary-btn"
+              disabled={isAnyMutationLoading}
             >
               {mode === "create"
                 ? "Create Purchase Order"
