@@ -1,19 +1,19 @@
-import Loading from "@/app/(dashboard)/loading";
 import PageWraper from "@/components/PageWraper";
-import EditShipmentPage from "@/components/shipments/EditShipmentPage";
-import { Suspense, use } from "react";
+import ShipmentFormWrapper from "@/components/shipments/ShipmentFormWrapper";
+import FormSkeleton from "@/components/ui/form-skeleton";
+import { Suspense } from "react";
 
-interface Props {
-  params: Promise<{ id: string }>;
+export interface Params {
+  id: string;
 }
 
-const EditShipment = ({ params }: Props) => {
-  const { id } = use(params);
+const EditShipment = async ({ params }: { params: Promise<Params> }) => {
+  const { id } = await params;
 
   return (
     <PageWraper title="Edit Sipment">
-      <Suspense fallback={<Loading />}>
-        <EditShipmentPage shipmentId={id} />
+      <Suspense fallback={<FormSkeleton />}>
+        <ShipmentFormWrapper mode="edit" shipmentId={id} />
       </Suspense>
     </PageWraper>
   );

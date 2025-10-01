@@ -174,6 +174,7 @@ export function DataTable<TData, TValue>({
       const shouldSkipRowClick =
         target.closest("[data-no-row-click]") ||
         target.getAttribute("role") === "checkbox" ||
+        target.getAttribute("role") === "menuitem" ||
         target.closest('[role="checkbox"]') ||
         target.closest("a");
       if (shouldSkipRowClick) {

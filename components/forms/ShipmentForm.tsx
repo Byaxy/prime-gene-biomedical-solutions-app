@@ -6,7 +6,7 @@ import { Form, FormControl } from "../ui/form";
 import { useFieldArray, useForm } from "react-hook-form";
 import { Button } from "../ui/button";
 import { SelectItem } from "../ui/select";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Table,
   TableBody,
@@ -28,9 +28,6 @@ import {
 } from "lucide-react";
 import { ShipmentFormValidation, ShipmentFormValues } from "@/lib/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import Loading from "@/app/(dashboard)/loading";
-import { usePurchases } from "@/hooks/usePurchases";
-import { useVendors } from "@/hooks/useVendors";
 import {
   ShipmentStatus,
   ShipperType,
@@ -44,7 +41,6 @@ import {
   ProductWithRelations,
   Attachment,
 } from "@/types";
-import { useQuery } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
 import { Input } from "../ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
@@ -58,12 +54,16 @@ import { EditIcon } from "lucide-react";
 import { Alert, AlertDescription } from "../ui/alert";
 import { MultiSelectOption } from "../ui/multi-select";
 import FormatNumber from "../FormatNumber";
-import { useProducts } from "@/hooks/useProducts";
 import { useRouter } from "next/navigation";
 
 interface ShipmentFormProps {
   mode: "create" | "edit";
   initialData?: ShipmentWithRelations;
+  products: ProductWithRelations[];
+  vendors: Vendor[];
+  purchases: PurchaseWithRelations[];
+  generatedShipmentNumber?: string;
+  shipments: ShipmentWithRelations[];
 }
 
 // Carrier options based on shipping method and carrier type
@@ -106,7 +106,16 @@ const CARRIER_OPTIONS = {
   },
 };
 
-const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
+const ShipmentForm = ({
+  mode,
+  initialData,
+  products,
+  vendors,
+  purchases,
+  generatedShipmentNumber: initialGeneratedShipmentNumber,
+  shipments,
+}: ShipmentFormProps) => {
+  const [isRefetchingNumber, setIsRefetchingNumber] = useState(false);
   const [vendorDialogOpen, setVendorDialogOpen] = useState(false);
   const [isAddingParcel, setIsAddingParcel] = useState(false);
   const [editingParcelIndex, setEditingParcelIndex] = useState<number | null>(
@@ -139,43 +148,17 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
   });
 
   const router = useRouter();
+  const initialMount = useRef(true);
 
-  const { vendors, isLoading: vendorsLoading } = useVendors({
-    getAllVendors: true,
-  });
-  const { purchases, isLoading: purchasesLoading } = usePurchases({
-    getAllPurchases: true,
-  });
-  const { products } = useProducts({ getAllActive: true });
-  const {
-    shipments,
-    addShipment,
-    isCreatingShipment,
-    editShipment,
-    isEditingShipment,
-  } = useShipments({
-    getAllShipments: true,
-  });
-
-  const {
-    data: generatedShipmentRefNumber,
-    isLoading,
-    refetch,
-    isRefetching,
-  } = useQuery({
-    queryKey: ["shipment-number"],
-    queryFn: async () => {
-      if (mode !== "create") return null;
-      const result = await generateShipmentRefNumber();
-      return result;
-    },
-    enabled: mode === "create",
-  });
+  const { addShipment, isCreatingShipment, editShipment, isEditingShipment } =
+    useShipments({
+      getAllShipments: true,
+    });
 
   // Base default values for form reset
-  const baseDefaultValues = useCallback(
+  const defaultValues = useMemo(
     () => ({
-      shipmentRefNumber: generatedShipmentRefNumber || "",
+      shipmentRefNumber: initialGeneratedShipmentNumber || "",
       numberOfPackages: 0,
       totalItems: 0,
       shippingMode: ShippingMode.Air,
@@ -212,69 +195,13 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
       tempDescription: "",
       parcels: [],
     }),
-    [generatedShipmentRefNumber]
+    [initialGeneratedShipmentNumber]
   );
 
   const form = useForm<ShipmentFormValues>({
     resolver: zodResolver(ShipmentFormValidation),
     mode: "all",
-    defaultValues:
-      mode === "create"
-        ? baseDefaultValues()
-        : {
-            shipmentRefNumber: initialData?.shipment.shipmentRefNumber || "",
-            numberOfPackages: initialData?.shipment?.numberOfPackages || 0,
-            totalItems: initialData?.shipment.totalItems || 0,
-            shippingMode:
-              initialData?.shipment.shippingMode || ShippingMode.Air,
-            shipperType:
-              initialData?.shipment.shipperType || ShipperType.Vendor,
-            shippingVendorId:
-              initialData?.shipment.shippingVendorId || undefined,
-            shipperName: initialData?.shipment.shipperName || undefined,
-            shipperAddress: initialData?.shipment.shipperAddress || undefined,
-            carrierType:
-              initialData?.shipment.carrierType || CarrierType.AirCargo,
-            carrierName: initialData?.shipment.carrierName || "",
-            trackingNumber: initialData?.shipment.trackingNumber || "",
-            shippingDate: initialData?.shipment.shippingDate
-              ? new Date(initialData?.shipment.shippingDate)
-              : new Date(),
-            dateShipped: initialData?.shipment.dateShipped
-              ? new Date(initialData?.shipment.dateShipped)
-              : null,
-            estimatedArrivalDate: initialData?.shipment.estimatedArrivalDate
-              ? new Date(initialData?.shipment.estimatedArrivalDate)
-              : null,
-            actualArrivalDate: initialData?.shipment.actualArrivalDate
-              ? new Date(initialData?.shipment.actualArrivalDate)
-              : null,
-            totalAmount: initialData?.shipment.totalAmount || 0,
-            status: initialData?.shipment.status || ShipmentStatus.Pending,
-            originPort: initialData?.shipment.originPort || "",
-            destinationPort: initialData?.shipment.destinationPort || "",
-            containerNumber: initialData?.shipment.containerNumber || "",
-            flightNumber: initialData?.shipment.flightNumber || "",
-            notes: initialData?.shipment.notes || "",
-            attachments: initialData?.shipment.attachments || [],
-            purchaseIds: initialData?.shipment.purchaseIds || [],
-            vendorIds: initialData?.shipment.vendorIds || [],
-            parcels: initialData?.parcels || [],
-            tempParcelNumber: "",
-            tempPackageType: PackageType.Box,
-            tempLength: 0,
-            tempWidth: 0,
-            tempHeight: 0,
-            tempNetWeight: 0,
-            tempGrossWeight: 0,
-            tempVolumetricDivisor:
-              initialData?.shipment.shippingMode === ShippingMode.Air ||
-              initialData?.shipment.shippingMode === ShippingMode.Express
-                ? 5000
-                : 6000,
-            tempUnitPricePerKg: 0,
-            tempDescription: "",
-          },
+    defaultValues: defaultValues,
   });
 
   const {
@@ -301,8 +228,8 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
 
   // Initialize edit mode data
   useEffect(() => {
-    if (initialData && mode === "edit") {
-      setTimeout(() => {
+    if (initialMount.current) {
+      if (initialData) {
         form.reset({
           shipmentRefNumber: initialData?.shipment.shipmentRefNumber || "",
           numberOfPackages: initialData?.shipment?.numberOfPackages || 0,
@@ -354,16 +281,12 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
           tempUnitPricePerKg: 0,
           tempDescription: "",
         });
-      }, 100);
+      } else if (mode === "create" && initialGeneratedShipmentNumber) {
+        form.setValue("shipmentRefNumber", initialGeneratedShipmentNumber);
+      }
+      initialMount.current = false;
     }
-  }, [form, initialData, mode]);
-
-  useEffect(() => {
-    if (generatedShipmentRefNumber && mode === "create") {
-      form.setValue("shipmentRefNumber", generatedShipmentRefNumber);
-      form.setValue("tempVolumetricDivisor", currentVolumetricDivisor);
-    }
-  }, [form, mode, generatedShipmentRefNumber, currentVolumetricDivisor]);
+  }, [form, initialData, initialGeneratedShipmentNumber, mode]);
 
   // Update tempVolumetricDivisor when shippingMode changes
   useEffect(() => {
@@ -509,13 +432,14 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
   const handleRefreshShipmentRefNumber = async () => {
     if (mode === "create") {
       try {
-        await refetch();
-        if (generatedShipmentRefNumber) {
-          form.setValue("shipmentRefNumber", generatedShipmentRefNumber);
-        }
+        setIsRefetchingNumber(true);
+        const newPurchaseNumber = await generateShipmentRefNumber();
+        form.setValue("shipmentRefNumber", newPurchaseNumber);
       } catch (error) {
-        console.error("Error refreshing shipment numbers:", error);
-        toast.error("Failed to refresh shipment numbers");
+        console.error("Error refreshing shipment ref number:", error);
+        toast.error("Failed to refresh shipment ref number");
+      } finally {
+        setIsRefetchingNumber(false);
       }
     }
   };
@@ -903,59 +827,70 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
         return;
       }
 
-      if (mode === "create") {
-        await addShipment(values, {
-          onSuccess: () => {
-            toast.success("Shipment created successfully!");
-            form.reset();
-            router.push("/purchases/shipments");
-          },
-          onError: (error) => {
-            console.error("Create shipment order error:", error);
-            toast.error("Failed to create shipment order");
-          },
-        });
-      }
-      if (mode === "edit" && initialData) {
-        if (initialData?.shipment.attachments?.length > 0) {
-          const prevIds = initialData?.shipment?.attachments.map(
-            (attachment: Attachment) => attachment.id
-          );
-          await editShipment(
-            {
-              id: initialData?.shipment.id,
-              data: values,
-              prevAttachmentIds: prevIds,
+      const loadingToastId = toast.loading(
+        mode === "create" ? "Creating shipment..." : "Updating shipment..."
+      );
+
+      try {
+        if (mode === "create") {
+          await addShipment(values, {
+            onSuccess: () => {
+              toast.success("Shipment created successfully!", {
+                id: loadingToastId,
+              });
+              router.push("/purchases/shipments");
+              router.refresh();
+              form.reset(defaultValues);
             },
-            {
-              onSuccess: () => {
-                toast.success("Shipment order updated successfully!");
-                router.push("/purchases/shipments");
-              },
-              onError: (error) => {
-                console.error("Update shipment error:", error);
-                toast.error("Failed to update shipment");
-              },
-            }
-          );
-        } else {
-          await editShipment(
-            {
-              id: initialData?.shipment.id,
-              data: values,
-            },
-            {
-              onSuccess: () => {
-                toast.success("Shipment updated successfully!");
-                router.push("/purchases/shipments");
-              },
-              onError: (error) => {
-                console.error("Update shipment error:", error);
-                toast.error("Failed to update shipment");
-              },
-            }
-          );
+          });
         }
+        if (mode === "edit" && initialData) {
+          if (initialData?.shipment.attachments?.length > 0) {
+            const prevIds = initialData?.shipment?.attachments.map(
+              (attachment: Attachment) => attachment.id
+            );
+            await editShipment(
+              {
+                id: initialData?.shipment.id,
+                data: values,
+                prevAttachmentIds: prevIds,
+              },
+              {
+                onSuccess: () => {
+                  toast.success("Shipment order updated successfully!", {
+                    id: loadingToastId,
+                  });
+                  router.push("/purchases/shipments");
+                  router.refresh();
+                  form.reset(defaultValues);
+                },
+              }
+            );
+          } else {
+            await editShipment(
+              {
+                id: initialData?.shipment.id,
+                data: values,
+              },
+              {
+                onSuccess: () => {
+                  toast.success("Shipment order updated successfully!", {
+                    id: loadingToastId,
+                  });
+                  router.push("/purchases/shipments");
+                  router.refresh();
+                  form.reset(defaultValues);
+                },
+              }
+            );
+          }
+        }
+      } catch (error) {
+        console.error("Shipment operation error:", error);
+        toast.error(
+          `Failed to ${mode === "create" ? "create" : "update"} shipment`,
+          { id: loadingToastId }
+        );
       }
     } catch (error) {
       console.error("Error submitting form:", error);
@@ -965,12 +900,12 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
 
   const handleCancel = () => {
     if (mode === "create") {
-      form.reset(baseDefaultValues());
       setCurrentParcelItems([]);
       setIsAddingParcel(false);
       setShowAddItemForm(false);
       setEditingParcelIndex(null);
-      refetch();
+      form.reset(defaultValues);
+      form.setValue("shipmentRefNumber", initialGeneratedShipmentNumber || "");
     } else {
       // For edit mode, reset to initialData if available
       if (initialData) {
@@ -1030,6 +965,8 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
         setIsAddingParcel(false);
         setShowAddItemForm(false);
         setEditingParcelIndex(null);
+      } else {
+        form.reset(defaultValues);
       }
     }
   };
@@ -1074,6 +1011,8 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
       ? tempUnitPricePerKg * chargeableWeightInCurrentParcel
       : 0;
 
+  const isAnyMutationLoading = isCreatingShipment || isEditingShipment;
+
   return (
     <>
       <Form {...form}>
@@ -1098,11 +1037,15 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                     name="shipmentRefNumber"
                     label="Shipment Reference No."
                     placeholder={
-                      isLoading || isRefetching
+                      isRefetchingNumber
                         ? "Generating..."
                         : "Enter shipment reference number"
                     }
-                    disabled={mode === "edit" || isLoading || isRefetching}
+                    disabled={
+                      mode === "edit" ||
+                      isAnyMutationLoading ||
+                      isRefetchingNumber
+                    }
                   />
                   {mode === "create" && (
                     <Button
@@ -1110,11 +1053,11 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                       size={"icon"}
                       onClick={handleRefreshShipmentRefNumber}
                       className="self-end shad-primary-btn px-5"
-                      disabled={isLoading || isRefetching}
+                      disabled={isAnyMutationLoading || isRefetchingNumber}
                     >
                       <RefreshCw
                         className={`h-5 w-5 ${
-                          isLoading || isRefetching ? "animate-spin" : ""
+                          isRefetchingNumber ? "animate-spin" : ""
                         }`}
                       />
                     </Button>
@@ -1126,6 +1069,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                   name="shippingDate"
                   label="Shipping Date"
                   dateFormat="MM/dd/yyyy"
+                  disabled={isAnyMutationLoading}
                 />
               </div>
             </CardContent>
@@ -1147,6 +1091,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                   name="shippingMode"
                   label="Shipping Mode"
                   placeholder="Select shipping mode"
+                  disabled={isAnyMutationLoading}
                   onValueChange={(value) => {
                     form.setValue("shippingMode", value as ShippingMode);
                     form.setValue(
@@ -1201,7 +1146,9 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                   name="carrierName"
                   label="Type of shipment / Shipping Line"
                   placeholder="Select carrier"
-                  disabled={getCarrierOptions().length === 0}
+                  disabled={
+                    getCarrierOptions().length === 0 || isAnyMutationLoading
+                  }
                 >
                   {getCarrierOptions().map((carrier) => (
                     <SelectItem
@@ -1227,6 +1174,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                     name="shipperType"
                     label="Shipper Type"
                     placeholder="Select shipper type"
+                    disabled={isAnyMutationLoading}
                     onValueChange={(value) => {
                       form.setValue("shipperType", value as ShipperType);
                       form.setValue("shippingVendorId", undefined);
@@ -1256,12 +1204,8 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                         form.watch("shippingVendorId") || ""
                       }`}
                       onAddNew={() => setVendorDialogOpen(true)}
+                      disabled={isAnyMutationLoading}
                     >
-                      {vendorsLoading && (
-                        <div className="py-4">
-                          <Loading />
-                        </div>
-                      )}
                       {vendors?.map((vendor: Vendor) => (
                         <SelectItem
                           key={vendor.id}
@@ -1282,6 +1226,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                         name="shipperName"
                         label="Shipper Name"
                         placeholder="Enter sipper name"
+                        disabled={isAnyMutationLoading}
                       />
                       <CustomFormField
                         fieldType={FormFieldType.INPUT}
@@ -1289,6 +1234,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                         name="shipperAddress"
                         label="Shipper Address"
                         placeholder="Enter shipper address"
+                        disabled={isAnyMutationLoading}
                       />
                     </>
                   )}
@@ -1301,6 +1247,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                     name="trackingNumber"
                     label="Tracking Number"
                     placeholder="Enter tracking number"
+                    disabled={isAnyMutationLoading}
                   />
 
                   <CustomFormField
@@ -1309,6 +1256,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                     name="dateShipped"
                     label="Date Shipped"
                     dateFormat="MM/dd/yyyy"
+                    disabled={isAnyMutationLoading}
                   />
 
                   <CustomFormField
@@ -1317,6 +1265,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                     name="estimatedArrivalDate"
                     label="Arrival Date"
                     dateFormat="MM/dd/yyyy"
+                    disabled={isAnyMutationLoading}
                   />
                 </div>
               </div>
@@ -1328,6 +1277,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                     name="originPort"
                     label="Origin Port"
                     placeholder="e.g., Shanghai Port"
+                    disabled={isAnyMutationLoading}
                   />
                   <CustomFormField
                     fieldType={FormFieldType.INPUT}
@@ -1335,6 +1285,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                     name="destinationPort"
                     label="Destination Port"
                     placeholder="e.g., Tema Port"
+                    disabled={isAnyMutationLoading}
                   />
                   <CustomFormField
                     fieldType={FormFieldType.INPUT}
@@ -1342,6 +1293,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                     name="containerNumber"
                     label="Container Number"
                     placeholder="e.g., MSKU1234567"
+                    disabled={isAnyMutationLoading}
                   />
                 </div>
               )}
@@ -1354,6 +1306,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                     name="originPort"
                     label="Origin Airport"
                     placeholder="e.g., Shanghai Pudong (PVG)"
+                    disabled={isAnyMutationLoading}
                   />
                   <CustomFormField
                     fieldType={FormFieldType.INPUT}
@@ -1361,6 +1314,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                     name="destinationPort"
                     label="Destination Airport"
                     placeholder="e.g., Kotoka International (ACC)"
+                    disabled={isAnyMutationLoading}
                   />
                   <CustomFormField
                     fieldType={FormFieldType.INPUT}
@@ -1368,6 +1322,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                     name="flightNumber"
                     label="Flight Number"
                     placeholder="e.g., EK787"
+                    disabled={isAnyMutationLoading}
                   />
                 </div>
               )}
@@ -1386,9 +1341,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                   control={form.control}
                   name="vendorIds"
                   label="Filter by Vendors"
-                  placeholder={`${
-                    vendorsLoading ? "Loading" : "Select vendors"
-                  }`}
+                  placeholder="Select vendors"
                   options={vendorOptions}
                   multiSelectProps={{
                     searchable: true,
@@ -1396,7 +1349,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                     maxCount: 3,
                     className: "overflow-hidden text-blue-800",
                   }}
-                  disabled={vendorsLoading}
+                  disabled={isAnyMutationLoading}
                 />
 
                 <CustomFormField
@@ -1416,7 +1369,9 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                     maxCount: 3,
                     className: "overflow-hidden text-blue-800",
                   }}
-                  disabled={selectedVendorIds.length === 0 || purchasesLoading}
+                  disabled={
+                    selectedVendorIds.length === 0 || isAnyMutationLoading
+                  }
                 />
               </div>
             </CardContent>
@@ -1452,7 +1407,9 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                     setCurrentParcelItems([]);
                   }}
                   className="flex items-center gap-2 shad-primary-btn"
-                  disabled={selectedPurchaseIds.length === 0}
+                  disabled={
+                    selectedPurchaseIds.length === 0 || isAnyMutationLoading
+                  }
                 >
                   <Plus className="h-4 w-4" />
                   Add Package
@@ -1537,6 +1494,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                         size="sm"
                         onClick={() => handleEditParcel(index)}
                         className="text-blue-800/90 hover:text-blue-800 bg-blue-100 hover:bg-blue-200"
+                        disabled={isAnyMutationLoading}
                       >
                         <EditIcon className="h-4 w-4" />
                       </Button>
@@ -1546,6 +1504,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                         size="sm"
                         onClick={() => removeParcel(index)}
                         className="text-red-600 hover:text-red-700 bg-red-100 hover:bg-red-200"
+                        disabled={isAnyMutationLoading}
                       >
                         <DeleteIcon className="h-4 w-4" />
                       </Button>
@@ -1725,6 +1684,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                           placeholder={`PKG-${String(
                             parcelFields.length + 1
                           ).padStart(3, "0")}`}
+                          disabled={isAnyMutationLoading}
                         />
                         <CustomFormField
                           fieldType={FormFieldType.SELECT}
@@ -1732,6 +1692,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                           name="tempPackageType"
                           label="Package Type"
                           placeholder="Select package type"
+                          disabled={isAnyMutationLoading}
                         >
                           {Object.values(PackageType).map((type) => (
                             <SelectItem
@@ -1766,6 +1727,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                             label="Length"
                             placeholder="0.0"
                             min={0}
+                            disabled={isAnyMutationLoading}
                           />
                           <CustomFormField
                             fieldType={FormFieldType.NUMBER}
@@ -1774,6 +1736,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                             label="Width"
                             placeholder="0.0"
                             min={0}
+                            disabled={isAnyMutationLoading}
                           />
                           <CustomFormField
                             fieldType={FormFieldType.NUMBER}
@@ -1782,6 +1745,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                             label="Height"
                             placeholder="0.0"
                             min={0}
+                            disabled={isAnyMutationLoading}
                           />
                         </div>
                       </div>
@@ -1806,6 +1770,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                             label="Gross Weight (Parcel)"
                             placeholder="0.000"
                             min={0}
+                            disabled={isAnyMutationLoading}
                           />
                         </div>
                       </div>
@@ -1818,6 +1783,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                           label="Unit Price/kg (for this parcel)"
                           placeholder="0.00"
                           min={0}
+                          disabled={isAnyMutationLoading}
                         />
 
                         <div className="flex flex-col gap-3 pt-2">
@@ -1878,6 +1844,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                             size="sm"
                             onClick={() => setShowAddItemForm(true)}
                             className="flex items-center gap-2 shad-primary-btn"
+                            disabled={isAnyMutationLoading}
                           >
                             <Plus className="h-4 w-4" />
                             Add Item
@@ -1908,6 +1875,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                                         netWeight: 0,
                                       }))
                                     }
+                                    disabled={isAnyMutationLoading}
                                   />
                                   <span>From Purchase Order</span>
                                 </label>
@@ -1927,6 +1895,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                                         netWeight: 0,
                                       }))
                                     }
+                                    disabled={isAnyMutationLoading}
                                   />
                                   <span>Custom Item</span>
                                 </label>
@@ -1957,6 +1926,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                                               item?.productUnit || "",
                                           }));
                                         }}
+                                        disabled={isAnyMutationLoading}
                                       >
                                         <option
                                           value=""
@@ -1988,6 +1958,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                                       <Input
                                         type="number"
                                         min="1"
+                                        disabled={isAnyMutationLoading}
                                         max={
                                           getAvailablePurchaseItems()?.find(
                                             (item) =>
@@ -2015,6 +1986,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                                         step="0.001"
                                         min="0.001"
                                         value={newItemForm.netWeight}
+                                        disabled={isAnyMutationLoading}
                                         onChange={(e) =>
                                           setNewItemForm((prev) => ({
                                             ...prev,
@@ -2032,6 +2004,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                                       </Label>
                                       <Input
                                         value={newItemForm.productUnit}
+                                        disabled={isAnyMutationLoading}
                                         onChange={(e) =>
                                           setNewItemForm((prev) => ({
                                             ...prev,
@@ -2053,6 +2026,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                                       </Label>
                                       <Input
                                         value={newItemForm.productID}
+                                        disabled={isAnyMutationLoading}
                                         onChange={(e) =>
                                           setNewItemForm((prev) => ({
                                             ...prev,
@@ -2069,6 +2043,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                                       </Label>
                                       <Input
                                         value={newItemForm.productName}
+                                        disabled={isAnyMutationLoading}
                                         onChange={(e) =>
                                           setNewItemForm((prev) => ({
                                             ...prev,
@@ -2089,6 +2064,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                                         type="number"
                                         min="1"
                                         value={newItemForm.quantity}
+                                        disabled={isAnyMutationLoading}
                                         onChange={(e) =>
                                           setNewItemForm((prev) => ({
                                             ...prev,
@@ -2108,6 +2084,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                                         step="0.001"
                                         min="0.001"
                                         value={newItemForm.netWeight}
+                                        disabled={isAnyMutationLoading}
                                         onChange={(e) =>
                                           setNewItemForm((prev) => ({
                                             ...prev,
@@ -2125,6 +2102,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                                       </Label>
                                       <Input
                                         value={newItemForm.productUnit}
+                                        disabled={isAnyMutationLoading}
                                         onChange={(e) =>
                                           setNewItemForm((prev) => ({
                                             ...prev,
@@ -2145,6 +2123,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                                   size="sm"
                                   onClick={handleAddItemToParcel}
                                   disabled={
+                                    isAnyMutationLoading ||
                                     newItemForm.isPurchaseItem
                                       ? !newItemForm.selectedPurchaseItem ||
                                         newItemForm.quantity <= 0 ||
@@ -2163,6 +2142,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                                   type="button"
                                   variant="outline"
                                   size="sm"
+                                  disabled={isAnyMutationLoading}
                                   onClick={() => {
                                     setShowAddItemForm(false);
                                     setNewItemForm({
@@ -2244,13 +2224,15 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                                   </TableCell>
                                   <TableCell>
                                     <span
-                                      onClick={() =>
-                                        handleRemoveParcelItem(
-                                          item.productID,
-                                          item.isPurchaseItem,
-                                          item.purchaseReference
-                                        )
-                                      }
+                                      onClick={() => {
+                                        if (!isAnyMutationLoading) {
+                                          handleRemoveParcelItem(
+                                            item.productID,
+                                            item.isPurchaseItem,
+                                            item.purchaseReference
+                                          );
+                                        }
+                                      }}
                                       className="text-red-600 p-1 hover:bg-light-200 hover:rounded-md cursor-pointer"
                                     >
                                       <DeleteIcon className="h-5 w-5" />
@@ -2269,6 +2251,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                         name="tempDescription"
                         label="Package Description (Optional)"
                         placeholder="Additional notes about this package..."
+                        disabled={isAnyMutationLoading}
                       />
 
                       <div className="flex gap-2">
@@ -2276,6 +2259,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                           type="button"
                           onClick={handleSaveParcel}
                           className="shad-primary-btn"
+                          disabled={isAnyMutationLoading}
                         >
                           {editingParcelIndex !== null
                             ? "Save Changes"
@@ -2286,6 +2270,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                           variant="outline"
                           onClick={handleCancelParcelEdit}
                           className="shad-danger-btn"
+                          disabled={isAnyMutationLoading}
                         >
                           Cancel
                         </Button>
@@ -2328,6 +2313,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                     name="status"
                     label="Shipment Status"
                     placeholder="Select status"
+                    disabled={isAnyMutationLoading}
                   >
                     {Object.values(ShipmentStatus).map((status) => (
                       <SelectItem
@@ -2347,6 +2333,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                       name="actualArrivalDate"
                       label="Actual Arrival Date"
                       dateFormat="MM/dd/yyyy"
+                      disabled={isAnyMutationLoading}
                     />
                   )}
                 </div>
@@ -2356,11 +2343,13 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                   control={form.control}
                   name="attachments"
                   label="Attachments"
+                  disabled={isAnyMutationLoading}
                   renderSkeleton={(field) => (
                     <FormControl>
                       <FileUploader
                         files={field.value}
                         onChange={field.onChange}
+                        disabled={isAnyMutationLoading}
                         mode={mode}
                         maxFiles={5}
                         accept={{
@@ -2381,6 +2370,7 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
                 name="notes"
                 label="Notes"
                 placeholder="Additional shipping notes or instructions"
+                disabled={isAnyMutationLoading}
               />
             </CardContent>
           </Card>
@@ -2391,12 +2381,14 @@ const ShipmentForm = ({ mode, initialData }: ShipmentFormProps) => {
               type="button"
               onClick={handleCancel}
               className="shad-danger-btn"
+              disabled={isAnyMutationLoading}
             >
               Cancel
             </Button>
             <SubmitButton
               isLoading={isCreatingShipment || isEditingShipment}
               className="shad-primary-btn"
+              disabled={isAnyMutationLoading}
             >
               {mode === "create" ? "Create Shipment" : "Update Shipment"}
             </SubmitButton>

@@ -11,6 +11,7 @@ import {
   InventoryStockWithRelations,
   ProductWithRelations,
   PurchaseOrderWithRelations,
+  Vendor,
 } from "@/types";
 import PurchaseOrderForm from "../forms/PurchaseOrderForm";
 
@@ -29,7 +30,7 @@ const PurchaseOrderFormWrapper = async ({ mode, purchaseOrderId }: Props) => {
     ]);
 
   const products: ProductWithRelations[] = productsData.documents;
-  const vendors = vendorsData.documents;
+  const vendors: Vendor[] = vendorsData.documents;
   const allPurchaseOrders: PurchaseOrderWithRelations[] =
     purchaseOrdersData.documents;
   const inventoryStock: InventoryStockWithRelations[] =

@@ -419,7 +419,7 @@ const PurchaseForm = ({
       } catch (error) {
         console.error("Purchase operation error:", error);
         toast.error(
-          `Failed to ${mode === "create" ? "create" : "update"} purchase order`,
+          `Failed to ${mode === "create" ? "create" : "update"} purchase`,
           { id: loadingToastId }
         );
       }
