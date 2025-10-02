@@ -277,7 +277,7 @@ const PurchasePDF = ({
 
           <Address
             addressTitle="Billing Address"
-            name={companySettings.name}
+            name={companySettings.name.toLowerCase()}
             address={companySettings.address || ""}
             phone={companySettings.phone || ""}
             email={companySettings.email || ""}
@@ -287,7 +287,7 @@ const PurchasePDF = ({
 
           <Address
             addressTitle="Delivery Address"
-            name={companySettings.name}
+            name={companySettings.name.toLowerCase()}
             address={companySettings.address || ""}
             phone={companySettings.phone || ""}
             email={companySettings.email || ""}

@@ -55,7 +55,13 @@ const Address = ({
           paddingTop: 2,
         }}
       >
-        <Text style={{ ...styles.addressInfo, fontWeight: "bold" }}>
+        <Text
+          style={{
+            ...styles.addressInfo,
+            fontWeight: "bold",
+            textTransform: "capitalize",
+          }}
+        >
           {name}
         </Text>
         <Text style={styles.addressInfo}>{address ? address : null}</Text>
