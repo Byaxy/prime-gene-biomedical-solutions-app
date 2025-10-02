@@ -238,9 +238,6 @@ export const salesColumns: ColumnDef<SaleWithRelations>[] = [
         </p>
       );
     },
-    meta: {
-      skipRowClick: true,
-    },
   },
   {
     id: "actions",

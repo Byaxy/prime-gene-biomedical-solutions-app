@@ -16,7 +16,7 @@ import PDFHeader from "../pdf-template/PDFHeader";
 import Address from "../pdf-template/Address";
 import Signature from "../pdf-template/Signature";
 import BankDetails from "../pdf-template/BankDetails";
-import QuotationTermsAndConditions from "../pdf-template/QuotationTermsAndConditions";
+import TermsAndConditions from "../pdf-template/TermsAndConditions";
 
 // styles
 const styles = StyleSheet.create({
@@ -151,6 +151,13 @@ const QuotationPDF = ({
   currencySymbol: string;
 }) => {
   const { quotation: quot, customer, products } = quotation;
+
+  const termsAndConditions = [
+    "Prices quoted here are valid for 6 months.",
+    "Terms of payment is 30 days.",
+    "This certifies that the Pro-Forma invoice is true and correct.",
+    "When a dispute arises over subtotal or total prices, individual unit prices should be considered.",
+  ];
 
   return (
     <Document>
@@ -408,7 +415,7 @@ const QuotationPDF = ({
             <View style={styles.bankSection}>
               <BankDetails />
 
-              <QuotationTermsAndConditions />
+              <TermsAndConditions termsAndConditions={termsAndConditions} />
             </View>
           </View>
         </View>

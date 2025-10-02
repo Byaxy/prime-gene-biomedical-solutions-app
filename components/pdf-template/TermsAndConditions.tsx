@@ -7,7 +7,11 @@ const styles = StyleSheet.create({
   },
 });
 
-const TermsAndConditions = () => {
+const TermsAndConditions = ({
+  termsAndConditions,
+}: {
+  termsAndConditions: string[];
+}) => {
   return (
     <View
       style={{
@@ -37,17 +41,11 @@ const TermsAndConditions = () => {
           paddingTop: 2,
         }}
       >
-        <Text style={styles.info}>
-          Prices quoted here are valid for 6 months
-        </Text>
-        <Text style={styles.info}>Terms of payment is 30 days</Text>
-        <Text style={styles.info}>
-          This certifies that the invoice is true and correct
-        </Text>
-        <Text style={styles.info}>
-          When a dispute arises over subtotal or total prices, individual unit
-          prices should be considered.
-        </Text>
+        {termsAndConditions.map((term, index) => (
+          <Text key={index} style={styles.info}>
+            {term}
+          </Text>
+        ))}
       </View>
     </View>
   );

@@ -58,11 +58,11 @@ const Address = ({
         <Text style={{ ...styles.addressInfo, fontWeight: "bold" }}>
           {name}
         </Text>
+        <Text style={styles.addressInfo}>{address ? address : null}</Text>
         <Text style={styles.addressInfo}>
           {city ? `${city} -` : null}{" "}
           {country ? Country.getCountryByCode(country)?.name : null}
         </Text>
-        <Text style={styles.addressInfo}>{address ? address : null}</Text>
         <Text style={styles.addressInfo}>{phone ? phone : null}</Text>
         <Text style={styles.addressInfo}>{email ? email : null}</Text>
       </View>

@@ -229,9 +229,6 @@ export const waybillColumns: ColumnDef<WaybillWithRelations>[] = [
         </p>
       );
     },
-    meta: {
-      skipRowClick: true,
-    },
   },
   {
     id: "actions",

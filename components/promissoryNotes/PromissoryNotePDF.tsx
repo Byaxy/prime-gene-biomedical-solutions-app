@@ -13,8 +13,8 @@ import Address from "../pdf-template/Address";
 import PDFHeader from "../pdf-template/PDFHeader";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import Signature from "../pdf-template/Signature";
-import PromissoryTermsAndConditions from "../pdf-template/PromissoryTermsAndConditions";
 import ThankYouNote from "../pdf-template/ThankYouNote";
+import TermsAndConditions from "../pdf-template/TermsAndConditions";
 
 // styles
 const styles = StyleSheet.create({
@@ -136,6 +136,11 @@ const PromissoryNotePDF = ({
   currency: string;
 }) => {
   const { promissoryNote: note, products, sale, customer } = promissoryNote;
+
+  const termsAndConditions = [
+    "By signing above, you agree the terms on this Promissory note are correct and accurate, no other terms & conditions shall apply.",
+  ];
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -345,7 +350,7 @@ const PromissoryNotePDF = ({
 
             {/* Bank Details - Terms & Conditions */}
             <View style={styles.bankSection}>
-              <PromissoryTermsAndConditions />
+              <TermsAndConditions termsAndConditions={termsAndConditions} />
             </View>
           </View>
         </View>

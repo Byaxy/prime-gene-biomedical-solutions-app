@@ -186,9 +186,6 @@ export const quotationsColumns: ColumnDef<QuotationWithRelations>[] = [
         </span>
       );
     },
-    meta: {
-      skipRowClick: true,
-    },
   },
 
   {

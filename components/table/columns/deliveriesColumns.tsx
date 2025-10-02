@@ -150,9 +150,6 @@ export const deliveriesColumns: ColumnDef<DeliveryWithRelations>[] = [
         </p>
       );
     },
-    meta: {
-      skipRowClick: true,
-    },
   },
   {
     id: "actions",

@@ -16,7 +16,6 @@ import { useRouter } from "next/navigation";
 import { Download } from "lucide-react";
 import { Mail } from "lucide-react";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
-import { useProducts } from "@/hooks/useProducts";
 import PurchasePDF from "./PurchasePDF";
 
 interface PurchaseDialogProps {
@@ -34,7 +33,6 @@ export function PurchaseDialog({
 }: PurchaseDialogProps) {
   const { softDeletePurchase, isSoftDeletingPurchase } = usePurchases();
   const { companySettings } = useCompanySettings();
-  const { products } = useProducts({ getAllProducts: true });
 
   const router = useRouter();
 
@@ -78,7 +76,6 @@ export function PurchaseDialog({
             country: companySettings?.country ?? "",
             currencySymbol: companySettings?.currencySymbol ?? "$",
           }}
-          allProducts={products}
         />
       ).toBlob();
       const url = URL.createObjectURL(blob);
@@ -206,7 +203,6 @@ export function PurchaseDialog({
                       country: companySettings?.country ?? "",
                       currencySymbol: companySettings?.currencySymbol ?? "$",
                     }}
-                    allProducts={products}
                   />
                 )}
               </PDFViewer>

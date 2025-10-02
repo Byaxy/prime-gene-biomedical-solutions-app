@@ -16,7 +16,6 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
-import { useProducts } from "@/hooks/useProducts";
 import PurchasePDF from "./PurchasePDF";
 
 const PurchaseActions = ({ purchase }: { purchase: PurchaseWithRelations }) => {
@@ -24,7 +23,6 @@ const PurchaseActions = ({ purchase }: { purchase: PurchaseWithRelations }) => {
   const [mode, setMode] = useState<"add" | "edit" | "delete" | "view">("add");
 
   const { companySettings } = useCompanySettings();
-  const { products } = useProducts({ getAllProducts: true });
 
   const router = useRouter();
 
@@ -59,7 +57,6 @@ const PurchaseActions = ({ purchase }: { purchase: PurchaseWithRelations }) => {
             country: companySettings?.country ?? "",
             currencySymbol: companySettings?.currencySymbol ?? "$",
           }}
-          allProducts={products}
         />
       ).toBlob();
       const url = URL.createObjectURL(blob);

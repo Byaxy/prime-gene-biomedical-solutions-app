@@ -197,9 +197,6 @@ export const purchasesColumns: ColumnDef<PurchaseWithRelations>[] = [
         </p>
       );
     },
-    meta: {
-      skipRowClick: true,
-    },
   },
 
   {

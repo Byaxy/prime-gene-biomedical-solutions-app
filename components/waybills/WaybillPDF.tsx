@@ -13,9 +13,9 @@ import { formatDateTime } from "@/lib/utils";
 import { WaybillWithRelations } from "@/types";
 import Address from "../pdf-template/Address";
 import ThankYouNote from "../pdf-template/ThankYouNote";
-import WaybillTermsAndConditions from "../pdf-template/WaybillTermsAndConditions";
 import Signature2 from "../pdf-template/Signature2";
 import OfficerSignature from "../pdf-template/OfficerSignature";
+import TermsAndConditions from "../pdf-template/TermsAndConditions";
 
 // styles
 const styles = StyleSheet.create({
@@ -96,7 +96,11 @@ const styles = StyleSheet.create({
 const WaybillPDF = ({ waybill }: { waybill: WaybillWithRelations }) => {
   const { waybill: bill, sale, products } = waybill;
 
-  console.log("waybill from pdf: ", waybill);
+  const termsAndConditions = [
+    "Goods Received in Good Condition.",
+    "Items not supplied are captured in the Promissory Note.",
+    "By signing above, you agree the terms on this waybill are correct and accurate, no other terms & conditions shall apply.",
+  ];
 
   return (
     <Document>
@@ -297,7 +301,7 @@ const WaybillPDF = ({ waybill }: { waybill: WaybillWithRelations }) => {
             </View>
 
             <View style={styles.detailsSection}>
-              <WaybillTermsAndConditions />
+              <TermsAndConditions termsAndConditions={termsAndConditions} />
             </View>
           </View>
         </View>

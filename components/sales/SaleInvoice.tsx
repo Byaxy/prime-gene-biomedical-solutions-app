@@ -151,6 +151,13 @@ const SaleInvoice = ({
 }) => {
   const { sale: sal, customer, products } = sale;
 
+  const termsAndConditions = [
+    "Prices quoted here are valid for 6 months.",
+    "Terms of payment is 30 days.",
+    "This certifies that the invoice is true and correct.",
+    "When a dispute arises over subtotal or total prices, individual unit prices should be considered.",
+  ];
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -384,7 +391,7 @@ const SaleInvoice = ({
             <View style={styles.bankSection}>
               <BankDetails />
 
-              <TermsAndConditions />
+              <TermsAndConditions termsAndConditions={termsAndConditions} />
             </View>
           </View>
         </View>

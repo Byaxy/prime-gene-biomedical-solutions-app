@@ -135,9 +135,6 @@ export const promissoryNotesColumns: ColumnDef<PromissoryNoteWithRelations>[] =
           </p>
         );
       },
-      meta: {
-        skipRowClick: true,
-      },
     },
     {
       id: "actions",

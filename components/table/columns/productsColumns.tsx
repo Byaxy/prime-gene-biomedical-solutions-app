@@ -215,9 +215,6 @@ export const productsColumns: ColumnDef<ProductWithRelations>[] = [
         </p>
       );
     },
-    meta: {
-      skipRowClick: true,
-    },
   },
   {
     id: "actions",

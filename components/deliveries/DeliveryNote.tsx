@@ -15,8 +15,8 @@ import Address from "../pdf-template/Address";
 import PDFHeader from "../pdf-template/PDFHeader";
 import { formatDateTime } from "@/lib/utils";
 import Signature from "../pdf-template/Signature";
-import DeliveryTermsAndConditions from "../pdf-template/DeliveryTermsAndConditions";
 import ThankYouNote from "../pdf-template/ThankYouNote";
+import TermsAndConditions from "../pdf-template/TermsAndConditions";
 
 // styles
 const styles = StyleSheet.create({
@@ -97,6 +97,11 @@ const styles = StyleSheet.create({
 
 const DeliveryNote = ({ delivery }: { delivery: DeliveryWithRelations }) => {
   const { delivery: del, customer, sale, products } = delivery;
+  const termsAndConditions = [
+    "Goods Received in Good Condition.",
+    "Items not supplied are captured in the Promissory Note.",
+    "By signing above, you agree the terms on this delivery note are correct and accurate, no other terms & conditions shall apply.",
+  ];
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -294,7 +299,7 @@ const DeliveryNote = ({ delivery }: { delivery: DeliveryWithRelations }) => {
             </View>
 
             <View style={styles.detailsSection}>
-              <DeliveryTermsAndConditions />
+              <TermsAndConditions termsAndConditions={termsAndConditions} />
             </View>
           </View>
         </View>

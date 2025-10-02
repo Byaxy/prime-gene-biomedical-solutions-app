@@ -5,7 +5,6 @@ import toast from "react-hot-toast";
 import PurchaseOrderPDF from "./PurchaseOrderPDF";
 import { useRouter } from "next/navigation";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
-import { useProducts } from "@/hooks/useProducts";
 import { useState } from "react";
 import PurchaseOrderDialog from "./PurchaseOrderDialog";
 import EditIcon from "@mui/icons-material/Edit";
@@ -31,7 +30,6 @@ const PurchaseOrderActions = ({
   const [mode, setMode] = useState<"add" | "edit" | "delete" | "view">("add");
 
   const { companySettings } = useCompanySettings();
-  const { products } = useProducts({ getAllProducts: true });
 
   const router = useRouter();
 
@@ -66,7 +64,6 @@ const PurchaseOrderActions = ({
             country: companySettings?.country ?? "",
             currencySymbol: companySettings?.currencySymbol ?? "$",
           }}
-          allProducts={products}
         />
       ).toBlob();
       const url = URL.createObjectURL(blob);

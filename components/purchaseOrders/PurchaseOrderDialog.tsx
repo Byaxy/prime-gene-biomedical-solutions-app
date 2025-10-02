@@ -4,7 +4,6 @@ import { PurchaseOrderWithRelations } from "@/types";
 import toast from "react-hot-toast";
 import PurchaseOrderPDF from "./PurchaseOrderPDF";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
-import { useProducts } from "@/hooks/useProducts";
 import { useRouter } from "next/navigation";
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 import {
@@ -37,7 +36,6 @@ const PurchaseOrderDialog = ({
   const { softDeletePurchaseOrder, isSoftDeletingPurchaseOrder } =
     usePurchaseOrders();
   const { companySettings } = useCompanySettings();
-  const { products } = useProducts({ getAllProducts: true });
 
   const router = useRouter();
 
@@ -81,7 +79,6 @@ const PurchaseOrderDialog = ({
             country: companySettings?.country ?? "",
             currencySymbol: companySettings?.currencySymbol ?? "$",
           }}
-          allProducts={products}
         />
       ).toBlob();
       const url = URL.createObjectURL(blob);
@@ -209,7 +206,6 @@ const PurchaseOrderDialog = ({
                       country: companySettings?.country ?? "",
                       currencySymbol: companySettings?.currencySymbol ?? "$",
                     }}
-                    allProducts={products}
                   />
                 )}
               </PDFViewer>
