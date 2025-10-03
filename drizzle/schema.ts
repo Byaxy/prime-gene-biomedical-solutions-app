@@ -148,6 +148,34 @@ export const packageTypeEnum = pgEnum("package_type", [
   "Roll",
 ]);
 
+export const chartOfAccountTypeEnum = pgEnum("chart_of_account_type", [
+  "asset",
+  "liability",
+  "equity",
+  "revenue",
+  "expense",
+  "cogs",
+  "other",
+]);
+export const accountTypeEnum = pgEnum("account_type", [
+  "bank",
+  "mobile_money",
+  "cash_on_hand",
+  "other",
+]);
+
+export const JournalEntryReferenceTypeEnum = pgEnum(
+  "journal_entry_reference_type",
+  [
+    "purchase",
+    "sale",
+    "expense",
+    "payment_received",
+    "bill_payment",
+    "adjustment",
+  ]
+);
+
 // Users
 export const usersTable = pgTable(
   "users",
@@ -279,29 +307,6 @@ export const categoriesTable = pgTable(
       table.isActive,
       table.name
     ),
-  })
-);
-
-// Expenses
-export const expensesTable = pgTable(
-  "expenses",
-  {
-    id: uuid("id")
-      .primaryKey()
-      .default(sql`gen_random_uuid()`),
-    title: text("title").notNull(),
-    description: text("description").default(""),
-    amount: numeric("amount").notNull(),
-    paymentMethod: paymentMethodEnum("payment_method")
-      .notNull()
-      .default("cash"),
-    expenseDate: timestamp("expense_date").notNull(),
-    isActive: boolean("is_active").notNull().default(true),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  },
-  (table) => ({
-    expensesActiveIndex: index("expenses_active_idx").on(table.isActive),
   })
 );
 
@@ -1687,5 +1692,508 @@ export const parcelItemsTable = pgTable(
     parcelItemsProductIdIndex: index("parcel_items_product_id_idx").on(
       table.productId
     ),
+  })
+);
+
+// Chart of Accounts
+export const chartOfAccountsTable = pgTable(
+  "chart_of_accounts",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    accountNumber: text("account_number").notNull().unique(),
+    accountName: text("account_name").notNull(),
+    accountType: chartOfAccountTypeEnum("account_type").notNull(),
+    description: text("description").default(""),
+    parentId: uuid("parent_id").references(
+      (): PgColumn => chartOfAccountsTable.id,
+      {
+        onDelete: "set null",
+      }
+    ),
+    path: text("path"),
+    depth: integer("depth").default(0),
+    isControlAccount: boolean("is_control_account").notNull().default(false),
+    isDefault: boolean("is_default").notNull().default(false),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    chartOfAccountsActiveIndex: index("chart_of_accounts_active_idx").on(
+      table.isActive
+    ),
+    chartOfAccountsIdIndex: index("chart_of_accounts_id_idx").on(table.id),
+  })
+);
+
+// Accounts
+export const accountsTable = pgTable(
+  "accounts",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    name: text("name").notNull(),
+    accountType: accountTypeEnum("account_type").notNull(),
+    accountNumber: text("account_number").notNull().unique(),
+    bankName: text("bank_name").notNull(),
+    bankAddress: jsonb("bank_address")
+      .$type<{
+        addressName: string;
+        address: string;
+        city: string;
+        state: string;
+        country: string;
+      }>()
+      .default({
+        addressName: "",
+        address: "",
+        city: "",
+        state: "",
+        country: "",
+      }),
+    swiftCode: text("swift_code"),
+    merchantCode: text("merchant_code"),
+    openingBalance: numeric("opening_balance").notNull(),
+    currentBalance: numeric("current_balance").notNull(),
+    currency: text("currency").notNull(),
+    chartOfAccountsId: uuid("chart_of_accounts_id").references(
+      () => chartOfAccountsTable.id,
+      {
+        onDelete: "cascade",
+      }
+    ),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    accountsActiveIndex: index("accounts_active_idx").on(table.isActive),
+    accountsIdIndex: index("accounts_id_idx").on(table.id),
+  })
+);
+
+// Expense Categories
+export const expenseCategoriesTable = pgTable(
+  "expense_categories",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    name: text("name").notNull(),
+    description: text("description").default(""),
+    parentId: uuid("parent_id").references(
+      (): PgColumn => expenseCategoriesTable.id,
+      {
+        onDelete: "set null",
+      }
+    ),
+    path: text("path"),
+    depth: integer("depth").default(0),
+    chartOfAccountsId: uuid("chart_of_accounts_id").references(
+      () => chartOfAccountsTable.id,
+      {
+        onDelete: "cascade",
+      }
+    ),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    expenseCategoriesActiveIndex: index("expense_categories_active_idx").on(
+      table.isActive
+    ),
+    expenseCategoriesIdIndex: index("expense_categories_id_idx").on(table.id),
+  })
+);
+
+// Income Categories
+export const incomeCategoriesTable = pgTable(
+  "income_categories",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    name: text("name").notNull(),
+    description: text("description").default(""),
+    parentId: uuid("parent_id").references(
+      (): PgColumn => incomeCategoriesTable.id,
+      {
+        onDelete: "set null",
+      }
+    ),
+    path: text("path"),
+    depth: integer("depth").default(0),
+    chartOfAccountsId: uuid("chart_of_accounts_id").references(
+      () => chartOfAccountsTable.id,
+      {
+        onDelete: "cascade",
+      }
+    ),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    incomeCategoriesActiveIndex: index("income_categories_active_idx").on(
+      table.isActive
+    ),
+    incomeCategoriesIdIndex: index("income_categories_id_idx").on(table.id),
+  })
+);
+
+// Journal Entries
+export const journalEntriesTable = pgTable(
+  "journal_entries",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    entryDate: timestamp("entry_date").notNull(),
+    referenceType: JournalEntryReferenceTypeEnum("reference_type").notNull(),
+    referenceId: uuid("reference_id"),
+    description: text("description").default(""),
+    totalDebit: numeric("total_debit").notNull(),
+    totalCredit: numeric("total_credit").notNull(),
+    userId: uuid("user_id").references(() => usersTable.id, {
+      onDelete: "set null",
+    }),
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    journalEntriesIdIndex: index("journal_entries_id_idx").on(table.id),
+  })
+);
+
+export const journalEntryLinesTable = pgTable(
+  "journal_entry_lines",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    journalEntryId: uuid("journal_entry_id").references(
+      () => journalEntriesTable.id,
+      {
+        onDelete: "cascade",
+      }
+    ),
+    chartOfAccountsId: uuid("chart_of_accounts_id").references(
+      () => chartOfAccountsTable.id,
+      {
+        onDelete: "cascade",
+      }
+    ),
+    description: text("description").default(""),
+    debit: numeric("debit").notNull(),
+    credit: numeric("credit").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    journalEntryLinesIdIndex: index("journal_entry_lines_id_idx").on(table.id),
+    journalEntryLinesActiveIndex: index("journal_entry_lines_active_idx").on(
+      table.isActive
+    ),
+  })
+);
+
+// Expenses
+export const expensesTable = pgTable(
+  "expenses",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    title: text("title").notNull(),
+    description: text("description").default(""),
+    amount: numeric("amount").notNull(),
+    expenseDate: timestamp("expense_date").notNull(),
+    expenseCategoryId: uuid("expense_category_id").references(
+      () => expenseCategoriesTable.id,
+      {
+        onDelete: "cascade",
+      }
+    ),
+    payingAccountId: uuid("paying_account_id").references(
+      () => accountsTable.id,
+      {
+        onDelete: "cascade",
+      }
+    ),
+    referenceNumber: text("reference_number").notNull().unique(),
+    payee: text("payee").notNull(),
+    notes: text("notes"),
+    attachments: jsonb("attachments")
+      .$type<
+        Array<{
+          id: string;
+          url: string;
+          name: string;
+          size: number;
+          type: string;
+        }>
+      >()
+      .default([]),
+    purchaseId: uuid("purchase_id").references(() => purchasesTable.id, {
+      onDelete: "set null",
+    }),
+    isAccompanyingExpense: boolean("is_accompanying_expense")
+      .notNull()
+      .default(false),
+    accompanyingExpenseTypeId: uuid("purchase_id").references(
+      () => accompanyingExpenseTypesTable.id,
+      {
+        onDelete: "set null",
+      }
+    ),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    expensesActiveIndex: index("expenses_active_idx").on(table.isActive),
+  })
+);
+
+export const accompanyingExpenseTypesTable = pgTable(
+  "accompanying_expense_types",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    name: text("name").notNull().unique(),
+    description: text("description").default(""),
+    defaultExpenseCategoryId: uuid("default_expense_category_id").references(
+      () => expenseCategoriesTable.id,
+      { onDelete: "set null" }
+    ),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    accompanyingExpenseTypesActiveIndex: index(
+      "accompanying_expense_types_active_idx"
+    ).on(table.isActive),
+    accompanyingExpenseTypesNameIndex: index(
+      "accompanying_expense_types_name_idx"
+    ).on(table.name),
+  })
+);
+
+export const paymentsReceivedTable = pgTable(
+  "payments_received",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    paymentRefNumber: text("payment_ref_number").notNull().unique(),
+    paymentDate: timestamp("payment_date").notNull(),
+    customerId: uuid("customer_id").references(() => customersTable.id, {
+      onDelete: "set null",
+    }), // Nullable for other income not tied to a specific customer
+    saleId: uuid("sale_id").references(() => salesTable.id, {
+      onDelete: "set null",
+    }), // Can be null if general payment not linked to specific sale initially
+    incomeCategoryId: uuid("income_category_id").references(
+      () => incomeCategoriesTable.id,
+      { onDelete: "set null" }
+    ), // For other income, or default for sales income
+    receivingAccountId: uuid("receiving_account_id")
+      .notNull()
+      .references(() => accountsTable.id, { onDelete: "cascade" }), // Account where payment was received
+    amountReceived: numeric("amount_received").notNull(),
+    paymentMethod: paymentMethodEnum("payment_method")
+      .notNull()
+      .default("cash"),
+    notes: text("notes").default(""),
+    attachments: jsonb("attachments")
+      .$type<
+        Array<{
+          id: string;
+          url: string;
+          name: string;
+          size: number;
+          type: string;
+        }>
+      >()
+      .default([]),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    paymentsReceivedActiveIndex: index("payments_received_active_idx").on(
+      table.isActive
+    ),
+    paymentsReceivedRefNumberIndex: index(
+      "payments_received_ref_number_idx"
+    ).on(table.paymentRefNumber),
+    paymentsReceivedCustomerIdIndex: index(
+      "payments_received_customer_id_idx"
+    ).on(table.customerId),
+    paymentsReceivedSaleIdIndex: index("payments_received_sale_id_idx").on(
+      table.saleId
+    ),
+    paymentsReceivedIncomeCategoryIdIndex: index(
+      "payments_received_income_category_id_idx"
+    ).on(table.incomeCategoryId),
+    paymentsReceivedReceivingAccountIdIndex: index(
+      "payments_received_receiving_account_id_idx"
+    ).on(table.receivingAccountId),
+  })
+);
+
+// Bill Payments (Bill Manager)
+export const billPaymentsTable = pgTable(
+  "bill_payments",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    billReferenceNo: text("bill_reference_no").notNull().unique(),
+    paymentDate: timestamp("payment_date").notNull(),
+    vendorId: uuid("vendor_id")
+      .notNull()
+      .references(() => vendorsTable.id, { onDelete: "cascade" }), // Foreign key to vendors
+    totalPaymentAmount: numeric("total_payment_amount").notNull(), // Sum of all amounts paid from accounts + payment-specific expenses
+    generalComments: text("general_comments").default(""),
+    attachments: jsonb("attachments")
+      .$type<
+        Array<{
+          id: string;
+          url: string;
+          name: string;
+          size: number;
+          type: string;
+        }>
+      >()
+      .default([]),
+    userId: uuid("user_id").references(() => usersTable.id, {
+      onDelete: "set null",
+    }), // User who recorded the bill payment
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    billPaymentsActiveIndex: index("bill_payments_active_idx").on(
+      table.isActive
+    ),
+    billPaymentsRefNoIndex: index("bill_payments_ref_no_idx").on(
+      table.billReferenceNo
+    ),
+    billPaymentsVendorIdIndex: index("bill_payments_vendor_id_idx").on(
+      table.vendorId
+    ),
+  })
+);
+
+// Junction table for Bill Payments and Purchases
+export const billPaymentItemsTable = pgTable(
+  "bill_payment_items",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    billPaymentId: uuid("bill_payment_id")
+      .notNull()
+      .references(() => billPaymentsTable.id, { onDelete: "cascade" }),
+    purchaseId: uuid("purchase_id")
+      .notNull()
+      .references(() => purchasesTable.id, { onDelete: "cascade" }),
+    amountApplied: numeric("amount_applied").notNull(), // How much of this payment went to this specific purchase
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    billPaymentItemsActiveIndex: index("bill_payment_items_active_idx").on(
+      table.isActive
+    ),
+    billPaymentItemsBillPaymentIdIndex: index(
+      "bill_payment_items_bill_payment_id_idx"
+    ).on(table.billPaymentId),
+    billPaymentItemsPurchaseIdIndex: index(
+      "bill_payment_items_purchase_id_idx"
+    ).on(table.purchaseId),
+    billPaymentItemsUnique: unique().on(table.billPaymentId, table.purchaseId), // A payment should only apply once to a purchase
+  })
+);
+
+// Details for payments made from multiple accounts for a single bill payment
+export const billPaymentAccountsTable = pgTable(
+  "bill_payment_accounts",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    billPaymentId: uuid("bill_payment_id")
+      .notNull()
+      .references(() => billPaymentsTable.id, { onDelete: "cascade" }),
+    payingAccountId: uuid("paying_account_id")
+      .notNull()
+      .references(() => accountsTable.id, { onDelete: "cascade" }),
+    amountPaidFromAccount: numeric("amount_paid_from_account").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    billPaymentAccountsActiveIndex: index(
+      "bill_payment_accounts_active_idx"
+    ).on(table.isActive),
+    billPaymentAccountsBillPaymentIdIndex: index(
+      "bill_payment_accounts_bill_payment_id_idx"
+    ).on(table.billPaymentId),
+    billPaymentAccountsPayingAccountIdIndex: index(
+      "bill_payment_accounts_paying_account_id_idx"
+    ).on(table.payingAccountId),
+    // Ensure a single account isn't listed twice for the same payment unless specifically allowed (unlikely)
+    billPaymentAccountsUnique: unique().on(
+      table.billPaymentId,
+      table.payingAccountId
+    ),
+  })
+);
+
+// Accompanying Expenses specifically for a Bill Payment event
+export const billPaymentAccompanyingExpensesTable = pgTable(
+  "bill_payment_accompanying_expenses",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    billPaymentId: uuid("bill_payment_id")
+      .notNull()
+      .references(() => billPaymentsTable.id, { onDelete: "cascade" }),
+    accompanyingExpenseTypeId: uuid("accompanying_expense_type_id")
+      .notNull()
+      .references(() => accompanyingExpenseTypesTable.id, {
+        onDelete: "set null",
+      }),
+    amount: numeric("amount").notNull(),
+    payee: text("payee").default(""), // Who received this specific accompanying expense payment
+    comments: text("comments").default(""),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    billPaymentAccompanyingExpensesActiveIndex: index(
+      "bill_payment_accompanying_expenses_active_idx"
+    ).on(table.isActive),
+    billPaymentAccompanyingExpensesBillPaymentIdIndex: index(
+      "bill_payment_accompanying_expenses_bill_payment_id_idx"
+    ).on(table.billPaymentId),
+    billPaymentAccompanyingExpensesAccompanyingExpenseTypeIdIndex: index(
+      "bill_payment_accompanying_expenses_accompanying_expense_type_id_idx"
+    ).on(table.accompanyingExpenseTypeId),
   })
 );
