@@ -1,5 +1,7 @@
 import {
+  AccountType,
   CarrierType,
+  ChartOfAccountType,
   DeliveryStatus,
   PackageType,
   PaymentMethod,
@@ -104,23 +106,6 @@ export const ProductFormValidation = z.object({
   image: z.any().optional(),
 });
 export type ProductFormValues = z.infer<typeof ProductFormValidation>;
-
-// Expenses
-export const ExpenseFormValidation = z.object({
-  title: z
-    .string()
-    .nonempty("Title is required")
-    .min(2, "Name must be at least 2 characters"),
-  description: z.string().nonempty("Description is required"),
-  amount: z.number().int().min(0, "Amount must be 0 or more"),
-  paymentMethod: z
-    .enum(Object.values(PaymentMethod) as [string, ...string[]])
-    .default(PaymentMethod.Cash),
-  expenseDate: z.date().refine((date) => date <= new Date(), {
-    message: "Expense date cannot be in the future",
-  }),
-});
-export type ExpenseFormValues = z.infer<typeof ExpenseFormValidation>;
 
 // Purchase Orders
 export const PurchaseOrderFormValidation = z.object({
@@ -1333,3 +1318,442 @@ export const ShipmentFormValidation = z
   });
 
 export type ShipmentFormValues = z.infer<typeof ShipmentFormValidation>;
+
+// Chart of Account
+export const ChartOfAccountFormValidation = z.object({
+  accountName: z
+    .string()
+    .nonempty("Account name is required")
+    .min(2, "Account name must be at least 2 characters"),
+  accountType: z
+    .enum(Object.values(ChartOfAccountType) as [string, ...string[]])
+    .default(ChartOfAccountType.REVENUE),
+  description: z.string().optional().nullable(),
+  parentId: z.string().optional().nullable(),
+  isControlAccount: z.boolean().default(false),
+  isDefault: z.boolean().default(false),
+});
+
+export type ChartOfAccountFormValues = z.infer<
+  typeof ChartOfAccountFormValidation
+>;
+
+const AccountAddressSchema = z.object({
+  addressName: z.string().optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  country: z.string().optional(),
+});
+
+// Base schema for Account creation/update
+export const AccountFormValidation = z.object({
+  name: z
+    .string()
+    .nonempty("Account name is required")
+    .min(2, "Account name must be at least 2 characters"),
+  accountType: z.nativeEnum(AccountType).default(AccountType.CASH_ON_HAND),
+  accountNumber: z.string().optional().nullable(),
+  bankName: z.string().optional().nullable(),
+  bankAddress: AccountAddressSchema.optional(),
+  swiftCode: z.string().optional().nullable(),
+  merchantCode: z.string().optional().nullable(),
+  openingBalance: z.number().min(0, "Opening balance cannot be negative"),
+  currentBalance: z
+    .number()
+    .min(0, "Current balance cannot be negative")
+    .optional(),
+  currency: z.string().nonempty("Currency is required"),
+  chartOfAccountsId: z
+    .string()
+    .nonempty("Linked Chart of Accounts ID is required"),
+});
+
+// Refined schema for Account validation (to add conditional logic)
+export const AccountFormValidationRefined = AccountFormValidation.superRefine(
+  (data, ctx) => {
+    // If account type is 'bank', bankName, accountNumber are generally expected
+    if (data.accountType === "bank") {
+      if (!data.bankName || data.bankName.trim() === "") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Bank name is required for bank accounts",
+          path: ["bankName"],
+        });
+      }
+      if (!data.accountNumber || data.accountNumber.trim() === "") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Account number is required for bank accounts",
+          path: ["accountNumber"],
+        });
+      }
+    }
+
+    // If account type is 'mobile_money', merchantCode and accountNumber might be expected
+    if (data.accountType === "mobile_money") {
+      if (!data.accountNumber || data.accountNumber.trim() === "") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Account number is required for mobile money accounts",
+          path: ["accountNumber"],
+        });
+      }
+      // merchantCode can still be optional for some mobile money setups
+    }
+
+    // For 'cash_on_hand', accountNumber, bankName, swiftCode, merchantCode should be null/empty
+    if (data.accountType === "cash_on_hand") {
+      if (data.accountNumber && data.accountNumber.trim() !== "") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Account number is not applicable for cash on hand",
+          path: ["accountNumber"],
+        });
+      }
+      if (data.bankName && data.bankName.trim() !== "") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Bank name is not applicable for cash on hand",
+          path: ["bankName"],
+        });
+      }
+      if (data.swiftCode && data.swiftCode.trim() !== "") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "SWIFT code is not applicable for cash on hand",
+          path: ["swiftCode"],
+        });
+      }
+      if (data.merchantCode && data.merchantCode.trim() !== "") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Merchant code is not applicable for cash on hand",
+          path: ["merchantCode"],
+        });
+      }
+    }
+  }
+);
+
+export type AccountFormValues = z.infer<typeof AccountFormValidationRefined>;
+
+// --- Filters for Account fetching ---
+export const AccountFiltersSchema = z.object({
+  search: z.string().optional(),
+  accountType: z.nativeEnum(AccountType).optional(),
+  currency: z.string().optional(),
+});
+export type AccountFilters = z.infer<typeof AccountFiltersSchema>;
+
+// --- Base Category Schema ---
+const BaseCategoryValidation = z.object({
+  name: z
+    .string()
+    .nonempty("Name is required")
+    .min(2, "Name must be at least 2 characters"),
+  description: z.string().optional().nullable(),
+  parentId: z.string().optional().nullable(), // For hierarchical structure
+  chartOfAccountsId: z
+    .string()
+    .nonempty("Linked Chart of Accounts ID is required"),
+});
+
+// --- Expense Category Validation ---
+export const ExpenseCategoryFormValidation = BaseCategoryValidation.extend({});
+export type ExpenseCategoryFormValues = z.infer<
+  typeof ExpenseCategoryFormValidation
+>;
+
+// --- Income Category Validation ---
+export const IncomeCategoryFormValidation = BaseCategoryValidation.extend({});
+export type IncomeCategoryFormValues = z.infer<
+  typeof IncomeCategoryFormValidation
+>;
+
+// --- Accompanying Expense Type Validation ---
+export const AccompanyingExpenseTypeFormValidation = z.object({
+  name: z
+    .string()
+    .nonempty("Name is required")
+    .min(2, "Name must be at least 2 characters"),
+  description: z.string().optional().nullable(),
+  defaultExpenseCategoryId: z.string().optional().nullable(), // Links to an ExpenseCategory
+});
+export type AccompanyingExpenseTypeFormValues = z.infer<
+  typeof AccompanyingExpenseTypeFormValidation
+>;
+
+// --- Filters for Category fetching ---
+export const CategoryFiltersSchema = z.object({
+  search: z.string().optional(),
+  parentId: z.string().optional(),
+});
+export type ExpenseCategoryFilters = z.infer<typeof CategoryFiltersSchema>;
+
+export type IncomeCategoryFilters = z.infer<typeof CategoryFiltersSchema>;
+
+// Expenses
+export const ExpenseFormValidation = z
+  .object({
+    title: z
+      .string()
+      .nonempty("Title is required")
+      .min(2, "Name must be at least 2 characters"),
+    description: z.string().optional().nullable(),
+    amount: z.number().min(0.01, "Amount must be greater than 0"),
+    expenseDate: z.date().refine((date) => date <= new Date(), {
+      message: "Expense date cannot be in the future",
+    }),
+    expenseCategoryId: z.string().nonempty("Expense Category is required"),
+    payingAccountId: z.string().nonempty("Paying Account is required"),
+    referenceNumber: z.string().nonempty("Reference number is required"),
+    payee: z.string().nonempty("Payee is required"),
+    notes: z.string().optional().nullable(),
+    attachments: z.any().optional(),
+    // Fields for accompanying expenses
+    isAccompanyingExpense: z.boolean().default(false),
+    purchaseId: z.string().optional().nullable(),
+    accompanyingExpenseTypeId: z.string().optional().nullable(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.isAccompanyingExpense) {
+      if (!data.purchaseId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Purchase Order is required for accompanying expenses",
+          path: ["purchaseId"],
+        });
+      }
+      if (!data.accompanyingExpenseTypeId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Accompanying Expense Type is required",
+          path: ["accompanyingExpenseTypeId"],
+        });
+      }
+    }
+  });
+export type ExpenseFormValues = z.infer<typeof ExpenseFormValidation>;
+
+// Income (Payments Received)
+export const IncomeFormValidation = z
+  .object({
+    paymentRefNumber: z
+      .string()
+      .nonempty("Payment reference number is required"),
+    paymentDate: z.date().refine((date) => date <= new Date(), {
+      message: "Payment date cannot be in the future",
+    }),
+    customerId: z.string().optional().nullable(), // Optional for other income
+    saleId: z.string().optional().nullable(), // Optional for other income
+    incomeCategoryId: z.string().optional().nullable(), // Optional for sales income (will default)
+    receivingAccountId: z.string().nonempty("Receiving Account is required"),
+    amountReceived: z
+      .number()
+      .min(0.01, "Amount received must be greater than 0"),
+    paymentMethod: z
+      .enum(Object.values(PaymentMethod) as [string, ...string[]])
+      .default(PaymentMethod.Cash),
+    notes: z.string().optional().nullable(),
+    attachments: z.any().optional(), // File uploads
+  })
+  .superRefine((data, ctx) => {
+    // If a saleId is provided, customerId must also be present
+    if (data.saleId && !data.customerId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Customer is required when linking to a sale",
+        path: ["customerId"],
+      });
+    }
+
+    // If no saleId, then an incomeCategoryId is required (for other income)
+    if (!data.saleId && !data.incomeCategoryId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Income Category is required for non-sales income",
+        path: ["incomeCategoryId"],
+      });
+    }
+
+    // If both saleId and incomeCategoryId are provided, prefer saleId logic.
+    // The backend logic will handle defaulting incomeCategoryId for sales.
+  });
+
+export type IncomeFormValues = z.infer<typeof IncomeFormValidation>;
+
+// Filters for Income fetching
+export const IncomeFiltersSchema = z.object({
+  search: z.string().optional(),
+  customerId: z.string().optional(),
+  saleId: z.string().optional(),
+  incomeCategoryId: z.string().optional(),
+  receivingAccountId: z.string().optional(),
+  paymentMethod: z
+    .enum(Object.values(PaymentMethod) as [string, ...string[]])
+    .optional(),
+  paymentDate_start: z.string().optional(), // ISO string date
+  paymentDate_end: z.string().optional(), // ISO string date
+  amount_min: z.number().optional(),
+  amount_max: z.number().optional(),
+});
+export type IncomeFilters = z.infer<typeof IncomeFiltersSchema>;
+
+// Schema for individual purchase being paid by a bill payment
+export const BillPaymentItemSchema = z.object({
+  purchaseId: z.string().nonempty("Purchase ID is required"),
+  amountToPay: z.number().min(0.01, "Amount to pay must be greater than 0"),
+  purchaseNumber: z.string().nonempty("Purchase Number is required"), // For display/context
+  totalAmount: z.number().min(0, "Total Amount must be 0 or more"), // For display/context
+  amountPaidSoFar: z.number().min(0, "Amount Paid So Far must be 0 or more"), // For display/context
+});
+export type BillPaymentItem = z.infer<typeof BillPaymentItemSchema>;
+
+// Schema for payment allocation from specific accounts
+export const BillPaymentAccountAllocationSchema = z.object({
+  payingAccountId: z.string().nonempty("Paying Account is required"),
+  amountPaidFromAccount: z
+    .number()
+    .min(0.01, "Amount paid from account must be greater than 0"),
+  accountName: z.string().optional(), // For display/context
+  currentBalance: z.number().optional(), // For display/context
+});
+export type BillPaymentAccountAllocation = z.infer<
+  typeof BillPaymentAccountAllocationSchema
+>;
+
+// Schema for payment-specific accompanying expenses (e.g., bank transfer fees)
+export const BillPaymentAccompanyingExpenseSchema = z.object({
+  accompanyingExpenseTypeId: z
+    .string()
+    .nonempty("Accompanying Expense Type is required"),
+  amount: z.number().min(0.01, "Amount must be greater than 0"),
+  payee: z.string().optional().nullable(),
+  comments: z.string().optional().nullable(),
+  expenseTypeName: z.string().optional(), // For display/context
+});
+export type BillPaymentAccompanyingExpense = z.infer<
+  typeof BillPaymentAccompanyingExpenseSchema
+>;
+
+// Main Bill Payment Form Validation
+export const BillPaymentFormValidation = z
+  .object({
+    billReferenceNo: z.string().nonempty("Bill reference number is required"),
+    paymentDate: z.date().refine((date) => date <= new Date(), {
+      message: "Payment date cannot be in the future",
+    }),
+    vendorId: z.string().nonempty("Vendor is required"),
+    generalComments: z.string().optional().nullable(),
+    attachments: z.any().optional(), // File uploads
+    // Arrays for linked records
+    purchasesToPay: z
+      .array(BillPaymentItemSchema)
+      .min(1, "At least one purchase must be selected for payment"),
+    payingAccounts: z
+      .array(BillPaymentAccountAllocationSchema)
+      .min(1, "At least one paying account must be used"),
+    accompanyingExpenses: z
+      .array(BillPaymentAccompanyingExpenseSchema)
+      .optional()
+      .nullable(),
+    // Calculated totals (will be re-calculated server-side for security)
+    totalPaymentAmount: z
+      .number()
+      .min(0.01, "Total payment amount must be greater than 0"),
+    totalAccompanyingExpenses: z
+      .number()
+      .min(0, "Total accompanying expenses cannot be negative"),
+  })
+  .superRefine((data, ctx) => {
+    // Validate that total amount paid from accounts matches total purchases to pay + accompanying expenses
+    const calculatedTotalPaidFromAccounts = data.payingAccounts.reduce(
+      (sum, acc) => sum + acc.amountPaidFromAccount,
+      0
+    );
+    const calculatedTotalPurchasesPaid = data.purchasesToPay.reduce(
+      (sum, item) => sum + item.amountToPay,
+      0
+    );
+    const calculatedTotalAccompanyingExpenses = data.accompanyingExpenses
+      ? data.accompanyingExpenses.reduce((sum, exp) => sum + exp.amount, 0)
+      : 0;
+
+    const expectedTotalPayment =
+      calculatedTotalPurchasesPaid + calculatedTotalAccompanyingExpenses;
+
+    if (
+      Math.abs(calculatedTotalPaidFromAccounts - expectedTotalPayment) > 0.001
+    ) {
+      // Small epsilon for floating point comparison
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Total funds from accounts (${calculatedTotalPaidFromAccounts.toFixed(
+          2
+        )}) must match total amount of purchases to pay (${calculatedTotalPurchasesPaid.toFixed(
+          2
+        )}) plus accompanying expenses (${calculatedTotalAccompanyingExpenses.toFixed(
+          2
+        )}). Expected total: ${expectedTotalPayment.toFixed(2)}`,
+        path: ["payingAccounts"],
+      });
+    }
+
+    // Validate no duplicate paying accounts
+    const uniquePayingAccounts = new Set(
+      data.payingAccounts.map((acc) => acc.payingAccountId)
+    );
+    if (uniquePayingAccounts.size !== data.payingAccounts.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Duplicate paying accounts are not allowed.",
+        path: ["payingAccounts"],
+      });
+    }
+
+    // Validate that 'totalPaymentAmount' reflects the sum of all outflows for display/summary
+    if (
+      Math.abs(data.totalPaymentAmount - expectedTotalPayment) > 0.001 &&
+      data.totalPaymentAmount !== 0
+    ) {
+      // Allow 0 for initial state if needed, otherwise enforce match
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Displayed total payment amount (${data.totalPaymentAmount.toFixed(
+          2
+        )}) does not match calculated total outflow (${expectedTotalPayment.toFixed(
+          2
+        )}).`,
+        path: ["totalPaymentAmount"],
+      });
+    }
+  });
+export type BillPaymentFormValues = z.infer<typeof BillPaymentFormValidation>;
+
+// --- Filters for Bill Tracker ---
+export const BillTrackerFiltersSchema = z.object({
+  search: z.string().optional(), // For vendor name, purchase number, invoice number
+  vendorId: z.string().optional(),
+  type: z
+    .enum(["all", "purchase_orders", "open_bills", "due_bills", "paid_bill"])
+    .default("all"),
+  status: z.enum(["all", "open", "overdue", "paid"]).default("all"), // Refers to paymentStatus on purchases
+  dateRange: z
+    .enum([
+      "all",
+      "today",
+      "yesterday",
+      "one_week",
+      "two_weeks",
+      "this_month",
+      "next_one_week",
+      "next_two_weeks",
+      "next_one_month",
+      "next_one_quarter",
+    ])
+    .default("all"),
+  specificDate_start: z.string().optional(), // ISO string date
+  specificDate_end: z.string().optional(), // ISO string date
+});
+export type BillTrackerFilters = z.infer<typeof BillTrackerFiltersSchema>;

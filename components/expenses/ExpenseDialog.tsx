@@ -24,24 +24,7 @@ export function ExpenseDialog({
   onOpenChange,
   expense,
   isLoading,
-  onSubmit,
 }: ExpenseDialogProps) {
-  const handleDelete = async () => {
-    try {
-      await onSubmit({
-        title: expense?.title || "",
-        description: expense?.description || "",
-        amount: expense?.amount || 0,
-        paymentMethod: expense?.paymentMethod || "cash",
-        expenseDate: expense?.expenseDate || new Date(),
-      });
-      onOpenChange(false);
-    } catch (error) {
-      console.error("Error deleting expense:", error);
-    } finally {
-    }
-  };
-
   const dialogTitle = {
     add: "Add Expense",
     edit: "Edit Expense",
@@ -85,7 +68,6 @@ export function ExpenseDialog({
               <Button
                 type="button"
                 variant="destructive"
-                onClick={handleDelete}
                 disabled={isLoading}
                 className="shad-danger-btn"
               >

@@ -2,8 +2,7 @@
 
 import {
   addExpense,
-  deleteExpense,
-  editExpense,
+  updateExpense,
   getExpenses,
   softDeleteExpense,
 } from "@/lib/actions/expense.actions";
@@ -88,7 +87,13 @@ export const useExpenses = ({
 
   // Add expense mutation
   const { mutate: addExpenseMutation, status: addExpenseStatus } = useMutation({
-    mutationFn: (data: ExpenseFormValues) => addExpense(data),
+    mutationFn: ({
+      data,
+      userId,
+    }: {
+      data: ExpenseFormValues;
+      userId: string;
+    }) => addExpense(data, userId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["expenses"] });
       toast.success("Expense added successfully");
@@ -102,8 +107,15 @@ export const useExpenses = ({
   // Edit expense mutation
   const { mutate: editExpenseMutation, status: editExpenseStatus } =
     useMutation({
-      mutationFn: ({ id, data }: { id: string; data: ExpenseFormValues }) =>
-        editExpense(data, id),
+      mutationFn: ({
+        id,
+        data,
+        userId,
+      }: {
+        id: string;
+        data: ExpenseFormValues;
+        userId: string;
+      }) => updateExpense(id, data, userId),
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["expenses"] });
         toast.success("Expense updated successfully");
@@ -117,21 +129,8 @@ export const useExpenses = ({
   // Soft Delete expense mutation
   const { mutate: softDeleteExpenseMutation, status: softDeleteExpenseStatus } =
     useMutation({
-      mutationFn: (id: string) => softDeleteExpense(id),
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["expenses"] });
-        toast.success("Expense deleted successfully");
-      },
-      onError: (error) => {
-        console.error("Error deleting expense:", error);
-        toast.error("Failed to delete expense");
-      },
-    });
-
-  // Permanently Delete expense mutation
-  const { mutate: deleteExpenseMutation, status: deleteExpenseStatus } =
-    useMutation({
-      mutationFn: (id: string) => deleteExpense(id),
+      mutationFn: ({ id, userId }: { id: string; userId: string }) =>
+        softDeleteExpense(id, userId),
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["expenses"] });
         toast.success("Expense deleted successfully");
@@ -156,10 +155,8 @@ export const useExpenses = ({
     addExpense: addExpenseMutation,
     editExpense: editExpenseMutation,
     softDeleteExpense: softDeleteExpenseMutation,
-    deleteExpense: deleteExpenseMutation,
     isAddingExpense: addExpenseStatus === "pending",
     isEditingExpense: editExpenseStatus === "pending",
-    isDeletingExpense: deleteExpenseStatus === "pending",
     isSoftDeletingExpense: softDeleteExpenseStatus === "pending",
   };
 };

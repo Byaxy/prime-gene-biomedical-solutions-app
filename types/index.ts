@@ -1,5 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { inventoryTransactionsTable } from "@/drizzle/schema";
+import {
+  chartOfAccountsTable,
+  inventoryTransactionsTable,
+} from "@/drizzle/schema";
 
 export type SearchParamProps = {
   params: { [key: string]: string };
@@ -16,6 +19,7 @@ export interface CreateUserParams {
   password: string;
   role: string;
 }
+
 export interface User {
   id: string;
   name: string;
@@ -38,6 +42,7 @@ export interface Unit {
   createdAt: Date;
   updatedAt: Date;
 }
+
 export interface Tax {
   id: string;
   name: string;
@@ -732,6 +737,14 @@ export interface ShipmentWithRelations {
   parcels: Parcel[];
 }
 
+// Chart of Accounts
+export type ChartOfAccount = typeof chartOfAccountsTable.$inferSelect;
+
+export interface ChartOfAccountWithRelations {
+  account: ChartOfAccount;
+  children?: ChartOfAccountWithRelations[];
+}
+
 // payment methods
 export enum PaymentMethod {
   Cash = "cash",
@@ -847,4 +860,30 @@ export enum CarrierType {
   ExpressCargo = "ExpressCargo",
   AirCargo = "AirCargo",
   SeaCargo = "SeaCargo",
+}
+
+export enum ChartOfAccountType {
+  ASSET = "asset",
+  LIABILITY = "liability",
+  EQUITY = "equity",
+  REVENUE = "revenue",
+  EXPENSE = "expense",
+  COGS = "cogs",
+  OTHER = "other",
+}
+
+export enum AccountType {
+  BANK = "bank",
+  MOBILE_MONEY = "mobile_money",
+  CASH_ON_HAND = "cash_on_hand",
+  OTHER = "other",
+}
+
+export enum JournalEntryReferenceType {
+  PURCHASE = "purchase",
+  SALE = "sale",
+  EXPENSE = "expense",
+  PAYMENT_RECEIVED = "payment_received",
+  BILL_PAYMENT = "bill_payment",
+  ADJUSTMENT = "adjustment",
 }

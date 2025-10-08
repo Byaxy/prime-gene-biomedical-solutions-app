@@ -320,8 +320,8 @@ export const sidebarData: SidebarDataType[] = [
     subCategories: [
       {
         id: generateId(),
-        title: "Chart of Account",
-        path: "/accounting-and-finance/chart-of-account",
+        title: "Chart of Accounts",
+        path: "/accounting-and-finance/chart-of-accounts",
       },
       {
         id: generateId(),

@@ -164,7 +164,7 @@ export const accountTypeEnum = pgEnum("account_type", [
   "other",
 ]);
 
-export const JournalEntryReferenceTypeEnum = pgEnum(
+export const journalEntryReferenceTypeEnum = pgEnum(
   "journal_entry_reference_type",
   [
     "purchase",
@@ -1702,7 +1702,6 @@ export const chartOfAccountsTable = pgTable(
     id: uuid("id")
       .primaryKey()
       .default(sql`gen_random_uuid()`),
-    accountNumber: text("account_number").notNull().unique(),
     accountName: text("account_name").notNull(),
     accountType: chartOfAccountTypeEnum("account_type").notNull(),
     description: text("description").default(""),
@@ -1737,8 +1736,8 @@ export const accountsTable = pgTable(
       .default(sql`gen_random_uuid()`),
     name: text("name").notNull(),
     accountType: accountTypeEnum("account_type").notNull(),
-    accountNumber: text("account_number").notNull().unique(),
-    bankName: text("bank_name").notNull(),
+    accountNumber: text("account_number").unique(),
+    bankName: text("bank_name"),
     bankAddress: jsonb("bank_address")
       .$type<{
         addressName: string;
@@ -1853,7 +1852,7 @@ export const journalEntriesTable = pgTable(
       .primaryKey()
       .default(sql`gen_random_uuid()`),
     entryDate: timestamp("entry_date").notNull(),
-    referenceType: JournalEntryReferenceTypeEnum("reference_type").notNull(),
+    referenceType: journalEntryReferenceTypeEnum("reference_type").notNull(),
     referenceId: uuid("reference_id"),
     description: text("description").default(""),
     totalDebit: numeric("total_debit").notNull(),

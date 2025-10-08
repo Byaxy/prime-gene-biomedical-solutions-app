@@ -6,8 +6,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "../ui/button";
-import { SelectItem } from "../ui/select";
-import { Expense, PaymentMethod } from "@/types";
+import { Expense } from "@/types";
 
 interface ExpenseFormProps {
   mode: "create" | "edit";
@@ -21,10 +20,16 @@ const ExpenseForm = ({ mode, initialData, onSubmit }: ExpenseFormProps) => {
     resolver: zodResolver(ExpenseFormValidation),
     defaultValues: initialData || {
       title: "",
-      description: "",
       amount: 0,
-      paymentMethod: PaymentMethod.Cash,
       expenseDate: new Date(),
+      expenseCategoryId: "",
+      payingAccountId: "",
+      referenceNumber: "",
+      payee: "",
+      isAccompanyingExpense: false,
+      description: "",
+      notes: "",
+      attachments: undefined,
     },
   });
 
@@ -67,25 +72,6 @@ const ExpenseForm = ({ mode, initialData, onSubmit }: ExpenseFormProps) => {
             label="Amount"
             placeholder="Enter amount"
           />
-
-          <CustomFormField
-            fieldType={FormFieldType.SELECT}
-            control={form.control}
-            name="paymentMethod"
-            label="Payment Method"
-            placeholder="Select payment method"
-            key={`payment-select-${form.watch("paymentMethod") || ""}`}
-          >
-            {Object.values(PaymentMethod).map((method) => (
-              <SelectItem
-                key={method}
-                value={method}
-                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
-              >
-                {method}
-              </SelectItem>
-            ))}
-          </CustomFormField>
         </div>
 
         <CustomFormField
