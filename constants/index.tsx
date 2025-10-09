@@ -11,7 +11,6 @@ import {
 import { Bell } from "lucide-react";
 import { ChartColumn } from "lucide-react";
 import { CircleDollarSign } from "lucide-react";
-import { DollarSign } from "lucide-react";
 import { ShoppingBasket } from "lucide-react";
 import { FileTerminal } from "lucide-react";
 
@@ -224,24 +223,7 @@ export const sidebarData: SidebarDataType[] = [
       },
     ],
   },
-  {
-    id: generateId(),
-    title: "Expenses",
-    path: "",
-    icon: <DollarSign className="h-5 w-5" />,
-    subCategories: [
-      {
-        id: generateId(),
-        title: "Expenses List",
-        path: "/expenses",
-      },
-      {
-        id: generateId(),
-        title: "Add Expense",
-        path: "/expenses/add-expense",
-      },
-    ],
-  },
+
   {
     id: generateId(),
     title: "People",
@@ -452,6 +434,16 @@ export const sidebarData: SidebarDataType[] = [
         id: generateId(),
         title: "Stores",
         path: "/settings/stores",
+      },
+      {
+        id: generateId(),
+        title: "Expense Categories",
+        path: "/settings/expense-categories",
+      },
+      {
+        id: generateId(),
+        title: "Income Categories",
+        path: "/settings/income-categories",
       },
     ],
   },
