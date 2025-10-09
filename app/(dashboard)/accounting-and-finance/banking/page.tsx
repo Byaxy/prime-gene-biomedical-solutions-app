@@ -37,7 +37,7 @@ export default async function BankingPage({
     <PageWraper
       title="Financial Accounts"
       buttonText="Add Account"
-      buttonPath="/accounting-and-finance/banking/create"
+      buttonPath="/accounting-and-finance/banking/create-account"
     >
       <Suspense fallback={<TableSkeleton />}>
         <AccountListTableData
