@@ -1441,8 +1441,7 @@ export type AccountFormValues = z.infer<typeof AccountFormValidationRefined>;
 // --- Filters for Account fetching ---
 export const AccountFiltersSchema = z.object({
   search: z.string().optional(),
-  accountType: z.nativeEnum(AccountType).optional(),
-  currency: z.string().optional(),
+  accountType: z.string().optional(),
 });
 export type AccountFilters = z.infer<typeof AccountFiltersSchema>;
 

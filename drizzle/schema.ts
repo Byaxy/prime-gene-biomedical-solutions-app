@@ -154,9 +154,9 @@ export const chartOfAccountTypeEnum = pgEnum("chart_of_account_type", [
   "equity",
   "revenue",
   "expense",
-  "cogs",
   "other",
 ]);
+
 export const accountTypeEnum = pgEnum("account_type", [
   "bank",
   "mobile_money",

@@ -174,6 +174,7 @@ const ChartOfAccountForm = ({
             label="Account Type"
             placeholder="Select an account type"
             disabled={isAnyMutationLoading}
+            key={form.watch("accountType") || ""}
           >
             {Object.values(ChartOfAccountType).map((type) => (
               <SelectItem
@@ -193,6 +194,7 @@ const ChartOfAccountForm = ({
             label="Parent Account (Optional)"
             placeholder="Select a parent account"
             disabled={isAnyMutationLoading}
+            key={form.watch("parentId") || ""}
           >
             {flattenedAccounts
               .filter((acc) => acc.account?.id !== initialData?.account?.id)

@@ -39,13 +39,7 @@ export const addExpenseCategory = async (values: ExpenseCategoryFormValues) => {
         .where(
           eq(chartOfAccountsTable.id, parsedValues.data.chartOfAccountsId)
         );
-      if (
-        linkedCoA.length === 0 ||
-        !(
-          linkedCoA[0].accountType === "expense" ||
-          linkedCoA[0].accountType === "cogs"
-        )
-      ) {
+      if (linkedCoA.length === 0 || !(linkedCoA[0].accountType === "expense")) {
         throw new Error(
           "Linked Chart of Account not found or is not an 'Expense' or 'Cost of Goods Sold' type. Please link to an appropriate account."
         );
@@ -271,10 +265,7 @@ export const updateExpenseCategory = async (
           );
         if (
           linkedCoA.length === 0 ||
-          !(
-            linkedCoA[0].accountType === "expense" ||
-            linkedCoA[0].accountType === "cogs"
-          )
+          !(linkedCoA[0].accountType === "expense")
         ) {
           throw new Error(
             "Linked Chart of Account not found or is not an 'Expense' or 'Cost of Goods Sold' type."

@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
+  accountsTable,
   chartOfAccountsTable,
   inventoryTransactionsTable,
 } from "@/drizzle/schema";
@@ -745,6 +746,16 @@ export interface ChartOfAccountWithRelations {
   children?: ChartOfAccountWithRelations[];
 }
 
+// Accounts
+export type Account = typeof accountsTable.$inferSelect;
+
+export interface AccountWithRelations {
+  account: Account;
+  chartOfAccount: ChartOfAccount;
+}
+
+// Enums
+
 // payment methods
 export enum PaymentMethod {
   Cash = "cash",
@@ -868,7 +879,6 @@ export enum ChartOfAccountType {
   EQUITY = "equity",
   REVENUE = "revenue",
   EXPENSE = "expense",
-  COGS = "cogs",
   OTHER = "other",
 }
 

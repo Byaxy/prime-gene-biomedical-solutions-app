@@ -16,6 +16,7 @@ import {
 import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { parseStringify } from "@/lib/utils";
 import {
+  AccountType,
   ChartOfAccountType,
   ChartOfAccountWithRelations,
   JournalEntryReferenceType,
@@ -492,6 +493,27 @@ export const addAccount = async (values: AccountFormValues, userId: string) => {
         })
         .returning();
 
+      if (!newAccount) {
+        throw new Error("Failed to create new account.");
+      }
+
+      const defaultEquityAccountId = await tx
+        .select({ id: chartOfAccountsTable.id })
+        .from(chartOfAccountsTable)
+        .where(
+          and(
+            eq(chartOfAccountsTable.isDefault, true),
+            eq(chartOfAccountsTable.accountType, "equity")
+          )
+        )
+        .then((res) => res[0]?.id);
+
+      if (!defaultEquityAccountId) {
+        throw new Error(
+          "Default Equity Chart of Account not found. Please ensure a Chart of Account is marked as default with 'equity' type."
+        );
+      }
+
       // Create initial journal entry for opening balance
       await createJournalEntry(
         tx,
@@ -502,7 +524,7 @@ export const addAccount = async (values: AccountFormValues, userId: string) => {
         `Opening balance for ${newAccount.name}`,
         [
           {
-            chartOfAccountId: newAccount.chartOfAccountsId ?? "",
+            chartOfAccountId: parsedValues.data.chartOfAccountsId,
             debit: newAccount.openingBalance,
             credit: 0,
             memo: "Opening Balance",
@@ -510,17 +532,7 @@ export const addAccount = async (values: AccountFormValues, userId: string) => {
           {
             // Assuming an initial Equity or Owner's Capital account for contra entry
             // This CoA ID should be pre-configured as a default system account.
-            chartOfAccountId:
-              (await tx
-                .select({ id: chartOfAccountsTable.id })
-                .from(chartOfAccountsTable)
-                .where(
-                  and(
-                    eq(chartOfAccountsTable.isDefault, true),
-                    eq(chartOfAccountsTable.accountType, "equity")
-                  )
-                )
-                .then((res) => res[0]?.id)) ?? "",
+            chartOfAccountId: defaultEquityAccountId,
             debit: 0,
             credit: newAccount.openingBalance,
             memo: "Initial Equity/Capital",
@@ -575,10 +587,9 @@ export const getAccounts = async (
         );
       }
       if (filters?.accountType) {
-        conditions.push(eq(accountsTable.accountType, filters.accountType));
-      }
-      if (filters?.currency) {
-        conditions.push(eq(accountsTable.currency, filters.currency));
+        conditions.push(
+          eq(accountsTable.accountType, filters.accountType as AccountType)
+        );
       }
 
       if (conditions.length > 0) {
