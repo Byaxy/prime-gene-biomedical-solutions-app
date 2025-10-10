@@ -10,6 +10,7 @@ import { IState, ICity } from "country-state-city";
 import {
   AccountType,
   AccountWithRelations,
+  ChartOfAccountType,
   ChartOfAccountWithRelations,
 } from "@/types";
 import { Form } from "../ui/form";
@@ -112,7 +113,11 @@ export const AccountForm = ({
       });
       return result;
     };
-    return flatten(chartOfAccounts);
+    return flatten(chartOfAccounts).filter(
+      (item: ChartOfAccountWithRelations) =>
+        item.account.isActive &&
+        item.account.accountType === ChartOfAccountType.ASSET
+    );
   }, [chartOfAccounts]);
 
   // Effects for country/state/city changes for bank address
@@ -432,14 +437,12 @@ export const AccountForm = ({
           >
             {flattenedChartOfAccounts.map((coaItem) => (
               <SelectItem
-                key={coaItem.account?.id}
-                value={coaItem.account?.id || ""}
+                key={coaItem.account.id}
+                value={coaItem.account.id}
                 className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
-                style={{
-                  paddingLeft: `${(coaItem.account?.depth ?? 0) * 20}px`,
-                }}
+                style={{ paddingLeft: `${coaItem.depth * 20}px` }}
               >
-                {coaItem.account?.accountName}
+                {coaItem.account.accountName}
               </SelectItem>
             ))}
           </CustomFormField>

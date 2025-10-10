@@ -92,7 +92,7 @@ export const useChartOfAccounts = ({
       data,
     }: {
       id: string;
-      data: Partial<ChartOfAccountFormValues>;
+      data: ChartOfAccountFormValues;
     }) => updateChartOfAccount(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["chartOfAccounts"] });

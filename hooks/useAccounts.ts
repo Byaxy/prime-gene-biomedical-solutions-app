@@ -255,7 +255,7 @@ export const useAccounts = ({
         data,
       }: {
         id: string;
-        data: Partial<AccountFormValues>;
+        data: AccountFormValues;
       }) => updateAccount(id, data),
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["accounts"] });

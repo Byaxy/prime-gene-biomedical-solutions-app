@@ -11,22 +11,43 @@ import {
 } from "@/drizzle/schema";
 import {
   ExpenseCategoryFormValues,
-  ExpenseCategoryFormValidation,
   ExpenseCategoryFilters,
 } from "../validation";
-import { and, eq, ilike, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { expenseCategoriesTable } from "@/drizzle/schema";
 
-// Add a new Expense Category
-export const addExpenseCategory = async (values: ExpenseCategoryFormValues) => {
-  const parsedValues = ExpenseCategoryFormValidation.safeParse(values);
-  if (!parsedValues.success) {
-    throw new Error(
-      "Invalid Expense Category data: " +
-        parsedValues.error.errors.map((e) => e.message).join(", ")
+const buildFilterConditions = (filters: ExpenseCategoryFilters) => {
+  const conditions = [];
+
+  conditions.push(eq(expenseCategoriesTable.isActive, true));
+
+  // Search logic using ILIKE on joined tables.
+  // GIN indexes are crucial here.
+  if (filters.search?.trim()) {
+    const searchTerm = `%${filters.search.trim()}%`;
+    conditions.push(
+      or(
+        ilike(expenseCategoriesTable.name, searchTerm),
+        ilike(expenseCategoriesTable.description, searchTerm)
+      )
     );
   }
 
+  if (filters.parentId) {
+    conditions.push(eq(expenseCategoriesTable.parentId, filters.parentId));
+  }
+
+  if (filters.chartOfAccountsId) {
+    conditions.push(
+      eq(expenseCategoriesTable.chartOfAccountsId, filters.chartOfAccountsId)
+    );
+  }
+
+  return conditions;
+};
+
+// Add a new Expense Category
+export const addExpenseCategory = async (values: ExpenseCategoryFormValues) => {
   try {
     const result = await db.transaction(async (tx) => {
       // Validate linked Chart of Accounts ID (must be 'expense' or 'cogs' type)
@@ -36,9 +57,7 @@ export const addExpenseCategory = async (values: ExpenseCategoryFormValues) => {
           accountType: chartOfAccountsTable.accountType,
         })
         .from(chartOfAccountsTable)
-        .where(
-          eq(chartOfAccountsTable.id, parsedValues.data.chartOfAccountsId)
-        );
+        .where(eq(chartOfAccountsTable.id, values.chartOfAccountsId));
       if (linkedCoA.length === 0 || !(linkedCoA[0].accountType === "expense")) {
         throw new Error(
           "Linked Chart of Account not found or is not an 'Expense' or 'Cost of Goods Sold' type. Please link to an appropriate account."
@@ -51,9 +70,9 @@ export const addExpenseCategory = async (values: ExpenseCategoryFormValues) => {
         .from(expenseCategoriesTable)
         .where(
           and(
-            eq(expenseCategoriesTable.name, parsedValues.data.name),
-            parsedValues.data.parentId
-              ? eq(expenseCategoriesTable.parentId, parsedValues.data.parentId)
+            eq(expenseCategoriesTable.name, values.name),
+            values.parentId
+              ? eq(expenseCategoriesTable.parentId, values.parentId)
               : sql`${expenseCategoriesTable.parentId} IS NULL`,
             eq(expenseCategoriesTable.isActive, true)
           )
@@ -65,21 +84,21 @@ export const addExpenseCategory = async (values: ExpenseCategoryFormValues) => {
       }
 
       let parentDepth = 0;
-      let calculatedPath = parsedValues.data.name;
+      let calculatedPath = values.name;
 
-      if (parsedValues.data.parentId) {
+      if (values.parentId) {
         const parentCategory = await tx
           .select({
             depth: expenseCategoriesTable.depth,
             path: expenseCategoriesTable.path,
           })
           .from(expenseCategoriesTable)
-          .where(eq(expenseCategoriesTable.id, parsedValues.data.parentId))
+          .where(eq(expenseCategoriesTable.id, values.parentId))
           .then((res) => res[0]);
 
         if (parentCategory) {
           parentDepth = parentCategory.depth ?? 1 + 1;
-          calculatedPath = `${parentCategory.path}/${parsedValues.data.name}`;
+          calculatedPath = `${parentCategory.path}/${values.name}`;
         } else {
           throw new Error("Parent expense category not found.");
         }
@@ -88,7 +107,7 @@ export const addExpenseCategory = async (values: ExpenseCategoryFormValues) => {
       const [newCategory] = await tx
         .insert(expenseCategoriesTable)
         .values({
-          ...parsedValues.data,
+          ...values,
           depth: parentDepth,
           path: calculatedPath,
         })
@@ -109,15 +128,16 @@ export const addExpenseCategory = async (values: ExpenseCategoryFormValues) => {
 
 // Get Expense Categories (with optional hierarchy and filtering)
 export const getExpenseCategories = async (
-  parentId: string | null = null,
-  includeChildren: boolean = false,
+  page: number = 0,
+  limit: number = 10,
+  getAllCategories: boolean = false,
   filters?: ExpenseCategoryFilters
 ) => {
   try {
-    const categories = await db.transaction(async (tx) => {
+    const result = await db.transaction(async (tx) => {
       let query = tx
         .select({
-          category: expenseCategoriesTable,
+          expenseCategory: expenseCategoriesTable,
           chartOfAccount: chartOfAccountsTable,
         })
         .from(expenseCategoriesTable)
@@ -125,26 +145,38 @@ export const getExpenseCategories = async (
           chartOfAccountsTable,
           eq(expenseCategoriesTable.chartOfAccountsId, chartOfAccountsTable.id)
         )
-        .where(eq(expenseCategoriesTable.isActive, true))
         .$dynamic();
 
-      if (filters?.search) {
-        const searchTerm = `%${filters.search.trim()}%`;
-        query = query.where(or(ilike(expenseCategoriesTable.name, searchTerm)));
+      const conditions = buildFilterConditions(filters ?? {});
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
       }
 
-      if (parentId === null && !filters?.parentId) {
-        query = query.where(sql`${expenseCategoriesTable.parentId} IS NULL`); // Only top-level categories
-      } else if (filters?.parentId) {
-        query = query.where(
-          eq(expenseCategoriesTable.parentId, filters.parentId)
-        );
-      } else if (parentId) {
-        query = query.where(eq(expenseCategoriesTable.parentId, parentId));
+      query = query.orderBy(desc(expenseCategoriesTable.createdAt));
+
+      if (!getAllCategories && limit > 0) {
+        query = query.limit(limit).offset(page * limit);
       }
 
-      query = query.orderBy(expenseCategoriesTable.name);
-      const rootCategories = await query;
+      const categories = await query;
+
+      // Get total count for pagination
+      let totalQuery = tx
+        .select({ count: sql<number>`count(*)` })
+        .from(expenseCategoriesTable)
+        .leftJoin(
+          chartOfAccountsTable,
+          eq(expenseCategoriesTable.chartOfAccountsId, chartOfAccountsTable.id)
+        )
+        .$dynamic();
+
+      if (conditions.length > 0) {
+        totalQuery = totalQuery.where(and(...conditions));
+      }
+
+      const total = getAllCategories
+        ? categories.length
+        : await totalQuery.then((res) => res[0]?.count || 0);
 
       const fetchChildren = async (
         parentCatId: string,
@@ -169,9 +201,9 @@ export const getExpenseCategories = async (
               eq(expenseCategoriesTable.isActive, true)
             )
           )
-          .orderBy(expenseCategoriesTable.name);
+          .orderBy(expenseCategoriesTable.createdAt);
 
-        if (includeChildren && children.length > 0) {
+        if (children.length > 0) {
           for (const child of children) {
             (child.category as any).children = await fetchChildren(
               child.category.id,
@@ -182,19 +214,23 @@ export const getExpenseCategories = async (
         return children;
       };
 
-      if (includeChildren) {
-        for (const cat of rootCategories) {
-          (cat.category as any).children = await fetchChildren(
-            cat.category.id,
-            0
-          );
-        }
+      for (const cat of categories) {
+        (cat.expenseCategory as any).children = await fetchChildren(
+          cat.expenseCategory.id,
+          0
+        );
       }
 
-      return rootCategories;
+      return {
+        documents: categories,
+        total,
+      };
     });
 
-    return parseStringify(categories);
+    return {
+      documents: parseStringify(result.documents),
+      total: result.total,
+    };
   } catch (error: any) {
     console.error("Error fetching Expense Categories:", error);
     throw new Error(error.message || "Failed to fetch expense categories.");
@@ -206,7 +242,7 @@ export const getExpenseCategoryById = async (id: string) => {
   try {
     const category = await db
       .select({
-        category: expenseCategoriesTable,
+        expenseCategory: expenseCategoriesTable,
         chartOfAccount: chartOfAccountsTable,
       })
       .from(expenseCategoriesTable)
@@ -234,15 +270,6 @@ export const updateExpenseCategory = async (
   id: string,
   values: Partial<ExpenseCategoryFormValues>
 ) => {
-  const parsedValues =
-    ExpenseCategoryFormValidation.partial().safeParse(values);
-  if (!parsedValues.success) {
-    throw new Error(
-      "Invalid Expense Category data: " +
-        parsedValues.error.errors.map((e) => e.message).join(", ")
-    );
-  }
-
   try {
     const result = await db.transaction(async (tx) => {
       const currentCategory = await tx.query.expenseCategoriesTable.findFirst({
@@ -253,16 +280,14 @@ export const updateExpenseCategory = async (
       }
 
       // Validate linked Chart of Accounts ID if it's being updated
-      if (parsedValues.data.chartOfAccountsId) {
+      if (values.chartOfAccountsId) {
         const linkedCoA = await tx
           .select({
             id: chartOfAccountsTable.id,
             accountType: chartOfAccountsTable.accountType,
           })
           .from(chartOfAccountsTable)
-          .where(
-            eq(chartOfAccountsTable.id, parsedValues.data.chartOfAccountsId)
-          );
+          .where(eq(chartOfAccountsTable.id, values.chartOfAccountsId));
         if (
           linkedCoA.length === 0 ||
           !(linkedCoA[0].accountType === "expense")
@@ -275,10 +300,9 @@ export const updateExpenseCategory = async (
 
       // Check for unique name under the same parent if name or parent changes
       if (
-        (parsedValues.data.name &&
-          parsedValues.data.name !== currentCategory.name) ||
-        (parsedValues.data.parentId !== undefined &&
-          parsedValues.data.parentId !== currentCategory.parentId)
+        (values.name && values.name !== currentCategory.name) ||
+        (values.parentId !== undefined &&
+          values.parentId !== currentCategory.parentId)
       ) {
         const existingCategory = await tx
           .select({ id: expenseCategoriesTable.id })
@@ -287,14 +311,11 @@ export const updateExpenseCategory = async (
             and(
               eq(
                 expenseCategoriesTable.name,
-                parsedValues.data.name || currentCategory.name
+                values.name || currentCategory.name
               ),
-              parsedValues.data.parentId !== undefined
-                ? parsedValues.data.parentId !== null
-                  ? eq(
-                      expenseCategoriesTable.parentId,
-                      parsedValues.data.parentId
-                    )
+              values.parentId !== undefined
+                ? values.parentId !== null
+                  ? eq(expenseCategoriesTable.parentId, values.parentId)
                   : sql`${expenseCategoriesTable.parentId} IS NULL`
                 : sql`${expenseCategoriesTable.parentId} IS NULL`,
               eq(expenseCategoriesTable.isActive, true),
@@ -312,18 +333,13 @@ export const updateExpenseCategory = async (
       let updatedPath: string | undefined;
       let updatedDepth: number | undefined;
 
-      if (
-        parsedValues.data.parentId !== undefined ||
-        parsedValues.data.name !== undefined
-      ) {
+      if (values.parentId !== undefined || values.name !== undefined) {
         const newParentId =
-          parsedValues.data.parentId !== undefined
-            ? parsedValues.data.parentId
+          values.parentId !== undefined
+            ? values.parentId
             : currentCategory?.parentId;
         const newName =
-          parsedValues.data.name !== undefined
-            ? parsedValues.data.name
-            : currentCategory?.name;
+          values.name !== undefined ? values.name : currentCategory?.name;
 
         if (newParentId) {
           const parentCategory =
@@ -347,7 +363,7 @@ export const updateExpenseCategory = async (
       const [updatedCategory] = await tx
         .update(expenseCategoriesTable)
         .set({
-          ...parsedValues.data,
+          ...values,
           path: updatedPath,
           depth: updatedDepth,
           updatedAt: new Date(),

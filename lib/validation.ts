@@ -1487,6 +1487,7 @@ export type AccompanyingExpenseTypeFormValues = z.infer<
 export const CategoryFiltersSchema = z.object({
   search: z.string().optional(),
   parentId: z.string().optional(),
+  chartOfAccountsId: z.string().optional(),
 });
 export type ExpenseCategoryFilters = z.infer<typeof CategoryFiltersSchema>;
 

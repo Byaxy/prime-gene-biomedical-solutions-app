@@ -23,9 +23,7 @@ import {
 } from "@/types";
 import {
   AccountFilters,
-  AccountFormValidationRefined,
   AccountFormValues,
-  ChartOfAccountFormValidation,
   ChartOfAccountFormValues,
 } from "../validation";
 
@@ -73,7 +71,7 @@ export async function createJournalEntry(
     chartOfAccountsId: line.chartOfAccountId,
     debit: line.debit,
     credit: line.credit,
-    description: line.memo, // Use memo for description in line
+    description: line.memo,
   }));
 
   if (journalEntryLines.length > 0) {
@@ -87,43 +85,33 @@ export async function createJournalEntry(
 
 // Add a new Chart of Account
 export const addChartOfAccount = async (values: ChartOfAccountFormValues) => {
-  const parsedValues = ChartOfAccountFormValidation.safeParse(values);
-  if (!parsedValues.success) {
-    throw new Error(
-      "Invalid Chart of Account data: " +
-        parsedValues.error.errors.map((e) => e.message).join(", ")
-    );
-  }
-
   try {
     const result = await db.transaction(async (tx) => {
       // Check for unique account number
       const existingAccount = await tx
         .select({ id: chartOfAccountsTable.id })
         .from(chartOfAccountsTable)
-        .where(
-          eq(chartOfAccountsTable.accountName, parsedValues.data.accountName)
-        );
+        .where(eq(chartOfAccountsTable.accountName, values.accountName));
       if (existingAccount.length > 0) {
         throw new Error("Account number already exists.");
       }
 
       let parentDepth = 0;
-      let calculatedPath = parsedValues.data.accountName;
+      let calculatedPath = values.accountName;
 
-      if (parsedValues.data.parentId) {
+      if (values.parentId) {
         const parentAccount = await tx
           .select({
             depth: chartOfAccountsTable.depth,
             path: chartOfAccountsTable.path,
           })
           .from(chartOfAccountsTable)
-          .where(eq(chartOfAccountsTable.id, parsedValues.data.parentId))
+          .where(eq(chartOfAccountsTable.id, values.parentId))
           .then((res) => res[0]);
 
         if (parentAccount) {
           parentDepth = parentAccount.depth ?? 1 + 1;
-          calculatedPath = `${parentAccount.path}/${parsedValues.data.accountName}`;
+          calculatedPath = `${parentAccount.path}/${values.accountName}`;
         } else {
           throw new Error("Parent account not found.");
         }
@@ -132,11 +120,11 @@ export const addChartOfAccount = async (values: ChartOfAccountFormValues) => {
       const [newAccount] = await tx
         .insert(chartOfAccountsTable)
         .values({
-          ...parsedValues.data,
+          ...values,
           depth: parentDepth,
           path: calculatedPath,
-          accountType: parsedValues.data.accountType as ChartOfAccountType,
-          parentId: parsedValues.data.parentId && parsedValues.data.parentId,
+          accountType: values.accountType as ChartOfAccountType,
+          parentId: values.parentId && values.parentId,
         })
         .returning();
 
@@ -153,10 +141,8 @@ export const addChartOfAccount = async (values: ChartOfAccountFormValues) => {
 
 // Get Chart of Accounts
 export const getChartOfAccounts = async () => {
-  // Removed parentId and filters parameters
   try {
     const accounts = await db.transaction(async (tx) => {
-      // Fetch all top-level accounts (those with no parent)
       const rootAccounts = await tx
         .select()
         .from(chartOfAccountsTable)
@@ -236,21 +222,12 @@ export const getChartOfAccountById = async (id: string) => {
 // Update a Chart of Account
 export const updateChartOfAccount = async (
   id: string,
-  values: Partial<ChartOfAccountFormValues>
+  values: ChartOfAccountFormValues
 ) => {
-  // Use a partial schema for updates, as not all fields might be provided
-  const parsedValues = ChartOfAccountFormValidation.partial().safeParse(values);
-  if (!parsedValues.success) {
-    throw new Error(
-      "Invalid Chart of Account data: " +
-        parsedValues.error.errors.map((e) => e.message).join(", ")
-    );
-  }
-
   try {
     const result = await db.transaction(async (tx) => {
       // Check for unique account number if it's being updated
-      if (parsedValues.data.accountName) {
+      if (values.accountName) {
         const [existingAccount] = await tx
           .select({
             id: chartOfAccountsTable.id,
@@ -259,10 +236,7 @@ export const updateChartOfAccount = async (
           .from(chartOfAccountsTable)
           .where(
             and(
-              eq(
-                chartOfAccountsTable.accountName,
-                parsedValues.data.accountName
-              ),
+              eq(chartOfAccountsTable.accountName, values.accountName),
               eq(chartOfAccountsTable.isActive, true),
               eq(chartOfAccountsTable.id, id)
             )
@@ -270,33 +244,28 @@ export const updateChartOfAccount = async (
         if (
           existingAccount &&
           existingAccount.accountName.toLocaleLowerCase() !==
-            parsedValues.data?.accountName.trim().toLocaleLowerCase()
+            values?.accountName.trim().toLocaleLowerCase()
         ) {
-          throw new Error(
-            "Account number already exists for another active account."
-          );
+          throw new Error("Account already exists for another active account.");
         }
       }
 
-      // Re-calculate path and depth if parentId or accountNumber changes
+      // Re-calculate path and depth if parentId
       let updatedPath: string | undefined;
       let updatedDepth: number | undefined;
 
-      if (
-        parsedValues.data.parentId !== undefined ||
-        parsedValues.data.accountName !== undefined
-      ) {
+      if (values.parentId !== undefined || values.accountName !== undefined) {
         const currentAccount = await tx.query.chartOfAccountsTable.findFirst({
           where: eq(chartOfAccountsTable.id, id),
         });
 
         const newParentId =
-          parsedValues.data.parentId !== undefined
-            ? parsedValues.data.parentId
+          values.parentId !== undefined
+            ? values.parentId
             : currentAccount?.parentId;
         const newAccountName =
-          parsedValues.data.accountName !== undefined
-            ? parsedValues.data.accountName
+          values.accountName !== undefined
+            ? values.accountName
             : currentAccount?.accountName;
 
         if (newParentId) {
@@ -318,8 +287,8 @@ export const updateChartOfAccount = async (
       const [updatedAccount] = await tx
         .update(chartOfAccountsTable)
         .set({
-          ...parsedValues.data,
-          accountType: parsedValues.data.accountType as ChartOfAccountType,
+          ...values,
+          accountType: values.accountType as ChartOfAccountType,
           path: updatedPath,
           depth: updatedDepth,
           updatedAt: new Date(),
@@ -417,14 +386,6 @@ export const softDeleteChartOfAccount = async (id: string) => {
 
 // Add a new Account (Bank, Mobile Money, Cash)
 export const addAccount = async (values: AccountFormValues, userId: string) => {
-  const parsedValues = AccountFormValidationRefined.safeParse(values);
-  if (!parsedValues.success) {
-    throw new Error(
-      "Invalid Account data: " +
-        parsedValues.error.errors.map((e) => e.message).join(", ")
-    );
-  }
-
   const user = await db
     .select()
     .from(usersTable)
@@ -445,7 +406,7 @@ export const addAccount = async (values: AccountFormValues, userId: string) => {
         .from(chartOfAccountsTable)
         .where(
           and(
-            eq(chartOfAccountsTable.id, parsedValues.data.chartOfAccountsId),
+            eq(chartOfAccountsTable.id, values.chartOfAccountsId),
             eq(chartOfAccountsTable.isActive, true)
           )
         );
@@ -461,16 +422,11 @@ export const addAccount = async (values: AccountFormValues, userId: string) => {
       }
 
       // Check for unique account number if provided (e.g., for Bank/Momo)
-      if (
-        parsedValues.data.accountNumber &&
-        parsedValues.data.accountNumber.trim() !== ""
-      ) {
+      if (values.accountNumber && values.accountNumber.trim() !== "") {
         const existingAccountWithNumber = await tx
           .select({ id: accountsTable.id })
           .from(accountsTable)
-          .where(
-            eq(accountsTable.accountNumber, parsedValues.data.accountNumber)
-          );
+          .where(eq(accountsTable.accountNumber, values.accountNumber));
         if (existingAccountWithNumber.length > 0) {
           throw new Error("Account number already exists for another account.");
         }
@@ -479,15 +435,15 @@ export const addAccount = async (values: AccountFormValues, userId: string) => {
       const [newAccount] = await tx
         .insert(accountsTable)
         .values({
-          ...parsedValues.data,
-          currentBalance: parsedValues.data.openingBalance,
-          bankAddress: parsedValues.data.bankAddress
+          ...values,
+          currentBalance: values.openingBalance,
+          bankAddress: values.bankAddress
             ? {
-                addressName: parsedValues.data.bankAddress.addressName || "",
-                address: parsedValues.data.bankAddress.address || "",
-                city: parsedValues.data.bankAddress.city || "",
-                state: parsedValues.data.bankAddress.state || "",
-                country: parsedValues.data.bankAddress.country || "",
+                addressName: values.bankAddress.addressName || "",
+                address: values.bankAddress.address || "",
+                city: values.bankAddress.city || "",
+                state: values.bankAddress.state || "",
+                country: values.bankAddress.country || "",
               }
             : null,
         })
@@ -524,7 +480,7 @@ export const addAccount = async (values: AccountFormValues, userId: string) => {
         `Opening balance for ${newAccount.name}`,
         [
           {
-            chartOfAccountId: parsedValues.data.chartOfAccountsId,
+            chartOfAccountId: values.chartOfAccountsId,
             debit: newAccount.openingBalance,
             credit: 0,
             memo: "Opening Balance",
@@ -665,19 +621,7 @@ export const getAccountById = async (id: string) => {
 };
 
 // Update an Account (Bank, Mobile Money, Cash)
-export const updateAccount = async (
-  id: string,
-  values: Partial<AccountFormValues>
-) => {
-  // Use the refined schema for validation
-  const parsedValues = AccountFormValidationRefined.safeParse(values);
-  if (!parsedValues.success) {
-    throw new Error(
-      "Invalid Account data: " +
-        parsedValues.error.errors.map((e) => e.message).join(", ")
-    );
-  }
-
+export const updateAccount = async (id: string, values: AccountFormValues) => {
   try {
     const result = await db.transaction(async (tx) => {
       const currentAccount = await tx
@@ -691,18 +635,17 @@ export const updateAccount = async (
 
       // Check for unique account number if it's being updated and is not cash_on_hand
       if (
-        parsedValues.data.accountNumber !== undefined &&
-        parsedValues.data.accountNumber !== null &&
-        parsedValues.data.accountNumber.trim() !== "" &&
-        (parsedValues.data.accountType || currentAccount.accountType) !==
-          "cash_on_hand"
+        values.accountNumber !== undefined &&
+        values.accountNumber !== null &&
+        values.accountNumber.trim() !== "" &&
+        (values.accountType || currentAccount.accountType) !== "cash_on_hand"
       ) {
         const existingAccountWithNumber = await tx
           .select({ id: accountsTable.id })
           .from(accountsTable)
           .where(
             and(
-              eq(accountsTable.accountNumber, parsedValues.data.accountNumber),
+              eq(accountsTable.accountNumber, values.accountNumber),
               eq(accountsTable.isActive, true),
               sql`${accountsTable.id} != ${id}` // Exclude the current account
             )
@@ -715,7 +658,7 @@ export const updateAccount = async (
       }
 
       // Validate linked CoA if it's being updated
-      if (parsedValues.data.chartOfAccountsId) {
+      if (values.chartOfAccountsId) {
         const linkedChartOfAccount = await tx
           .select({
             id: chartOfAccountsTable.id,
@@ -724,7 +667,7 @@ export const updateAccount = async (
           .from(chartOfAccountsTable)
           .where(
             and(
-              eq(chartOfAccountsTable.id, parsedValues.data.chartOfAccountsId),
+              eq(chartOfAccountsTable.id, values.chartOfAccountsId),
               eq(chartOfAccountsTable.isActive, true)
             )
           );
@@ -741,25 +684,22 @@ export const updateAccount = async (
       }
 
       // Handle scenario where account type changes to 'cash_on_hand'
-      if (parsedValues.data.accountType === "cash_on_hand") {
-        parsedValues.data.bankName = null;
-        parsedValues.data.swiftCode = null;
-        parsedValues.data.merchantCode = null;
-        parsedValues.data.bankAddress = undefined;
+      if (values.accountType === "cash_on_hand") {
+        values.bankName = null;
+        values.swiftCode = null;
+        values.merchantCode = null;
+        values.bankAddress = undefined;
       } else if (currentAccount.accountType === "cash_on_hand") {
         // If changing from cash_on_hand to other type, ensure required fields are present
         if (
-          parsedValues.data.accountType === "bank" &&
-          (!parsedValues.data.bankName || !parsedValues.data.accountNumber)
+          values.accountType === "bank" &&
+          (!values.bankName || !values.accountNumber)
         ) {
           throw new Error(
             "Bank name and account number are required when changing to bank account type."
           );
         }
-        if (
-          parsedValues.data.accountType === "mobile_money" &&
-          !parsedValues.data.accountNumber
-        ) {
+        if (values.accountType === "mobile_money" && !values.accountNumber) {
           throw new Error(
             "Account number is required when changing to mobile money account type."
           );
@@ -769,14 +709,14 @@ export const updateAccount = async (
       const [updatedAccount] = await tx
         .update(accountsTable)
         .set({
-          ...parsedValues.data,
-          bankAddress: parsedValues.data.bankAddress
+          ...values,
+          bankAddress: values.bankAddress
             ? {
-                addressName: parsedValues.data.bankAddress.addressName || "",
-                address: parsedValues.data.bankAddress.address || "",
-                city: parsedValues.data.bankAddress.city || "",
-                state: parsedValues.data.bankAddress.state || "",
-                country: parsedValues.data.bankAddress.country || "",
+                addressName: values.bankAddress.addressName || "",
+                address: values.bankAddress.address || "",
+                city: values.bankAddress.city || "",
+                state: values.bankAddress.state || "",
+                country: values.bankAddress.country || "",
               }
             : null,
           updatedAt: new Date(),

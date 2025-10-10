@@ -6,11 +6,9 @@ import FormSkeleton from "@/components/ui/form-skeleton";
 const CreateInvoice = async () => {
   return (
     <PageWraper title="Create Invoice">
-      <section className="space-y-6">
-        <Suspense fallback={<FormSkeleton />}>
-          <SaleFormWrapper mode="create" />
-        </Suspense>
-      </section>
+      <Suspense fallback={<FormSkeleton />}>
+        <SaleFormWrapper mode="create" />
+      </Suspense>
     </PageWraper>
   );
 };
