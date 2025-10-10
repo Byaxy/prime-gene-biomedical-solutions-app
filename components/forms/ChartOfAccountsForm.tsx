@@ -114,7 +114,6 @@ const ChartOfAccountForm = ({
             toast.success("Chart of Account created successfully!", {
               id: loadingToastId,
             });
-            router.push("/accounting-and-finance/chart-of-accounts");
             router.refresh();
             form.reset(defaultValues);
           },
