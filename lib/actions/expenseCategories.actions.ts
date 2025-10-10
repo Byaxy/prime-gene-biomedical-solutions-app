@@ -127,6 +127,7 @@ export const addExpenseCategory = async (values: ExpenseCategoryFormValues) => {
 };
 
 // Get Expense Categories (with optional hierarchy and filtering)
+
 export const getExpenseCategories = async (
   page: number = 0,
   limit: number = 10,
@@ -135,6 +136,10 @@ export const getExpenseCategories = async (
 ) => {
   try {
     const result = await db.transaction(async (tx) => {
+      // Build filter conditions
+      const conditions = buildFilterConditions(filters ?? {});
+
+      // Fetch all matching categories in a single query
       let query = tx
         .select({
           expenseCategory: expenseCategoriesTable,
@@ -147,18 +152,13 @@ export const getExpenseCategories = async (
         )
         .$dynamic();
 
-      const conditions = buildFilterConditions(filters ?? {});
       if (conditions.length > 0) {
         query = query.where(and(...conditions));
       }
 
       query = query.orderBy(desc(expenseCategoriesTable.createdAt));
 
-      if (!getAllCategories && limit > 0) {
-        query = query.limit(limit).offset(page * limit);
-      }
-
-      const categories = await query;
+      const allCategories = await query;
 
       // Get total count for pagination
       let totalQuery = tx
@@ -174,55 +174,53 @@ export const getExpenseCategories = async (
         totalQuery = totalQuery.where(and(...conditions));
       }
 
-      const total = getAllCategories
-        ? categories.length
-        : await totalQuery.then((res) => res[0]?.count || 0);
+      const total = await totalQuery.then((res) => res[0]?.count || 0);
 
-      const fetchChildren = async (
-        parentCatId: string,
-        currentDepth: number
-      ) => {
-        const children = await tx
-          .select({
-            category: expenseCategoriesTable,
-            chartOfAccount: chartOfAccountsTable,
-          })
-          .from(expenseCategoriesTable)
-          .leftJoin(
-            chartOfAccountsTable,
-            eq(
-              expenseCategoriesTable.chartOfAccountsId,
-              chartOfAccountsTable.id
-            )
-          )
-          .where(
-            and(
-              eq(expenseCategoriesTable.parentId, parentCatId),
-              eq(expenseCategoriesTable.isActive, true)
-            )
-          )
-          .orderBy(expenseCategoriesTable.createdAt);
+      // Build hierarchy map for O(1) lookups
+      const categoryMap = new Map(
+        allCategories.map((cat) => [
+          cat.expenseCategory.id,
+          { ...cat, children: [] as any[] },
+        ])
+      );
 
-        if (children.length > 0) {
-          for (const child of children) {
-            (child.category as any).children = await fetchChildren(
-              child.category.id,
-              currentDepth + 1
-            );
+      // Build parent-child relationships in a single pass
+      for (const cat of allCategories) {
+        const node = categoryMap.get(cat.expenseCategory.id)!;
+        if (cat.expenseCategory.parentId) {
+          const parent = categoryMap.get(cat.expenseCategory.parentId);
+          if (parent) {
+            if (!parent.children) {
+              parent.children = [];
+            }
+            parent.children.push(node);
           }
         }
-        return children;
-      };
+      }
 
-      for (const cat of categories) {
-        (cat.expenseCategory as any).children = await fetchChildren(
-          cat.expenseCategory.id,
-          0
+      // Attach children to original category objects
+      for (const cat of allCategories) {
+        const node = categoryMap.get(cat.expenseCategory.id)!;
+        (cat.expenseCategory as any).children = node.children.map(
+          (child: any) => ({
+            category: child.expenseCategory,
+            chartOfAccount: child.chartOfAccount,
+          })
+        );
+      }
+
+      // Apply pagination if needed
+      let paginatedCategories = allCategories;
+      if (!getAllCategories && limit > 0) {
+        const startIndex = page * limit;
+        paginatedCategories = allCategories.slice(
+          startIndex,
+          startIndex + limit
         );
       }
 
       return {
-        documents: categories,
+        documents: paginatedCategories,
         total,
       };
     });

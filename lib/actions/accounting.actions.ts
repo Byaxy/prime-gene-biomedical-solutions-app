@@ -143,55 +143,40 @@ export const addChartOfAccount = async (values: ChartOfAccountFormValues) => {
 export const getChartOfAccounts = async () => {
   try {
     const accounts = await db.transaction(async (tx) => {
-      const rootAccounts = await tx
+      const allAccounts = await tx
         .select()
         .from(chartOfAccountsTable)
-        .where(
-          and(
-            eq(chartOfAccountsTable.isActive, true),
-            sql`${chartOfAccountsTable.parentId} IS NULL`
-          )
-        )
+        .where(eq(chartOfAccountsTable.isActive, true))
         .orderBy(chartOfAccountsTable.createdAt);
 
-      //  Recursive function to fetch children, wrapping them in the desired object structure
-      const fetchChildren = async (
-        parentAccountId: string
-      ): Promise<ChartOfAccountWithRelations[]> => {
-        const children = await tx
-          .select()
-          .from(chartOfAccountsTable)
-          .where(
-            and(
-              eq(chartOfAccountsTable.parentId, parentAccountId),
-              eq(chartOfAccountsTable.isActive, true)
-            )
-          )
-          .orderBy(chartOfAccountsTable.createdAt);
+      // Build a lookup map for O(1) access
+      const accountMap = new Map(
+        allAccounts.map((account) => [
+          account.id,
+          { account, children: [] as ChartOfAccountWithRelations[] },
+        ])
+      );
 
-        const childrenWithRelations: ChartOfAccountWithRelations[] = [];
-        for (const child of children) {
-          childrenWithRelations.push({
-            account: child,
-            children: await fetchChildren(child.id),
-          });
+      // Build the tree structure in a single pass
+      const rootAccounts: ChartOfAccountWithRelations[] = [];
+
+      for (const account of allAccounts) {
+        const node = accountMap.get(account.id)!;
+
+        if (account.parentId === null) {
+          rootAccounts.push(node);
+        } else {
+          const parentNode = accountMap.get(account.parentId);
+          if (parentNode) {
+            parentNode.children.push(node);
+          }
         }
-        return childrenWithRelations;
-      };
-
-      // Build the full hierarchical tree starting from root accounts
-      const fullTree: ChartOfAccountWithRelations[] = [];
-      for (const account of rootAccounts) {
-        fullTree.push({
-          account: account,
-          children: await fetchChildren(account.id),
-        });
       }
 
-      return fullTree;
+      return rootAccounts;
     });
 
-    return parseStringify(accounts); // Return the full tree structure
+    return parseStringify(accounts);
   } catch (error: any) {
     console.error("Error fetching Chart of Accounts:", error);
     throw new Error(error.message || "Failed to fetch Chart of Accounts.");
