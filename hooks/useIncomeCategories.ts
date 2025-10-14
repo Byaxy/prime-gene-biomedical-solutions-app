@@ -1,36 +1,36 @@
 "use client";
 
 import {
-  addExpenseCategory,
-  getExpenseCategories,
-  getExpenseCategoryById,
-  softDeleteExpenseCategory,
-  updateExpenseCategory,
-} from "@/lib/actions/expenseCategories.actions";
+  addIncomeCategory,
+  getIncomeCategories,
+  getIncomeCategoryById,
+  softDeleteIncomeCategory,
+  updateIncomeCategory,
+} from "@/lib/actions/incomeCategories.actions";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
-  ExpenseCategoryFilters,
-  ExpenseCategoryFormValues,
+  IncomeCategoryFilters,
+  IncomeCategoryFormValues,
 } from "@/lib/validation";
-import { ExpenseCategoryWithRelations } from "@/types";
+import { IncomeCategoryWithRelations } from "@/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useTransition } from "react";
 
-interface UseExpenseCategoriesOptions {
+interface UseIncomeCategoriesOptions {
   getAllCategories?: boolean;
-  initialData?: { documents: ExpenseCategoryWithRelations[]; total: number };
+  initialData?: { documents: IncomeCategoryWithRelations[]; total: number };
 }
 
-export const defaultExpenseCategoryFilters: ExpenseCategoryFilters = {
+export const defaultIncomeCategoryFilters: IncomeCategoryFilters = {
   search: undefined,
   chartOfAccountsId: undefined,
 };
 
-export const useExpenseCategories = ({
+export const useIncomeCategories = ({
   getAllCategories = false,
   initialData,
-}: UseExpenseCategoriesOptions = {}) => {
+}: UseIncomeCategoriesOptions = {}) => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -50,7 +50,7 @@ export const useExpenseCategories = ({
     const pageSize = Number(searchParams.get("pageSize") || 10);
     const search = searchParams.get("search") || "";
 
-    const filters: ExpenseCategoryFilters = {
+    const filters: IncomeCategoryFilters = {
       search: search || undefined,
       chartOfAccountsId: searchParams.get("chartOfAccountsId") || undefined,
     };
@@ -67,7 +67,7 @@ export const useExpenseCategories = ({
   const queryKey = useMemo(() => {
     const { page, pageSize, filters } = currentState;
     const filterString = JSON.stringify(filters);
-    return ["expenseCategories", page, pageSize, filterString];
+    return ["incomeCategories", page, pageSize, filterString];
   }, [currentState]);
 
   // Main query with server state
@@ -75,7 +75,7 @@ export const useExpenseCategories = ({
     queryKey,
     queryFn: async () => {
       const { page, pageSize, filters } = currentState;
-      return getExpenseCategories(
+      return getIncomeCategories(
         page,
         pageSize,
         getAllCategories || pageSize === 0,
@@ -95,7 +95,7 @@ export const useExpenseCategories = ({
         page: number;
         pageSize: number;
         search: string;
-        filters: Partial<ExpenseCategoryFilters>;
+        filters: Partial<IncomeCategoryFilters>;
       }>
     ) => {
       const params = new URLSearchParams(searchParams.toString());
@@ -120,7 +120,7 @@ export const useExpenseCategories = ({
       }
 
       if (updates.filters) {
-        Object.keys(defaultExpenseCategoryFilters).forEach((key) =>
+        Object.keys(defaultIncomeCategoryFilters).forEach((key) =>
           params.delete(key)
         );
         Object.entries(updates.filters).forEach(([key, value]) => {
@@ -143,13 +143,13 @@ export const useExpenseCategories = ({
       const newParams = new URLSearchParams(newUrl.substring(1));
       const newPage = Number(newParams.get("page") || 0);
       const newPageSize = Number(newParams.get("pageSize") || 10);
-      const newFilters: ExpenseCategoryFilters = {
+      const newFilters: IncomeCategoryFilters = {
         search: newParams.get("search") || undefined,
         chartOfAccountsId: newParams.get("chartOfAccountsId") || undefined,
       };
 
       const newQueryKey = [
-        "expenseCategories",
+        "incomeCategories",
         newPage,
         newPageSize,
         JSON.stringify(newFilters),
@@ -158,7 +158,7 @@ export const useExpenseCategories = ({
       queryClient.prefetchQuery({
         queryKey: newQueryKey,
         queryFn: () =>
-          getExpenseCategories(
+          getIncomeCategories(
             newPage,
             newPageSize,
             getAllCategories || newPageSize === 0,
@@ -191,7 +191,7 @@ export const useExpenseCategories = ({
   );
 
   const setFilters = useCallback(
-    (filters: Partial<ExpenseCategoryFilters>) => {
+    (filters: Partial<IncomeCategoryFilters>) => {
       navigate({ filters });
     },
     [navigate]
@@ -199,7 +199,7 @@ export const useExpenseCategories = ({
 
   const clearFilters = useCallback(() => {
     navigate({
-      filters: defaultExpenseCategoryFilters,
+      filters: defaultIncomeCategoryFilters,
       search: "",
       page: 0,
       pageSize: 10,
@@ -211,20 +211,17 @@ export const useExpenseCategories = ({
     const supabase = createSupabaseBrowserClient();
 
     const channel = supabase
-      .channel("expense_categories_changes")
+      .channel("income_categories_changes")
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
-          table: "expense_categories",
+          table: "income_categories",
         },
         () => {
-          queryClient.invalidateQueries({ queryKey: ["expenseCategories"] });
-          queryClient.invalidateQueries({ queryKey: ["expenses"] });
-          queryClient.invalidateQueries({
-            queryKey: ["accompanyingExpenseTypes"],
-          });
+          queryClient.invalidateQueries({ queryKey: ["incomeCategories"] });
+          queryClient.invalidateQueries({ queryKey: ["sales"] });
         }
       )
       .subscribe();
@@ -235,64 +232,62 @@ export const useExpenseCategories = ({
   }, [queryClient]);
 
   // --- Mutations ---
-  const {
-    mutate: addExpenseCategoryMutation,
-    status: addExpenseCategoryStatus,
-  } = useMutation({
-    mutationFn: async (data: ExpenseCategoryFormValues) =>
-      addExpenseCategory(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["expenseCategories"] });
-    },
-    onError: (error) => {
-      console.error("Error adding Expense Category:", error);
-    },
-  });
+  const { mutate: addIncomeCategoryMutation, status: addIncomeCategoryStatus } =
+    useMutation({
+      mutationFn: async (data: IncomeCategoryFormValues) =>
+        addIncomeCategory(data),
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["incomeCategories"] });
+      },
+      onError: (error) => {
+        console.error("Error adding Income Category:", error);
+      },
+    });
 
   const {
-    mutate: updateExpenseCategoryMutation,
-    status: updateExpenseCategoryStatus,
+    mutate: updateIncomeCategoryMutation,
+    status: updateIncomeCategoryStatus,
   } = useMutation({
     mutationFn: async ({
       id,
       data,
     }: {
       id: string;
-      data: Partial<ExpenseCategoryFormValues>;
-    }) => updateExpenseCategory(id, data),
+      data: Partial<IncomeCategoryFormValues>;
+    }) => updateIncomeCategory(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["expenseCategories"] });
+      queryClient.invalidateQueries({ queryKey: ["incomeCategories"] });
     },
     onError: (error) => {
-      console.error("Error updating Expense Category:", error);
+      console.error("Error updating Income Category:", error);
     },
   });
 
   const {
-    mutate: softDeleteExpenseCategoryMutation,
-    status: softDeleteExpenseCategoryStatus,
+    mutate: softDeleteIncomeCategoryMutation,
+    status: softDeleteIncomeCategoryStatus,
   } = useMutation({
-    mutationFn: async (id: string) => softDeleteExpenseCategory(id),
+    mutationFn: async (id: string) => softDeleteIncomeCategory(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["expenseCategories"] });
+      queryClient.invalidateQueries({ queryKey: ["incomeCategories"] });
     },
     onError: (error) => {
-      console.error("Error deactivating Expense Category:", error);
+      console.error("Error deactivating Income Category:", error);
     },
   });
 
-  // Utility for fetching a single Expense Category by ID
-  const useSingleExpenseCategory = (id: string) => {
+  // Utility for fetching a single Income Category by ID
+  const useSingleIncomeCategory = (id: string) => {
     return useQuery({
-      queryKey: ["expenseCategories", id],
-      queryFn: () => getExpenseCategoryById(id),
+      queryKey: ["incomeCategories", id],
+      queryFn: () => getIncomeCategoryById(id),
       enabled: !!id,
       staleTime: 60000,
     });
   };
 
   return {
-    expenseCategories: data?.documents || [],
+    incomeCategories: data?.documents || [],
     totalItems: data?.total || 0,
     page: currentState.page,
     pageSize: currentState.pageSize,
@@ -307,13 +302,12 @@ export const useExpenseCategories = ({
     setFilters,
     clearFilters,
     refetch,
-    addExpenseCategory: addExpenseCategoryMutation,
-    isAddingExpenseCategory: addExpenseCategoryStatus === "pending",
-    updateExpenseCategory: updateExpenseCategoryMutation,
-    isUpdatingExpenseCategory: updateExpenseCategoryStatus === "pending",
-    softDeleteExpenseCategory: softDeleteExpenseCategoryMutation,
-    isSoftDeletingExpenseCategory:
-      softDeleteExpenseCategoryStatus === "pending",
-    useSingleExpenseCategory,
+    addIncomeCategory: addIncomeCategoryMutation,
+    isAddingIncomeCategory: addIncomeCategoryStatus === "pending",
+    updateIncomeCategory: updateIncomeCategoryMutation,
+    isUpdatingIncomeCategory: updateIncomeCategoryStatus === "pending",
+    softDeleteIncomeCategory: softDeleteIncomeCategoryMutation,
+    isSoftDeletingIncomeCategory: softDeleteIncomeCategoryStatus === "pending",
+    useSingleIncomeCategory,
   };
 };

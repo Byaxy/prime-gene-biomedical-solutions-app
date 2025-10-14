@@ -29,8 +29,7 @@ const buildFilterConditions = (filters: ExpenseCategoryFilters) => {
       or(
         ilike(expenseCategoriesTable.name, searchTerm),
         ilike(expenseCategoriesTable.description, searchTerm),
-        ilike(chartOfAccountsTable.accountName, searchTerm),
-        ilike(chartOfAccountsTable.accountType, searchTerm)
+        ilike(chartOfAccountsTable.accountName, searchTerm)
       )
     );
   }

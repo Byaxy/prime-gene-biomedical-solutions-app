@@ -3,6 +3,7 @@ import {
   accountsTable,
   chartOfAccountsTable,
   expenseCategoriesTable,
+  incomeCategoriesTable,
   inventoryTransactionsTable,
 } from "@/drizzle/schema";
 
@@ -760,6 +761,14 @@ export type ExpenseCategory = typeof expenseCategoriesTable.$inferSelect;
 
 export interface ExpenseCategoryWithRelations {
   expenseCategory: ExpenseCategory;
+  chartOfAccount: ChartOfAccount;
+}
+
+// Income Categories
+export type IncomeCategory = typeof incomeCategoriesTable.$inferSelect;
+
+export interface IncomeCategoryWithRelations {
+  incomeCategory: IncomeCategory;
   chartOfAccount: ChartOfAccount;
 }
 

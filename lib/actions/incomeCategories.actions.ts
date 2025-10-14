@@ -25,8 +25,7 @@ const buildFilterConditions = (filters: IncomeCategoryFilters) => {
       or(
         ilike(incomeCategoriesTable.name, searchTerm),
         ilike(incomeCategoriesTable.description, searchTerm),
-        ilike(chartOfAccountsTable.accountName, searchTerm),
-        ilike(chartOfAccountsTable.accountType, searchTerm)
+        ilike(chartOfAccountsTable.accountName, searchTerm)
       )
     );
   }
@@ -102,7 +101,7 @@ export const getIncomeCategories = async (
 
       let query = tx
         .select({
-          category: incomeCategoriesTable,
+          incomeCategory: incomeCategoriesTable,
           chartOfAccount: chartOfAccountsTable,
         })
         .from(incomeCategoriesTable)
@@ -163,7 +162,7 @@ export const getIncomeCategoryById = async (id: string) => {
   try {
     const category = await db
       .select({
-        category: incomeCategoriesTable,
+        incomeCategory: incomeCategoriesTable,
         chartOfAccount: chartOfAccountsTable,
       })
       .from(incomeCategoriesTable)

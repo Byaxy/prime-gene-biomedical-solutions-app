@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 import {
   ChartOfAccountType,
   ChartOfAccountWithRelations,
-  ExpenseCategoryWithRelations,
+  IncomeCategoryWithRelations,
 } from "@/types";
 
 import { Form } from "../ui/form";
@@ -17,19 +17,19 @@ import CustomFormField, { FormFieldType } from "../CustomFormField";
 import { SelectItem } from "../ui/select";
 import { Button } from "../ui/button";
 import SubmitButton from "../SubmitButton";
-import { useExpenseCategories } from "@/hooks/useExpenseCategories";
+import { useIncomeCategories } from "@/hooks/useIncomeCategories";
 import {
-  ExpenseCategoryFormValidation,
-  ExpenseCategoryFormValues,
+  IncomeCategoryFormValidation,
+  IncomeCategoryFormValues,
 } from "@/lib/validation";
 
-interface ExpenseCategoryFormProps {
+interface IncomeCategoryFormProps {
   mode: "create" | "edit";
-  initialData?: ExpenseCategoryWithRelations;
+  initialData?: IncomeCategoryWithRelations;
   chartOfAccounts: ChartOfAccountWithRelations[];
 }
 
-export const ExpenseCategoryForm: React.FC<ExpenseCategoryFormProps> = ({
+export const IncomeCategoryForm: React.FC<IncomeCategoryFormProps> = ({
   mode,
   initialData,
   chartOfAccounts,
@@ -37,30 +37,30 @@ export const ExpenseCategoryForm: React.FC<ExpenseCategoryFormProps> = ({
   const router = useRouter();
 
   const {
-    addExpenseCategory,
-    isAddingExpenseCategory,
-    updateExpenseCategory,
-    isUpdatingExpenseCategory,
-  } = useExpenseCategories();
+    addIncomeCategory,
+    isAddingIncomeCategory,
+    updateIncomeCategory,
+    isUpdatingIncomeCategory,
+  } = useIncomeCategories();
 
   // Memoized default values
   const defaultValues = useMemo(
     () => ({
-      name: initialData?.expenseCategory?.name || "",
-      description: initialData?.expenseCategory?.description || "",
-      chartOfAccountsId: initialData?.expenseCategory?.chartOfAccountsId || "",
+      name: initialData?.incomeCategory?.name || "",
+      description: initialData?.incomeCategory?.description || "",
+      chartOfAccountsId: initialData?.incomeCategory?.chartOfAccountsId || "",
     }),
     [initialData]
   );
 
-  const form = useForm<ExpenseCategoryFormValues>({
-    resolver: zodResolver(ExpenseCategoryFormValidation),
+  const form = useForm<IncomeCategoryFormValues>({
+    resolver: zodResolver(IncomeCategoryFormValidation),
     mode: "all",
     defaultValues: defaultValues,
   });
 
   const isAnyMutationLoading =
-    isAddingExpenseCategory || isUpdatingExpenseCategory;
+    isAddingIncomeCategory || isUpdatingIncomeCategory;
 
   // Flatten the tree for list view or client-side search, while maintaining depth info
   const flattenedAccounts = useMemo(() => {
@@ -92,7 +92,7 @@ export const ExpenseCategoryForm: React.FC<ExpenseCategoryFormProps> = ({
     return flatten(chartOfAccounts).filter(
       (item: ChartOfAccountWithRelations) =>
         item.account.isActive &&
-        item.account.accountType === ChartOfAccountType.EXPENSE
+        item.account.accountType === ChartOfAccountType.REVENUE
     );
   }, [chartOfAccounts]);
 
@@ -100,44 +100,44 @@ export const ExpenseCategoryForm: React.FC<ExpenseCategoryFormProps> = ({
     form.reset(defaultValues);
   };
 
-  const onSubmit = async (values: ExpenseCategoryFormValues) => {
+  const onSubmit = async (values: IncomeCategoryFormValues) => {
     const loadingToastId = toast.loading(
       mode === "create"
-        ? "Creating Expense Category..."
-        : "Updating Expense Category..."
+        ? "Creating Income Category..."
+        : "Updating Income Category..."
     );
 
     try {
       if (mode === "create") {
-        await addExpenseCategory(values, {
+        await addIncomeCategory(values, {
           onSuccess: () => {
-            toast.success("Expense Category created successfully!", {
+            toast.success("Income Category created successfully!", {
               id: loadingToastId,
             });
-            router.push("/settings/expense-categories");
+            router.push("/settings/income-categories");
             router.refresh();
             form.reset(defaultValues);
           },
           onError: (error) => {
-            toast.error(error.message || "Failed to create Expense Category.", {
+            toast.error(error.message || "Failed to create Income Category.", {
               id: loadingToastId,
             });
           },
         });
-      } else if (mode === "edit" && initialData?.expenseCategory?.id) {
-        await updateExpenseCategory(
-          { id: initialData.expenseCategory.id, data: values },
+      } else if (mode === "edit" && initialData?.incomeCategory?.id) {
+        await updateIncomeCategory(
+          { id: initialData.incomeCategory.id, data: values },
           {
             onSuccess: () => {
-              toast.success("Expense Category updated successfully!", {
+              toast.success("Income Category updated successfully!", {
                 id: loadingToastId,
               });
-              router.push("/settings/expense-categories");
+              router.push("/settings/income-categories");
               router.refresh();
             },
             onError: (error) => {
               toast.error(
-                error.message || "Failed to update Expense Category.",
+                error.message || "Failed to update Income Category.",
                 { id: loadingToastId }
               );
             },
@@ -171,13 +171,13 @@ export const ExpenseCategoryForm: React.FC<ExpenseCategoryFormProps> = ({
             fieldType={FormFieldType.SELECT}
             control={form.control}
             name="chartOfAccountsId"
-            label="Link to Chart of Account (Expense/COGS Type)"
-            placeholder="Select an Expense or COGS account"
+            label="Link to Chart of Account (REVENUE Type)"
+            placeholder="Select A Revenue account"
             disabled={isAnyMutationLoading}
           >
             {flattenedAccounts
               .filter(
-                (acc) => acc.account?.id !== initialData?.expenseCategory?.id
+                (acc) => acc.account?.id !== initialData?.incomeCategory?.id
               )
               .map((coaItem) => (
                 <SelectItem

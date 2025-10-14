@@ -4,20 +4,20 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { DataTable } from "@/components/table/DataTable";
 
-import { useExpenseCategories } from "@/hooks/useExpenseCategories";
-import { ExpenseCategoryWithRelations } from "@/types";
-import { ExpenseCategoryFilters } from "@/lib/validation";
-import { expenseCategoriesColumns } from "../table/columns/expenseCategoriesColumns";
+import { useIncomeCategories } from "@/hooks/useIncomeCategories";
+import { IncomeCategoryWithRelations } from "@/types";
+import { IncomeCategoryFilters } from "@/lib/validation";
+import { incomeCategoriesColumns } from "../table/columns/incomeCategoriesColumns";
 
-interface ExpenseCategoryListTableProps {
-  initialData: { documents: ExpenseCategoryWithRelations[]; total: number };
+interface IncomeCategoryListTableProps {
+  initialData: { documents: IncomeCategoryWithRelations[]; total: number };
 }
 
-const ExpenseCategoryListTable: React.FC<ExpenseCategoryListTableProps> = ({
+const IncomeCategoryListTable: React.FC<IncomeCategoryListTableProps> = ({
   initialData,
 }) => {
   const {
-    expenseCategories,
+    incomeCategories,
     totalItems,
     page,
     pageSize,
@@ -31,7 +31,7 @@ const ExpenseCategoryListTable: React.FC<ExpenseCategoryListTableProps> = ({
     setFilters,
     clearFilters,
     refetch,
-  } = useExpenseCategories({ initialData });
+  } = useIncomeCategories({ initialData });
 
   // Local search state for immediate UI feedback
   const [localSearch, setLocalSearch] = useState(search);
@@ -61,7 +61,7 @@ const ExpenseCategoryListTable: React.FC<ExpenseCategoryListTableProps> = ({
   }, [clearFilters, setSearch]);
 
   const handleFilterChange = useCallback(
-    (newFilters: ExpenseCategoryFilters) => {
+    (newFilters: IncomeCategoryFilters) => {
       setFilters(newFilters);
     },
     [setFilters]
@@ -69,8 +69,8 @@ const ExpenseCategoryListTable: React.FC<ExpenseCategoryListTableProps> = ({
 
   return (
     <DataTable
-      columns={expenseCategoriesColumns}
-      data={expenseCategories || []}
+      columns={incomeCategoriesColumns}
+      data={incomeCategories || []}
       isLoading={isLoading}
       isFetching={isFetching}
       totalItems={totalItems}
@@ -89,4 +89,4 @@ const ExpenseCategoryListTable: React.FC<ExpenseCategoryListTableProps> = ({
   );
 };
 
-export default ExpenseCategoryListTable;
+export default IncomeCategoryListTable;
