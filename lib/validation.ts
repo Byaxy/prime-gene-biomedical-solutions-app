@@ -1476,7 +1476,9 @@ export const AccompanyingExpenseTypeFormValidation = z.object({
     .nonempty("Name is required")
     .min(2, "Name must be at least 2 characters"),
   description: z.string().optional().nullable(),
-  defaultExpenseCategoryId: z.string().optional().nullable(), // Links to an ExpenseCategory
+  defaultExpenseCategoryId: z
+    .string()
+    .nonempty("Default Expense Category is required"),
 });
 export type AccompanyingExpenseTypeFormValues = z.infer<
   typeof AccompanyingExpenseTypeFormValidation
@@ -1490,6 +1492,14 @@ export const CategoryFiltersSchema = z.object({
 export type ExpenseCategoryFilters = z.infer<typeof CategoryFiltersSchema>;
 
 export type IncomeCategoryFilters = z.infer<typeof CategoryFiltersSchema>;
+
+// --- Filters for Accompanying Expense Type fetching ---
+export const AccompanyingExpenseTypeFiltersSchema = z.object({
+  search: z.string().optional(),
+});
+export type AccompanyingExpenseTypeFilters = z.infer<
+  typeof AccompanyingExpenseTypeFiltersSchema
+>;
 
 // Expenses
 export const ExpenseFormValidation = z

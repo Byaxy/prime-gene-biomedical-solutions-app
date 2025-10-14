@@ -2,6 +2,7 @@
 "use server";
 
 import {
+  AccompanyingExpenseTypeFilters,
   AccompanyingExpenseTypeFormValues,
   ExpenseCategoryFilters,
 } from "../validation";
@@ -15,7 +16,29 @@ import {
 import { expenseCategoriesTable } from "@/drizzle/schema";
 import { revalidatePath } from "next/cache";
 import { parseStringify } from "../utils";
-import { and, eq, ilike, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
+
+const buildFilterConditions = (filters: AccompanyingExpenseTypeFilters) => {
+  const conditions = [];
+
+  conditions.push(eq(accompanyingExpenseTypesTable.isActive, true));
+
+  // Search logic using ILIKE on joined tables.
+  // GIN indexes are crucial here.
+  if (filters.search?.trim()) {
+    const searchTerm = `%${filters.search.trim()}%`;
+    conditions.push(
+      or(
+        ilike(accompanyingExpenseTypesTable.name, searchTerm),
+        ilike(accompanyingExpenseTypesTable.description, searchTerm),
+        ilike(expenseCategoriesTable.name, searchTerm),
+        ilike(expenseCategoriesTable.description, searchTerm)
+      )
+    );
+  }
+
+  return conditions;
+};
 
 // Add a new Accompanying Expense Type
 export const addAccompanyingExpenseType = async (
@@ -89,10 +112,15 @@ export const addAccompanyingExpenseType = async (
 
 // Get Accompanying Expense Types (with optional filtering)
 export const getAccompanyingExpenseTypes = async (
+  page: number = 0,
+  limit: number = 10,
+  getAllTypes: boolean = false,
   filters?: ExpenseCategoryFilters
 ) => {
   try {
-    const types = await db.transaction(async (tx) => {
+    const result = await db.transaction(async (tx) => {
+      const conditions = buildFilterConditions(filters ?? {});
+
       let query = tx
         .select({
           type: accompanyingExpenseTypesTable,
@@ -106,21 +134,51 @@ export const getAccompanyingExpenseTypes = async (
             expenseCategoriesTable.id
           )
         )
-        .where(eq(accompanyingExpenseTypesTable.isActive, true))
         .$dynamic();
 
-      if (filters?.search) {
-        const searchTerm = `%${filters.search.trim()}%`;
-        query = query.where(
-          or(ilike(accompanyingExpenseTypesTable.name, searchTerm))
-        );
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
       }
 
-      query = query.orderBy(accompanyingExpenseTypesTable.name);
-      return await query;
+      query = query.orderBy(desc(accompanyingExpenseTypesTable.createdAt));
+
+      if (!getAllTypes && limit > 0) {
+        query = query.limit(limit).offset(page * limit);
+      }
+
+      const categories = await query;
+
+      // Get total count for pagination
+      let totalQuery = tx
+        .select({ count: sql<number>`count(*)` })
+        .from(accompanyingExpenseTypesTable)
+        .leftJoin(
+          expenseCategoriesTable,
+          eq(
+            accompanyingExpenseTypesTable.defaultExpenseCategoryId,
+            expenseCategoriesTable.id
+          )
+        )
+        .$dynamic();
+
+      if (conditions.length > 0) {
+        totalQuery = totalQuery.where(and(...conditions));
+      }
+
+      const total = getAllTypes
+        ? categories.length
+        : await totalQuery.then((res) => res[0]?.count || 0);
+
+      return {
+        documents: categories,
+        total,
+      };
     });
 
-    return parseStringify(types);
+    return {
+      documents: parseStringify(result.documents),
+      total: result.total,
+    };
   } catch (error: any) {
     console.error("Error fetching Accompanying Expense Types:", error);
     throw new Error(

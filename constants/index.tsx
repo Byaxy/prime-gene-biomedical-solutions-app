@@ -445,6 +445,11 @@ export const sidebarData: SidebarDataType[] = [
         title: "Income Categories",
         path: "/settings/income-categories",
       },
+      {
+        id: generateId(),
+        title: "Accompanying Expense Types",
+        path: "/settings/accompanying-expense-types",
+      },
     ],
   },
 ];

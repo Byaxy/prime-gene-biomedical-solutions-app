@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
+  accompanyingExpenseTypesTable,
   accountsTable,
   chartOfAccountsTable,
   expenseCategoriesTable,
@@ -770,6 +771,15 @@ export type IncomeCategory = typeof incomeCategoriesTable.$inferSelect;
 export interface IncomeCategoryWithRelations {
   incomeCategory: IncomeCategory;
   chartOfAccount: ChartOfAccount;
+}
+
+// Accompanying Expenses
+export type AccompanyingExpenseType =
+  typeof accompanyingExpenseTypesTable.$inferSelect;
+
+export interface AccompanyingExpenseTypeWithRelations {
+  type: AccompanyingExpenseType;
+  defaultCategory: ExpenseCategory;
 }
 
 // Enums
