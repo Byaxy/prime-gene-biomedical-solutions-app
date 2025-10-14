@@ -3,10 +3,7 @@ import {
   ChartOfAccountWithRelations,
   ExpenseCategoryWithRelations,
 } from "@/types";
-import {
-  getExpenseCategories,
-  getExpenseCategoryById,
-} from "@/lib/actions/expenseCategories.actions";
+import { getExpenseCategoryById } from "@/lib/actions/expenseCategories.actions";
 import { getChartOfAccounts } from "@/lib/actions/accounting.actions";
 import { ExpenseCategoryForm } from "../forms/ExpenseCategoryForm";
 
@@ -19,13 +16,8 @@ export default async function ExpenseCategoryFormWrapper({
   mode,
   categoryId,
 }: ExpenseCategoryFormWrapperProps) {
-  const [expenseCategoriesData, chartOfAccountsData] = await Promise.all([
-    getExpenseCategories(0, 0, true),
-    getChartOfAccounts(),
-  ]);
+  const chartOfAccountsData = await getChartOfAccounts();
 
-  const parentCategories: ExpenseCategoryWithRelations[] =
-    expenseCategoriesData.documents;
   const chartOfAccounts: ChartOfAccountWithRelations[] =
     chartOfAccountsData.filter(
       (p: ChartOfAccountWithRelations) => p.account.isActive
@@ -44,7 +36,6 @@ export default async function ExpenseCategoryFormWrapper({
     <ExpenseCategoryForm
       mode={mode}
       initialData={initialData}
-      parentCategories={parentCategories}
       chartOfAccounts={chartOfAccounts}
     />
   );

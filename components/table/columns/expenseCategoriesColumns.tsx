@@ -53,20 +53,6 @@ export const expenseCategoriesColumns: ColumnDef<ExpenseCategoryWithRelations>[]
       },
     },
     {
-      id: "expenseCategory.path",
-      accessorKey: "expenseCategory.path",
-      header: "Path",
-      cell: ({ row }) => {
-        const category = row.original;
-
-        return (
-          <p className="text-14-medium ">
-            {category.expenseCategory.path || "-"}
-          </p>
-        );
-      },
-    },
-    {
       id: "chartOfAccount.accountName",
       accessorKey: "chartOfAccount.accountName",
       header: "Linked CoA",

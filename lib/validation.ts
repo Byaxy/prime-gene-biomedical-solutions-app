@@ -1452,7 +1452,6 @@ const BaseCategoryValidation = z.object({
     .nonempty("Name is required")
     .min(2, "Name must be at least 2 characters"),
   description: z.string().optional().nullable(),
-  parentId: z.string().optional().nullable(), // For hierarchical structure
   chartOfAccountsId: z
     .string()
     .nonempty("Linked Chart of Accounts ID is required"),
@@ -1486,7 +1485,6 @@ export type AccompanyingExpenseTypeFormValues = z.infer<
 // --- Filters for Category fetching ---
 export const CategoryFiltersSchema = z.object({
   search: z.string().optional(),
-  parentId: z.string().optional(),
   chartOfAccountsId: z.string().optional(),
 });
 export type ExpenseCategoryFilters = z.infer<typeof CategoryFiltersSchema>;

@@ -24,7 +24,6 @@ interface UseExpenseCategoriesOptions {
 
 export const defaultExpenseCategoryFilters: ExpenseCategoryFilters = {
   search: undefined,
-  parentId: undefined,
   chartOfAccountsId: undefined,
 };
 
@@ -53,7 +52,6 @@ export const useExpenseCategories = ({
 
     const filters: ExpenseCategoryFilters = {
       search: search || undefined,
-      parentId: searchParams.get("parentId") || undefined,
       chartOfAccountsId: searchParams.get("chartOfAccountsId") || undefined,
     };
 
@@ -143,7 +141,6 @@ export const useExpenseCategories = ({
       const newPageSize = Number(newParams.get("pageSize") || 10);
       const newFilters: ExpenseCategoryFilters = {
         search: newParams.get("search") || undefined,
-        parentId: newParams.get("parentId") || undefined,
         chartOfAccountsId: newParams.get("chartOfAccountsId") || undefined,
       };
 

@@ -2,26 +2,46 @@
 "use server";
 
 import { db } from "@/drizzle/db";
+import { IncomeCategoryFilters, IncomeCategoryFormValues } from "../validation";
 import {
-     IncomeCategoryFilters,
-  IncomeCategoryFormValidation,
-  IncomeCategoryFormValues,
-} from "../validation";
-import { chartOfAccountsTable, incomeCategoriesTable, paymentsReceivedTable } from "@/drizzle/schema";
-import { and, eq, ilike, or, sql } from "drizzle-orm";
+  chartOfAccountsTable,
+  incomeCategoriesTable,
+  paymentsReceivedTable,
+} from "@/drizzle/schema";
+import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { parseStringify } from "../utils";
 
-// Add a new Income Category
-export const addIncomeCategory = async (values: IncomeCategoryFormValues) => {
-  const parsedValues = IncomeCategoryFormValidation.safeParse(values);
-  if (!parsedValues.success) {
-    throw new Error(
-      "Invalid Income Category data: " +
-        parsedValues.error.errors.map((e) => e.message).join(", ")
+const buildFilterConditions = (filters: IncomeCategoryFilters) => {
+  const conditions = [];
+
+  conditions.push(eq(incomeCategoriesTable.isActive, true));
+
+  // Search logic using ILIKE on joined tables.
+  // GIN indexes are crucial here.
+  if (filters.search?.trim()) {
+    const searchTerm = `%${filters.search.trim()}%`;
+    conditions.push(
+      or(
+        ilike(incomeCategoriesTable.name, searchTerm),
+        ilike(incomeCategoriesTable.description, searchTerm),
+        ilike(chartOfAccountsTable.accountName, searchTerm),
+        ilike(chartOfAccountsTable.accountType, searchTerm)
+      )
     );
   }
 
+  if (filters.chartOfAccountsId) {
+    conditions.push(
+      eq(incomeCategoriesTable.chartOfAccountsId, filters.chartOfAccountsId)
+    );
+  }
+
+  return conditions;
+};
+
+// Add a new Income Category
+export const addIncomeCategory = async (values: IncomeCategoryFormValues) => {
   try {
     const result = await db.transaction(async (tx) => {
       // Validate linked Chart of Accounts ID (must be 'revenue' type)
@@ -31,69 +51,36 @@ export const addIncomeCategory = async (values: IncomeCategoryFormValues) => {
           accountType: chartOfAccountsTable.accountType,
         })
         .from(chartOfAccountsTable)
-        .where(
-          eq(chartOfAccountsTable.id, parsedValues.data.chartOfAccountsId)
-        );
+        .where(eq(chartOfAccountsTable.id, values.chartOfAccountsId));
       if (linkedCoA.length === 0 || linkedCoA[0].accountType !== "revenue") {
         throw new Error(
           "Linked Chart of Account not found or is not a 'Revenue' type. Please link to an appropriate account."
         );
       }
 
-      // Check for unique name under the same parent
+      // Check for unique name
       const existingCategory = await tx
         .select({ id: incomeCategoriesTable.id })
         .from(incomeCategoriesTable)
         .where(
           and(
-            eq(incomeCategoriesTable.name, parsedValues.data.name),
-            parsedValues.data.parentId !== null && parsedValues.data.parentId !== undefined
-              ? eq(incomeCategoriesTable.parentId, parsedValues.data.parentId)
-              : sql`${incomeCategoriesTable.parentId} IS NULL`,
+            eq(incomeCategoriesTable.name, values.name),
             eq(incomeCategoriesTable.isActive, true)
           )
         );
       if (existingCategory.length > 0) {
-        throw new Error(
-          "Income category with this name already exists under the same parent."
-        );
-      }
-
-      let parentDepth = 0;
-      let calculatedPath = parsedValues.data.name;
-
-      if (parsedValues.data.parentId) {
-        const parentCategory = await tx
-          .select({
-            depth: incomeCategoriesTable.depth,
-            path: incomeCategoriesTable.path,
-          })
-          .from(incomeCategoriesTable)
-          .where(eq(incomeCategoriesTable.id, parsedValues.data.parentId))
-          .then((res) => res[0]);
-
-        if (parentCategory) {
-          parentDepth = parentCategory.depth ?? 1 + 1;
-          calculatedPath = `${parentCategory.path}/${parsedValues.data.name}`;
-        } else {
-          throw new Error("Parent income category not found.");
-        }
+        throw new Error("Income category with this name already exists.");
       }
 
       const [newCategory] = await tx
         .insert(incomeCategoriesTable)
-        .values({
-          ...parsedValues.data,
-          depth: parentDepth,
-          path: calculatedPath,
-        })
+        .values(values)
         .returning();
 
       return newCategory;
     });
 
     revalidatePath("/settings/income-categories");
-    // Revalidate paths that might display income categories (e.g., Record Income form)
     revalidatePath("/accounting-and-finance/record-income");
     return parseStringify(result);
   } catch (error: any) {
@@ -104,12 +91,15 @@ export const addIncomeCategory = async (values: IncomeCategoryFormValues) => {
 
 // Get Income Categories (with optional hierarchy and filtering)
 export const getIncomeCategories = async (
-  parentId: string | null = null,
-  includeChildren: boolean = false,
+  page: number = 0,
+  limit: number = 10,
+  getAllCategories: boolean = false,
   filters?: IncomeCategoryFilters
 ) => {
   try {
-    const categories = await db.transaction(async (tx) => {
+    const result = await db.transaction(async (tx) => {
+      const conditions = buildFilterConditions(filters ?? {});
+
       let query = tx
         .select({
           category: incomeCategoriesTable,
@@ -120,73 +110,48 @@ export const getIncomeCategories = async (
           chartOfAccountsTable,
           eq(incomeCategoriesTable.chartOfAccountsId, chartOfAccountsTable.id)
         )
-        .where(eq(incomeCategoriesTable.isActive, true))
         .$dynamic();
 
-      if (filters?.search) {
-        const searchTerm = `%${filters.search.trim()}%`;
-        query = query.where(or(ilike(incomeCategoriesTable.name, searchTerm)));
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
       }
 
-      if (parentId === null && !filters?.parentId) {
-        query = query.where(sql`${incomeCategoriesTable.parentId} IS NULL`);
-      } else if (filters?.parentId) {
-        query = query.where(
-          eq(incomeCategoriesTable.parentId, filters.parentId)
-        );
-      } else if (parentId) {
-        query = query.where(eq(incomeCategoriesTable.parentId, parentId));
+      query = query.orderBy(desc(incomeCategoriesTable.createdAt));
+
+      if (!getAllCategories && limit > 0) {
+        query = query.limit(limit).offset(page * limit);
       }
 
-      query = query.orderBy(incomeCategoriesTable.name);
-      const rootCategories = await query;
+      const categories = await query;
 
-      const fetchChildren = async (
-        parentCatId: string,
-        currentDepth: number
-      ) => {
-        const children = await tx
-          .select({
-            category: incomeCategoriesTable,
-            chartOfAccount: chartOfAccountsTable,
-          })
-          .from(incomeCategoriesTable)
-          .leftJoin(
-            chartOfAccountsTable,
-            eq(incomeCategoriesTable.chartOfAccountsId, chartOfAccountsTable.id)
-          )
-          .where(
-            and(
-              eq(incomeCategoriesTable.parentId, parentCatId),
-              eq(incomeCategoriesTable.isActive, true)
-            )
-          )
-          .orderBy(incomeCategoriesTable.name);
+      // Get total count for pagination
+      let totalQuery = tx
+        .select({ count: sql<number>`count(*)` })
+        .from(incomeCategoriesTable)
+        .leftJoin(
+          chartOfAccountsTable,
+          eq(incomeCategoriesTable.chartOfAccountsId, chartOfAccountsTable.id)
+        )
+        .$dynamic();
 
-        if (includeChildren && children.length > 0) {
-          for (const child of children) {
-            (child.category as any).children = await fetchChildren(
-              child.category.id,
-              currentDepth + 1
-            );
-          }
-        }
-        return children;
+      if (conditions.length > 0) {
+        totalQuery = totalQuery.where(and(...conditions));
+      }
+
+      const total = getAllCategories
+        ? categories.length
+        : await totalQuery.then((res) => res[0]?.count || 0);
+
+      return {
+        documents: categories,
+        total,
       };
-
-      if (includeChildren) {
-        for (const cat of rootCategories) {
-          (cat.category as any).children = await fetchChildren(
-            cat.category.id,
-            0
-          );
-        }
-      }
-
-      return rootCategories;
     });
 
-    return parseStringify(categories);
+    return {
+      documents: parseStringify(result.documents),
+      total: result.total,
+    };
   } catch (error: any) {
     console.error("Error fetching Income Categories:", error);
     throw new Error(error.message || "Failed to fetch income categories.");
@@ -226,14 +191,6 @@ export const updateIncomeCategory = async (
   id: string,
   values: Partial<IncomeCategoryFormValues>
 ) => {
-  const parsedValues = IncomeCategoryFormValidation.partial().safeParse(values);
-  if (!parsedValues.success) {
-    throw new Error(
-      "Invalid Income Category data: " +
-        parsedValues.error.errors.map((e) => e.message).join(", ")
-    );
-  }
-
   try {
     const result = await db.transaction(async (tx) => {
       const currentCategory = await tx.query.incomeCategoriesTable.findFirst({
@@ -244,16 +201,14 @@ export const updateIncomeCategory = async (
       }
 
       // Validate linked Chart of Accounts ID if it's being updated
-      if (parsedValues.data.chartOfAccountsId) {
+      if (values.chartOfAccountsId) {
         const linkedCoA = await tx
           .select({
             id: chartOfAccountsTable.id,
             accountType: chartOfAccountsTable.accountType,
           })
           .from(chartOfAccountsTable)
-          .where(
-            eq(chartOfAccountsTable.id, parsedValues.data.chartOfAccountsId)
-          );
+          .where(eq(chartOfAccountsTable.id, values.chartOfAccountsId));
         if (linkedCoA.length === 0 || linkedCoA[0].accountType !== "revenue") {
           throw new Error(
             "Linked Chart of Account not found or is not a 'Revenue' type. Please link to an appropriate account."
@@ -261,13 +216,8 @@ export const updateIncomeCategory = async (
         }
       }
 
-      // Check for unique name under the same parent if name or parent changes
-      if (
-        (parsedValues.data.name &&
-          parsedValues.data.name !== currentCategory.name) ||
-        (parsedValues.data.parentId !== undefined &&
-          parsedValues.data.parentId !== currentCategory.parentId)
-      ) {
+      // Check for unique name
+      if (values.name && values.name !== currentCategory.name) {
         const existingCategory = await tx
           .select({ id: incomeCategoriesTable.id })
           .from(incomeCategoriesTable)
@@ -275,63 +225,21 @@ export const updateIncomeCategory = async (
             and(
               eq(
                 incomeCategoriesTable.name,
-                parsedValues.data.name || currentCategory.name
+                values.name || currentCategory.name
               ),
-              parsedValues.data.parentId !== undefined && parsedValues.data.parentId !== null
-                ? eq(incomeCategoriesTable.parentId, parsedValues.data.parentId)
-                : sql`${incomeCategoriesTable.parentId} IS NULL`,
               eq(incomeCategoriesTable.isActive, true),
-              eq(incomeCategoriesTable.id, id) // Exclude current category from check
+              eq(incomeCategoriesTable.id, id)
             )
           );
         if (existingCategory.length > 0) {
-          throw new Error(
-            "Income category with this name already exists under the same parent."
-          );
-        }
-      }
-
-      // Re-calculate path and depth if parentId or name changes
-      let updatedPath: string | undefined;
-      let updatedDepth: number | undefined;
-
-      if (
-        parsedValues.data.parentId !== undefined ||
-        parsedValues.data.name !== undefined
-      ) {
-        const newParentId =
-          parsedValues.data.parentId !== undefined
-            ? parsedValues.data.parentId
-            : currentCategory?.parentId;
-        const newName =
-          parsedValues.data.name !== undefined
-            ? parsedValues.data.name
-            : currentCategory?.name;
-
-        if (newParentId) {
-          const parentCategory = await tx.query.incomeCategoriesTable.findFirst(
-            {
-              where: eq(incomeCategoriesTable.id, newParentId),
-            }
-          );
-          if (parentCategory) {
-            updatedDepth = (parentCategory.depth || 0) + 1;
-            updatedPath = `${parentCategory.path}/${newName}`;
-          } else {
-            throw new Error("Parent income category not found for re-pathing.");
-          }
-        } else {
-          updatedDepth = 0;
-          updatedPath = newName;
+          throw new Error("Income category with this name already exists.");
         }
       }
 
       const [updatedCategory] = await tx
         .update(incomeCategoriesTable)
         .set({
-          ...parsedValues.data,
-          path: updatedPath,
-          depth: updatedDepth,
+          ...values,
           updatedAt: new Date(),
         })
         .where(eq(incomeCategoriesTable.id, id))
@@ -358,27 +266,12 @@ export const updateIncomeCategory = async (
 export const softDeleteIncomeCategory = async (id: string) => {
   try {
     const result = await db.transaction(async (tx) => {
-      // Check for active child categories
-      const activeChildren = await tx
-        .select({ id: incomeCategoriesTable.id })
-        .from(incomeCategoriesTable)
-        .where(
-          and(
-            eq(incomeCategoriesTable.parentId, id),
-            eq(incomeCategoriesTable.isActive, true)
-          )
-        );
-      if (activeChildren.length > 0) {
-        throw new Error(
-          "Cannot delete category: It has active child categories. Please deactivate children first."
-        );
-      }
-
       // Check if any income records are linked to this category
       const linkedIncomeRecords = await tx
         .select({ id: paymentsReceivedTable.id })
         .from(paymentsReceivedTable)
         .where(eq(paymentsReceivedTable.incomeCategoryId, id));
+
       if (linkedIncomeRecords.length > 0) {
         throw new Error(
           "Cannot delete category: It has associated income records. Only deactivation is allowed to preserve historical data."

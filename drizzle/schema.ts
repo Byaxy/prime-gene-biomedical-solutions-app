@@ -1783,14 +1783,6 @@ export const expenseCategoriesTable = pgTable(
       .default(sql`gen_random_uuid()`),
     name: text("name").notNull(),
     description: text("description").default(""),
-    parentId: uuid("parent_id").references(
-      (): PgColumn => expenseCategoriesTable.id,
-      {
-        onDelete: "set null",
-      }
-    ),
-    path: text("path"),
-    depth: integer("depth").default(0),
     chartOfAccountsId: uuid("chart_of_accounts_id").references(
       () => chartOfAccountsTable.id,
       {
@@ -1818,14 +1810,6 @@ export const incomeCategoriesTable = pgTable(
       .default(sql`gen_random_uuid()`),
     name: text("name").notNull(),
     description: text("description").default(""),
-    parentId: uuid("parent_id").references(
-      (): PgColumn => incomeCategoriesTable.id,
-      {
-        onDelete: "set null",
-      }
-    ),
-    path: text("path"),
-    depth: integer("depth").default(0),
     chartOfAccountsId: uuid("chart_of_accounts_id").references(
       () => chartOfAccountsTable.id,
       {

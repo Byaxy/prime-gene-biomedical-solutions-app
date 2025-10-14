@@ -32,7 +32,6 @@ export default async function ExpenseCategoriesPage({
 
   const filtersForServer: ExpenseCategoryFilters = {
     search: sp.search || undefined,
-    parentId: sp.parentId || undefined,
     chartOfAccountsId: sp.chartOfAccountsId || undefined,
   };
 

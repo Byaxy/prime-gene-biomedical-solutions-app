@@ -26,14 +26,12 @@ import {
 interface ExpenseCategoryFormProps {
   mode: "create" | "edit";
   initialData?: ExpenseCategoryWithRelations;
-  parentCategories: ExpenseCategoryWithRelations[];
   chartOfAccounts: ChartOfAccountWithRelations[];
 }
 
 export const ExpenseCategoryForm: React.FC<ExpenseCategoryFormProps> = ({
   mode,
   initialData,
-  parentCategories,
   chartOfAccounts,
 }) => {
   const router = useRouter();
@@ -50,7 +48,6 @@ export const ExpenseCategoryForm: React.FC<ExpenseCategoryFormProps> = ({
     () => ({
       name: initialData?.expenseCategory?.name || "",
       description: initialData?.expenseCategory?.description || "",
-      parentId: initialData?.expenseCategory?.parentId || "",
       chartOfAccountsId: initialData?.expenseCategory?.chartOfAccountsId || "",
     }),
     [initialData]
@@ -110,14 +107,9 @@ export const ExpenseCategoryForm: React.FC<ExpenseCategoryFormProps> = ({
         : "Updating Expense Category..."
     );
 
-    const formValues = {
-      ...values,
-      parentId: values.parentId || null,
-    };
-
     try {
       if (mode === "create") {
-        await addExpenseCategory(formValues, {
+        await addExpenseCategory(values, {
           onSuccess: () => {
             toast.success("Expense Category created successfully!", {
               id: loadingToastId,
@@ -133,7 +125,7 @@ export const ExpenseCategoryForm: React.FC<ExpenseCategoryFormProps> = ({
         });
       } else if (mode === "edit" && initialData?.expenseCategory?.id) {
         await updateExpenseCategory(
-          { id: initialData.expenseCategory.id, data: formValues },
+          { id: initialData.expenseCategory.id, data: values },
           {
             onSuccess: () => {
               toast.success("Expense Category updated successfully!", {
@@ -164,35 +156,15 @@ export const ExpenseCategoryForm: React.FC<ExpenseCategoryFormProps> = ({
         onSubmit={form.handleSubmit(onSubmit)}
         className="space-y-5 text-dark-500"
       >
-        <CustomFormField
-          fieldType={FormFieldType.INPUT}
-          control={form.control}
-          name="name"
-          label="Category Name"
-          placeholder="e.g., Office Supplies, Electricity"
-          disabled={isAnyMutationLoading}
-        />
-
         <div className="w-full flex flex-col md:flex-row gap-5">
           <CustomFormField
-            fieldType={FormFieldType.SELECT}
+            fieldType={FormFieldType.INPUT}
             control={form.control}
-            name="parentId"
-            label="Parent Category (Optional)"
-            placeholder="Select a parent category"
+            name="name"
+            label="Category Name"
+            placeholder="e.g., Office Supplies, Electricity"
             disabled={isAnyMutationLoading}
-          >
-            {parentCategories.map((parentCat) => (
-              <SelectItem
-                key={parentCat.expenseCategory.id}
-                value={parentCat.expenseCategory.id}
-                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
-              >
-                {parentCat.expenseCategory.name}
-              </SelectItem>
-            ))}
-          </CustomFormField>
-
+          />
           <CustomFormField
             fieldType={FormFieldType.SELECT}
             control={form.control}
