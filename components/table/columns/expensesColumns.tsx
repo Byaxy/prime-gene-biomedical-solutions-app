@@ -1,20 +1,19 @@
 "use client";
 
-import { ColumnDef } from "@tanstack/table-core";
-import { formatDateTime } from "@/lib/utils";
+import { ColumnDef } from "@tanstack/react-table";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import ExpenseActions from "@/components/expenses/ExpenseActions";
+import { cn, formatDateTime } from "@/lib/utils";
 import FormatNumber from "@/components/FormatNumber";
-import { Expense } from "@/types";
+import { ExpenseWithRelations } from "@/types";
+import ExpenseActions from "@/components/expenses/ExpenseActions";
 
-export const expensesColumns: ColumnDef<Expense>[] = [
+export const expensesColumns: ColumnDef<ExpenseWithRelations>[] = [
   {
     id: "index",
     header: "#",
     cell: ({ row, table }) => {
       const pagination = table.getState().pagination;
-
       const globalIndex =
         pagination.pageIndex * pagination.pageSize + row.index + 1;
       return <span className="text-sm text-dark-600">{globalIndex}</span>;
@@ -22,7 +21,8 @@ export const expensesColumns: ColumnDef<Expense>[] = [
     enableSorting: false,
   },
   {
-    accessorKey: "expenseDate",
+    id: "expense.expenseDate",
+    accessorKey: "expense.expenseDate",
     header: ({ column }) => {
       return (
         <Button
@@ -39,14 +39,38 @@ export const expensesColumns: ColumnDef<Expense>[] = [
       const expense = row.original;
       return (
         <p className="text-14-medium ">
-          {formatDateTime(expense.expenseDate).dateTime}
+          {formatDateTime(expense.expense.expenseDate).dateOnly}
         </p>
       );
     },
   },
   {
-    id: "title",
-    accessorKey: "title",
+    id: "expense.referenceNumber",
+    accessorKey: "expense.referenceNumber",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="font-semibold px-0"
+        >
+          Reference
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      );
+    },
+    cell: ({ row }) => {
+      const expense = row.original;
+      return (
+        <p className="text-14-medium ">
+          {expense.expense.referenceNumber || "-"}
+        </p>
+      );
+    },
+  },
+  {
+    id: "expense.title",
+    accessorKey: "expense.title",
     header: ({ column }) => {
       return (
         <Button
@@ -59,14 +83,43 @@ export const expensesColumns: ColumnDef<Expense>[] = [
         </Button>
       );
     },
-
     cell: ({ row }) => {
       const expense = row.original;
-      return <p className="text-14-medium ">{expense.title}</p>;
+      return <p className="text-14-medium ">{expense.expense.title}</p>;
     },
   },
   {
-    accessorKey: "amount",
+    id: "expense.payee",
+    accessorKey: "expense.payee",
+    header: "Payee",
+    cell: ({ row }) => {
+      const expense = row.original;
+      return <p className="text-14-medium ">{expense.expense.payee || "-"}</p>;
+    },
+  },
+  {
+    id: "category.name",
+    accessorKey: "category.name",
+    header: "Category",
+    cell: ({ row }) => {
+      const expense = row.original;
+      return <p className="text-14-medium ">{expense.category?.name || "-"}</p>;
+    },
+  },
+  {
+    id: "payingAccount.name",
+    accessorKey: "payingAccount.name",
+    header: "Paying Account",
+    cell: ({ row }) => {
+      const expense = row.original;
+      return (
+        <p className="text-14-medium ">{expense.payingAccount?.name || "-"}</p>
+      );
+    },
+  },
+  {
+    id: "expense.amount",
+    accessorKey: "expense.amount",
     header: ({ column }) => {
       return (
         <Button
@@ -82,26 +135,32 @@ export const expensesColumns: ColumnDef<Expense>[] = [
     cell: ({ row }) => {
       const expense = row.original;
       return (
-        <p className="text-14-medium ">
-          <FormatNumber value={expense.amount} />
+        <p className="text-14-medium">
+          <FormatNumber value={expense.expense.amount} />
         </p>
       );
     },
   },
   {
-    accessorKey: "paymentMethod",
-    header: "Payment Method",
+    id: "expense.isAccompanyingExpense",
+    accessorKey: "expense.isAccompanyingExpense",
+    header: "Accompanying?",
     cell: ({ row }) => {
       const expense = row.original;
-      return <p className="text-14-medium ">{expense.paymentMethod || "-"}</p>;
-    },
-  },
-  {
-    accessorKey: "description",
-    header: "Description",
-    cell: ({ row }) => {
-      const expense = row.original;
-      return <p className="text-14-medium ">{expense.description || "-"}</p>;
+      return (
+        <p className="text-14-medium ">
+          <span
+            className={cn(
+              "px-3 py-1 rounded-xl text-white",
+              expense.expense.isAccompanyingExpense
+                ? "bg-green-500"
+                : "bg-red-600"
+            )}
+          >
+            {expense.expense.isAccompanyingExpense ? "Yes" : "No"}
+          </span>
+        </p>
+      );
     },
   },
   {
@@ -109,6 +168,9 @@ export const expensesColumns: ColumnDef<Expense>[] = [
     header: "Actions",
     cell: ({ row }) => {
       return <ExpenseActions expense={row.original} />;
+    },
+    meta: {
+      skipRowClick: true,
     },
   },
 ];

@@ -3,7 +3,7 @@
 
 import { revalidatePath } from "next/cache";
 import { parseStringify } from "../utils";
-import { ExpenseFormValidation, ExpenseFormValues } from "../validation";
+import { ExpenseFormValues } from "../validation";
 import { db } from "@/drizzle/db";
 import {
   accompanyingExpenseTypesTable,
@@ -17,7 +17,6 @@ import { JournalEntryReferenceType } from "@/types";
 import { createJournalEntry } from "./accounting.actions";
 
 const buildExpenseFilterConditions = (filters: any) => {
-  // Use 'any' for filters for flexibility, or define a specific Zod schema if preferred
   const conditions = [];
 
   conditions.push(eq(expensesTable.isActive, true));
@@ -29,8 +28,9 @@ const buildExpenseFilterConditions = (filters: any) => {
         ilike(expensesTable.title, searchTerm),
         ilike(expensesTable.description, searchTerm),
         ilike(expensesTable.referenceNumber, searchTerm),
-        ilike(expensesTable.payee, searchTerm)
-        // Add ilike for expenseCategoriesTable.name and accountsTable.name when joining
+        ilike(expensesTable.payee, searchTerm),
+        ilike(expenseCategoriesTable.name, searchTerm),
+        ilike(accountsTable.name, searchTerm)
       )
     );
   }
@@ -75,18 +75,10 @@ const buildExpenseFilterConditions = (filters: any) => {
   return conditions;
 };
 
-// Add a new Expense
+// Add expense
 export const addExpense = async (values: ExpenseFormValues, userId: string) => {
-  const parsedValues = ExpenseFormValidation.safeParse(values);
-  if (!parsedValues.success) {
-    throw new Error(
-      "Invalid Expense data: " +
-        parsedValues.error.errors.map((e) => e.message).join(", ")
-    );
-  }
-
   try {
-    const result = await db.transaction(async (tx) => {
+    const result = db.transaction(async (tx) => {
       // 1. Validate existence and status of foreign key entities
       const [expenseCategory] = await tx
         .select({
@@ -96,10 +88,11 @@ export const addExpense = async (values: ExpenseFormValues, userId: string) => {
         .from(expenseCategoriesTable)
         .where(
           and(
-            eq(expenseCategoriesTable.id, parsedValues.data.expenseCategoryId),
+            eq(expenseCategoriesTable.id, values.expenseCategoryId),
             eq(expenseCategoriesTable.isActive, true)
           )
         );
+
       if (!expenseCategory) {
         throw new Error("Expense Category not found or is inactive.");
       }
@@ -114,14 +107,15 @@ export const addExpense = async (values: ExpenseFormValues, userId: string) => {
         .from(accountsTable)
         .where(
           and(
-            eq(accountsTable.id, parsedValues.data.payingAccountId),
+            eq(accountsTable.id, values.payingAccountId),
             eq(accountsTable.isActive, true)
           )
         );
+
       if (!payingAccount) {
         throw new Error("Paying Account not found or is inactive.");
       }
-      if (payingAccount.currentBalance < parsedValues.data.amount) {
+      if (parseFloat(payingAccount.currentBalance as any) < values.amount) {
         throw new Error("Insufficient funds in the selected paying account.");
       }
 
@@ -129,19 +123,14 @@ export const addExpense = async (values: ExpenseFormValues, userId: string) => {
       const existingExpenseWithRef = await tx
         .select({ id: expensesTable.id })
         .from(expensesTable)
-        .where(
-          eq(expensesTable.referenceNumber, parsedValues.data.referenceNumber)
-        );
+        .where(eq(expensesTable.referenceNumber, values.referenceNumber));
       if (existingExpenseWithRef.length > 0) {
         throw new Error("Expense reference number already exists.");
       }
 
       // If it's an accompanying expense, validate purchaseId and accompanyingExpenseTypeId
-      if (parsedValues.data.isAccompanyingExpense) {
-        if (
-          !parsedValues.data.purchaseId ||
-          !parsedValues.data.accompanyingExpenseTypeId
-        ) {
+      if (values.isAccompanyingExpense) {
+        if (!values.purchaseId || !values.accompanyingExpenseTypeId) {
           throw new Error(
             "Purchase ID and Accompanying Expense Type are required for accompanying expenses."
           );
@@ -151,10 +140,11 @@ export const addExpense = async (values: ExpenseFormValues, userId: string) => {
           .from(purchasesTable)
           .where(
             and(
-              eq(purchasesTable.id, parsedValues.data.purchaseId),
+              eq(purchasesTable.id, values.purchaseId),
               eq(purchasesTable.isActive, true)
             )
           );
+
         if (!purchase) {
           throw new Error("Linked Purchase not found or is inactive.");
         }
@@ -165,11 +155,12 @@ export const addExpense = async (values: ExpenseFormValues, userId: string) => {
             and(
               eq(
                 accompanyingExpenseTypesTable.id,
-                parsedValues.data.accompanyingExpenseTypeId
+                values.accompanyingExpenseTypeId
               ),
               eq(accompanyingExpenseTypesTable.isActive, true)
             )
           );
+
         if (!accompanyingType) {
           throw new Error(
             "Accompanying Expense Type not found or is inactive."
@@ -181,53 +172,54 @@ export const addExpense = async (values: ExpenseFormValues, userId: string) => {
       const [newExpense] = await tx
         .insert(expensesTable)
         .values({
-          ...parsedValues.data,
-          // Ensure description is stored in notes if description is only for validation UI.
-          // Or, combine description and notes into a single `notes` field if that's the intent.
-          // For now, assuming `notes` is the field for general comments.
-          description: parsedValues.data.description || null, // Ensure `description` field in table handles optional properly.
-          notes: parsedValues.data.notes || null,
+          ...values,
+          notes: values.notes || null,
+          description: values.description || null,
+          purchaseId: values.purchaseId || null,
+          accompanyingExpenseTypeId: values.accompanyingExpenseTypeId || null,
         })
         .returning();
 
       // 3. Update the Paying Account balance
       const updatedBalance =
-        parseFloat(payingAccount.currentBalance as any) -
-        parsedValues.data.amount;
+        parseFloat(payingAccount.currentBalance as any) - values.amount;
       await tx
         .update(accountsTable)
-        .set({ currentBalance: updatedBalance, updatedAt: new Date() })
+        .set({
+          currentBalance: updatedBalance,
+          updatedAt: new Date(),
+        })
         .where(eq(accountsTable.id, payingAccount.id));
 
       // 4. Create Journal Entries for double-entry accounting
-      await createJournalEntry(
+      await createJournalEntry({
         tx,
-        newExpense.expenseDate,
-        JournalEntryReferenceType.EXPENSE,
-        newExpense.id,
-        userId,
-        newExpense.title,
-        [
+        entryDate: newExpense.expenseDate,
+        referenceType: JournalEntryReferenceType.EXPENSE,
+        referenceId: newExpense.id,
+        userId: userId,
+        description: newExpense.title,
+        lines: [
           {
-            chartOfAccountId: expenseCategory.chartOfAccountsId ?? "", // Debit expense account
-            debit: parsedValues.data.amount,
+            chartOfAccountId: expenseCategory.chartOfAccountsId ?? "",
+            debit: values.amount,
             credit: 0,
             memo: newExpense.title,
           },
           {
-            chartOfAccountId: payingAccount.chartOfAccountsId ?? "", // Credit cash/bank account
+            chartOfAccountId: payingAccount.chartOfAccountsId ?? "",
             debit: 0,
-            credit: parsedValues.data.amount,
+            credit: values.amount,
             memo: `Payment from ${payingAccount.name}`,
           },
-        ]
-      );
+        ],
+      });
 
       return newExpense;
     });
 
     revalidatePath("/expenses");
-    revalidatePath("/accounting-and-finance/expenses-tracker");
+    revalidatePath("/accounting-and-finance/expenses");
     return parseStringify(result);
   } catch (error: any) {
     console.error("Error creating expense:", error);
@@ -240,7 +232,7 @@ export const getExpenses = async (
   page: number = 0,
   limit: number = 10,
   getAll: boolean = false,
-  filters?: any // Use specific Zod schema for filters if desired
+  filters?: any
 ) => {
   try {
     const result = await db.transaction(async (tx) => {
@@ -249,8 +241,8 @@ export const getExpenses = async (
           expense: expensesTable,
           category: expenseCategoriesTable,
           payingAccount: accountsTable,
-          purchase: purchasesTable, // Include purchase for accompanying expenses
-          accompanyingExpenseType: accompanyingExpenseTypesTable, // Include accompanying type
+          purchase: purchasesTable,
+          accompanyingExpenseType: accompanyingExpenseTypesTable,
         })
         .from(expensesTable)
         .leftJoin(
@@ -400,14 +392,6 @@ export const updateExpense = async (
   values: Partial<ExpenseFormValues>,
   userId: string
 ) => {
-  const parsedValues = ExpenseFormValidation.safeParse(values);
-  if (!parsedValues.success) {
-    throw new Error(
-      "Invalid Expense data: " +
-        parsedValues.error.errors.map((e) => e.message).join(", ")
-    );
-  }
-
   try {
     const result = await db.transaction(async (tx) => {
       const currentExpense = await tx
@@ -434,7 +418,7 @@ export const updateExpense = async (
       }
 
       // Re-validate foreign keys if they are being updated
-      if (parsedValues.data.expenseCategoryId) {
+      if (values.expenseCategoryId) {
         const [expenseCategory] = await tx
           .select({
             id: expenseCategoriesTable.id,
@@ -443,10 +427,7 @@ export const updateExpense = async (
           .from(expenseCategoriesTable)
           .where(
             and(
-              eq(
-                expenseCategoriesTable.id,
-                parsedValues.data.expenseCategoryId
-              ),
+              eq(expenseCategoriesTable.id, values.expenseCategoryId),
               eq(expenseCategoriesTable.isActive, true)
             )
           );
@@ -458,6 +439,7 @@ export const updateExpense = async (
       // Re-validate paying account if updated, and check balance impact
       let newPayingAccountBalance: number | undefined;
       let newPayingAccountCoAId: string | undefined;
+      let newPayingAccountName: string | undefined;
       let oldPayingAccountCoAId: string | undefined = undefined;
 
       const currentPayingAccount = await tx
@@ -482,19 +464,20 @@ export const updateExpense = async (
         currentPayingAccount.chartOfAccountsId ?? undefined;
 
       if (
-        parsedValues.data.payingAccountId &&
-        parsedValues.data.payingAccountId !== currentExpense.payingAccountId
+        values.payingAccountId &&
+        values.payingAccountId !== currentExpense.payingAccountId
       ) {
         const [newPayingAccount] = await tx
           .select({
             id: accountsTable.id,
             chartOfAccountsId: accountsTable.chartOfAccountsId,
             currentBalance: accountsTable.currentBalance,
+            name: accountsTable.name,
           })
           .from(accountsTable)
           .where(
             and(
-              eq(accountsTable.id, parsedValues.data.payingAccountId),
+              eq(accountsTable.id, values.payingAccountId),
               eq(accountsTable.isActive, true)
             )
           );
@@ -502,12 +485,11 @@ export const updateExpense = async (
           throw new Error("New Paying Account not found or is inactive.");
         }
         newPayingAccountCoAId = newPayingAccount.chartOfAccountsId ?? undefined;
+        newPayingAccountName = newPayingAccount.name ?? undefined;
 
         // Check if new account has enough funds for the new amount (if amount changed) or original amount
         const effectiveAmount =
-          parsedValues.data.amount !== undefined
-            ? parsedValues.data.amount
-            : currentExpense.amount;
+          values.amount !== undefined ? values.amount : currentExpense.amount;
         if (newPayingAccount.currentBalance < effectiveAmount) {
           throw new Error("Insufficient funds in the new paying account.");
         }
@@ -515,22 +497,20 @@ export const updateExpense = async (
         // Paying account is not changing, use current's CoA ID
         newPayingAccountCoAId =
           currentPayingAccount.chartOfAccountsId ?? undefined;
+        newPayingAccountName = currentPayingAccount.name ?? undefined;
       }
 
       // Check unique reference number if updated
       if (
-        parsedValues.data.referenceNumber &&
-        parsedValues.data.referenceNumber !== currentExpense.referenceNumber
+        values.referenceNumber &&
+        values.referenceNumber !== currentExpense.referenceNumber
       ) {
         const existingRef = await tx
           .select({ id: expensesTable.id })
           .from(expensesTable)
           .where(
             and(
-              eq(
-                expensesTable.referenceNumber,
-                parsedValues.data.referenceNumber
-              ),
+              eq(expensesTable.referenceNumber, values.referenceNumber),
               sql`${expensesTable.id} != ${id}`
             )
           );
@@ -543,16 +523,16 @@ export const updateExpense = async (
 
       // Re-validate accompanying expense details if updated
       const isAccompanyingExpenseUpdated =
-        parsedValues.data.isAccompanyingExpense !== undefined
-          ? parsedValues.data.isAccompanyingExpense
+        values.isAccompanyingExpense !== undefined
+          ? values.isAccompanyingExpense
           : currentExpense.isAccompanyingExpense;
       const newPurchaseId =
-        parsedValues.data.purchaseId !== undefined
-          ? parsedValues.data.purchaseId
+        values.purchaseId !== undefined
+          ? values.purchaseId
           : currentExpense.purchaseId;
       const newAccompanyingTypeId =
-        parsedValues.data.accompanyingExpenseTypeId !== undefined
-          ? parsedValues.data.accompanyingExpenseTypeId
+        values.accompanyingExpenseTypeId !== undefined
+          ? values.accompanyingExpenseTypeId
           : currentExpense.accompanyingExpenseTypeId;
 
       if (isAccompanyingExpenseUpdated) {
@@ -591,15 +571,12 @@ export const updateExpense = async (
 
       // Calculate balance adjustments before updating
       const oldAmount = parseFloat(currentExpense.amount as any);
-      const newAmount =
-        parsedValues.data.amount !== undefined
-          ? parsedValues.data.amount
-          : oldAmount;
+      const newAmount = values.amount !== undefined ? values.amount : oldAmount;
 
       // Adjust old paying account
       if (
-        currentExpense.payingAccountId === parsedValues.data.payingAccountId ||
-        parsedValues.data.payingAccountId === undefined
+        currentExpense.payingAccountId === values.payingAccountId ||
+        values.payingAccountId === undefined
       ) {
         // Account not changing or changing to itself: Adjust original account balance
         const balanceChange = newAmount - oldAmount;
@@ -641,7 +618,7 @@ export const updateExpense = async (
             currentBalance: accountsTable.currentBalance,
           })
           .from(accountsTable)
-          .where(eq(accountsTable.id, parsedValues.data.payingAccountId))
+          .where(eq(accountsTable.id, values.payingAccountId))
           .then((res) => res[0]);
 
         if (!newAccountForDeduction)
@@ -664,15 +641,18 @@ export const updateExpense = async (
       const [updatedExpense] = await tx
         .update(expensesTable)
         .set({
-          ...parsedValues.data,
+          ...values,
           notes:
-            parsedValues.data.notes === null
-              ? null
-              : parsedValues.data.notes || currentExpense.notes,
+            values.notes === null ? null : values.notes || currentExpense.notes,
           description:
-            parsedValues.data.description === null
+            values.description === null
               ? null
-              : parsedValues.data.description || currentExpense.description,
+              : values.description || currentExpense.description,
+          purchaseId: values.purchaseId || currentExpense.purchaseId,
+          accompanyingExpenseTypeId:
+            values.accompanyingExpenseTypeId ||
+            currentExpense.accompanyingExpenseTypeId,
+          payingAccountId: values.payingAccountId,
           updatedAt: new Date(),
         })
         .where(eq(expensesTable.id, id))
@@ -685,14 +665,14 @@ export const updateExpense = async (
       // Reverse existing journal entry and create a new one, or create an adjustment entry
       // For simplicity and audit trail, an "adjustment" journal entry is usually preferred for updates.
       // This will debit/credit the original accounts to reverse the old entry, then debit/credit new accounts for the new entry.
-      await createJournalEntry(
+      await createJournalEntry({
         tx,
-        new Date(), // Use current date for adjustment entry
-        JournalEntryReferenceType.ADJUSTMENT,
-        updatedExpense.id,
+        entryDate: new Date(),
+        referenceType: JournalEntryReferenceType.ADJUSTMENT,
+        referenceId: updatedExpense.id,
         userId,
-        `Adjustment for expense: ${updatedExpense.title} (ID: ${updatedExpense.id})`,
-        [
+        description: `Adjustment for expense: ${updatedExpense.title}`,
+        lines: [
           // Reversal of original expense
           {
             chartOfAccountId: oldPayingAccountCoAId!, // Debit original cash/bank account (restore)
@@ -714,7 +694,7 @@ export const updateExpense = async (
                   )
                 )
                 .then((res) => res[0]?.chartOfAccountsId)) ||
-              throwError("Original expense category not found for reversal."), // Credit original expense account (reduce expense)
+              throwError("Original expense category not found for reversal."),
             debit: 0,
             credit: oldAmount,
             memo: `Reversal: reduce ${currentExpense.title} expense`,
@@ -743,16 +723,16 @@ export const updateExpense = async (
             chartOfAccountId: newPayingAccountCoAId!, // Credit new cash/bank account (deduct)
             debit: 0,
             credit: newAmount,
-            memo: `New: payment from ${updatedExpense.payingAccountId}`,
+            memo: `New: payment from ${newPayingAccountName}`,
           },
-        ]
-      );
+        ],
+      });
 
       return updatedExpense;
     });
 
     revalidatePath("/expenses");
-    revalidatePath("/accounting-and-finance/expenses-tracker");
+    revalidatePath("/accounting-and-finance/expenses");
     revalidatePath(`/expenses/edit-expense/${id}`);
     return parseStringify(result);
   } catch (error: any) {
@@ -817,14 +797,14 @@ export const softDeleteExpense = async (id: string, userId: string) => {
         .returning();
 
       // Create a reversal journal entry
-      await createJournalEntry(
+      await createJournalEntry({
         tx,
-        new Date(), // Use current date for reversal entry
-        JournalEntryReferenceType.ADJUSTMENT, // A reversal is a type of adjustment
-        updatedExpense.id,
+        entryDate: new Date(),
+        referenceType: JournalEntryReferenceType.ADJUSTMENT,
+        referenceId: updatedExpense.id,
         userId,
-        `Reversal of expense: ${updatedExpense.title} (ID: ${updatedExpense.id})`,
-        [
+        description: `Reversal of expense: ${updatedExpense.title}`,
+        lines: [
           {
             chartOfAccountId: payingAccount.chartOfAccountsId ?? "", // Debit cash/bank account (restore funds)
             debit: parseFloat(updatedExpense.amount as any),
@@ -850,14 +830,14 @@ export const softDeleteExpense = async (id: string, userId: string) => {
             credit: parseFloat(updatedExpense.amount as any),
             memo: `Reversal: expense reduced for ${updatedExpense.title}`,
           },
-        ]
-      );
+        ],
+      });
 
       return updatedExpense;
     });
 
     revalidatePath("/expenses");
-    revalidatePath("/accounting-and-finance/expenses-tracker");
+    revalidatePath("/accounting-and-finance/expenses");
     return parseStringify(result);
   } catch (error: any) {
     console.error("Error soft deleting expense:", error);
@@ -869,3 +849,40 @@ export const softDeleteExpense = async (id: string, userId: string) => {
 function throwError(message: string): never {
   throw new Error(message);
 }
+
+// Generate reference number
+export const generateExpenseReferenceNumber = async (): Promise<string> => {
+  try {
+    const result = await db.transaction(async (tx) => {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+
+      const lastExpense = await tx
+        .select({ referenceNumber: expensesTable.referenceNumber })
+        .from(expensesTable)
+        .where(sql`reference_number LIKE ${`EXP.${year}/${month}/%`}`)
+        .orderBy(desc(expensesTable.createdAt))
+        .limit(1);
+
+      let nextSequence = 1;
+      if (lastExpense.length > 0) {
+        const lastReferenceNumber = lastExpense[0].referenceNumber;
+        const lastSequence = parseInt(
+          lastReferenceNumber.split("/").pop() || "0",
+          10
+        );
+        nextSequence = lastSequence + 1;
+      }
+
+      const sequenceNumber = String(nextSequence).padStart(4, "0");
+
+      return `EXP.${year}/${month}/${sequenceNumber}`;
+    });
+
+    return result;
+  } catch (error) {
+    console.error("Error generating expense reference number:", error);
+    throw error;
+  }
+};

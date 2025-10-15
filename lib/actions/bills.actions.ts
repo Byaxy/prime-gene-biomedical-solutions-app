@@ -489,15 +489,15 @@ export const payBill = async (
         );
       }
 
-      await createJournalEntry(
+      await createJournalEntry({
         tx,
-        newBillPayment.paymentDate,
-        JournalEntryReferenceType.BILL_PAYMENT,
-        newBillPayment.id,
+        entryDate: newBillPayment.paymentDate,
+        referenceType: JournalEntryReferenceType.BILL_PAYMENT,
+        referenceId: newBillPayment.id,
         userId,
-        `Bill Payment to Vendor ${vendor.id} (Ref: ${newBillPayment.billReferenceNo})`,
-        journalLines
-      );
+        description: `Bill Payment to Vendor ${vendor.id} (Ref: ${newBillPayment.billReferenceNo})`,
+        lines: journalLines,
+      });
 
       return {
         billPayment: newBillPayment,
@@ -1198,15 +1198,15 @@ export const updateBillPayment = async (
         }
       });
 
-      await createJournalEntry(
+      await createJournalEntry({
         tx,
-        new Date(), // Use current date for adjustment entry
-        JournalEntryReferenceType.ADJUSTMENT,
-        updatedBillPayment.id,
+        entryDate: new Date(),
+        referenceType: JournalEntryReferenceType.ADJUSTMENT,
+        referenceId: updatedBillPayment.id,
         userId,
-        `Adjustment for Bill Payment: ${updatedBillPayment.billReferenceNo} (ID: ${updatedBillPayment.id})`,
-        journalLines
-      );
+        description: `Adjustment for Bill Payment: ${updatedBillPayment.billReferenceNo} (ID: ${updatedBillPayment.id})`,
+        lines: journalLines,
+      });
 
       return {
         billPayment: updatedBillPayment,
@@ -1417,15 +1417,15 @@ export const softDeleteBillPayment = async (id: string, userId: string) => {
         });
       }
 
-      await createJournalEntry(
+      await createJournalEntry({
         tx,
-        new Date(), // Use current date for reversal entry
-        JournalEntryReferenceType.ADJUSTMENT,
-        updatedBillPayment.id,
+        entryDate: new Date(), // Use current date for reversal entry
+        referenceType: JournalEntryReferenceType.ADJUSTMENT,
+        referenceId: updatedBillPayment.id,
         userId,
-        `Reversal of Bill Payment: ${updatedBillPayment.billReferenceNo} (ID: ${updatedBillPayment.id})`,
-        journalLines
-      );
+        description: `Reversal of Bill Payment: ${updatedBillPayment.billReferenceNo} (ID: ${updatedBillPayment.id})`,
+        lines: journalLines,
+      });
 
       return updatedBillPayment;
     });

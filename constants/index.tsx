@@ -312,8 +312,8 @@ export const sidebarData: SidebarDataType[] = [
       },
       {
         id: generateId(),
-        title: "Income Tracker",
-        path: "/accounting-and-finance/income-tracker",
+        title: "Income",
+        path: "/accounting-and-finance/income",
       },
       {
         id: generateId(),
@@ -322,8 +322,8 @@ export const sidebarData: SidebarDataType[] = [
       },
       {
         id: generateId(),
-        title: "Expenses Tracker",
-        path: "/accounting-and-finance/expenses-tracker",
+        title: "Expenses",
+        path: "/accounting-and-finance/expenses",
       },
     ],
   },

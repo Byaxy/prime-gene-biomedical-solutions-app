@@ -4,6 +4,7 @@ import {
   accountsTable,
   chartOfAccountsTable,
   expenseCategoriesTable,
+  expensesTable,
   incomeCategoriesTable,
   inventoryTransactionsTable,
 } from "@/drizzle/schema";
@@ -155,18 +156,6 @@ export interface ProductWithRelations {
   unit: Unit;
   totalBackorderStockQuantity: number;
   totalInventoryStockQuantity: number;
-}
-
-export interface Expense {
-  id: string;
-  title: string;
-  description: string;
-  amount: number;
-  paymentMethod: PaymentMethod;
-  expenseDate: Date;
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
 }
 
 // Company Settings
@@ -780,6 +769,17 @@ export type AccompanyingExpenseType =
 export interface AccompanyingExpenseTypeWithRelations {
   type: AccompanyingExpenseType;
   defaultCategory: ExpenseCategory;
+}
+
+// Expenses
+export type Expense = typeof expensesTable.$inferSelect;
+
+export interface ExpenseWithRelations {
+  expense: Expense;
+  category: ExpenseCategory;
+  payingAccount: Account;
+  purchase: Purchase;
+  accompanyingExpenseType: AccompanyingExpenseType;
 }
 
 // Enums

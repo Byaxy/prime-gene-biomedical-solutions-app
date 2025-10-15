@@ -30,20 +30,33 @@ import {
 // --- Utility Function: Create Journal Entry (Internal) ---
 // This function is crucial for maintaining double-entry accounting.
 // It will be called by other server actions (e.g., addExpense, recordIncome, payBill)
-export async function createJournalEntry(
-  tx: any,
-  entryDate: Date,
-  referenceType: JournalEntryReferenceType,
-  referenceId: string | null,
-  userId: string,
-  description: string,
-  lines: Array<{
-    chartOfAccountId: string;
-    debit: number;
-    credit: number;
-    memo?: string;
-  }>
-) {
+
+interface JournalEntry {
+  tx: any;
+  entryDate: Date;
+  referenceType: JournalEntryReferenceType;
+  referenceId: string | null;
+  userId: string;
+  description: string;
+  lines: Array<JournalEntryLine>;
+}
+
+interface JournalEntryLine {
+  chartOfAccountId: string;
+  debit: number;
+  credit: number;
+  memo?: string;
+}
+
+export async function createJournalEntry({
+  tx,
+  entryDate,
+  referenceType,
+  referenceId,
+  userId,
+  description,
+  lines,
+}: JournalEntry) {
   const totalDebit = lines.reduce((sum, line) => sum + line.debit, 0);
   const totalCredit = lines.reduce((sum, line) => sum + line.credit, 0);
 
@@ -456,14 +469,14 @@ export const addAccount = async (values: AccountFormValues, userId: string) => {
       }
 
       // Create initial journal entry for opening balance
-      await createJournalEntry(
+      await createJournalEntry({
         tx,
-        newAccount.createdAt,
-        JournalEntryReferenceType.ADJUSTMENT,
-        newAccount.id,
+        entryDate: newAccount.createdAt,
+        referenceType: JournalEntryReferenceType.ADJUSTMENT,
+        referenceId: newAccount.id,
         userId,
-        `Opening balance for ${newAccount.name}`,
-        [
+        description: `Opening balance for ${newAccount.name}`,
+        lines: [
           {
             chartOfAccountId: values.chartOfAccountsId,
             debit: newAccount.openingBalance,
@@ -478,8 +491,8 @@ export const addAccount = async (values: AccountFormValues, userId: string) => {
             credit: newAccount.openingBalance,
             memo: "Initial Equity/Capital",
           },
-        ]
-      );
+        ],
+      });
 
       return newAccount;
     });
@@ -816,15 +829,15 @@ export const createJournalEntryPublic = async (
 ) => {
   try {
     const newEntry = await db.transaction(async (tx) => {
-      return await createJournalEntry(
+      return await createJournalEntry({
         tx,
         entryDate,
         referenceType,
         referenceId,
         userId,
         description,
-        lines
-      );
+        lines,
+      });
     });
     return parseStringify(newEntry);
   } catch (error: any) {

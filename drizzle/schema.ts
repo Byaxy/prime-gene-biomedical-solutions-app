@@ -1929,7 +1929,7 @@ export const expensesTable = pgTable(
     isAccompanyingExpense: boolean("is_accompanying_expense")
       .notNull()
       .default(false),
-    accompanyingExpenseTypeId: uuid("purchase_id").references(
+    accompanyingExpenseTypeId: uuid("accompanying_expense_type_id").references(
       () => accompanyingExpenseTypesTable.id,
       {
         onDelete: "set null",

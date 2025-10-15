@@ -309,16 +309,16 @@ export const recordIncome = async (
       }
 
       // 5. Create Journal Entries for double-entry accounting
-      await createJournalEntry(
+      await createJournalEntry({
         tx,
-        newPayment.paymentDate,
-        JournalEntryReferenceType.PAYMENT_RECEIVED,
-        newPayment.id,
+        entryDate: newPayment.paymentDate,
+        referenceType: JournalEntryReferenceType.PAYMENT_RECEIVED,
+        referenceId: newPayment.id,
         userId,
-        parsedValues.data.saleId
+        description: parsedValues.data.saleId
           ? `Payment for Sale ${salesInvoiceNumber}`
           : `Income received: ${newPayment.paymentRefNumber}`,
-        [
+        lines: [
           {
             chartOfAccountId: receivingAccount.chartOfAccountsId!, // Debit cash/bank account
             debit: parsedValues.data.amountReceived,
@@ -333,8 +333,8 @@ export const recordIncome = async (
               ? `Payment from ${customerName} for Sale ${salesInvoiceNumber}`
               : `Credit to income category`,
           },
-        ]
-      );
+        ],
+      });
 
       return {
         payment: newPayment,
@@ -859,14 +859,14 @@ export const updateIncome = async (
       }
 
       // Create an adjustment journal entry
-      await createJournalEntry(
+      await createJournalEntry({
         tx,
-        new Date(), // Use current date for adjustment entry
-        JournalEntryReferenceType.ADJUSTMENT,
-        updatedIncome.id,
+        entryDate: new Date(), // Use current date for adjustment entry
+        referenceType: JournalEntryReferenceType.ADJUSTMENT,
+        referenceId: updatedIncome.id,
         userId,
-        `Adjustment for income: ${updatedIncome.paymentRefNumber} (ID: ${updatedIncome.id})`,
-        [
+        description: `Adjustment for income: ${updatedIncome.paymentRefNumber} (ID: ${updatedIncome.id})`,
+        lines: [
           // Reversal of original income entry
           {
             chartOfAccountId: oldIncomeAccountCoAId!, // Debit original revenue/AR account (reverse income)
@@ -893,8 +893,8 @@ export const updateIncome = async (
             credit: newAmount,
             memo: `New: adjust ${newIncomeAccountCoAIdFromCategory} for income ${updatedIncome.paymentRefNumber}`,
           },
-        ]
-      );
+        ],
+      });
 
       return { payment: updatedIncome, updatedSale: updatedSale };
     });
@@ -1033,14 +1033,14 @@ export const softDeleteIncome = async (id: string, userId: string) => {
         .returning();
 
       // Create a reversal journal entry
-      await createJournalEntry(
+      await createJournalEntry({
         tx,
-        new Date(), // Use current date for reversal entry
-        JournalEntryReferenceType.ADJUSTMENT, // A reversal is a type of adjustment
-        updatedIncome.id,
+        entryDate: new Date(), // Use current date for reversal entry
+        referenceType: JournalEntryReferenceType.ADJUSTMENT, // A reversal is a type of adjustment
+        referenceId: updatedIncome.id,
         userId,
-        `Reversal of income: ${updatedIncome.paymentRefNumber} (ID: ${updatedIncome.id})`,
-        [
+        description: `Reversal of income: ${updatedIncome.paymentRefNumber} (ID: ${updatedIncome.id})`,
+        lines: [
           {
             chartOfAccountId: oldIncomeAccountCoAId!, // Debit original revenue/AR account (reverse income)
             debit: parseFloat(updatedIncome.amountReceived as any),
@@ -1053,8 +1053,8 @@ export const softDeleteIncome = async (id: string, userId: string) => {
             credit: parseFloat(updatedIncome.amountReceived as any),
             memo: `Reversal: reduce funds in ${receivingAccount.name}`,
           },
-        ]
-      );
+        ],
+      });
 
       return updatedIncome;
     });

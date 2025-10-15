@@ -1515,6 +1515,7 @@ export const ExpenseFormValidation = z
     }),
     expenseCategoryId: z.string().nonempty("Expense Category is required"),
     payingAccountId: z.string().nonempty("Paying Account is required"),
+    currentPayingAccountBalance: z.number().optional(),
     referenceNumber: z.string().nonempty("Reference number is required"),
     payee: z.string().nonempty("Payee is required"),
     notes: z.string().optional().nullable(),
@@ -1539,6 +1540,32 @@ export const ExpenseFormValidation = z
           message: "Accompanying Expense Type is required",
           path: ["accompanyingExpenseTypeId"],
         });
+      }
+    }
+    if (data.payingAccountId) {
+      if (!data.currentPayingAccountBalance) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Current Paying Account Balance is required",
+          path: ["currentPayingAccountBalance"],
+        });
+      }
+
+      if (data.currentPayingAccountBalance) {
+        if (data.currentPayingAccountBalance < data.amount) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              "Current Paying Account Balance must be greater than or equal to the amount",
+            path: ["currentPayingAccountBalance"],
+          });
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              "Amount must be less than or equal to the current Paying Account Balance",
+            path: ["amount"],
+          });
+        }
       }
     }
   });

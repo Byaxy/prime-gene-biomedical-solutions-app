@@ -174,6 +174,7 @@ export const ExpenseCategoryForm: React.FC<ExpenseCategoryFormProps> = ({
             label="Link to Chart of Account (Expense/COGS Type)"
             placeholder="Select an Expense or COGS account"
             disabled={isAnyMutationLoading}
+            key={form.watch("chartOfAccountsId") || ""}
           >
             {flattenedAccounts
               .filter(

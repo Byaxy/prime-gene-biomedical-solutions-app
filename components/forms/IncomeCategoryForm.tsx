@@ -174,6 +174,7 @@ export const IncomeCategoryForm: React.FC<IncomeCategoryFormProps> = ({
             label="Link to Chart of Account (REVENUE Type)"
             placeholder="Select A Revenue account"
             disabled={isAnyMutationLoading}
+            key={form.watch("chartOfAccountsId") || ""}
           >
             {flattenedAccounts
               .filter(

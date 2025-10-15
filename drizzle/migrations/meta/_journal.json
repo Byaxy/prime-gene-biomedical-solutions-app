@@ -484,6 +484,13 @@
       "when": 1760437745495,
       "tag": "0068_romantic_mindworm",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1760524142107,
+      "tag": "0069_red_kang",
+      "breakpoints": true
     }
   ]
 }
