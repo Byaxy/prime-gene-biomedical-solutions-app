@@ -1,11 +1,11 @@
 import PageWraper from "@/components/PageWraper";
 
-const BillTracker = () => {
+const Bills = () => {
   return (
     <PageWraper title="Bill Tracker">
-      <div>Bill Tracker</div>
+      <div>Bills</div>
     </PageWraper>
   );
 };
 
-export default BillTracker;
+export default Bills;

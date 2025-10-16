@@ -312,18 +312,26 @@ export const sidebarData: SidebarDataType[] = [
       },
       {
         id: generateId(),
-        title: "Income",
+        title: "Income Management",
         path: "/accounting-and-finance/income",
       },
+
       {
         id: generateId(),
-        title: "Bill Tracker",
-        path: "/accounting-and-finance/bill-tracker",
-      },
-      {
-        id: generateId(),
-        title: "Expenses",
-        path: "/accounting-and-finance/expenses",
+        title: "Expense Management",
+        path: "",
+        subCategories: [
+          {
+            id: generateId(),
+            title: "Bills Management",
+            path: "/accounting-and-finance/billing",
+          },
+          {
+            id: generateId(),
+            title: "Expenses",
+            path: "/accounting-and-finance/expenses",
+          },
+        ],
       },
     ],
   },
