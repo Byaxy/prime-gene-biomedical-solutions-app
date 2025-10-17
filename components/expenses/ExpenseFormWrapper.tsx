@@ -8,14 +8,14 @@ import {
   PurchaseWithRelations,
   ExpenseWithRelations,
 } from "@/types";
-import { getExpenseCategories } from "@/lib/actions/expenseCategories.actions";
-import { getAccounts } from "@/lib/actions/accounting.actions";
-import { getAccompanyingExpenseTypes } from "@/lib/actions/accompanyingExpenses.actions";
+import { ExpenseForm } from "../forms/ExpenseForm";
 import {
   generateExpenseReferenceNumber,
   getExpenseById,
 } from "@/lib/actions/expense.actions";
-import { ExpenseForm } from "../forms/ExpenseForm";
+import { getAccompanyingExpenseTypes } from "@/lib/actions/accompanyingExpenses.actions";
+import { getAccounts } from "@/lib/actions/accounting.actions";
+import { getExpenseCategories } from "@/lib/actions/expenseCategories.actions";
 
 interface ExpenseFormWrapperProps {
   mode: "create" | "edit";
@@ -33,41 +33,56 @@ export default async function ExpenseFormWrapper({
   let purchases: PurchaseWithRelations[] = [];
   let generatedReferenceNumber: string | undefined = undefined;
 
-  const [
-    fetchedExpenseCategories,
-    fetchedAccounts,
-    fetchedAccompanyingTypes,
-    fetchedPurchases,
-  ] = await Promise.all([
-    getExpenseCategories(0, 0, true),
-    getAccounts(0, 0, true),
-    getAccompanyingExpenseTypes(0, 0, true),
-    getPurchases(0, 0, true),
-  ]);
+  try {
+    const [
+      fetchedExpenseCategories,
+      fetchedAccounts,
+      fetchedAccompanyingTypes,
+      fetchedPurchases,
+    ] = await Promise.all([
+      getExpenseCategories(0, 0, true, {}),
+      getAccounts(0, 0, true),
+      getAccompanyingExpenseTypes(0, 0, true, {}),
+      getPurchases(0, 0, true),
+    ]);
 
-  expenseCategories = parseStringify(fetchedExpenseCategories.documents);
+    expenseCategories = parseStringify(fetchedExpenseCategories.documents);
 
-  payingAccounts = parseStringify(
-    fetchedAccounts.documents.filter(
-      (acc: AccountWithRelations) => acc.account.isActive
-    )
-  );
+    // Filter to only include active accounts
+    payingAccounts = parseStringify(
+      fetchedAccounts.documents.filter(
+        (acc: AccountWithRelations) => acc.account.isActive
+      )
+    );
 
-  accompanyingExpenseTypes = parseStringify(fetchedAccompanyingTypes.documents);
+    accompanyingExpenseTypes = parseStringify(
+      fetchedAccompanyingTypes.documents
+    );
 
-  purchases = parseStringify(
-    fetchedPurchases.documents.filter(
-      (p: PurchaseWithRelations) => p.purchase.isActive
-    )
-  );
+    // Filter to only include active purchases, often only 'pending' or 'partial' status for linking
+    purchases = parseStringify(
+      fetchedPurchases.documents.filter(
+        (p: PurchaseWithRelations) => p.purchase.isActive
+      )
+    );
 
-  if (mode === "edit") {
-    if (!expenseId) notFound();
-    const fetchedExpense = await getExpenseById(expenseId);
-    if (!fetchedExpense) notFound();
-    initialData = parseStringify(fetchedExpense);
-  } else if (mode === "create") {
-    generatedReferenceNumber = await generateExpenseReferenceNumber();
+    if (mode === "edit") {
+      if (!expenseId) notFound();
+      const fetchedExpense = await getExpenseById(expenseId);
+      if (!fetchedExpense) notFound();
+      initialData = parseStringify(fetchedExpense);
+    } else if (mode === "create") {
+      generatedReferenceNumber = await generateExpenseReferenceNumber();
+    }
+  } catch (error) {
+    console.error("Error fetching data for ExpenseForm:", error);
+    return (
+      <div className="flex justify-center items-center h-48">
+        <p className="text-red-500 text-lg">
+          Error loading Expense form data. Please try again.
+        </p>
+      </div>
+    );
   }
 
   return (

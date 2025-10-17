@@ -85,21 +85,17 @@ const ExpenseDialog: React.FC<ExpenseDialogProps> = ({
           <DialogTitle className="text-xl text-blue-800">
             {mode === "delete"
               ? "Deactivate Expense"
-              : `Expense Details: ${expense.expense.title}`}
+              : `Expense Details: ${expense.expense.referenceNumber}`}
           </DialogTitle>
           <DialogDescription className="text-dark-500">
             {mode === "delete"
               ? "Are you sure you want to deactivate this expense? This action will prevent further use but will preserve historical data."
-              : `Details for ${expense.expense.title} (${expense.expense.referenceNumber}).`}
+              : `Details for (${expense.expense.referenceNumber}).`}
           </DialogDescription>
         </DialogHeader>
 
         {mode === "view" && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-dark-600">
-            <div>
-              <p className="font-semibold">Title:</p>
-              <p>{expense.expense.title}</p>
-            </div>
             <div>
               <p className="font-semibold">Reference Number:</p>
               <p>{expense.expense.referenceNumber}</p>
@@ -114,52 +110,13 @@ const ExpenseDialog: React.FC<ExpenseDialogProps> = ({
                 <FormatNumber value={expense.expense.amount} />
               </p>
             </div>
-            <div>
-              <p className="font-semibold">Payee:</p>
-              <p>{expense.expense.payee || "-"}</p>
-            </div>
-            <div>
-              <p className="font-semibold">Category:</p>
-              <p>{expense.category?.name || "-"}</p>
-            </div>
+
             <div>
               <p className="font-semibold">Paying Account:</p>
               <p>
                 {expense.payingAccount?.name || "-"} (
                 {expense.payingAccount?.accountNumber || "N/A"})
               </p>
-            </div>
-            <div>
-              <p className="font-semibold">Accompanying Expense:</p>
-              <p>
-                <span
-                  className={cn(
-                    "text-14-medium",
-                    expense.expense.isAccompanyingExpense
-                      ? "bg-green-500"
-                      : "bg-red-600",
-                    "text-white px-3 py-1 rounded-xl"
-                  )}
-                >
-                  {expense.expense.isAccompanyingExpense ? "Yes" : "No"}
-                </span>
-              </p>
-            </div>
-            {expense.expense.isAccompanyingExpense && (
-              <>
-                <div>
-                  <p className="font-semibold">Linked Purchase:</p>
-                  <p>{expense.purchase?.purchaseNumber || "-"}</p>
-                </div>
-                <div>
-                  <p className="font-semibold">Accompanying Type:</p>
-                  <p>{expense.accompanyingExpenseType?.name || "-"}</p>
-                </div>
-              </>
-            )}
-            <div className="col-span-2">
-              <p className="font-semibold">Description:</p>
-              <p>{expense.expense.description || "-"}</p>
             </div>
             <div className="col-span-2">
               <p className="font-semibold">Internal Notes:</p>

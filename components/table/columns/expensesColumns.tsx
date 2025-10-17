@@ -3,7 +3,7 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn, formatDateTime } from "@/lib/utils";
+import { formatDateTime } from "@/lib/utils";
 import FormatNumber from "@/components/FormatNumber";
 import { ExpenseWithRelations } from "@/types";
 import ExpenseActions from "@/components/expenses/ExpenseActions";
@@ -68,44 +68,7 @@ export const expensesColumns: ColumnDef<ExpenseWithRelations>[] = [
       );
     },
   },
-  {
-    id: "expense.title",
-    accessorKey: "expense.title",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="font-semibold px-0"
-        >
-          Title
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      );
-    },
-    cell: ({ row }) => {
-      const expense = row.original;
-      return <p className="text-14-medium ">{expense.expense.title}</p>;
-    },
-  },
-  {
-    id: "expense.payee",
-    accessorKey: "expense.payee",
-    header: "Payee",
-    cell: ({ row }) => {
-      const expense = row.original;
-      return <p className="text-14-medium ">{expense.expense.payee || "-"}</p>;
-    },
-  },
-  {
-    id: "category.name",
-    accessorKey: "category.name",
-    header: "Category",
-    cell: ({ row }) => {
-      const expense = row.original;
-      return <p className="text-14-medium ">{expense.category?.name || "-"}</p>;
-    },
-  },
+
   {
     id: "payingAccount.name",
     accessorKey: "payingAccount.name",
@@ -141,28 +104,7 @@ export const expensesColumns: ColumnDef<ExpenseWithRelations>[] = [
       );
     },
   },
-  {
-    id: "expense.isAccompanyingExpense",
-    accessorKey: "expense.isAccompanyingExpense",
-    header: "Accompanying?",
-    cell: ({ row }) => {
-      const expense = row.original;
-      return (
-        <p className="text-14-medium ">
-          <span
-            className={cn(
-              "px-3 py-1 rounded-xl text-white",
-              expense.expense.isAccompanyingExpense
-                ? "bg-green-500"
-                : "bg-red-600"
-            )}
-          >
-            {expense.expense.isAccompanyingExpense ? "Yes" : "No"}
-          </span>
-        </p>
-      );
-    },
-  },
+
   {
     id: "actions",
     header: "Actions",

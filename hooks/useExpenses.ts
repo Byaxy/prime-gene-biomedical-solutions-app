@@ -272,7 +272,7 @@ export const useExpenses = ({
   // --- Mutations ---
   const { mutate: addExpenseMutation, status: addExpenseStatus } = useMutation({
     mutationFn: async (data: { data: ExpenseFormValues; userId: string }) =>
-      addExpense(data.data, data.userId),
+      addExpense(data.userId, data.data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["expenses"] });
     },

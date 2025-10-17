@@ -11,6 +11,7 @@ import { db } from "@/drizzle/db";
 import {
   accompanyingExpenseTypesTable,
   billPaymentAccompanyingExpensesTable,
+  expenseItemsTable,
   expensesTable,
 } from "@/drizzle/schema";
 import { expenseCategoriesTable } from "@/drizzle/schema";
@@ -324,7 +325,7 @@ export const softDeleteAccompanyingExpenseType = async (id: string) => {
       const linkedExpenses = await tx
         .select({ id: expensesTable.id })
         .from(expensesTable)
-        .where(eq(expensesTable.accompanyingExpenseTypeId, id));
+        .where(eq(expenseItemsTable.accompanyingExpenseTypeId, id));
       if (linkedExpenses.length > 0) {
         throw new Error(
           "Cannot delete type: It has associated expenses. Only deactivation is allowed to preserve historical data."

@@ -7,6 +7,7 @@ import { db } from "@/drizzle/db";
 import {
   accompanyingExpenseTypesTable,
   chartOfAccountsTable,
+  expenseItemsTable,
   expensesTable,
 } from "@/drizzle/schema";
 import {
@@ -278,7 +279,7 @@ export const softDeleteExpenseCategory = async (id: string) => {
       const linkedExpenses = await tx
         .select({ id: expensesTable.id })
         .from(expensesTable)
-        .where(eq(expensesTable.expenseCategoryId, id));
+        .where(eq(expenseItemsTable.expenseCategoryId, id));
 
       if (linkedExpenses.length > 0) {
         throw new Error(

@@ -1893,16 +1893,8 @@ export const expensesTable = pgTable(
     id: uuid("id")
       .primaryKey()
       .default(sql`gen_random_uuid()`),
-    title: text("title").notNull(),
-    description: text("description").default(""),
     amount: numeric("amount").notNull(),
     expenseDate: timestamp("expense_date").notNull(),
-    expenseCategoryId: uuid("expense_category_id").references(
-      () => expenseCategoriesTable.id,
-      {
-        onDelete: "cascade",
-      }
-    ),
     payingAccountId: uuid("paying_account_id").references(
       () => accountsTable.id,
       {
@@ -1910,7 +1902,6 @@ export const expensesTable = pgTable(
       }
     ),
     referenceNumber: text("reference_number").notNull().unique(),
-    payee: text("payee").notNull(),
     notes: text("notes"),
     attachments: jsonb("attachments")
       .$type<
@@ -1923,24 +1914,61 @@ export const expensesTable = pgTable(
         }>
       >()
       .default([]),
-    purchaseId: uuid("purchase_id").references(() => purchasesTable.id, {
-      onDelete: "set null",
-    }),
-    isAccompanyingExpense: boolean("is_accompanying_expense")
-      .notNull()
-      .default(false),
-    accompanyingExpenseTypeId: uuid("accompanying_expense_type_id").references(
-      () => accompanyingExpenseTypesTable.id,
-      {
-        onDelete: "set null",
-      }
-    ),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => ({
     expensesActiveIndex: index("expenses_active_idx").on(table.isActive),
+    expensesPayingAccountIdIndex: index("expenses_paying_account_id_idx").on(
+      table.payingAccountId
+    ),
+    expensesExpenseDateIndex: index("expenses_expense_date_idx").on(
+      table.expenseDate
+    ),
+  })
+);
+
+export const expenseItemsTable = pgTable(
+  "expense_items",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    expenseId: uuid("expense_id")
+      .notNull()
+      .references(() => expensesTable.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    itemAmount: numeric("item_amount").notNull(),
+    expenseCategoryId: uuid("expense_category_id")
+      .notNull()
+      .references(() => expenseCategoriesTable.id, { onDelete: "set null" }),
+    payee: text("payee").notNull(),
+    notes: text("notes"),
+    isAccompanyingExpense: boolean("is_accompanying_expense")
+      .notNull()
+      .default(false),
+    purchaseId: uuid("purchase_id").references(() => purchasesTable.id, {
+      onDelete: "set null",
+    }),
+    accompanyingExpenseTypeId: uuid("accompanying_expense_type_id").references(
+      () => accompanyingExpenseTypesTable.id,
+      { onDelete: "set null" }
+    ),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    expenseItemsExpenseIdIndex: index("expense_items_expense_id_idx").on(
+      table.expenseId
+    ),
+    expenseItemsCategoryIdIndex: index("expense_items_category_id_idx").on(
+      table.expenseCategoryId
+    ),
+    expenseItemsPurchaseIdIndex: index("expense_items_purchase_id_idx").on(
+      table.purchaseId
+    ),
   })
 );
 
@@ -2178,5 +2206,43 @@ export const billPaymentAccompanyingExpensesTable = pgTable(
     billPaymentAccompanyingExpensesAccompanyingExpenseTypeIdIndex: index(
       "bill_payment_accompanying_expenses_accompanying_expense_type_id_idx"
     ).on(table.accompanyingExpenseTypeId),
+  })
+);
+
+// Audit Logs
+export const auditLogsTable = pgTable(
+  "audit_logs",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: uuid("user_id").references(() => usersTable.id, {
+      onDelete: "set null",
+    }),
+    userName: text("user_name"),
+    actionType: text("action_type").notNull(),
+    tableName: text("table_name").notNull(),
+    recordId: uuid("record_id").notNull(),
+    oldData: jsonb("old_data"),
+    newData: jsonb("new_data"),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    auditLogsUserIdIndex: index("audit_logs_user_id_idx").on(table.userId),
+    auditLogsTableNameIndex: index("audit_logs_table_name_idx").on(
+      table.tableName
+    ),
+    auditLogsRecordIdIndex: index("audit_logs_record_id_idx").on(
+      table.recordId
+    ),
+    auditLogsActionTypeIndex: index("audit_logs_action_type_idx").on(
+      table.actionType
+    ),
+    auditLogsCreatedAtIndex: index("audit_logs_created_at_idx").on(
+      table.createdAt
+    ),
   })
 );

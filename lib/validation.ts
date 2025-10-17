@@ -1502,30 +1502,23 @@ export type AccompanyingExpenseTypeFilters = z.infer<
 >;
 
 // Expenses
-export const ExpenseFormValidation = z
+export const ExpenseItemValidation = z
   .object({
+    id: z.string().optional(), // Optional for existing items (used for update/delete)
     title: z
       .string()
       .nonempty("Title is required")
-      .min(2, "Name must be at least 2 characters"),
-    description: z.string().optional().nullable(),
-    amount: z.number().min(0.01, "Amount must be greater than 0"),
-    expenseDate: z.date().refine((date) => date <= new Date(), {
-      message: "Expense date cannot be in the future",
-    }),
+      .min(2, "Item title must be at least 2 characters"),
+    itemAmount: z.number().min(0.01, "Amount must be greater than 0"),
     expenseCategoryId: z.string().nonempty("Expense Category is required"),
-    payingAccountId: z.string().nonempty("Paying Account is required"),
-    currentPayingAccountBalance: z.number().optional(),
-    referenceNumber: z.string().nonempty("Reference number is required"),
-    payee: z.string().nonempty("Payee is required"),
+    payee: z.string().nonempty("Payee is required for this item"),
     notes: z.string().optional().nullable(),
-    attachments: z.any().optional(),
-    // Fields for accompanying expenses
     isAccompanyingExpense: z.boolean().default(false),
     purchaseId: z.string().optional().nullable(),
     accompanyingExpenseTypeId: z.string().optional().nullable(),
   })
   .superRefine((data, ctx) => {
+    // Conditional validation for accompanying expense fields (per line item)
     if (data.isAccompanyingExpense) {
       if (!data.purchaseId) {
         ctx.addIssue({
@@ -1542,6 +1535,36 @@ export const ExpenseFormValidation = z
         });
       }
     }
+  });
+
+export type ExpenseItemFormValues = z.infer<typeof ExpenseItemValidation>;
+
+// --- Expense Form Validation ---
+export const ExpenseFormValidation = z
+  .object({
+    amount: z.number().min(0, "Total amount cannot be negative"),
+    expenseDate: z.date().refine((date) => date <= new Date(), {
+      message: "Expense date cannot be in the future",
+    }),
+    payingAccountId: z
+      .string()
+      .nonempty("Paying Account (Source of Funds) is required"),
+    currentPayingAccountBalance: z
+      .number()
+      .min(0, "Balance cannot be negative")
+      .optional(),
+    referenceNumber: z.string().nonempty("Reference number is required"),
+    notes: z.string().optional().nullable(),
+    attachments: z.any().optional(),
+
+    items: z
+      .array(ExpenseItemValidation)
+      .min(1, "At least one expense line item is required"),
+
+    originalAmount: z.number().optional(), // Original expense amount in edit mode
+    isEditMode: z.boolean().default(false),
+  })
+  .superRefine((data, ctx) => {
     if (data.payingAccountId) {
       if (!data.currentPayingAccountBalance) {
         ctx.addIssue({
@@ -1551,18 +1574,31 @@ export const ExpenseFormValidation = z
         });
       }
 
-      if (data.currentPayingAccountBalance) {
-        if (data.currentPayingAccountBalance < data.amount) {
+      if (data.currentPayingAccountBalance !== undefined) {
+        // Calculate the available balance
+        // In edit mode: current balance already has the original expense deducted
+        // So we add it back to get the actual available balance
+        const availableBalance =
+          data.isEditMode && data.originalAmount
+            ? data.currentPayingAccountBalance + data.originalAmount
+            : data.currentPayingAccountBalance;
+
+        if (availableBalance < data.amount) {
+          const deficit = data.amount - availableBalance;
+
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message:
-              "Current Paying Account Balance must be greater than or equal to the amount",
+            message: `Insufficient funds. Available balance: ${availableBalance.toFixed(
+              2
+            )}, Short by: ${deficit.toFixed(2)}`,
             path: ["currentPayingAccountBalance"],
           });
+
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message:
-              "Amount must be less than or equal to the current Paying Account Balance",
+            message: `Amount exceeds available balance by ${deficit.toFixed(
+              2
+            )}`,
             path: ["amount"],
           });
         }

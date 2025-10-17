@@ -4,6 +4,7 @@ import {
   accountsTable,
   chartOfAccountsTable,
   expenseCategoriesTable,
+  expenseItemsTable,
   expensesTable,
   incomeCategoriesTable,
   inventoryTransactionsTable,
@@ -774,10 +775,17 @@ export interface AccompanyingExpenseTypeWithRelations {
 // Expenses
 export type Expense = typeof expensesTable.$inferSelect;
 
+export type ExpenseItem = typeof expenseItemsTable.$inferSelect;
+
 export interface ExpenseWithRelations {
   expense: Expense;
-  category: ExpenseCategory;
   payingAccount: Account;
+  items: ExpenseItemWithRelations[];
+}
+
+export interface ExpenseItemWithRelations {
+  expenseItem: ExpenseItem;
+  category: ExpenseCategory;
   purchase: Purchase;
   accompanyingExpenseType: AccompanyingExpenseType;
 }
