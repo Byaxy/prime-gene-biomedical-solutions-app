@@ -62,11 +62,11 @@ const CustomerForm = ({ mode, initialData, onCancel }: CustomerFormProps) => {
           email: initialData.email || "",
           phone: initialData.phone || "",
           address: {
-            addressName: initialData.address.addressName || "",
-            address: initialData.address.address || "",
-            city: initialData.address.city || "",
-            state: initialData.address.state || "",
-            country: initialData.address.country || "",
+            addressName: initialData.address?.addressName || "",
+            address: initialData.address?.address || "",
+            city: initialData.address?.city || "",
+            state: initialData.address?.state || "",
+            country: initialData.address?.country || "",
           },
         }
       : defaultValues,

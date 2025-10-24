@@ -113,6 +113,7 @@ export default async function SaleFormWrapper({
           isDeliveryNoteCreated:
             initialData?.sale.isDeliveryNoteCreated || false,
           notes: initialData?.sale.notes || "",
+          quotationId: initialData?.sale.quotationId || null,
           isActive: initialData?.sale.isActive || true,
           createdAt: new Date(),
           updatedAt: new Date(),

@@ -2,11 +2,7 @@
 "use server";
 
 import { and, desc, eq, gte, ilike, lte, or, sql } from "drizzle-orm";
-import {
-  IncomeFilters,
-  IncomeFormValidation,
-  IncomeFormValues,
-} from "../validation";
+import { IncomeFilters, IncomeFormValues } from "../validation";
 import {
   accountsTable,
   chartOfAccountsTable,
@@ -36,10 +32,10 @@ const buildIncomeFilterConditions = (filters: IncomeFilters) => {
       or(
         ilike(paymentsReceivedTable.paymentRefNumber, searchTerm),
         ilike(paymentsReceivedTable.notes, searchTerm),
-        ilike(customersTable.name, searchTerm), // Needs join
-        ilike(salesTable.invoiceNumber, searchTerm), // Needs join
-        ilike(incomeCategoriesTable.name, searchTerm), // Needs join
-        ilike(accountsTable.name, searchTerm) // Needs join
+        ilike(customersTable.name, searchTerm),
+        ilike(salesTable.invoiceNumber, searchTerm),
+        ilike(incomeCategoriesTable.name, searchTerm),
+        ilike(accountsTable.name, searchTerm)
       )
     );
   }
@@ -104,14 +100,6 @@ export const recordIncome = async (
   values: IncomeFormValues,
   userId: string
 ) => {
-  const parsedValues = IncomeFormValidation.safeParse(values);
-  if (!parsedValues.success) {
-    throw new Error(
-      "Invalid Income data: " +
-        parsedValues.error.errors.map((e) => e.message).join(", ")
-    );
-  }
-
   try {
     const result = await db.transaction(async (tx) => {
       // 1. Validate existence and status of foreign key entities
@@ -125,7 +113,7 @@ export const recordIncome = async (
         .from(accountsTable)
         .where(
           and(
-            eq(accountsTable.id, parsedValues.data.receivingAccountId),
+            eq(accountsTable.id, values.receivingAccountId),
             eq(accountsTable.isActive, true)
           )
         );
@@ -145,8 +133,8 @@ export const recordIncome = async (
       let salesInvoiceNumber: string | undefined;
 
       // Logic for sales payments
-      if (parsedValues.data.saleId) {
-        if (!parsedValues.data.customerId) {
+      if (values.saleId) {
+        if (!values.customerId) {
           // Zod should catch this, but defensive check
           throw new Error("Customer ID is required for sales-related income.");
         }
@@ -161,15 +149,12 @@ export const recordIncome = async (
           })
           .from(salesTable)
           .where(
-            and(
-              eq(salesTable.id, parsedValues.data.saleId),
-              eq(salesTable.isActive, true)
-            )
+            and(eq(salesTable.id, values.saleId), eq(salesTable.isActive, true))
           );
         if (!sale) {
           throw new Error("Linked Sale not found or is inactive.");
         }
-        if (sale.customerId !== parsedValues.data.customerId) {
+        if (sale.customerId !== values.customerId) {
           throw new Error(
             "The selected customer does not match the customer on the linked sale."
           );
@@ -178,7 +163,7 @@ export const recordIncome = async (
         const [customer] = await tx
           .select({ name: customersTable.name })
           .from(customersTable)
-          .where(eq(customersTable.id, parsedValues.data.customerId));
+          .where(eq(customersTable.id, values.customerId));
         if (customer) {
           customerName = customer.name;
         }
@@ -187,10 +172,10 @@ export const recordIncome = async (
         salesAmountDue =
           parseFloat(sale.totalAmount as any) -
           parseFloat(sale.amountPaid as any);
-        if (parsedValues.data.amountReceived > salesAmountDue + 0.001) {
+        if (values.amountReceived > salesAmountDue + 0.001) {
           // Add a small epsilon for floating point comparison
           throw new Error(
-            `Amount received (${parsedValues.data.amountReceived}) exceeds the amount due for the sale (${salesAmountDue}).`
+            `Amount received (${values.amountReceived}) exceeds the amount due for the sale (${salesAmountDue}).`
           );
         }
 
@@ -210,7 +195,7 @@ export const recordIncome = async (
           );
         }
         incomeCategoryCoAId = accountsReceivableCoA.id;
-      } else if (parsedValues.data.incomeCategoryId) {
+      } else if (values.incomeCategoryId) {
         // Logic for other income
         const [incomeCategory] = await tx
           .select({
@@ -220,7 +205,7 @@ export const recordIncome = async (
           .from(incomeCategoriesTable)
           .where(
             and(
-              eq(incomeCategoriesTable.id, parsedValues.data.incomeCategoryId),
+              eq(incomeCategoriesTable.id, values.incomeCategoryId),
               eq(incomeCategoriesTable.isActive, true)
             )
           );
@@ -244,10 +229,7 @@ export const recordIncome = async (
         .select({ id: paymentsReceivedTable.id })
         .from(paymentsReceivedTable)
         .where(
-          eq(
-            paymentsReceivedTable.paymentRefNumber,
-            parsedValues.data.paymentRefNumber
-          )
+          eq(paymentsReceivedTable.paymentRefNumber, values.paymentRefNumber)
         );
       if (existingPaymentWithRef.length > 0) {
         throw new Error("Payment reference number already exists.");
@@ -257,36 +239,35 @@ export const recordIncome = async (
       const [newPayment] = await tx
         .insert(paymentsReceivedTable)
         .values({
-          ...parsedValues.data,
-          incomeCategoryId: parsedValues.data.incomeCategoryId || null,
-          customerId: parsedValues.data.customerId || null,
-          saleId: parsedValues.data.saleId || null,
-          notes: parsedValues.data.notes || null,
-          paymentMethod: parsedValues.data.paymentMethod as PaymentMethod,
+          ...values,
+          incomeCategoryId: values.incomeCategoryId || null,
+          customerId: values.customerId || null,
+          saleId: values.saleId || null,
+          notes: values.notes || null,
+          paymentMethod: values.paymentMethod as PaymentMethod,
         })
         .returning();
 
       // 3. Update the Receiving Account balance
       const updatedBalance =
         parseFloat(receivingAccount.currentBalance as any) +
-        parsedValues.data.amountReceived;
+        values.amountReceived;
       await tx
         .update(accountsTable)
         .set({ currentBalance: updatedBalance, updatedAt: new Date() })
         .where(eq(accountsTable.id, receivingAccount.id));
 
       // 4. Update Sale's amountPaid and paymentStatus if linked to a sale
-      if (parsedValues.data.saleId) {
+      if (values.saleId) {
         const sale = await tx
           .select()
           .from(salesTable)
-          .where(eq(salesTable.id, parsedValues.data.saleId))
+          .where(eq(salesTable.id, values.saleId))
           .then((res) => res[0]);
 
         if (sale) {
           const newAmountPaid =
-            parseFloat(sale.amountPaid as any) +
-            parsedValues.data.amountReceived;
+            parseFloat(sale.amountPaid as any) + values.amountReceived;
           let newPaymentStatus: PaymentStatus = PaymentStatus.Pending;
 
           if (newAmountPaid >= parseFloat(sale.totalAmount as any) - 0.001) {
@@ -303,7 +284,7 @@ export const recordIncome = async (
               paymentStatus: newPaymentStatus,
               updatedAt: new Date(),
             })
-            .where(eq(salesTable.id, parsedValues.data.saleId))
+            .where(eq(salesTable.id, values.saleId))
             .returning();
         }
       }
@@ -315,21 +296,21 @@ export const recordIncome = async (
         referenceType: JournalEntryReferenceType.PAYMENT_RECEIVED,
         referenceId: newPayment.id,
         userId,
-        description: parsedValues.data.saleId
+        description: values.saleId
           ? `Payment for Sale ${salesInvoiceNumber}`
           : `Income received: ${newPayment.paymentRefNumber}`,
         lines: [
           {
             chartOfAccountId: receivingAccount.chartOfAccountsId!, // Debit cash/bank account
-            debit: parsedValues.data.amountReceived,
+            debit: values.amountReceived,
             credit: 0,
             memo: `Funds received into ${receivingAccount.name}`,
           },
           {
             chartOfAccountId: incomeCategoryCoAId!, // Credit Accounts Receivable (for sales) or Revenue Account (for other income)
             debit: 0,
-            credit: parsedValues.data.amountReceived,
-            memo: parsedValues.data.saleId
+            credit: values.amountReceived,
+            memo: values.saleId
               ? `Payment from ${customerName} for Sale ${salesInvoiceNumber}`
               : `Credit to income category`,
           },
@@ -338,14 +319,13 @@ export const recordIncome = async (
 
       return {
         payment: newPayment,
-        updatedSale: updatedSale, // Include updated sale if relevant
+        updatedSale: updatedSale,
       };
     });
 
-    revalidatePath("/income");
-    revalidatePath("/accounting-and-finance/income-tracker");
-    if (parsedValues.data.saleId) {
-      revalidatePath(`/sales/${parsedValues.data.saleId}`); // Revalidate sales page if a sale was updated
+    revalidatePath("/accounting-and-finance/income");
+    if (values.saleId) {
+      revalidatePath(`/sales`);
     }
     return parseStringify(result);
   } catch (error: any) {
@@ -500,17 +480,9 @@ export const getIncomeById = async (id: string) => {
 // Update an Income record
 export const updateIncome = async (
   id: string,
-  values: Partial<IncomeFormValues>,
+  values: IncomeFormValues,
   userId: string
 ) => {
-  const parsedValues = IncomeFormValidation.safeParse(values);
-  if (!parsedValues.success) {
-    throw new Error(
-      "Invalid Income data: " +
-        parsedValues.error.errors.map((e) => e.message).join(", ")
-    );
-  }
-
   try {
     const result = await db.transaction(async (tx) => {
       const currentIncome = await tx
@@ -555,9 +527,8 @@ export const updateIncome = async (
         currentReceivingAccount.chartOfAccountsId ?? undefined;
 
       if (
-        parsedValues.data.receivingAccountId &&
-        parsedValues.data.receivingAccountId !==
-          currentIncome.receivingAccountId
+        values.receivingAccountId &&
+        values.receivingAccountId !== currentIncome.receivingAccountId
       ) {
         const [newReceivingAccount] = await tx
           .select({
@@ -568,7 +539,7 @@ export const updateIncome = async (
           .from(accountsTable)
           .where(
             and(
-              eq(accountsTable.id, parsedValues.data.receivingAccountId),
+              eq(accountsTable.id, values.receivingAccountId),
               eq(accountsTable.isActive, true)
             )
           );
@@ -584,16 +555,14 @@ export const updateIncome = async (
 
       // Validate income/sale linking consistency if changed
       const newSaleId =
-        parsedValues.data.saleId !== undefined
-          ? parsedValues.data.saleId
-          : currentIncome.saleId;
+        values.saleId !== undefined ? values.saleId : currentIncome.saleId;
       const newIncomeCategoryId =
-        parsedValues.data.incomeCategoryId !== undefined
-          ? parsedValues.data.incomeCategoryId
+        values.incomeCategoryId !== undefined
+          ? values.incomeCategoryId
           : currentIncome.incomeCategoryId;
       const newCustomerId =
-        parsedValues.data.customerId !== undefined
-          ? parsedValues.data.customerId
+        values.customerId !== undefined
+          ? values.customerId
           : currentIncome.customerId;
 
       let oldIncomeAccountCoAId: string | null = null;
@@ -656,8 +625,8 @@ export const updateIncome = async (
           parseFloat(sale.amountPaid as any) +
           parseFloat(currentIncome.amountReceived as any); // Add back old amount for recalculation
         const effectiveNewAmount =
-          parsedValues.data.amountReceived !== undefined
-            ? parsedValues.data.amountReceived
+          values.amountReceived !== undefined
+            ? values.amountReceived
             : currentIncome.amountReceived;
         if (effectiveNewAmount > newSaleAmountDue + 0.001) {
           throw new Error(
@@ -705,8 +674,8 @@ export const updateIncome = async (
 
       // Check for unique payment reference number if updated
       if (
-        parsedValues.data.paymentRefNumber &&
-        parsedValues.data.paymentRefNumber !== currentIncome.paymentRefNumber
+        values.paymentRefNumber &&
+        values.paymentRefNumber !== currentIncome.paymentRefNumber
       ) {
         const existingRef = await tx
           .select({ id: paymentsReceivedTable.id })
@@ -715,7 +684,7 @@ export const updateIncome = async (
             and(
               eq(
                 paymentsReceivedTable.paymentRefNumber,
-                parsedValues.data.paymentRefNumber
+                values.paymentRefNumber
               ),
               sql`${paymentsReceivedTable.id} != ${id}`
             )
@@ -730,9 +699,7 @@ export const updateIncome = async (
       // Adjust old account balances and update sale if applicable
       const oldAmount = parseFloat(currentIncome.amountReceived as any);
       const newAmount =
-        parsedValues.data.amountReceived !== undefined
-          ? parsedValues.data.amountReceived
-          : oldAmount;
+        values.amountReceived !== undefined ? values.amountReceived : oldAmount;
 
       // Restore old receiving account balance
       await tx
@@ -786,8 +753,7 @@ export const updateIncome = async (
         .where(
           eq(
             accountsTable.id,
-            parsedValues.data.receivingAccountId ||
-              currentIncome.receivingAccountId
+            values.receivingAccountId || currentIncome.receivingAccountId
           )
         )
         .then((res) => res[0]);
@@ -809,15 +775,13 @@ export const updateIncome = async (
       const [updatedIncome] = await tx
         .update(paymentsReceivedTable)
         .set({
-          ...parsedValues.data,
+          ...values,
           notes:
-            parsedValues.data.notes === null
-              ? null
-              : parsedValues.data.notes || currentIncome.notes,
+            values.notes === null ? null : values.notes || currentIncome.notes,
           customerId: newCustomerId,
           saleId: newSaleId,
           incomeCategoryId: newIncomeCategoryId,
-          paymentMethod: parsedValues.data.paymentMethod as PaymentMethod,
+          paymentMethod: values.paymentMethod as PaymentMethod,
           updatedAt: new Date(),
         })
         .where(eq(paymentsReceivedTable.id, id))
@@ -859,13 +823,17 @@ export const updateIncome = async (
       }
 
       // Create an adjustment journal entry
+      const descriptionForJournal = newSaleId
+        ? `Adjustment for Payment for Sale ${newSaleId}`
+        : `Adjustment for Income: ${updatedIncome.paymentRefNumber}`;
+
       await createJournalEntry({
         tx,
         entryDate: new Date(), // Use current date for adjustment entry
         referenceType: JournalEntryReferenceType.ADJUSTMENT,
         referenceId: updatedIncome.id,
         userId,
-        description: `Adjustment for income: ${updatedIncome.paymentRefNumber} (ID: ${updatedIncome.id})`,
+        description: descriptionForJournal,
         lines: [
           // Reversal of original income entry
           {
@@ -891,7 +859,7 @@ export const updateIncome = async (
             chartOfAccountId: newIncomeAccountCoAIdFromCategory!, // Credit new revenue/AR account
             debit: 0,
             credit: newAmount,
-            memo: `New: adjust ${newIncomeAccountCoAIdFromCategory} for income ${updatedIncome.paymentRefNumber}`,
+            memo: `New: adjust for income ${updatedIncome.paymentRefNumber}`,
           },
         ],
       });
@@ -899,19 +867,11 @@ export const updateIncome = async (
       return { payment: updatedIncome, updatedSale: updatedSale };
     });
 
-    revalidatePath("/income");
-    revalidatePath("/accounting-and-finance/income-tracker");
-    revalidatePath(`/accounting-and-finance/income-tracker/${id}`);
-    if (parsedValues.data.saleId) {
-      revalidatePath(`/sales/${parsedValues.data.saleId}`);
+    revalidatePath("/accounting-and-finance/income");
+    if (values.saleId) {
+      revalidatePath(`/sales`);
     }
-    if (
-      result.updatedSale &&
-      result.updatedSale.id !== parsedValues.data.saleId
-    ) {
-      // Revalidate original sale page if it was unlinked/changed
-      revalidatePath(`/sales/${result.updatedSale.id}`);
-    }
+
     return parseStringify(result);
   } catch (error: any) {
     console.error("Error updating income record:", error);
@@ -1039,7 +999,7 @@ export const softDeleteIncome = async (id: string, userId: string) => {
         referenceType: JournalEntryReferenceType.ADJUSTMENT, // A reversal is a type of adjustment
         referenceId: updatedIncome.id,
         userId,
-        description: `Reversal of income: ${updatedIncome.paymentRefNumber} (ID: ${updatedIncome.id})`,
+        description: `Reversal of income: ${updatedIncome.paymentRefNumber}`,
         lines: [
           {
             chartOfAccountId: oldIncomeAccountCoAId!, // Debit original revenue/AR account (reverse income)
@@ -1059,11 +1019,10 @@ export const softDeleteIncome = async (id: string, userId: string) => {
       return updatedIncome;
     });
 
-    revalidatePath("/income");
-    revalidatePath("/accounting-and-finance/income-tracker");
+    revalidatePath("/accounting-and-finance/income");
     if (result.saleId) {
       // If the original income was linked to a sale
-      revalidatePath(`/sales/${result.saleId}`);
+      revalidatePath(`/sales`);
     }
     return parseStringify(result);
   } catch (error: any) {
@@ -1076,3 +1035,40 @@ export const softDeleteIncome = async (id: string, userId: string) => {
 function throwError(message: string): never {
   throw new Error(message);
 }
+
+// Generate reference number
+export const generatePaymentReferenceNumber = async (): Promise<string> => {
+  try {
+    const result = await db.transaction(async (tx) => {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+
+      const lastPaymnet = await tx
+        .select({ paymentRefNumber: paymentsReceivedTable.paymentRefNumber })
+        .from(paymentsReceivedTable)
+        .where(sql`payment_ref_number LIKE ${`PRN.${year}/${month}/%`}`)
+        .orderBy(desc(paymentsReceivedTable.createdAt))
+        .limit(1);
+
+      let nextSequence = 1;
+      if (lastPaymnet.length > 0) {
+        const lastReferenceNumber = lastPaymnet[0].paymentRefNumber;
+        const lastSequence = parseInt(
+          lastReferenceNumber.split("/").pop() || "0",
+          10
+        );
+        nextSequence = lastSequence + 1;
+      }
+
+      const sequenceNumber = String(nextSequence).padStart(4, "0");
+
+      return `PRN.${year}/${month}/${sequenceNumber}`;
+    });
+
+    return result;
+  } catch (error) {
+    console.error("Error generating payment reference number:", error);
+    throw error;
+  }
+};

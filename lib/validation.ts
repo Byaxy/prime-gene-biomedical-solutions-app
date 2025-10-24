@@ -1627,7 +1627,11 @@ export const IncomeFormValidation = z
       .enum(Object.values(PaymentMethod) as [string, ...string[]])
       .default(PaymentMethod.Cash),
     notes: z.string().optional().nullable(),
-    attachments: z.any().optional(), // File uploads
+    attachments: z.any().optional(),
+    currentReceivingAccountBalance: z
+      .number()
+      .min(0, "Balance cannot be negative")
+      .optional(),
   })
   .superRefine((data, ctx) => {
     // If a saleId is provided, customerId must also be present
@@ -1664,8 +1668,8 @@ export const IncomeFiltersSchema = z.object({
   paymentMethod: z
     .enum(Object.values(PaymentMethod) as [string, ...string[]])
     .optional(),
-  paymentDate_start: z.string().optional(), // ISO string date
-  paymentDate_end: z.string().optional(), // ISO string date
+  paymentDate_start: z.string().optional(),
+  paymentDate_end: z.string().optional(),
   amount_min: z.number().optional(),
   amount_max: z.number().optional(),
 });
@@ -1804,12 +1808,12 @@ export type BillPaymentFormValues = z.infer<typeof BillPaymentFormValidation>;
 
 // --- Filters for Bill Tracker ---
 export const BillTrackerFiltersSchema = z.object({
-  search: z.string().optional(), // For vendor name, purchase number, invoice number
+  search: z.string().optional(),
   vendorId: z.string().optional(),
   type: z
     .enum(["all", "purchase_orders", "open_bills", "due_bills", "paid_bill"])
     .default("all"),
-  status: z.enum(["all", "open", "overdue", "paid"]).default("all"), // Refers to paymentStatus on purchases
+  status: z.enum(["all", "open", "overdue", "paid"]).default("all"),
   dateRange: z
     .enum([
       "all",
@@ -1824,7 +1828,7 @@ export const BillTrackerFiltersSchema = z.object({
       "next_one_quarter",
     ])
     .default("all"),
-  specificDate_start: z.string().optional(), // ISO string date
-  specificDate_end: z.string().optional(), // ISO string date
+  specificDate_start: z.string().optional(),
+  specificDate_end: z.string().optional(),
 });
 export type BillTrackerFilters = z.infer<typeof BillTrackerFiltersSchema>;

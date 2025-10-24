@@ -240,11 +240,11 @@ const DeliveryNote = ({ delivery }: { delivery: DeliveryWithRelations }) => {
           <Address
             addressTitle="Billing Address:"
             name={customer.name}
-            address={customer.address.address}
+            address={customer.address?.address ?? ""}
             phone={customer.phone}
-            email={customer.email}
-            city={customer.address.city}
-            country={customer.address.country}
+            email={customer.email ?? ""}
+            city={customer.address?.city ?? ""}
+            country={customer.address?.country ?? ""}
           />
 
           <Address

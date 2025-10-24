@@ -2,12 +2,22 @@
 import {
   accompanyingExpenseTypesTable,
   accountsTable,
+  billPaymentAccompanyingExpensesTable,
+  billPaymentAccountsTable,
+  billPaymentItemsTable,
+  billPaymentsTable,
   chartOfAccountsTable,
+  customersTable,
   expenseCategoriesTable,
   expenseItemsTable,
   expensesTable,
   incomeCategoriesTable,
   inventoryTransactionsTable,
+  paymentsReceivedTable,
+  purchasesTable,
+  salesTable,
+  usersTable,
+  vendorsTable,
 } from "@/drizzle/schema";
 
 export type SearchParamProps = {
@@ -110,22 +120,7 @@ export interface Vendor {
 }
 
 // Customers
-export interface Customer {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  address: {
-    addressName: string;
-    address: string;
-    city: string;
-    state: string;
-    country: string;
-  };
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}
+export type Customer = typeof customersTable.$inferSelect;
 
 // Products
 export interface Product {
@@ -389,30 +384,7 @@ export interface QuotationWithRelations {
 }
 
 // Sales
-export interface Sale {
-  id: string;
-  invoiceNumber: string;
-  saleDate: Date;
-  customerId: string;
-  storeId: string;
-  subTotal: number;
-  totalAmount: number;
-  totalTaxAmount: number;
-  discountAmount: number;
-  amountPaid: number;
-  status: SaleStatus;
-  paymentStatus: PaymentStatus;
-  paymentMethod: PaymentMethod;
-  notes: string;
-  quotationId?: string;
-  attachments: Attachment[];
-  isDeliveryNoteCreated: boolean;
-  isDeliveryAddressAdded: boolean;
-  deliveryAddress: DeliveryAddress;
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}
+export type Sale = typeof salesTable.$inferSelect;
 export interface SaleItem {
   id: string;
   saleId: string;
@@ -788,6 +760,63 @@ export interface ExpenseItemWithRelations {
   category: ExpenseCategory;
   purchase: Purchase;
   accompanyingExpenseType: AccompanyingExpenseType;
+}
+
+// Income/Payments
+export type PaymentReceived = typeof paymentsReceivedTable.$inferSelect;
+
+export interface IncomeWithRelations {
+  payment: PaymentReceived;
+  customer: Customer | null;
+  sale: Sale | null;
+  incomeCategory: IncomeCategory | null;
+  receivingAccount: Account | null;
+}
+
+// Billing
+export type BillPayment = typeof billPaymentsTable.$inferSelect;
+export type BillPaymentItem = typeof billPaymentItemsTable.$inferSelect;
+export type BillPaymentAccountAllocation =
+  typeof billPaymentAccountsTable.$inferSelect;
+export type BillPaymentAccompanyingExpense =
+  typeof billPaymentAccompanyingExpensesTable.$inferSelect;
+
+// NEW: Type for a Bill Payment Item with its relations (e.g., the Purchase it's paying for)
+export interface BillPaymentItemWithRelations {
+  item: BillPaymentItem;
+  purchase: typeof purchasesTable.$inferSelect | null;
+}
+
+// NEW: Type for a Bill Payment Account Allocation with its relations (e.g., the Account used)
+export interface BillPaymentAccountAllocationWithRelations {
+  allocation: BillPaymentAccountAllocation;
+  account: typeof accountsTable.$inferSelect | null;
+}
+
+// NEW: Type for a Bill Payment Accompanying Expense with its relations (e.g., the type of expense)
+export interface BillPaymentAccompanyingExpenseWithRelations {
+  expense: BillPaymentAccompanyingExpense;
+  accompanyingType: typeof accompanyingExpenseTypesTable.$inferSelect | null;
+}
+
+// NEW: Type for the main Bill Payment with all its nested relations
+export interface BillPaymentWithRelations {
+  billPayment: BillPayment;
+  vendor: typeof vendorsTable.$inferSelect | null;
+  user: typeof usersTable.$inferSelect | null;
+  items: BillPaymentItemWithRelations[];
+  payingAccounts: BillPaymentAccountAllocationWithRelations[];
+  accompanyingExpenses: BillPaymentAccompanyingExpenseWithRelations[];
+}
+
+export interface BillTrackerData {
+  purchase: typeof purchasesTable.$inferSelect;
+  vendor: typeof vendorsTable.$inferSelect | null;
+  totalPaidOnPurchase: number;
+  lastPaymentRef: string | null;
+  openBalance: number;
+  paymentStatus: PaymentStatus;
+  billPaymentId: string | null;
 }
 
 // Enums

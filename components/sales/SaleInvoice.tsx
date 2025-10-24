@@ -274,32 +274,32 @@ const SaleInvoice = ({
           <Address
             addressTitle="Billing Address"
             name={customer.name}
-            address={customer.address.address}
+            address={customer?.address?.address ?? ""}
             phone={customer.phone}
-            email={customer.email}
-            city={customer.address.city}
-            country={customer.address.country}
+            email={customer.email ?? ""}
+            city={customer?.address?.city ?? ""}
+            country={customer?.address?.country ?? ""}
           />
 
           {sal.isDeliveryAddressAdded ? (
             <Address
               addressTitle="Delivery Address"
-              name={sal.deliveryAddress.addressName}
-              address={sal.deliveryAddress.address}
-              phone={sal.deliveryAddress.phone}
-              email={sal.deliveryAddress.email}
-              city={sal.deliveryAddress.city}
-              country={sal.deliveryAddress.country}
+              name={sal?.deliveryAddress?.addressName ?? ""}
+              address={sal?.deliveryAddress?.address ?? ""}
+              phone={sal.deliveryAddress?.phone ?? ""}
+              email={sal.deliveryAddress?.email ?? ""}
+              city={sal.deliveryAddress?.city ?? ""}
+              country={sal.deliveryAddress?.country ?? ""}
             />
           ) : (
             <Address
               addressTitle="Delivery Address"
               name={customer.name}
-              address={customer.address.address || ""}
-              phone={customer.phone || ""}
-              email={customer.email || ""}
-              city={customer.address.city || ""}
-              country={customer.address.country}
+              address={customer?.address?.address ?? ""}
+              phone={customer.phone ?? ""}
+              email={customer.email ?? ""}
+              city={customer?.address?.city ?? ""}
+              country={customer?.address?.country ?? ""}
             />
           )}
         </View>

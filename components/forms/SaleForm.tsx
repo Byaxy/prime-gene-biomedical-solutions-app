@@ -644,10 +644,9 @@ const SaleForm = ({
           );
         }
         if (mode === "edit" && initialData) {
-          const prevIds =
-            initialData?.sale.attachments.map(
-              (attachment: Attachment) => attachment.id
-            ) || [];
+          const prevIds = (initialData?.sale?.attachments ?? []).map(
+            (attachment: Attachment) => attachment.id
+          );
           await editSale(
             {
               id: initialData?.sale.id,

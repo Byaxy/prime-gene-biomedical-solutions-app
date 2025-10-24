@@ -375,7 +375,7 @@ const WaybillForm = ({
 
       const deliveryAddress =
         selectedSale.sale.isDeliveryAddressAdded &&
-        selectedSale.sale.deliveryAddress.address !== ""
+        selectedSale.sale.deliveryAddress?.address !== ""
           ? selectedSale.sale.deliveryAddress
           : {
               addressName: selectedSale.customer.name,
@@ -1094,11 +1094,11 @@ const WaybillForm = ({
         );
         if (customer) {
           form.setValue("deliveryAddress", {
-            addressName: customer.address.addressName || "",
-            address: customer.address.address || "",
-            city: customer.address.city || "",
-            state: customer.address.state || "",
-            country: customer.address.country || "",
+            addressName: customer.address?.addressName || "",
+            address: customer.address?.address || "",
+            city: customer.address?.city || "",
+            state: customer.address?.state || "",
+            country: customer.address?.country || "",
             email: customer.email || "",
             phone: customer.phone || "",
           });
@@ -1140,7 +1140,6 @@ const WaybillForm = ({
 
   const isAnyMutationLoading =
     isAddingWaybill || isEditingWaybill || isAddingCustomer || isAddingStore;
-
 
   return (
     <>

@@ -186,7 +186,7 @@ const DeliveryForm = ({
 
       const deliveryAddress =
         selectedSale.sale.isDeliveryAddressAdded &&
-        selectedSale.sale.deliveryAddress.address !== ""
+        selectedSale.sale?.deliveryAddress?.address !== ""
           ? selectedSale.sale.deliveryAddress
           : {
               addressName: selectedSale.customer.address?.addressName || "",
@@ -336,8 +336,8 @@ const DeliveryForm = ({
 
         const deliveryAddress =
           sale.isDeliveryAddressAdded &&
-          sale.deliveryAddress.address !== "" &&
-          sale.deliveryAddress.addressName !== ""
+          sale.deliveryAddress?.address !== "" &&
+          sale.deliveryAddress?.addressName !== ""
             ? sale.deliveryAddress
             : {
                 addressName: customer.name,

@@ -13,7 +13,6 @@ import {
   billPaymentsTable,
   chartOfAccountsTable,
   expenseCategoriesTable,
-  purchaseOrdersTable,
   purchasesTable,
   usersTable,
   vendorsTable,
@@ -30,7 +29,6 @@ import { createJournalEntry } from "./accounting.actions";
 const buildBillTrackerFilterConditions = (filters: BillTrackerFilters) => {
   const conditions = [];
 
-  // Filter for active purchases by default (assuming tracker focuses on active liabilities/payments)
   conditions.push(eq(purchasesTable.isActive, true));
 
   if (filters.search?.trim()) {
@@ -48,11 +46,9 @@ const buildBillTrackerFilterConditions = (filters: BillTrackerFilters) => {
     conditions.push(eq(purchasesTable.vendorId, filters.vendorId));
   }
 
-  // Handle 'type' filter for the main query
   if (filters.type && filters.type !== "all") {
     if (filters.type === "purchase_orders") {
-      conditions.push(eq(purchasesTable.purchaseOrderId, sql`true`)); // This implies a linked PO
-      // A more robust check might involve joining purchaseOrdersTable and checking its status
+      conditions.push(sql`${purchasesTable.purchaseOrderId} IS NOT NULL`);
     } else if (filters.type === "open_bills") {
       conditions.push(
         or(
@@ -67,14 +63,12 @@ const buildBillTrackerFilterConditions = (filters: BillTrackerFilters) => {
     }
   }
 
-  // Handle 'status' filter directly on purchasesTable.paymentStatus
   if (filters.status && filters.status !== "all") {
     conditions.push(
       eq(purchasesTable.paymentStatus, filters.status as PaymentStatus)
     );
   }
 
-  // Date range filters
   const today = new Date();
   const startOfDay = (date: Date) => new Date(date.setHours(0, 0, 0, 0));
   const endOfDay = (date: Date) => new Date(date.setHours(23, 59, 59, 999));
@@ -132,7 +126,6 @@ const buildBillTrackerFilterConditions = (filters: BillTrackerFilters) => {
         break;
       case "all":
       default:
-        // No date range filter
         break;
     }
 
@@ -177,7 +170,7 @@ export const payBill = async (
     const result = await db.transaction(async (tx) => {
       // 1. Validate existence and status of foreign key entities
       const [vendor] = await tx
-        .select({ id: vendorsTable.id })
+        .select({ id: vendorsTable.id, name: vendorsTable.name })
         .from(vendorsTable)
         .where(
           and(
@@ -194,13 +187,18 @@ export const payBill = async (
         .select({ id: billPaymentsTable.id })
         .from(billPaymentsTable)
         .where(
-          eq(
-            billPaymentsTable.billReferenceNo,
-            parsedValues.data.billReferenceNo
+          and(
+            eq(
+              billPaymentsTable.billReferenceNo,
+              parsedValues.data.billReferenceNo
+            ),
+            eq(billPaymentsTable.isActive, true)
           )
         );
       if (existingPaymentWithRef.length > 0) {
-        throw new Error("Bill payment reference number already exists.");
+        throw new Error(
+          `Bill payment reference number '${parsedValues.data.billReferenceNo}' already exists.`
+        );
       }
 
       // Validate and collect CoA IDs for paying accounts
@@ -222,7 +220,7 @@ export const payBill = async (
             );
           if (!account) {
             throw new Error(
-              `Paying Account '${acc.payingAccountId}' not found or is inactive.`
+              `Paying Account '${acc.accountName}' not found or is inactive.`
             );
           }
           if (
@@ -230,14 +228,18 @@ export const payBill = async (
             acc.amountPaidFromAccount
           ) {
             throw new Error(
-              `Insufficient funds in account '${account.name}'. Available: ${account.currentBalance}, Required: ${acc.amountPaidFromAccount}.`
+              `Insufficient funds in account '${
+                account.name
+              }'. Available: ${parseFloat(
+                account.currentBalance as any
+              ).toFixed(2)}, Required: ${acc.amountPaidFromAccount.toFixed(2)}.`
             );
           }
           return { ...account, amountToDeduct: acc.amountPaidFromAccount };
         })
       );
 
-      // Validate purchases to pay and calculate total AR debit needed
+      // Validate purchases to pay and calculate total purchases amount paid
       let totalPurchasesAmountPaid = 0;
       const accountsPayableCoA =
         (await tx
@@ -270,7 +272,7 @@ export const payBill = async (
             );
           if (!purchase) {
             throw new Error(
-              `Purchase '${item.purchaseId}' not found or is inactive.`
+              `Purchase '${item.purchaseNumber}' not found or is inactive.`
             );
           }
           const outstandingAmount =
@@ -279,7 +281,9 @@ export const payBill = async (
           if (item.amountToPay > outstandingAmount + 0.001) {
             // Epsilon for floating point
             throw new Error(
-              `Amount to pay (${item.amountToPay}) for purchase '${purchase.id}' exceeds outstanding amount (${outstandingAmount}).`
+              `Amount to pay (${item.amountToPay.toFixed(2)}) for purchase '${
+                purchase.id
+              }' exceeds outstanding amount (${outstandingAmount.toFixed(2)}).`
             );
           }
           totalPurchasesAmountPaid += item.amountToPay;
@@ -292,6 +296,7 @@ export const payBill = async (
           const [accompanyingType] = await tx
             .select({
               id: accompanyingExpenseTypesTable.id,
+              name: accompanyingExpenseTypesTable.name,
               defaultExpenseCategoryId:
                 accompanyingExpenseTypesTable.defaultExpenseCategoryId,
             })
@@ -307,7 +312,7 @@ export const payBill = async (
             );
           if (!accompanyingType) {
             throw new Error(
-              `Accompanying Expense Type '${exp.accompanyingExpenseTypeId}' not found or is inactive.`
+              `Accompanying Expense Type '${exp.expenseTypeName}' not found or is inactive.`
             );
           }
           const [expenseCategory] = await tx
@@ -326,12 +331,14 @@ export const payBill = async (
             );
           if (!expenseCategory || !expenseCategory.chartOfAccountsId) {
             throw new Error(
-              `Default Expense Category for Accompanying Expense Type '${accompanyingType.id}' not found or is inactive.`
+              `Default Expense Category for Accompanying Expense Type '${accompanyingType.name}' not found or is inactive or not linked to a CoA.`
             );
           }
+          // Include expenseTypeName for journal entry memo for clarity
           return {
             ...exp,
             chartOfAccountsId: expenseCategory.chartOfAccountsId,
+            expenseTypeName: accompanyingType.name,
           };
         })
       );
@@ -343,10 +350,10 @@ export const payBill = async (
           billReferenceNo: parsedValues.data.billReferenceNo,
           paymentDate: parsedValues.data.paymentDate,
           vendorId: parsedValues.data.vendorId,
-          totalPaymentAmount: parsedValues.data.totalPaymentAmount, // This is the total outflow
-          generalComments: parsedValues.data.generalComments,
+          totalPaymentAmount: parsedValues.data.totalPaymentAmount,
+          generalComments: parsedValues.data.generalComments || null,
           attachments: parsedValues.data.attachments,
-          userId, // Get current user ID
+          userId,
         })
         .returning();
 
@@ -383,8 +390,8 @@ export const payBill = async (
             billPaymentId: newBillPayment.id,
             accompanyingExpenseTypeId: exp.accompanyingExpenseTypeId,
             amount: exp.amount,
-            payee: exp.payee,
-            comments: exp.comments,
+            payee: exp.payee || null,
+            comments: exp.comments || null,
           }));
         await tx
           .insert(billPaymentAccompanyingExpensesTable)
@@ -393,7 +400,7 @@ export const payBill = async (
 
       // 6. Update accountsTable.currentBalance for all involved payingAccountIds
       await Promise.all(
-        payingAccountDetails.map((acc) =>
+        payingAccountDetails.map(async (acc) =>
           tx
             .update(accountsTable)
             .set({
@@ -428,7 +435,7 @@ export const payBill = async (
             } else if (newAmountPaid > 0) {
               newPaymentStatus = PaymentStatus.Partial;
             } else {
-              newPaymentStatus = PaymentStatus.Pending; // If somehow amountPaid becomes 0
+              newPaymentStatus = PaymentStatus.Pending;
             }
 
             const [updatedPurchase] = await tx
@@ -453,13 +460,13 @@ export const payBill = async (
         memo?: string;
       }> = [];
 
-      // Debit 'Accounts Payable' for the amount of purchases being paid
+      // Debit 'Accounts Payable' for the total amount of purchases being paid
       if (totalPurchasesAmountPaid > 0) {
         journalLines.push({
           chartOfAccountId: accountsPayableCoA,
           debit: totalPurchasesAmountPaid,
           credit: 0,
-          memo: `Payment to vendor ${vendor.id} for purchases`,
+          memo: `Payment to vendor ${vendor.name} for purchases`,
         });
       }
 
@@ -476,7 +483,7 @@ export const payBill = async (
       // Credit cash/bank accounts for the amounts paid
       payingAccountDetails.forEach((acc) => {
         journalLines.push({
-          chartOfAccountId: acc.chartOfAccountsId ?? "",
+          chartOfAccountId: acc.chartOfAccountsId ?? "", // Ensure CoA ID is not null
           debit: 0,
           credit: acc.amountToDeduct,
           memo: `Payment from ${acc.name} for bill ${newBillPayment.billReferenceNo}`,
@@ -494,8 +501,8 @@ export const payBill = async (
         entryDate: newBillPayment.paymentDate,
         referenceType: JournalEntryReferenceType.BILL_PAYMENT,
         referenceId: newBillPayment.id,
-        userId,
-        description: `Bill Payment to Vendor ${vendor.id} (Ref: ${newBillPayment.billReferenceNo})`,
+        userId, // userId passed to createJournalEntry
+        description: `Bill Payment to Vendor ${vendor.name} (Ref: ${newBillPayment.billReferenceNo})`,
         lines: journalLines,
       });
 
@@ -524,37 +531,47 @@ export const getBillTrackerData = async (
   limit: number = 10,
   filters?: BillTrackerFilters
 ) => {
+  // Removed getAllBills as it's handled by limit/page = 0
   try {
     const result = await db.transaction(async (tx) => {
+      // Base query for filtering and aggregation.
       let baseQuery = tx
         .select({
           purchase: purchasesTable,
           vendor: vendorsTable,
-          purchaseOrder: purchaseOrdersTable,
-          // Aggregate paid amount from billPaymentItemsTable if multiple payments for one purchase
+          // Aggregate total amount paid towards this specific purchase
           totalPaidOnPurchase:
-            sql<number>`SUM(CASE WHEN ${billPaymentItemsTable.purchaseId} IS NOT NULL THEN ${billPaymentItemsTable.amountApplied} ELSE 0 END)`.as(
+            sql<number>`COALESCE(SUM(${billPaymentItemsTable.amountApplied}), 0)`.as(
+              // COALESCE for 0 if no matching items
               "total_paid_on_purchase"
             ),
-          lastPaymentRef:
-            sql<string>`MAX(${billPaymentsTable.billReferenceNo})`.as(
-              "last_payment_ref"
-            ), // Latest reference
+          // Get the ID and reference number of the LATEST bill payment for this purchase
+          // This requires a lateral join or correlated subquery for robust "latest" logic.
+          // Using a correlated subquery for now.
+          latestBillPaymentInfo: sql<{
+            id: string | null;
+            ref: string | null;
+          }>`(
+              SELECT json_build_object(
+                  'id', bp.id,
+                  'ref', bp.bill_reference_no
+              )
+              FROM ${billPaymentsTable} bp
+              JOIN ${billPaymentItemsTable} bpi_latest ON bp.id = bpi_latest.bill_payment_id
+              WHERE bpi_latest.purchase_id = ${purchasesTable.id}
+              AND bp.is_active = TRUE -- Only consider active bill payments
+              ORDER BY bp.created_at DESC
+              LIMIT 1
+          )`.as("latest_bill_payment_info"),
         })
         .from(purchasesTable)
         .leftJoin(vendorsTable, eq(purchasesTable.vendorId, vendorsTable.id))
-        .leftJoin(
-          purchaseOrdersTable,
-          eq(purchasesTable.purchaseOrderId, purchaseOrdersTable.id)
-        )
-        // Left join to billPaymentItemsTable and billPaymentsTable for payment details
+
+        // LEFT JOIN billPaymentItemsTable to sum up all payments for this purchase
+        // Grouping is needed because SUM is an aggregate function.
         .leftJoin(
           billPaymentItemsTable,
           eq(purchasesTable.id, billPaymentItemsTable.purchaseId)
-        )
-        .leftJoin(
-          billPaymentsTable,
-          eq(billPaymentItemsTable.billPaymentId, billPaymentsTable.id)
         )
         .$dynamic();
 
@@ -565,106 +582,95 @@ export const getBillTrackerData = async (
         baseQuery = baseQuery.where(and(...conditions));
       }
 
-      // Group by purchase to aggregate payment info
-      baseQuery = baseQuery.groupBy(
-        purchasesTable.id,
-        vendorsTable.id,
-        purchaseOrdersTable.id
-      );
+      // Group by purchase and related foreign keys to ensure correct aggregation
+      // and to allow selection of non-aggregated columns.
+      baseQuery = baseQuery.groupBy(purchasesTable.id, vendorsTable.id);
 
       baseQuery = baseQuery.orderBy(desc(purchasesTable.purchaseDate));
 
-      let totalCount = 0;
-      let finalQuery = baseQuery;
+      // 1. Get total count of *distinct purchases* matching filters (before pagination)
+      const countQuery = tx
+        .select({
+          count: sql<number>`count(DISTINCT ${purchasesTable.id})`.as("count"),
+        })
+        .from(purchasesTable)
+        .leftJoin(vendorsTable, eq(purchasesTable.vendorId, vendorsTable.id))
 
-      if (
-        !limit &&
-        !page &&
-        !filters?.search &&
-        !filters?.vendorId &&
-        !filters?.type &&
-        !filters?.status &&
-        !filters?.dateRange &&
-        !filters?.specificDate_start &&
-        !filters?.specificDate_end
-      ) {
-        // If no specific filters/pagination, get all for summary calculations
-        // This path needs to execute the grouped query once
-        const allPurchases = await baseQuery;
-        totalCount = allPurchases.length;
-        finalQuery = baseQuery; // Keep the same query
-      } else {
-        // For pagination and filters, first get count
-        const [countResult] = await tx
-          .select({ count: sql<number>`count(*)` })
-          .from(
-            tx
-              .select({ id: purchasesTable.id })
-              .from(purchasesTable)
-              .leftJoin(
-                vendorsTable,
-                eq(purchasesTable.vendorId, vendorsTable.id)
-              )
-              .leftJoin(
-                purchaseOrdersTable,
-                eq(purchasesTable.purchaseOrderId, purchaseOrdersTable.id)
-              )
-              .leftJoin(
-                billPaymentItemsTable,
-                eq(purchasesTable.id, billPaymentItemsTable.purchaseId)
-              )
-              .leftJoin(
-                billPaymentsTable,
-                eq(billPaymentItemsTable.billPaymentId, billPaymentsTable.id)
-              )
-              .where(and(...conditions))
-              .groupBy(purchasesTable.id)
-              .as("subquery_count")
-          );
-        totalCount = countResult?.count || 0;
+        // Need to include relevant joins for filters to apply correctly to the count
+        .leftJoin(
+          billPaymentItemsTable, // join for filter context
+          eq(purchasesTable.id, billPaymentItemsTable.purchaseId)
+        )
+        .where(and(...conditions))
+        .$dynamic();
 
-        finalQuery = baseQuery.limit(limit).offset(page * limit);
-      }
+      const [totalCountResult] = await countQuery;
+      const totalCount = totalCountResult?.count || 0;
 
-      const billRecords = await finalQuery;
+      // 2. Apply pagination (limit and offset) to the main query for fetching documents
+      const paginatedQuery = baseQuery.limit(limit).offset(page * limit);
+      const billRecords = await paginatedQuery;
 
       const processedRecords = billRecords.map((record) => {
         const totalAmount = parseFloat(record.purchase.totalAmount as any);
-        const amountPaid = parseFloat(
-          (record.totalPaidOnPurchase as any) ||
-            (record.purchase.amountPaid as any)
-        ); // Use aggregated totalPaidOnPurchase if available, else purchase's amountPaid
-        const openBalance = totalAmount - amountPaid;
-        let paymentStatus = record.purchase.paymentStatus; // Use current status from purchasesTable
-        if (openBalance > 0 && amountPaid > 0)
+        const amountPaidAggregated = parseFloat(
+          (record.totalPaidOnPurchase as any) || "0"
+        ); // Aggregated sum
+        const openBalance = totalAmount - amountPaidAggregated;
+        // Start with the purchase's stored status, mapping the possible string values to the PaymentStatus enum
+        let paymentStatus: PaymentStatus = (() => {
+          const ps = record.purchase.paymentStatus as unknown as
+            | string
+            | undefined;
+          if (!ps) return PaymentStatus.Pending;
+          const map: Record<string, PaymentStatus> = {
+            paid: PaymentStatus.Paid,
+            partial: PaymentStatus.Partial,
+            pending: PaymentStatus.Pending,
+            due: PaymentStatus.Due,
+          };
+          return map[ps.toLowerCase()] ?? PaymentStatus.Pending;
+        })();
+
+        // Refine payment status based on calculated paid amount
+        if (totalAmount <= 0.001) {
+          // If total amount is effectively zero, it's considered paid/no balance
+          paymentStatus = PaymentStatus.Paid;
+        } else if (openBalance <= 0.001) {
+          // If balance is zero or negligible
+          paymentStatus = PaymentStatus.Paid;
+        } else if (amountPaidAggregated > 0) {
           paymentStatus = PaymentStatus.Partial;
-        if (openBalance <= 0.001 && amountPaid > 0)
-          paymentStatus = PaymentStatus.Paid; // Account for float
-        if (amountPaid <= 0.001 && totalAmount > 0)
-          paymentStatus = PaymentStatus.Pending; // Or Due if relevant date has passed
+        } else {
+          // No amount paid yet, and something is due
+          paymentStatus = PaymentStatus.Pending; // Or 'Due' if you add specific due date logic
+        }
+
+        const latestPaymentInfo = record.latestBillPaymentInfo as {
+          id: string | null;
+          ref: string | null;
+        } | null;
 
         return {
           ...record,
+          billPaymentId: latestPaymentInfo?.id || null, // CORRECTED: Actual BillPayment ID
           purchase: {
             ...record.purchase,
-            amountPaid: amountPaid,
-            openBalance: openBalance,
-            paymentStatus: paymentStatus,
+            amountPaid: amountPaidAggregated.toFixed(2), // Override with calculated paid amount, fixed 2 decimal
           },
-          lastPaymentRef: record.lastPaymentRef,
+          openBalance: openBalance.toFixed(2), // Client-side calculated for display, fixed 2 decimal
+          paymentStatus: paymentStatus, // Client-side derived for display
+          lastPaymentRef: latestPaymentInfo?.ref || null, // Latest payment reference number
         };
       });
 
       return {
-        documents: processedRecords,
+        documents: parseStringify(processedRecords),
         total: totalCount,
       };
     });
 
-    return {
-      documents: parseStringify(result.documents),
-      total: result.total,
-    };
+    return parseStringify(result);
   } catch (error: any) {
     console.error("Error fetching Bill Tracker data:", error);
     throw new Error(error.message || "Failed to fetch bill tracker data.");
@@ -678,7 +684,7 @@ export const getBillPaymentById = async (id: string) => {
       .select({
         billPayment: billPaymentsTable,
         vendor: vendorsTable,
-        user: usersTable, // User who made the payment
+        user: usersTable,
       })
       .from(billPaymentsTable)
       .leftJoin(vendorsTable, eq(billPaymentsTable.vendorId, vendorsTable.id))
@@ -692,6 +698,7 @@ export const getBillPaymentById = async (id: string) => {
       return null;
     }
 
+    // Fetch related line items (purchasesToPay)
     const billPaymentItems = await db
       .select({
         item: billPaymentItemsTable,
@@ -709,6 +716,7 @@ export const getBillPaymentById = async (id: string) => {
         )
       );
 
+    // Fetch related payment accounts
     const billPaymentAccounts = await db
       .select({
         allocation: billPaymentAccountsTable,
@@ -726,6 +734,7 @@ export const getBillPaymentById = async (id: string) => {
         )
       );
 
+    // Fetch related accompanying expenses
     const billPaymentAccompanyingExpenses = await db
       .select({
         expense: billPaymentAccompanyingExpensesTable,
@@ -746,29 +755,50 @@ export const getBillPaymentById = async (id: string) => {
         )
       );
 
+    // Construct the full BillPaymentWithRelations object
     const fullBillPayment = {
-      ...billPayment,
-      purchasesToPay: billPaymentItems.map((bpi) => ({
-        purchaseId: bpi.item.purchaseId,
-        amountToPay: parseFloat(bpi.item.amountApplied as any),
-        purchaseNumber: bpi.purchase?.purchaseNumber,
-        totalAmount: parseFloat(bpi.purchase?.totalAmount as any),
-        amountPaidSoFar: parseFloat(bpi.purchase?.amountPaid as any), // This would be before THIS payment
+      billPayment: {
+        ...billPayment.billPayment,
+        totalPaymentAmount: parseFloat(
+          billPayment.billPayment.totalPaymentAmount as any
+        ),
+      },
+      vendor: billPayment.vendor,
+      user: billPayment.user,
+      items: billPaymentItems.map((bpi) => ({
+        item: {
+          ...bpi.item,
+          amountApplied: parseFloat(bpi.item.amountApplied as any),
+        },
+        purchase: bpi.purchase
+          ? {
+              ...bpi.purchase,
+              totalAmount: parseFloat(bpi.purchase.totalAmount as any),
+              amountPaid: parseFloat(bpi.purchase.amountPaid as any),
+            }
+          : null,
       })),
       payingAccounts: billPaymentAccounts.map((bpa) => ({
-        payingAccountId: bpa.allocation.payingAccountId,
-        amountPaidFromAccount: parseFloat(
-          bpa.allocation.amountPaidFromAccount as any
-        ),
-        accountName: bpa.account?.name,
-        currentBalance: parseFloat(bpa.account?.currentBalance as any),
+        allocation: {
+          ...bpa.allocation,
+          amountPaidFromAccount: parseFloat(
+            bpa.allocation.amountPaidFromAccount as any
+          ),
+        },
+        account: bpa.account
+          ? {
+              ...bpa.account,
+              currentBalance: parseFloat(bpa.account.currentBalance as any),
+              openingBalance: parseFloat(bpa.account.openingBalance as any),
+            }
+          : null,
       })),
       accompanyingExpenses: billPaymentAccompanyingExpenses.map((bpe) => ({
-        accompanyingExpenseTypeId: bpe.expense.accompanyingExpenseTypeId,
-        amount: parseFloat(bpe.expense.amount as any),
-        payee: bpe.expense.payee,
-        comments: bpe.expense.comments,
-        expenseTypeName: bpe.accompanyingType?.name,
+        expense: {
+          ...bpe.expense,
+          amount: parseFloat(bpe.expense.amount as any),
+        },
+        accompanyingType: bpe.accompanyingType,
       })),
     };
 
@@ -805,7 +835,7 @@ export const updateBillPayment = async (
       // 1. Validate updated foreign key entities (vendor, paying accounts, accompanying expense types, purchases)
       if (parsedValues.data.vendorId) {
         const [vendor] = await tx
-          .select({ id: vendorsTable.id })
+          .select({ id: vendorsTable.id, name: vendorsTable.name })
           .from(vendorsTable)
           .where(
             and(
@@ -829,12 +859,13 @@ export const updateBillPayment = async (
                 billPaymentsTable.billReferenceNo,
                 parsedValues.data.billReferenceNo
               ),
+              eq(billPaymentsTable.isActive, true), // Check against active payments
               sql`${billPaymentsTable.id} != ${id}`
             )
           );
         if (existingRef.length > 0) {
           throw new Error(
-            "Bill payment reference number already exists for another payment."
+            `Bill payment reference number '${parsedValues.data.billReferenceNo}' already exists for another active payment.`
           );
         }
       }
@@ -861,11 +892,12 @@ export const updateBillPayment = async (
 
       // --- REVERSAL PHASE ---
       // Fetch accompanying expense details for reversal journal entry
-      const accompanyingExpenseDetails = await Promise.all(
+      const oldAccompanyingExpenseDetailsWithCoA = await Promise.all(
         oldBillPaymentAccompanyingExpenses.map(async (exp) => {
           const [accompanyingType] = await tx
             .select({
               id: accompanyingExpenseTypesTable.id,
+              name: accompanyingExpenseTypesTable.name, // Fetch name for memo
               defaultExpenseCategoryId:
                 accompanyingExpenseTypesTable.defaultExpenseCategoryId,
             })
@@ -881,7 +913,7 @@ export const updateBillPayment = async (
             );
           if (!accompanyingType) {
             throw new Error(
-              `Accompanying Expense Type '${exp.accompanyingExpenseTypeId}' not found or is inactive.`
+              `Original Accompanying Expense Type not found or is inactive.`
             );
           }
           const [expenseCategory] = await tx
@@ -900,12 +932,13 @@ export const updateBillPayment = async (
             );
           if (!expenseCategory || !expenseCategory.chartOfAccountsId) {
             throw new Error(
-              `Default Expense Category for Accompanying Expense Type '${accompanyingType.id}' not found or is inactive.`
+              `Default Expense Category for Original Accompanying Expense Type '${accompanyingType.name}' not found or is inactive or not linked to a CoA.`
             );
           }
           return {
             ...exp,
             chartOfAccountsId: expenseCategory.chartOfAccountsId,
+            expenseTypeName: accompanyingType.name,
           };
         })
       );
@@ -935,18 +968,25 @@ export const updateBillPayment = async (
       const revertedPurchases: string[] = [];
       await Promise.all(
         oldBillPaymentItems.map(async (bpi) => {
-          const [purchase] = await tx
+          const purchase = await tx
             .select()
             .from(purchasesTable)
-            .where(eq(purchasesTable.id, bpi.purchaseId));
+            .where(eq(purchasesTable.id, bpi.purchaseId))
+            .then((res) => res[0]);
           if (purchase) {
             const newAmountPaid =
               parseFloat(purchase.amountPaid as any) -
               parseFloat(bpi.amountApplied as any);
             let newPaymentStatus = PaymentStatus.Pending;
             if (newAmountPaid > 0) newPaymentStatus = PaymentStatus.Partial;
-            if (newAmountPaid <= 0.001)
-              newPaymentStatus = PaymentStatus.Pending;
+            if (
+              newAmountPaid <= 0.001 &&
+              parseFloat(purchase.totalAmount as any) > 0
+            )
+              newPaymentStatus = PaymentStatus.Pending; // If purchase has total > 0 but paid is now ~0
+            if (parseFloat(purchase.totalAmount as any) <= 0.001)
+              // If purchase total was 0, it's paid
+              newPaymentStatus = PaymentStatus.Paid;
 
             await tx
               .update(purchasesTable)
@@ -975,18 +1015,70 @@ export const updateBillPayment = async (
       ]);
 
       // --- APPLICATION PHASE (with new values) ---
-      // Update the main Bill Payment record
+      // 1. Validate new accompanying expenses and collect CoA IDs
+      const newAccompanyingExpenseDetailsWithCoA = await Promise.all(
+        (parsedValues.data.accompanyingExpenses || []).map(async (exp) => {
+          const [accompanyingType] = await tx
+            .select({
+              id: accompanyingExpenseTypesTable.id,
+              name: accompanyingExpenseTypesTable.name, // Fetch name for memo
+              defaultExpenseCategoryId:
+                accompanyingExpenseTypesTable.defaultExpenseCategoryId,
+            })
+            .from(accompanyingExpenseTypesTable)
+            .where(
+              and(
+                eq(
+                  accompanyingExpenseTypesTable.id,
+                  exp.accompanyingExpenseTypeId
+                ),
+                eq(accompanyingExpenseTypesTable.isActive, true)
+              )
+            );
+          if (!accompanyingType) {
+            throw new Error(
+              `Accompanying Expense Type '${exp.expenseTypeName}' not found or is inactive.`
+            );
+          }
+          const [expenseCategory] = await tx
+            .select({
+              chartOfAccountsId: expenseCategoriesTable.chartOfAccountsId,
+            })
+            .from(expenseCategoriesTable)
+            .where(
+              and(
+                eq(
+                  expenseCategoriesTable.id,
+                  accompanyingType.defaultExpenseCategoryId ?? ""
+                ),
+                eq(expenseCategoriesTable.isActive, true)
+              )
+            );
+          if (!expenseCategory || !expenseCategory.chartOfAccountsId) {
+            throw new Error(
+              `Default Expense Category for Accompanying Expense Type '${accompanyingType.id}' not found or is inactive or not linked to a CoA.`
+            );
+          }
+          return {
+            ...exp,
+            chartOfAccountsId: expenseCategory.chartOfAccountsId,
+            expenseTypeName: accompanyingType.name,
+          };
+        })
+      );
+
+      // 2. Update the main Bill Payment record
       const [updatedBillPayment] = await tx
         .update(billPaymentsTable)
         .set({
-          ...parsedValues.data,
-          generalComments:
-            parsedValues.data.generalComments === null
-              ? null
-              : parsedValues.data.generalComments ||
-                currentBillPayment.generalComments,
+          billReferenceNo: parsedValues.data.billReferenceNo,
+          paymentDate: parsedValues.data.paymentDate,
+          vendorId: parsedValues.data.vendorId,
+          totalPaymentAmount: parsedValues.data.totalPaymentAmount,
+          generalComments: parsedValues.data.generalComments || null,
+          attachments: parsedValues.data.attachments,
           updatedAt: new Date(),
-          userId,
+          userId, // userId for updated_by tracking
         })
         .where(eq(billPaymentsTable.id, id))
         .returning();
@@ -995,7 +1087,7 @@ export const updateBillPayment = async (
         throw new Error("Bill Payment not found or could not be updated.");
       }
 
-      // Re-create Bill Payment Items
+      // 3. Re-create Bill Payment Items
       const newBillPaymentItemsData = (
         parsedValues.data.purchasesToPay || []
       ).map((item) => ({
@@ -1007,7 +1099,7 @@ export const updateBillPayment = async (
         await tx.insert(billPaymentItemsTable).values(newBillPaymentItemsData);
       }
 
-      // Re-create Bill Payment Accounts
+      // 4. Re-create Bill Payment Accounts
       const newBillPaymentAccountsData = (
         parsedValues.data.payingAccounts || []
       ).map((acc) => ({
@@ -1021,15 +1113,15 @@ export const updateBillPayment = async (
           .values(newBillPaymentAccountsData);
       }
 
-      // Re-create Bill Payment Accompanying Expenses
+      // 5. Re-create Bill Payment Accompanying Expenses
       const newBillPaymentAccompanyingExpensesData = (
-        parsedValues.data.accompanyingExpenses || []
+        newAccompanyingExpenseDetailsWithCoA || []
       ).map((exp) => ({
         billPaymentId: updatedBillPayment.id,
         accompanyingExpenseTypeId: exp.accompanyingExpenseTypeId,
         amount: exp.amount,
-        payee: exp.payee,
-        comments: exp.comments,
+        payee: exp.payee || null,
+        comments: exp.comments || null,
       }));
       if (newBillPaymentAccompanyingExpensesData.length > 0) {
         await tx
@@ -1037,13 +1129,24 @@ export const updateBillPayment = async (
           .values(newBillPaymentAccompanyingExpensesData);
       }
 
-      // Deduct from new paying accounts
+      // 6. Deduct from new paying accounts
       const newPayingAccountDetails = await Promise.all(
         (parsedValues.data.payingAccounts || []).map(async (acc) => {
           const [account] = await tx
-            .select()
+            .select({
+              id: accountsTable.id,
+              chartOfAccountsId: accountsTable.chartOfAccountsId,
+              currentBalance: accountsTable.currentBalance,
+              name: accountsTable.name,
+            })
             .from(accountsTable)
             .where(eq(accountsTable.id, acc.payingAccountId));
+          if (!account) {
+            // Defensive check
+            throw new Error(
+              `Paying Account '${acc.accountName}' not found for deduction.`
+            );
+          }
           return { ...account, amountToDeduct: acc.amountPaidFromAccount };
         })
       );
@@ -1060,7 +1163,7 @@ export const updateBillPayment = async (
         )
       );
 
-      // Update purchase statuses with new amounts
+      // 7. Update purchase statuses with new amounts
       const newlyUpdatedPurchases: (typeof purchasesTable.$inferSelect)[] = [];
       await Promise.all(
         (parsedValues.data.purchasesToPay || []).map(async (item) => {
@@ -1098,13 +1201,14 @@ export const updateBillPayment = async (
         })
       );
 
-      // Create an adjustment journal entry
+      // 8. Create an adjustment journal entry
       const journalLines: Array<{
         chartOfAccountId: string;
         debit: number;
         credit: number;
         memo?: string;
       }> = [];
+      // CORRECTED: Accounts Payable CoA Lookup by accountNumber
       const accountsPayableCoA =
         (await tx
           .select({ id: chartOfAccountsTable.id })
@@ -1116,7 +1220,9 @@ export const updateBillPayment = async (
             )
           )
           .then((res) => res[0]?.id)) ||
-        throwError("Default 'Accounts Payable' Chart of Account not found.");
+        throwError(
+          "Default 'Accounts Payable' Chart of Account (2000) not found."
+        );
 
       // Reversal lines (old values)
       if (oldBillPaymentItems.length > 0) {
@@ -1132,31 +1238,44 @@ export const updateBillPayment = async (
         });
       }
 
-      oldBillPaymentAccompanyingExpenses.forEach((exp) => {
-        const coaId = accompanyingExpenseDetails.find(
-          (d) => d.accompanyingExpenseTypeId === exp.accompanyingExpenseTypeId
-        )?.chartOfAccountsId;
-        if (coaId) {
-          journalLines.push({
-            chartOfAccountId: coaId, // Credit expense account (reverse original debit)
-            debit: 0,
-            credit: parseFloat(exp.amount as any),
-            memo: `Reversal: reduce accompanying expense for bill payment`,
-          });
-        }
+      oldAccompanyingExpenseDetailsWithCoA.forEach((exp) => {
+        journalLines.push({
+          chartOfAccountId: exp.chartOfAccountsId,
+          debit: 0,
+          credit: parseFloat(exp.amount as any),
+          memo: `Reversal: reduce accompanying expense '${exp.expenseTypeName}' for bill payment`, // Use expenseTypeName
+        });
       });
-      oldBillPaymentAccounts.forEach((acc) => {
-        const coaId = newPayingAccountDetails.find(
-          (d) => d.id === acc.payingAccountId
-        )?.chartOfAccountsId;
-        if (coaId) {
-          journalLines.push({
-            chartOfAccountId: coaId, // Debit cash/bank account (reverse original credit - restore funds)
-            debit: parseFloat(acc.amountPaidFromAccount as any),
-            credit: 0,
-            memo: `Reversal: restore funds to ${coaId}`,
-          });
-        }
+      // Need CoA ID of old paying accounts for reversal
+      const oldPayingAccountDetailsWithCoA = await Promise.all(
+        oldBillPaymentAccounts.map(async (acc) => {
+          const [account] = await tx
+            .select({
+              id: accountsTable.id,
+              name: accountsTable.name,
+              chartOfAccountsId: accountsTable.chartOfAccountsId,
+            })
+            .from(accountsTable)
+            .where(eq(accountsTable.id, acc.payingAccountId));
+          if (!account)
+            throw new Error(
+              `Original paying account '${acc.payingAccountId}' not found for CoA lookup.`
+            );
+          return {
+            ...acc,
+            chartOfAccountsId: account.chartOfAccountsId,
+            name: account.name,
+          };
+        })
+      );
+
+      oldPayingAccountDetailsWithCoA.forEach((acc) => {
+        journalLines.push({
+          chartOfAccountId: acc.chartOfAccountsId ?? "",
+          debit: parseFloat(acc.amountPaidFromAccount as any),
+          credit: 0,
+          memo: `Reversal: restore funds to ${acc.name} for bill payment`,
+        });
       });
 
       // New lines (updated values)
@@ -1171,31 +1290,23 @@ export const updateBillPayment = async (
           memo: `New: payment to vendor for purchases on bill ${updatedBillPayment.billReferenceNo}`,
         });
       }
-      (parsedValues.data.accompanyingExpenses || []).forEach((exp) => {
-        const coaId = accompanyingExpenseDetails.find(
-          (d) => d.accompanyingExpenseTypeId === exp.accompanyingExpenseTypeId
-        )?.chartOfAccountsId;
-        if (coaId) {
-          journalLines.push({
-            chartOfAccountId: coaId, // Debit relevant expense accounts
-            debit: exp.amount,
-            credit: 0,
-            memo: `New: accompanying expense for bill payment`,
-          });
-        }
+      newAccompanyingExpenseDetailsWithCoA.forEach((exp) => {
+        // Use the newly validated expenses
+        journalLines.push({
+          chartOfAccountId: exp.chartOfAccountsId,
+          debit: exp.amount,
+          credit: 0,
+          memo: `New: accompanying expense '${exp.expenseTypeName}' for bill payment`, // Use expenseTypeName
+        });
       });
-      (parsedValues.data.payingAccounts || []).forEach((acc) => {
-        const coaId = newPayingAccountDetails.find(
-          (d) => d.id === acc.payingAccountId
-        )?.chartOfAccountsId;
-        if (coaId) {
-          journalLines.push({
-            chartOfAccountId: coaId, // Credit cash/bank accounts
-            debit: 0,
-            credit: acc.amountPaidFromAccount,
-            memo: `New: payment from ${coaId} for bill ${updatedBillPayment.billReferenceNo}`,
-          });
-        }
+      newPayingAccountDetails.forEach((acc) => {
+        // Use the newly fetched/validated paying account details
+        journalLines.push({
+          chartOfAccountId: acc.chartOfAccountsId ?? "",
+          debit: 0,
+          credit: acc.amountToDeduct,
+          memo: `New: payment from ${acc.name} for bill ${updatedBillPayment.billReferenceNo}`,
+        });
       });
 
       await createJournalEntry({
@@ -1300,8 +1411,15 @@ export const softDeleteBillPayment = async (id: string, userId: string) => {
               parseFloat(bpi.amountApplied as any);
             let newPaymentStatus = PaymentStatus.Pending;
             if (newAmountPaid > 0) newPaymentStatus = PaymentStatus.Partial;
-            if (newAmountPaid <= 0.001)
+            if (
+              newAmountPaid <= 0.001 &&
+              parseFloat(purchase.totalAmount as any) > 0
+            )
+              // If paid 0 and total > 0, it's pending
               newPaymentStatus = PaymentStatus.Pending;
+            if (parseFloat(purchase.totalAmount as any) <= 0.001)
+              // If purchase total was 0, it's paid
+              newPaymentStatus = PaymentStatus.Paid;
 
             await tx
               .update(purchasesTable)
@@ -1346,6 +1464,7 @@ export const softDeleteBillPayment = async (id: string, userId: string) => {
         credit: number;
         memo?: string;
       }> = [];
+      // CORRECTED: Accounts Payable CoA Lookup by accountNumber
       const accountsPayableCoA =
         (await tx
           .select({ id: chartOfAccountsTable.id })
@@ -1372,50 +1491,99 @@ export const softDeleteBillPayment = async (id: string, userId: string) => {
           memo: `Reversal: reduce Accounts Payable for bill ${currentBillPayment.billReferenceNo}`,
         });
       }
-      for (const exp of billPaymentAccompanyingExpenses) {
-        const coaId =
-          (await tx
+
+      // Fetch Accompanying Expense details for reversal
+      const oldAccompanyingExpenseDetailsWithCoA = await Promise.all(
+        billPaymentAccompanyingExpenses.map(async (exp) => {
+          const [accompanyingType] = await tx
+            .select({
+              id: accompanyingExpenseTypesTable.id,
+              name: accompanyingExpenseTypesTable.name,
+              defaultExpenseCategoryId:
+                accompanyingExpenseTypesTable.defaultExpenseCategoryId,
+            })
+            .from(accompanyingExpenseTypesTable)
+            .where(
+              and(
+                eq(
+                  accompanyingExpenseTypesTable.id,
+                  exp.accompanyingExpenseTypeId
+                ),
+                eq(accompanyingExpenseTypesTable.isActive, true)
+              )
+            );
+          if (!accompanyingType) {
+            throw new Error(
+              `Accompanying Expense Type '${exp.accompanyingExpenseTypeId}' not found or is inactive.`
+            );
+          }
+          const [expenseCategory] = await tx
             .select({
               chartOfAccountsId: expenseCategoriesTable.chartOfAccountsId,
             })
             .from(expenseCategoriesTable)
-            .leftJoin(
-              accompanyingExpenseTypesTable,
-              eq(
-                expenseCategoriesTable.id,
-                accompanyingExpenseTypesTable.defaultExpenseCategoryId
-              )
-            )
             .where(
-              eq(
-                accompanyingExpenseTypesTable.id,
-                exp.accompanyingExpenseTypeId
+              and(
+                eq(
+                  expenseCategoriesTable.id,
+                  accompanyingType.defaultExpenseCategoryId ?? ""
+                ),
+                eq(expenseCategoriesTable.isActive, true)
               )
-            )
-            .then((res) => res[0]?.chartOfAccountsId)) ||
-          throwError("Accompanying Expense Type CoA not found for reversal.");
+            );
+          if (!expenseCategory || !expenseCategory.chartOfAccountsId) {
+            throw new Error(
+              `Default Expense Category for Accompanying Expense Type '${accompanyingType.id}' not found or is inactive.`
+            );
+          }
+          return {
+            ...exp,
+            chartOfAccountsId: expenseCategory.chartOfAccountsId,
+            expenseTypeName: accompanyingType.name,
+          };
+        })
+      );
+
+      oldAccompanyingExpenseDetailsWithCoA.forEach((exp) => {
         journalLines.push({
-          chartOfAccountId: coaId, // Credit expense account (reverse debit)
+          chartOfAccountId: exp.chartOfAccountsId, // Credit expense account (reverse debit)
           debit: 0,
           credit: parseFloat(exp.amount as any),
-          memo: `Reversal: reduce accompanying expense for bill payment`,
+          memo: `Reversal: reduce accompanying expense '${exp.expenseTypeName}' for bill payment`,
         });
-      }
-      for (const acc of billPaymentAccounts) {
-        const coaId =
-          (await tx
-            .select({ chartOfAccountsId: accountsTable.chartOfAccountsId })
+      });
+
+      // Fetch Paying Account details for reversal
+      const oldPayingAccountDetailsWithCoA = await Promise.all(
+        billPaymentAccounts.map(async (acc) => {
+          const [account] = await tx
+            .select({
+              id: accountsTable.id,
+              name: accountsTable.name,
+              chartOfAccountsId: accountsTable.chartOfAccountsId,
+            })
             .from(accountsTable)
-            .where(eq(accountsTable.id, acc.payingAccountId))
-            .then((res) => res[0]?.chartOfAccountsId)) ||
-          throwError("Paying Account CoA not found for reversal.");
+            .where(eq(accountsTable.id, acc.payingAccountId));
+          if (!account)
+            throw new Error(
+              `Original paying account '${acc.payingAccountId}' not found for CoA lookup.`
+            );
+          return {
+            ...acc,
+            chartOfAccountsId: account.chartOfAccountsId,
+            name: account.name,
+          };
+        })
+      );
+
+      oldPayingAccountDetailsWithCoA.forEach((acc) => {
         journalLines.push({
-          chartOfAccountId: coaId, // Debit cash/bank account (restore funds)
+          chartOfAccountId: acc.chartOfAccountsId ?? "", // Debit cash/bank account (restore funds)
           debit: parseFloat(acc.amountPaidFromAccount as any),
           credit: 0,
-          memo: `Reversal: restore funds to ${coaId}`,
+          memo: `Reversal: restore funds to ${acc.name} for bill payment`,
         });
-      }
+      });
 
       await createJournalEntry({
         tx,
@@ -1444,3 +1612,40 @@ export const softDeleteBillPayment = async (id: string, userId: string) => {
 function throwError(message: string): never {
   throw new Error(message);
 }
+
+// Generate reference number
+export const generateBillReferenceNumber = async (): Promise<string> => {
+  try {
+    const result = await db.transaction(async (tx) => {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+
+      const lastPaymnet = await tx
+        .select({ billReferenceNo: billPaymentsTable.billReferenceNo })
+        .from(billPaymentsTable)
+        .where(sql`bill_reference_no LIKE ${`BRN.${year}/${month}/%`}`)
+        .orderBy(desc(billPaymentsTable.createdAt))
+        .limit(1);
+
+      let nextSequence = 1;
+      if (lastPaymnet.length > 0) {
+        const lastReferenceNumber = lastPaymnet[0].billReferenceNo;
+        const lastSequence = parseInt(
+          lastReferenceNumber.split("/").pop() || "0",
+          10
+        );
+        nextSequence = lastSequence + 1;
+      }
+
+      const sequenceNumber = String(nextSequence).padStart(4, "0");
+
+      return `BRN.${year}/${month}/${sequenceNumber}`;
+    });
+
+    return result;
+  } catch (error) {
+    console.error("Error generating payment reference number:", error);
+    throw error;
+  }
+};

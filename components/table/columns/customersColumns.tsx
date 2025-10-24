@@ -63,11 +63,13 @@ export const customersColumns: ColumnDef<Customer>[] = [
     header: "Address",
     cell: ({ row }) => {
       const customer = row.original;
-      const address = customer.address.address ?? "";
-      const addressName = customer.address.addressName ?? "";
-      const city = customer.address.city ?? "";
-      const country =
-        Country.getCountryByCode(customer.address.country)?.name ?? "";
+      const address = customer.address?.address ?? "";
+      const addressName = customer.address?.addressName ?? "";
+      const city = customer.address?.city ?? "";
+      const countryCode = customer.address?.country;
+      const country = countryCode
+        ? Country.getCountryByCode(countryCode)?.name ?? ""
+        : "";
       return (
         <p className="text-14-medium ">
           {address ? `${address}, ` : ""}
