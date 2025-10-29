@@ -330,7 +330,6 @@ export const RecordIncomeForm: React.FC<RecordIncomeFormProps> = ({
     }
   };
 
-
   return (
     <Form {...form}>
       <form
