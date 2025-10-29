@@ -68,7 +68,7 @@ export const RecordIncomeForm: React.FC<RecordIncomeFormProps> = ({
   // State to control tabs: "sales_payment" or "other_income"
   const [incomeTypeTab, setIncomeTypeTab] = useState<
     "sales_payment" | "other_income"
-  >(initialData?.payment?.saleId ? "sales_payment" : "other_income");
+  >("sales_payment");
 
   const defaultValues = useMemo(
     () => ({

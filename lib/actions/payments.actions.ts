@@ -2,16 +2,22 @@
 "use server";
 
 import { and, desc, eq, gte, ilike, lte, or, sql } from "drizzle-orm";
-import { IncomeFilters, IncomeFormValues } from "../validation";
+import {
+  IncomeFilters,
+  IncomeFormValues,
+  IncomeTrackerFilters,
+} from "../validation";
 import {
   accountsTable,
   chartOfAccountsTable,
   customersTable,
   incomeCategoriesTable,
   paymentsReceivedTable,
+  quotationsTable,
   salesTable,
 } from "@/drizzle/schema";
 import {
+  DateRange,
   JournalEntryReferenceType,
   PaymentMethod,
   PaymentStatus,
@@ -1070,5 +1076,565 @@ export const generatePaymentReferenceNumber = async (): Promise<string> => {
   } catch (error) {
     console.error("Error generating payment reference number:", error);
     throw error;
+  }
+};
+
+// Build filter conditions for Income Tracker
+const buildIncomeTrackerFilterConditions = (
+  filters: Partial<IncomeTrackerFilters>
+) => {
+  const conditions = [];
+
+  conditions.push(eq(salesTable.isActive, true));
+
+  if (filters.search?.trim()) {
+    const searchTerm = `%${filters.search.trim()}%`;
+    conditions.push(
+      or(
+        ilike(salesTable.invoiceNumber, searchTerm),
+        ilike(customersTable.name, searchTerm)
+      )
+    );
+  }
+
+  if (filters.customerId) {
+    conditions.push(eq(salesTable.customerId, filters.customerId));
+  }
+  if (filters.saleId) {
+    conditions.push(eq(salesTable.id, filters.saleId));
+  }
+  if (filters.paymentMethod) {
+    conditions.push(
+      eq(salesTable.paymentMethod, filters.paymentMethod as PaymentMethod)
+    );
+  }
+  if (filters.amount_min) {
+    conditions.push(gte(salesTable.totalAmount, filters.amount_min));
+  }
+  if (filters.amount_max) {
+    conditions.push(lte(salesTable.totalAmount, filters.amount_max));
+  }
+
+  if (filters.status && filters.status !== "all") {
+    if (filters.status === "open") {
+      conditions.push(
+        or(
+          eq(salesTable.paymentStatus, PaymentStatus.Pending),
+          eq(salesTable.paymentStatus, PaymentStatus.Partial)
+        )
+      );
+    } else if (filters.status === "overdue") {
+      conditions.push(
+        and(
+          or(
+            eq(salesTable.paymentStatus, PaymentStatus.Pending),
+            eq(salesTable.paymentStatus, PaymentStatus.Partial)
+          ),
+          sql`${salesTable.dueDate} < CURRENT_DATE`
+        )
+      );
+    } else if (filters.status === "paid") {
+      conditions.push(eq(salesTable.paymentStatus, PaymentStatus.Paid));
+    }
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // Normalize today to start of day for consistent comparison
+
+  const startOfDay = (date: Date) => new Date(date.setHours(0, 0, 0, 0));
+  const endOfDay = (date: Date) => new Date(date.setHours(23, 59, 59, 999));
+
+  if (filters.dateRange) {
+    let startDate: Date | undefined;
+    let endDate: Date | undefined;
+
+    switch (filters.dateRange) {
+      case DateRange.TODAY:
+        startDate = startOfDay(new Date(today));
+        endDate = endOfDay(new Date(today));
+        break;
+      case DateRange.YESTERDAY:
+        const yesterday = new Date(today);
+        yesterday.setDate(today.getDate() - 1);
+        startDate = startOfDay(yesterday);
+        endDate = endOfDay(yesterday);
+        break;
+      case DateRange.THIS_WEEK:
+        // Sunday as start of week (0 for Sunday, 1 for Monday etc.)
+        startDate = startOfDay(
+          new Date(today.setDate(today.getDate() - today.getDay()))
+        );
+        endDate = endOfDay(new Date()); // Up to current moment of today
+        break;
+      case DateRange.LAST_WEEK:
+        const lastWeekStart = new Date(today);
+        lastWeekStart.setDate(today.getDate() - today.getDay() - 7);
+        startDate = startOfDay(lastWeekStart);
+
+        const lastWeekEnd = new Date(today);
+        lastWeekEnd.setDate(today.getDate() - today.getDay() - 1);
+        endDate = endOfDay(lastWeekEnd);
+        break;
+      case DateRange.LAST_TWO_WEEKS:
+        startDate = startOfDay(
+          new Date(today.setDate(today.getDate() - today.getDay() - 14))
+        );
+        endDate = endOfDay(new Date()); // Up to current moment of today
+        break;
+      case DateRange.THIS_MONTH:
+        startDate = startOfDay(
+          new Date(today.getFullYear(), today.getMonth(), 1)
+        );
+        endDate = endOfDay(new Date()); // Up to current moment of today
+        break;
+      case DateRange.LAST_MONTH:
+        startDate = startOfDay(
+          new Date(today.getFullYear(), today.getMonth() - 1, 1)
+        );
+        endDate = endOfDay(
+          new Date(today.getFullYear(), today.getMonth(), 0) // Last day of previous month
+        );
+        break;
+      case DateRange.THIS_QUARTER:
+        const currentMonth = today.getMonth();
+        const startMonthOfQuarter = currentMonth - (currentMonth % 3);
+        startDate = startOfDay(
+          new Date(today.getFullYear(), startMonthOfQuarter, 1)
+        );
+        endDate = endOfDay(new Date()); // Up to current moment of today
+        break;
+      case DateRange.LAST_QUARTER:
+        const lastQuarterMonth = today.getMonth() - 3;
+        const lastQuarterStartMonth = lastQuarterMonth - (lastQuarterMonth % 3);
+        startDate = startOfDay(
+          new Date(today.getFullYear(), lastQuarterStartMonth, 1)
+        );
+        endDate = endOfDay(
+          new Date(today.getFullYear(), lastQuarterStartMonth + 3, 0) // Last day of last month of last quarter
+        );
+        break;
+      case DateRange.THIS_YEAR:
+        startDate = startOfDay(new Date(today.getFullYear(), 0, 1));
+        endDate = endOfDay(new Date()); // Up to current moment of today
+        break;
+      case DateRange.LAST_YEAR:
+        startDate = startOfDay(new Date(today.getFullYear() - 1, 0, 1));
+        endDate = endOfDay(new Date(today.getFullYear() - 1, 11, 31));
+        break;
+      case DateRange.ALL:
+      default:
+        break;
+    }
+
+    if (startDate) conditions.push(gte(salesTable.saleDate, startDate));
+    if (endDate) conditions.push(lte(salesTable.saleDate, endDate));
+  }
+  if (filters.specificDate_start) {
+    conditions.push(
+      gte(salesTable.saleDate, startOfDay(new Date(filters.specificDate_start)))
+    );
+  }
+  if (filters.specificDate_end) {
+    conditions.push(
+      lte(salesTable.saleDate, endOfDay(new Date(filters.specificDate_end)))
+    );
+  }
+
+  return conditions;
+};
+
+// Get data for Income Tracker (Accounts Receivable)
+export const getIncomeTrackerData = async (
+  page: number = 0,
+  limit: number = 10,
+  filters?: IncomeTrackerFilters
+) => {
+  try {
+    const result = await db.transaction(async (tx) => {
+      // Base query for filtering and aggregation
+      let baseQuery = tx
+        .select({
+          sale: salesTable,
+          customer: customersTable,
+          // Aggregate total amount received for this specific sale
+          totalReceivedOnSale:
+            sql<number>`COALESCE(SUM(${paymentsReceivedTable.amountReceived}), 0)`.as(
+              "total_received_on_sale"
+            ),
+          // Get the ID and reference number of the LATEST payment for this sale
+          latestPaymentInfo: sql<{
+            id: string | null;
+            ref: string | null;
+          }>`(
+              SELECT json_build_object(
+                  'id', pr.id,
+                  'ref', pr.payment_ref_number
+              )
+              FROM ${paymentsReceivedTable} pr
+              WHERE pr.sale_id = ${salesTable.id}
+              AND pr.is_active = TRUE
+              ORDER BY pr.created_at DESC
+              LIMIT 1
+          )`.as("latest_payment_info"),
+        })
+        .from(salesTable)
+        .leftJoin(customersTable, eq(salesTable.customerId, customersTable.id))
+        // LEFT JOIN paymentsReceivedTable to sum up all payments for this sale
+        .leftJoin(
+          paymentsReceivedTable,
+          and(
+            eq(salesTable.id, paymentsReceivedTable.saleId),
+            eq(paymentsReceivedTable.isActive, true)
+          )
+        )
+        .$dynamic();
+
+      const conditions = buildIncomeTrackerFilterConditions(
+        filters ?? ({} as IncomeTrackerFilters)
+      );
+      if (conditions.length > 0) {
+        baseQuery = baseQuery.where(and(...conditions));
+      }
+
+      // Group by sale and related foreign keys
+      baseQuery = baseQuery.groupBy(salesTable.id, customersTable.id);
+
+      baseQuery = baseQuery.orderBy(desc(salesTable.saleDate));
+
+      // 1. Get total count of distinct sales matching filters (before pagination)
+      const countQuery = tx
+        .select({
+          count: sql<number>`count(DISTINCT ${salesTable.id})`.as("count"),
+        })
+        .from(salesTable)
+        .leftJoin(customersTable, eq(salesTable.customerId, customersTable.id))
+        .leftJoin(
+          paymentsReceivedTable,
+          and(
+            eq(salesTable.id, paymentsReceivedTable.saleId),
+            eq(paymentsReceivedTable.isActive, true)
+          )
+        )
+        .where(and(...conditions))
+        .$dynamic();
+
+      const [totalCountResult] = await countQuery;
+      const totalCount = totalCountResult?.count || 0;
+
+      // 2. Apply pagination
+      const paginatedQuery = baseQuery.limit(limit).offset(page * limit);
+      const incomeRecords = await paginatedQuery;
+
+      const processedRecords = incomeRecords.map((record) => {
+        const totalAmount = parseFloat(record.sale.totalAmount as any);
+        const amountReceivedAggregated = parseFloat(
+          (record.totalReceivedOnSale as any) || "0"
+        );
+        const openBalance = totalAmount - amountReceivedAggregated;
+
+        // Determine payment status based on calculated amounts
+        let paymentStatus: PaymentStatus = (() => {
+          const ps = record.sale.paymentStatus as unknown as string | undefined;
+          if (!ps) return PaymentStatus.Pending;
+          const map: Record<string, PaymentStatus> = {
+            paid: PaymentStatus.Paid,
+            partial: PaymentStatus.Partial,
+            pending: PaymentStatus.Pending,
+            due: PaymentStatus.Due,
+          };
+          return map[ps.toLowerCase()] ?? PaymentStatus.Pending;
+        })();
+
+        // Refine payment status based on calculated amounts
+        if (totalAmount <= 0.001) {
+          paymentStatus = PaymentStatus.Paid;
+        } else if (openBalance <= 0.001) {
+          paymentStatus = PaymentStatus.Paid;
+        } else if (amountReceivedAggregated > 0) {
+          paymentStatus = PaymentStatus.Partial;
+        } else {
+          // Check if overdue
+          const dueDate = record.sale.dueDate
+            ? new Date(record.sale.dueDate)
+            : null;
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+
+          if (dueDate && dueDate < today) {
+            paymentStatus = PaymentStatus.Due;
+          } else {
+            paymentStatus = PaymentStatus.Pending;
+          }
+        }
+
+        const latestPaymentInfo = record.latestPaymentInfo as {
+          id: string | null;
+          ref: string | null;
+        } | null;
+
+        return {
+          ...record,
+          paymentId: latestPaymentInfo?.id || null,
+          sale: {
+            ...record.sale,
+            amountPaid: amountReceivedAggregated.toFixed(2),
+          },
+          openBalance: openBalance.toFixed(2),
+          paymentStatus: paymentStatus,
+          lastPaymentRef: latestPaymentInfo?.ref || null,
+          isOverdue:
+            record.sale.dueDate &&
+            new Date(record.sale.dueDate) < new Date() &&
+            openBalance > 0.001,
+        };
+      });
+
+      const salesSummary = await tx
+        .select({
+          // Unpaid Sales
+          totalOpenSalesAmount: sql<number>`
+            COALESCE(SUM(CASE
+              WHEN ${salesTable.paymentStatus} IN (${PaymentStatus.Pending}, ${PaymentStatus.Partial})
+              THEN (${salesTable.totalAmount} - COALESCE(${salesTable.amountPaid}, 0))
+              ELSE 0
+            END), 0)
+          `.as("total_open_sales_amount"),
+          countOpenSales: sql<number>`
+            COUNT(CASE
+              WHEN ${salesTable.paymentStatus} IN (${PaymentStatus.Pending}, ${PaymentStatus.Partial})
+              THEN 1
+              ELSE NULL
+            END)
+          `.as("count_open_sales"),
+
+          // Overdue Sales
+          totalOverdueSalesAmount: sql<number>`
+            COALESCE(SUM(CASE
+              WHEN ${salesTable.dueDate} < CURRENT_DATE
+              AND ${salesTable.paymentStatus} IN (${PaymentStatus.Pending}, ${PaymentStatus.Partial})
+              THEN (${salesTable.totalAmount} - COALESCE(${salesTable.amountPaid}, 0))
+              ELSE 0
+            END), 0)
+          `.as("total_overdue_sales_amount"),
+          countOverdueSales: sql<number>`
+            COUNT(CASE
+              WHEN ${salesTable.dueDate} < CURRENT_DATE
+              AND ${salesTable.paymentStatus} IN (${PaymentStatus.Pending}, ${PaymentStatus.Partial})
+              THEN 1
+              ELSE NULL
+            END)
+          `.as("count_overdue_sales"),
+
+          // Paid Last 30 Days Sales
+          totalPaidLast30DaysAmount: sql<number>`
+            COALESCE(SUM(CASE
+              WHEN ${salesTable.paymentStatus} = ${PaymentStatus.Paid}
+              AND ${salesTable.updatedAt} >= CURRENT_DATE - INTERVAL '30 days'
+              THEN ${salesTable.totalAmount}
+              ELSE 0
+            END), 0)
+          `.as("total_paid_last_30_days_amount"),
+          countPaidLast30DaysSales: sql<number>`
+            COUNT(CASE
+              WHEN ${salesTable.paymentStatus} = ${PaymentStatus.Paid}
+              AND ${salesTable.updatedAt} >= CURRENT_DATE - INTERVAL '30 days'
+              THEN 1
+              ELSE NULL
+            END)
+          `.as("count_paid_last_30_days_sales"),
+        })
+        .from(salesTable)
+        .where(and(eq(salesTable.isActive, true), ...conditions)) // Apply relevant sales conditions
+        .then((res) => res[0]);
+
+      // Quotation Summary Stats for "Unbilled"
+      // We'll filter quotations based on active status and relevant sales filters
+      const quotationConditions = [];
+      quotationConditions.push(eq(quotationsTable.isActive, true));
+      if (filters?.customerId) {
+        quotationConditions.push(
+          eq(quotationsTable.customerId, filters.customerId)
+        );
+      }
+
+      const quotationsSummary = await tx
+        .select({
+          totalUnbilledQuotationsAmount: sql<number>`
+            COALESCE(SUM(${quotationsTable.totalAmount}), 0)
+          `.as("total_unbilled_quotations_amount"),
+          countUnbilledQuotations: sql<number>`
+            COUNT(${quotationsTable.id})
+          `.as("count_unbilled_quotations"),
+        })
+        .from(quotationsTable)
+        .where(and(...quotationConditions))
+        .then((res) => res[0]);
+
+      return {
+        documents: parseStringify(processedRecords),
+        total: totalCount,
+        summary: parseStringify({
+          // --- UNBILLED SECTION ---
+          unbilled: {
+            amount: parseFloat(
+              quotationsSummary.totalUnbilledQuotationsAmount as any
+            ).toFixed(2),
+            count: quotationsSummary.countUnbilledQuotations || 0,
+          },
+
+          // --- UNPAID SECTION ---
+          unpaid: {
+            amount: parseFloat(
+              salesSummary.totalOpenSalesAmount as any
+            ).toFixed(2),
+            count: salesSummary.countOpenSales || 0,
+          },
+          overdue: {
+            amount: parseFloat(
+              salesSummary.totalOverdueSalesAmount as any
+            ).toFixed(2),
+            count: salesSummary.countOverdueSales || 0,
+          },
+
+          // --- PAID SECTION ---
+          paidLast30Days: {
+            amount: parseFloat(
+              salesSummary.totalPaidLast30DaysAmount as any
+            ).toFixed(2),
+            count: salesSummary.countPaidLast30DaysSales || 0,
+          },
+        }),
+      };
+    });
+
+    return parseStringify(result);
+  } catch (error: any) {
+    console.error("Error fetching Income Tracker data:", error);
+    throw new Error(error.message || "Failed to fetch income tracker data.");
+  }
+};
+
+// Get Income Tracker Summary (for dashboard widgets)
+export const getIncomeTrackerSummary = async (
+  filters?: Partial<IncomeTrackerFilters>
+) => {
+  try {
+    const conditions = buildIncomeTrackerFilterConditions(
+      filters ?? ({} as IncomeTrackerFilters)
+    );
+
+    // Sales Summary Stats
+    const salesSummary = await db
+      .select({
+        // Unpaid Sales
+        totalOpenSalesAmount: sql<number>`
+            COALESCE(SUM(CASE
+              WHEN ${salesTable.paymentStatus} IN (${PaymentStatus.Pending}, ${PaymentStatus.Partial})
+              THEN (${salesTable.totalAmount} - COALESCE(${salesTable.amountPaid}, 0))
+              ELSE 0
+            END), 0)
+          `.as("total_open_sales_amount"),
+        countOpenSales: sql<number>`
+            COUNT(CASE
+              WHEN ${salesTable.paymentStatus} IN (${PaymentStatus.Pending}, ${PaymentStatus.Partial})
+              THEN 1
+              ELSE NULL
+            END)
+          `.as("count_open_sales"),
+
+        // Overdue Sales
+        totalOverdueSalesAmount: sql<number>`
+            COALESCE(SUM(CASE
+              WHEN ${salesTable.dueDate} < CURRENT_DATE
+              AND ${salesTable.paymentStatus} IN (${PaymentStatus.Pending}, ${PaymentStatus.Partial})
+              THEN (${salesTable.totalAmount} - COALESCE(${salesTable.amountPaid}, 0))
+              ELSE 0
+            END), 0)
+          `.as("total_overdue_sales_amount"),
+        countOverdueSales: sql<number>`
+            COUNT(CASE
+              WHEN ${salesTable.dueDate} < CURRENT_DATE
+              AND ${salesTable.paymentStatus} IN (${PaymentStatus.Pending}, ${PaymentStatus.Partial})
+              THEN 1
+              ELSE NULL
+            END)
+          `.as("count_overdue_sales"),
+
+        // Paid Last 30 Days Sales
+        totalPaidLast30DaysAmount: sql<number>`
+            COALESCE(SUM(CASE
+              WHEN ${salesTable.paymentStatus} = ${PaymentStatus.Paid}
+              AND ${salesTable.updatedAt} >= CURRENT_DATE - INTERVAL '30 days'
+              THEN ${salesTable.totalAmount}
+              ELSE 0
+            END), 0)
+          `.as("total_paid_last_30_days_amount"),
+        countPaidLast30DaysSales: sql<number>`
+            COUNT(CASE
+              WHEN ${salesTable.paymentStatus} = ${PaymentStatus.Paid}
+              AND ${salesTable.updatedAt} >= CURRENT_DATE - INTERVAL '30 days'
+              THEN 1
+              ELSE NULL
+            END)
+          `.as("count_paid_last_30_days_sales"),
+      })
+      .from(salesTable)
+      .where(and(eq(salesTable.isActive, true), ...conditions)) // Apply relevant sales conditions
+      .then((res) => res[0]);
+
+    // Quotation Summary Stats for "Unbilled"
+    const quotationConditions = [];
+    quotationConditions.push(eq(quotationsTable.isActive, true));
+    if (filters?.customerId) {
+      quotationConditions.push(
+        eq(quotationsTable.customerId, filters.customerId)
+      );
+    }
+    const quotationsSummary = await db
+      .select({
+        totalUnbilledQuotationsAmount: sql<number>`
+            COALESCE(SUM(${quotationsTable.totalAmount}), 0)
+          `.as("total_unbilled_quotations_amount"),
+        countUnbilledQuotations: sql<number>`
+            COUNT(${quotationsTable.id})
+          `.as("count_unbilled_quotations"),
+      })
+      .from(quotationsTable)
+      .where(and(...quotationConditions))
+      .then((res) => res[0]);
+
+    return parseStringify({
+      // --- UNBILLED SECTION ---
+      unbilled: {
+        amount: parseFloat(
+          quotationsSummary.totalUnbilledQuotationsAmount as any
+        ).toFixed(2),
+        count: quotationsSummary.countUnbilledQuotations || 0,
+      },
+
+      // --- UNPAID SECTION ---
+      unpaid: {
+        amount: parseFloat(salesSummary.totalOpenSalesAmount as any).toFixed(2),
+        count: salesSummary.countOpenSales || 0,
+      },
+      overdue: {
+        amount: parseFloat(salesSummary.totalOverdueSalesAmount as any).toFixed(
+          2
+        ),
+        count: salesSummary.countOverdueSales || 0,
+      },
+
+      // --- PAID SECTION ---
+      paidLast30Days: {
+        amount: parseFloat(
+          salesSummary.totalPaidLast30DaysAmount as any
+        ).toFixed(2),
+        count: salesSummary.countPaidLast30DaysSales || 0,
+      },
+      // Removed other fields as per the new requirements
+    });
+  } catch (error: any) {
+    console.error("Error fetching Income Tracker summary:", error);
+    throw new Error(error.message || "Failed to fetch income tracker summary.");
   }
 };

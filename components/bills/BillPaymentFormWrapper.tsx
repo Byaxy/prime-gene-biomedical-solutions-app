@@ -20,11 +20,13 @@ import {
 interface BillPaymentFormWrapperProps {
   mode: "create" | "edit";
   billPaymentId?: string;
+  purchaseId?: string;
 }
 
 export default async function BillPaymentFormWrapper({
   mode,
   billPaymentId,
+  purchaseId,
 }: BillPaymentFormWrapperProps) {
   let initialData: BillPaymentWithRelations | undefined;
   let vendors: Vendor[] = [];
@@ -53,7 +55,7 @@ export default async function BillPaymentFormWrapper({
       (purchase: PurchaseWithRelations) =>
         (purchase.purchase.paymentStatus === "pending" ||
           purchase.purchase.paymentStatus === "partial") &&
-        purchase.purchase.isActive // Also ensure purchase itself is active
+        purchase.purchase.isActive
     );
 
     // Filter to only include active accounts
@@ -70,6 +72,36 @@ export default async function BillPaymentFormWrapper({
       initialData = parseStringify(fetchedBillPayment);
     } else if (mode === "create") {
       generatedBillReferenceNumber = await generateBillReferenceNumber();
+      if (purchaseId) {
+        // Pre-fill purchase if purchaseId is provided
+        const matchedPurchase = outstandingPurchases.find(
+          (purchase) => purchase.purchase.id === purchaseId
+        );
+        if (matchedPurchase) {
+          initialData = {
+            billPayment: {
+              id: "", 
+              isActive: true,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              userId: null,
+              billReferenceNo: generatedBillReferenceNumber || "",
+              paymentDate: new Date(),
+              vendorId: matchedPurchase.purchase.vendorId || "",
+              generalComments: "",
+              attachments: [],
+              totalPaymentAmount: matchedPurchase.purchase.totalAmount || 0,
+            },
+            vendor: matchedPurchase.purchase.vendorId
+              ? matchedPurchase.vendor
+              : null,
+            user: null,
+            items: [],
+            payingAccounts: [],
+            accompanyingExpenses: [],
+          };
+        }
+      }
     }
   } catch (error) {
     console.error("Error fetching data for BillPaymentForm:", error);

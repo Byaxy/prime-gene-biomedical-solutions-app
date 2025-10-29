@@ -9,29 +9,30 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { EllipsisVertical, Eye, Wallet } from "lucide-react";
-import { BillTrackerData } from "@/types";
-import BillPaymentDialog from "./BillPaymentDialog";
-import EditIcon from "@mui/icons-material/Edit";
+import { IncomeTrackerRecord } from "@/types"; // Your IncomeTrackerRecord type
+import SalePaymentDialog from "./SalePaymentDialog";
+import EditIcon from "@mui/icons-material/Edit"; // Assuming MUI icons are integrated
 import DeleteIcon from "@mui/icons-material/Delete";
 import toast from "react-hot-toast";
 
-interface BillPaymentActionsProps {
-  billTrackerData: BillTrackerData;
+interface SalePaymentActionsProps {
+  incomeTrackerData: IncomeTrackerRecord;
 }
 
-const BillPaymentActions: React.FC<BillPaymentActionsProps> = ({
-  billTrackerData,
+const SalePaymentActions: React.FC<SalePaymentActionsProps> = ({
+  incomeTrackerData,
 }) => {
   const [openDialog, setOpenDialog] = useState(false);
   const [mode, setMode] = useState<"view" | "delete">("view");
   const router = useRouter();
 
-  const hasPaymentRecord = !!billTrackerData.billPaymentId;
+  // A paymentId indicates a Payment Received record exists for this sale
+  const hasPaymentRecord = !!incomeTrackerData.paymentId;
 
   const handleEdit = () => {
-    if (hasPaymentRecord && billTrackerData.billPaymentId) {
+    if (hasPaymentRecord && incomeTrackerData.paymentId) {
       router.push(
-        `/accounting-and-finance/billing/edit/${billTrackerData.billPaymentId}`
+        `/accounting-and-finance/income/edit/${incomeTrackerData.paymentId}`
       );
     } else {
       toast.error("No direct payment record to edit.");
@@ -43,7 +44,7 @@ const BillPaymentActions: React.FC<BillPaymentActionsProps> = ({
       setMode("view");
       setOpenDialog(true);
     } else {
-      toast.error("No payment record to view for this purchase.");
+      toast.error("No payment record to view for this sale.");
     }
   };
 
@@ -52,13 +53,14 @@ const BillPaymentActions: React.FC<BillPaymentActionsProps> = ({
       setMode("delete");
       setOpenDialog(true);
     } else {
-      toast.error("No payment record to delete for this purchase.");
+      toast.error("No payment record to deactivate for this sale.");
     }
   };
 
-  const handlePayBill = () => {
+  const handleRecordPayment = () => {
+    // Navigate to a page to record a new payment for this specific sale
     router.push(
-      `/accounting-and-finance/billing/pay-bill?purchaseId=${billTrackerData.purchase.id}`
+      `/accounting-and-finance/income/record-income?sourceSaleId=${incomeTrackerData.sale.id}`
     );
   };
 
@@ -92,7 +94,7 @@ const BillPaymentActions: React.FC<BillPaymentActionsProps> = ({
             </>
           ) : (
             <DropdownMenuItem
-              onClick={handlePayBill}
+              onClick={handleRecordPayment}
               className="flex items-center cursor-pointer"
             >
               <Wallet className="mr-2 h-4 w-4" /> Record Payment
@@ -102,17 +104,16 @@ const BillPaymentActions: React.FC<BillPaymentActionsProps> = ({
       </DropdownMenu>
 
       {/* Render the dialog conditionally */}
-      {openDialog &&
-        hasPaymentRecord && ( // Only open dialog if there's a payment record
-          <BillPaymentDialog
-            mode={mode}
-            open={openDialog}
-            onOpenChange={setOpenDialog}
-            billTrackerData={billTrackerData}
-          />
-        )}
+      {openDialog && hasPaymentRecord && (
+        <SalePaymentDialog
+          mode={mode}
+          open={openDialog}
+          onOpenChange={setOpenDialog}
+          incomeTrackerData={incomeTrackerData}
+        />
+      )}
     </>
   );
 };
 
-export default BillPaymentActions;
+export default SalePaymentActions;

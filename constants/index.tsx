@@ -313,7 +313,19 @@ export const sidebarData: SidebarDataType[] = [
       {
         id: generateId(),
         title: "Income Management",
-        path: "/accounting-and-finance/income",
+        path: "",
+        subCategories: [
+          {
+            id: generateId(),
+            title: "Income Transactions/Records",
+            path: "/accounting-and-finance/income/transactions",
+          },
+          {
+            id: generateId(),
+            title: "Income Tracker",
+            path: "/accounting-and-finance/income",
+          },
+        ],
       },
 
       {

@@ -1014,6 +1014,9 @@ export const salesTable = pgTable(
       .default(sql`gen_random_uuid()`),
     invoiceNumber: text("invoice_number").notNull().unique(),
     saleDate: timestamp("sale_date").notNull(),
+    dueDate: timestamp("due_date")
+      .notNull()
+      .default(sql`now() + interval '30 days'`), // Default to 30 days from creation
     customerId: uuid("customer_id")
       .notNull()
       .references(() => customersTable.id, { onDelete: "set null" }), // Foreign key to customers

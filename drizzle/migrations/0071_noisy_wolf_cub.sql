@@ -1,0 +1,1 @@
+ALTER TABLE "sales" ADD COLUMN "due_date" timestamp DEFAULT now() + interval '30 days' NOT NULL;

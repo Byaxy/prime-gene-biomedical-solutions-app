@@ -104,14 +104,19 @@ export const useBillPayments = ({
       const params = new URLSearchParams(searchParams.toString());
 
       if (updates.page !== undefined) {
-        params.set("page", String(updates.page === 0 ? "" : updates.page));
+        if (updates.page === 0) {
+          params.delete("page");
+        } else {
+          params.set("page", String(updates.page));
+        }
       }
+
       if (updates.pageSize !== undefined) {
-        params.set(
-          "pageSize",
-          String(updates.pageSize === 10 ? "" : updates.pageSize)
-        );
-        params.delete("page");
+        if (updates.pageSize === 10) {
+          params.delete("pageSize");
+        } else {
+          params.set("pageSize", String(updates.pageSize));
+        }
       }
       if (updates.search !== undefined) {
         if (updates.search.trim()) {
@@ -127,7 +132,12 @@ export const useBillPayments = ({
           params.delete(key)
         );
         Object.entries(updates.filters).forEach(([key, value]) => {
-          if (value === undefined || value === "" || value === null) {
+          if (
+            value === undefined ||
+            value === "" ||
+            value === null ||
+            value === "all"
+          ) {
             params.delete(key);
           } else {
             params.set(key, String(value));

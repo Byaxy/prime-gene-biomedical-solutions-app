@@ -115,6 +115,9 @@ export default async function SaleFormWrapper({
           notes: initialData?.sale.notes || "",
           quotationId: initialData?.sale.quotationId || null,
           isActive: initialData?.sale.isActive || true,
+          dueDate: initialData?.sale.dueDate
+            ? new Date(initialData.sale.dueDate)
+            : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
           createdAt: new Date(),
           updatedAt: new Date(),
         },

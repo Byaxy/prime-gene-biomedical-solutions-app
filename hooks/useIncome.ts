@@ -112,14 +112,19 @@ export const useIncome = ({
       const params = new URLSearchParams(searchParams.toString());
 
       if (updates.page !== undefined) {
-        params.set("page", String(updates.page === 0 ? "" : updates.page));
+        if (updates.page === 0) {
+          params.delete("page");
+        } else {
+          params.set("page", String(updates.page));
+        }
       }
+
       if (updates.pageSize !== undefined) {
-        params.set(
-          "pageSize",
-          String(updates.pageSize === 10 ? "" : updates.pageSize)
-        );
-        params.delete("page");
+        if (updates.pageSize === 10) {
+          params.delete("pageSize");
+        } else {
+          params.set("pageSize", String(updates.pageSize));
+        }
       }
       if (updates.search !== undefined) {
         if (updates.search.trim()) {
@@ -133,7 +138,12 @@ export const useIncome = ({
       if (updates.filters) {
         Object.keys(defaultIncomeFilters).forEach((key) => params.delete(key));
         Object.entries(updates.filters).forEach(([key, value]) => {
-          if (value === undefined || value === "" || value === null) {
+          if (
+            value === undefined ||
+            value === "" ||
+            value === null ||
+            value === "all"
+          ) {
             params.delete(key);
           } else {
             params.set(key, String(value));
@@ -242,7 +252,10 @@ export const useIncome = ({
         },
         () => {
           queryClient.invalidateQueries({ queryKey: ["income"] });
-          // Invalidate related financial data
+          queryClient.invalidateQueries({ queryKey: ["incomeTracker"] });
+          queryClient.invalidateQueries({
+            queryKey: ["incomeTrackerSummary"],
+          });
           queryClient.invalidateQueries({ queryKey: ["accounts"] });
           queryClient.invalidateQueries({ queryKey: ["sales"] });
           queryClient.invalidateQueries({ queryKey: ["journalEntries"] });
@@ -267,6 +280,10 @@ export const useIncome = ({
       }) => recordIncome(data, userId),
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["income"] });
+        queryClient.invalidateQueries({ queryKey: ["incomeTracker"] });
+        queryClient.invalidateQueries({ queryKey: ["incomeTrackerSummary"] });
+        queryClient.invalidateQueries({ queryKey: ["accounts"] });
+        queryClient.invalidateQueries({ queryKey: ["sales"] });
       },
       onError: (error) => {
         console.error("Error recording Income:", error);
@@ -286,6 +303,10 @@ export const useIncome = ({
       }) => updateIncome(id, data, userId),
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["income"] });
+        queryClient.invalidateQueries({ queryKey: ["incomeTracker"] });
+        queryClient.invalidateQueries({ queryKey: ["incomeTrackerSummary"] });
+        queryClient.invalidateQueries({ queryKey: ["accounts"] });
+        queryClient.invalidateQueries({ queryKey: ["sales"] });
       },
       onError: (error) => {
         console.error("Error updating Income:", error);
@@ -298,6 +319,10 @@ export const useIncome = ({
         softDeleteIncome(id, userId),
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["income"] });
+        queryClient.invalidateQueries({ queryKey: ["incomeTracker"] });
+        queryClient.invalidateQueries({ queryKey: ["incomeTrackerSummary"] });
+        queryClient.invalidateQueries({ queryKey: ["accounts"] });
+        queryClient.invalidateQueries({ queryKey: ["sales"] });
       },
       onError: (error) => {
         console.error("Error deactivating Income:", error);

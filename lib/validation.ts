@@ -2,6 +2,7 @@ import {
   AccountType,
   CarrierType,
   ChartOfAccountType,
+  DateRange,
   DeliveryStatus,
   PackageType,
   PaymentMethod,
@@ -1832,3 +1833,22 @@ export const BillTrackerFiltersSchema = z.object({
   specificDate_end: z.string().optional(),
 });
 export type BillTrackerFilters = z.infer<typeof BillTrackerFiltersSchema>;
+
+// filters for income tracker
+export const IncomeTrackerFiltersSchema = z.object({
+  search: z.string().optional(),
+  customerId: z.string().optional(),
+  saleId: z.string().optional(),
+  paymentMethod: z
+    .enum(Object.values(PaymentMethod) as [string, ...string[]])
+    .optional(),
+  amount_min: z.number().optional(),
+  amount_max: z.number().optional(),
+  status: z.enum(["all", "open", "overdue", "paid"]).default("all"),
+  dateRange: z
+    .enum(Object.values(DateRange) as [string, ...string[]])
+    .default(DateRange.ALL),
+  specificDate_start: z.string().optional(),
+  specificDate_end: z.string().optional(),
+});
+export type IncomeTrackerFilters = z.infer<typeof IncomeTrackerFiltersSchema>;

@@ -819,6 +819,45 @@ export interface BillTrackerData {
   billPaymentId: string | null;
 }
 
+// Income tracker
+export type IncomeTrackerRecord = {
+  sale: Sale & { amountPaid: string }; // amountPaid is overridden with aggregated value
+  customer: Customer | null;
+  totalReceivedOnSale: number;
+  latestPaymentInfo: { id: string | null; ref: string | null } | null;
+  paymentId: string | null;
+  openBalance: string;
+  paymentStatus: PaymentStatus;
+  lastPaymentRef: string | null;
+  isOverdue: boolean;
+};
+
+// Type for the summary stats within getIncomeTrackerData and getIncomeTrackerSummary
+export type IncomeTrackerSummary = {
+  unbilled: {
+    amount: string;
+    count: number;
+  };
+  unpaid: {
+    amount: string;
+    count: number;
+  };
+  overdue: {
+    amount: string;
+    count: number;
+  };
+  paidLast30Days: {
+    amount: string;
+    count: number;
+  };
+};
+
+export type GetIncomeTrackerDataResponse = {
+  documents: IncomeTrackerRecord[];
+  total: number;
+  summary: IncomeTrackerSummary;
+};
+
 // Enums
 
 // payment methods
@@ -961,4 +1000,19 @@ export enum JournalEntryReferenceType {
   PAYMENT_RECEIVED = "payment_received",
   BILL_PAYMENT = "bill_payment",
   ADJUSTMENT = "adjustment",
+}
+
+export enum DateRange {
+  ALL = "all",
+  TODAY = "today",
+  YESTERDAY = "yesterday",
+  THIS_WEEK = "this_week",
+  LAST_WEEK = "last_week",
+  LAST_TWO_WEEKS = "last_two_weeks",
+  THIS_MONTH = "this_month",
+  LAST_MONTH = "last_month",
+  THIS_QUARTER = "this_quarter",
+  LAST_QUARTER = "last_quarter",
+  THIS_YEAR = "this_year",
+  LAST_YEAR = "last_year",
 }

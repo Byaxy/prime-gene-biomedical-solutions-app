@@ -498,6 +498,13 @@
       "when": 1760693830017,
       "tag": "0070_past_gunslinger",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1761743377169,
+      "tag": "0071_noisy_wolf_cub",
+      "breakpoints": true
     }
   ]
 }

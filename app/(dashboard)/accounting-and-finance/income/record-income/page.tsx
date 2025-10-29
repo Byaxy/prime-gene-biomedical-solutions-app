@@ -3,11 +3,21 @@ import PageWraper from "@/components/PageWraper";
 import FormSkeleton from "@/components/ui/form-skeleton";
 import React, { Suspense } from "react";
 
-const RecordIncome = () => {
+export interface SearchParams {
+  sourceSaleId?: string;
+}
+
+const RecordIncome = async ({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) => {
+  const { sourceSaleId } = await searchParams;
+
   return (
-    <PageWraper title="Create Expense">
+    <PageWraper title="Record Income">
       <Suspense fallback={<FormSkeleton />}>
-        <RecordIncomeFormWrapper mode="create" />
+        <RecordIncomeFormWrapper mode="create" sourceSaleId={sourceSaleId} />
       </Suspense>
     </PageWraper>
   );
