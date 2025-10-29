@@ -1,6 +1,10 @@
 import { notFound } from "next/navigation";
 import { getCustomers } from "@/lib/actions/customer.actions";
-import { getSales } from "@/lib/actions/sale.actions";
+import { getSales } from "@/lib/actions/sale.actions"; // Assuming this action can fetch by ID
+import {
+  generatePaymentReferenceNumber,
+  getIncomeById,
+} from "@/lib/actions/payments.actions"; // Assuming this fetches IncomeWithRelations
 
 import { parseStringify } from "@/lib/utils";
 import {
@@ -13,10 +17,6 @@ import {
 } from "@/types";
 import { getIncomeCategories } from "@/lib/actions/incomeCategories.actions";
 import { getAccounts } from "@/lib/actions/accounting.actions";
-import {
-  generatePaymentReferenceNumber,
-  getIncomeById,
-} from "@/lib/actions/payments.actions";
 import { RecordIncomeForm } from "../forms/RecordIncomeForm";
 
 interface RecordIncomeFormWrapperProps {
@@ -32,7 +32,7 @@ export default async function RecordIncomeFormWrapper({
 }: RecordIncomeFormWrapperProps) {
   let initialData: IncomeWithRelations | undefined;
   let customers: Customer[] = [];
-  let sales: SaleWithRelations[] = [];
+  let salesToDisplay: SaleWithRelations[] = [];
   let incomeCategories: IncomeCategoryWithRelations[] = [];
   let receivingAccounts: AccountWithRelations[] = [];
 
@@ -40,7 +40,7 @@ export default async function RecordIncomeFormWrapper({
 
   const [
     fetchedCustomers,
-    fetchedSales,
+    allSalesDocuments,
     fetchedIncomeCategories,
     fetchedAccounts,
   ] = await Promise.all([
@@ -60,9 +60,8 @@ export default async function RecordIncomeFormWrapper({
     )
   );
 
-  // Filter sales to show only those with pending/partial payment statuses
-  sales = parseStringify(
-    fetchedSales.documents.filter(
+  const outstandingSales: SaleWithRelations[] = parseStringify(
+    allSalesDocuments.documents.filter(
       (sale: SaleWithRelations) =>
         (sale.sale.paymentStatus === "pending" ||
           sale.sale.paymentStatus === "partial") &&
@@ -70,16 +69,40 @@ export default async function RecordIncomeFormWrapper({
     )
   );
 
+  salesToDisplay = [...outstandingSales];
+
   if (mode === "edit") {
     if (!incomeId) notFound();
     const fetchedIncome = await getIncomeById(incomeId);
     if (!fetchedIncome) notFound();
     initialData = parseStringify(fetchedIncome);
+
+    // If the income record is linked to a sale, ensure that specific sale is in `salesToDisplay`
+    if (initialData?.payment?.saleId) {
+      const linkedSaleId = initialData.payment.saleId;
+      const isLinkedSaleInOutstanding = outstandingSales.some(
+        (s) => s.sale.id === linkedSaleId
+      );
+
+      if (!isLinkedSaleInOutstanding) {
+        // The linked sale is no longer outstanding (e.g., fully paid by THIS payment)
+        // Find it in the *allSalesDocuments* to include it in the dropdown options
+        const previouslyLinkedSale = allSalesDocuments.documents.find(
+          (sale: SaleWithRelations) => sale.sale.id === linkedSaleId
+        );
+        if (previouslyLinkedSale) {
+          salesToDisplay.unshift(parseStringify(previouslyLinkedSale));
+        }
+      }
+    }
   } else if (mode === "create") {
     generatedReferenceNumber = await generatePaymentReferenceNumber();
 
     if (sourceSaleId) {
-      const sourceSale = sales.find((s) => s.sale.id === sourceSaleId);
+      // For create mode with sourceSaleId, find it within the outstanding sales
+      const sourceSale = outstandingSales.find(
+        (s) => s.sale.id === sourceSaleId
+      );
       if (!sourceSale) notFound();
 
       // Create a mock initialData for pre-population
@@ -110,12 +133,18 @@ export default async function RecordIncomeFormWrapper({
     }
   }
 
+  // Ensure unique sales in salesToDisplay if a sale was added (e.g., for edit mode)
+  // This step is important if a sale might exist in both outstandingSales and also added specifically
+  salesToDisplay = Array.from(
+    new Map(salesToDisplay.map((item) => [item.sale.id, item])).values()
+  );
+
   return (
     <RecordIncomeForm
       mode={mode}
       initialData={initialData}
       customers={customers}
-      sales={sales}
+      sales={salesToDisplay}
       incomeCategories={incomeCategories}
       receivingAccounts={receivingAccounts}
       generatedReferenceNumber={generatedReferenceNumber}
