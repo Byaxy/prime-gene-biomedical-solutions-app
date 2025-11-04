@@ -129,8 +129,7 @@ export const ReceiptForm: React.FC<ReceiptFormProps> = ({
     defaultValues: defaultValues,
   });
 
-  const { fields, append, remove } = useFieldArray({
-    // Removed 'update' as we're primarily appending/removing and internal updates
+  const { fields, prepend, remove } = useFieldArray({
     control: form.control,
     name: "receiptItems",
   });
@@ -269,7 +268,7 @@ export const ReceiptForm: React.FC<ReceiptFormProps> = ({
       itemBalanceDue = 0;
     }
 
-    append({
+    prepend({
       paymentReceivedId: payment.id,
       invoiceNumber: invoiceNumber,
       invoiceDate: invoiceDate,
