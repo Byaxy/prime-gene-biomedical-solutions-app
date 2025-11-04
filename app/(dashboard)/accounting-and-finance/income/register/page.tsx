@@ -53,7 +53,7 @@ export default async function IncomeTrackerPage({
 
   return (
     <PageWraper
-      title="Income Transactions/Records"
+      title="Income Register"
       buttonText="Record Income"
       buttonPath="/accounting-and-finance/income/record-income"
     >

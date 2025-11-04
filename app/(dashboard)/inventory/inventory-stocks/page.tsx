@@ -23,10 +23,7 @@ const InventoryStockTableData = async ({
     filters
   );
   const InventoryStockTable = dynamic(
-    () => import("@/components/inventory/InventoryStockTable"),
-    {
-      ssr: true,
-    }
+    () => import("@/components/inventory/InventoryStockTable")
   );
   return <InventoryStockTable initialData={initialData} />;
 };

@@ -15,6 +15,8 @@ import {
   inventoryTransactionsTable,
   paymentsReceivedTable,
   purchasesTable,
+  receiptItemsTable,
+  receiptsTable,
   salesTable,
   usersTable,
   vendorsTable,
@@ -858,13 +860,32 @@ export type GetIncomeTrackerDataResponse = {
   summary: IncomeTrackerSummary;
 };
 
+// Receipts
+export type Receipt = typeof receiptsTable.$inferSelect;
+
+export type ReceiptItem = typeof receiptItemsTable.$inferSelect;
+
+export interface ReceiptItemWithRelations {
+  receiptItem: ReceiptItem;
+  paymentReceived: PaymentReceived | null;
+  sale: Sale | null;
+  incomeCategory: IncomeCategory | null;
+  receivingAccount: Account | null;
+}
+
+export interface ReceiptWithRelations {
+  receipt: Receipt;
+  customer: Customer | null;
+  items: ReceiptItemWithRelations[];
+}
+
 // Enums
 
 // payment methods
 export enum PaymentMethod {
   Cash = "cash",
   Check = "check",
-  "Mobile Money" = "mobile-money",
+  Mobile_Money = "mobile-money",
   Bank = "bank",
 }
 

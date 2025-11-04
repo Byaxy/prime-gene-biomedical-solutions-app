@@ -16,6 +16,7 @@ import {
   Attachment,
   IncomeWithRelations,
   PaymentMethod,
+  AccountType,
 } from "@/types";
 
 import { Form, FormControl } from "../ui/form";
@@ -35,13 +36,29 @@ import { generatePaymentReferenceNumber } from "@/lib/actions/payments.actions";
 
 interface RecordIncomeFormProps {
   mode: "create" | "edit";
-  initialData?: IncomeWithRelations; // For edit mode or pre-population
+  initialData?: IncomeWithRelations;
   customers: Customer[];
-  sales: SaleWithRelations[]; // Outstanding sales
+  sales: SaleWithRelations[];
   incomeCategories: IncomeCategoryWithRelations[];
   receivingAccounts: AccountWithRelations[];
   generatedReferenceNumber?: string;
 }
+
+// Helper function to map account type to payment method
+const getPaymentMethodFromAccountType = (
+  accountType: AccountType
+): PaymentMethod => {
+  switch (accountType) {
+    case AccountType.BANK:
+      return PaymentMethod.Bank;
+    case AccountType.MOBILE_MONEY:
+      return PaymentMethod.Mobile_Money;
+    case AccountType.CASH_ON_HAND:
+      return PaymentMethod.Cash;
+    default:
+      return PaymentMethod.Cash;
+  }
+};
 
 export const RecordIncomeForm: React.FC<RecordIncomeFormProps> = ({
   mode,
@@ -65,7 +82,6 @@ export const RecordIncomeForm: React.FC<RecordIncomeFormProps> = ({
     setDisplayedCurrentReceivingAccountBalance,
   ] = useState<number | null>(null);
 
-  // State to control tabs: "sales_payment" or "other_income"
   const [incomeTypeTab, setIncomeTypeTab] = useState<
     "sales_payment" | "other_income"
   >(initialData?.payment?.saleId ? "sales_payment" : "other_income");
@@ -86,6 +102,11 @@ export const RecordIncomeForm: React.FC<RecordIncomeFormProps> = ({
       amountReceived:
         parseFloat(initialData?.payment?.amountReceived as any) || 0,
       paymentMethod: initialData?.payment?.paymentMethod || PaymentMethod.Cash,
+      checkNumber: initialData?.payment?.checkNumber || "",
+      checkDate: initialData?.payment?.checkDate
+        ? new Date(initialData.payment.checkDate)
+        : undefined,
+      checkBankName: initialData?.payment?.checkBankName || "",
       notes: initialData?.payment?.notes || "",
       attachments: initialData?.payment?.attachments || [],
       currentReceivingAccountBalance: initialData?.receivingAccount
@@ -107,8 +128,9 @@ export const RecordIncomeForm: React.FC<RecordIncomeFormProps> = ({
   const selectedReceivingAccountId = form.watch("receivingAccountId");
   const selectedCustomerId = form.watch("customerId");
   const selectedSaleId = form.watch("saleId");
+  const selectedPaymentMethod = form.watch("paymentMethod");
 
-  // --- useEffect to update FORM STATE for currentReceivingAccountBalance ---
+  // Auto-set payment method based on receiving account type
   useEffect(() => {
     const account = receivingAccounts.find(
       (acc) => acc.account.id === selectedReceivingAccountId
@@ -121,6 +143,14 @@ export const RecordIncomeForm: React.FC<RecordIncomeFormProps> = ({
         shouldDirty: true,
       });
       setDisplayedCurrentReceivingAccountBalance(newBalance);
+
+      // Auto-set payment method based on account type
+      const suggestedPaymentMethod = getPaymentMethodFromAccountType(
+        account.account.accountType as AccountType
+      );
+      form.setValue("paymentMethod", suggestedPaymentMethod, {
+        shouldValidate: true,
+      });
     } else {
       form.setValue("currentReceivingAccountBalance", undefined, {
         shouldValidate: true,
@@ -129,14 +159,12 @@ export const RecordIncomeForm: React.FC<RecordIncomeFormProps> = ({
     }
   }, [selectedReceivingAccountId, receivingAccounts, form]);
 
-  // Effect to manage saleId based on customer selection
   useEffect(() => {
     if (!selectedCustomerId) {
-      form.setValue("saleId", "", { shouldValidate: true }); // Clear saleId if customer changes
+      form.setValue("saleId", "", { shouldValidate: true });
     }
   }, [selectedCustomerId, form]);
 
-  // Auto-populate amount due when saleId is selected (only for create mode)
   useEffect(() => {
     if (
       mode === "create" &&
@@ -157,11 +185,19 @@ export const RecordIncomeForm: React.FC<RecordIncomeFormProps> = ({
     }
   }, [selectedSaleId, sales, mode, incomeTypeTab, form]);
 
+  // Clear check fields when payment method is not check
+  useEffect(() => {
+    if (selectedPaymentMethod !== PaymentMethod.Check) {
+      form.setValue("checkNumber", "");
+      form.setValue("checkDate", undefined);
+      form.setValue("checkBankName", "");
+    }
+  }, [selectedPaymentMethod, form]);
+
   const handleCancel = () => {
     form.reset(defaultValues);
   };
 
-  // Set reference number (if generated)
   useEffect(() => {
     if (
       mode === "create" &&
@@ -172,7 +208,6 @@ export const RecordIncomeForm: React.FC<RecordIncomeFormProps> = ({
     }
   }, [initialGeneratedReferenceNumber, form, mode]);
 
-  // Refresh button handler for reference number
   const handleRefreshRefNumber = async () => {
     if (mode === "create") {
       try {
@@ -246,15 +281,26 @@ export const RecordIncomeForm: React.FC<RecordIncomeFormProps> = ({
       const dataWithAttachments = {
         ...values,
         attachments: allAttachments,
-        // Ensure currentReceivingAccountBalance is NOT passed to server
         currentReceivingAccountBalance: undefined,
-        // Adjust fields based on selected tab
         customerId:
           incomeTypeTab === "sales_payment" ? values.customerId : undefined,
         saleId: incomeTypeTab === "sales_payment" ? values.saleId : undefined,
         incomeCategoryId:
           incomeTypeTab === "other_income"
             ? values.incomeCategoryId
+            : undefined,
+        // Clear check fields if payment method is not check
+        checkNumber:
+          values.paymentMethod === PaymentMethod.Check
+            ? values.checkNumber
+            : undefined,
+        checkDate:
+          values.paymentMethod === PaymentMethod.Check
+            ? values.checkDate
+            : undefined,
+        checkBankName:
+          values.paymentMethod === PaymentMethod.Check
+            ? values.checkBankName
             : undefined,
       };
 
@@ -373,7 +419,6 @@ export const RecordIncomeForm: React.FC<RecordIncomeFormProps> = ({
           />
         </div>
 
-        {/* --- Income Type Tabs --- */}
         <Tabs
           value={incomeTypeTab}
           onValueChange={(value) =>
@@ -488,7 +533,6 @@ export const RecordIncomeForm: React.FC<RecordIncomeFormProps> = ({
           </TabsContent>
         </Tabs>
 
-        {/* --- Common Income Fields --- */}
         <div className="w-full flex flex-col md:flex-row gap-5">
           <div className="flex flex-1 flex-col gap-2">
             <CustomFormField
@@ -519,7 +563,6 @@ export const RecordIncomeForm: React.FC<RecordIncomeFormProps> = ({
                     displayedCurrentReceivingAccountBalance > 0
                     ? "text-green-500"
                     : "text-red-600",
-                  // Check form errors
                   form.formState.errors.amountReceived?.message ||
                     form.formState.errors.receivingAccountId?.message
                     ? "text-red-600"
@@ -544,7 +587,6 @@ export const RecordIncomeForm: React.FC<RecordIncomeFormProps> = ({
                 )}
               </p>
             )}
-            {/* Hidden input field for Zod to use */}
             <input
               type="hidden"
               {...form.register("currentReceivingAccountBalance", {
@@ -570,6 +612,7 @@ export const RecordIncomeForm: React.FC<RecordIncomeFormProps> = ({
             label="Payment Method"
             placeholder="Select payment method"
             disabled={isAnyMutationLoading}
+            key={form.watch("paymentMethod") || ""}
           >
             {Object.values(PaymentMethod).map((method) => (
               <SelectItem
@@ -582,6 +625,41 @@ export const RecordIncomeForm: React.FC<RecordIncomeFormProps> = ({
             ))}
           </CustomFormField>
         </div>
+
+        {/* Check Details Section - Only visible when payment method is Check */}
+        {selectedPaymentMethod === PaymentMethod.Check && (
+          <div className="w-full space-y-4 p-4 border rounded-md bg-blue-50">
+            <h3 className="text-lg font-semibold text-blue-800">
+              Check Details
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <CustomFormField
+                fieldType={FormFieldType.INPUT}
+                control={form.control}
+                name="checkNumber"
+                label="Check Number"
+                placeholder="Enter check number"
+                disabled={isAnyMutationLoading}
+              />
+              <CustomFormField
+                fieldType={FormFieldType.DATE_PICKER}
+                control={form.control}
+                name="checkDate"
+                label="Check Date"
+                dateFormat="MM/dd/yyyy"
+                disabled={isAnyMutationLoading}
+              />
+            </div>
+            <CustomFormField
+              fieldType={FormFieldType.INPUT}
+              control={form.control}
+              name="checkBankName"
+              label="Bank Name"
+              placeholder="Enter bank name on check"
+              disabled={isAnyMutationLoading}
+            />
+          </div>
+        )}
 
         <CustomFormField
           fieldType={FormFieldType.TEXTAREA}

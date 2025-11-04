@@ -15,11 +15,23 @@ import {
   storesTable,
   usersTable,
 } from "@/drizzle/schema";
-import { eq, and, desc, sql, gte, lte, asc, gt, ilike, or } from "drizzle-orm";
+import {
+  eq,
+  and,
+  desc,
+  sql,
+  gte,
+  lte,
+  asc,
+  gt,
+  ilike,
+  or,
+  inArray,
+} from "drizzle-orm";
 import { ExistingStockAdjustmentFormValues } from "../validation";
 import { ExtendedStockAdjustmentFormValues } from "@/components/forms/NewStockForm";
 import { InventoryStockFilters } from "@/hooks/useInventoryStock";
-import { InventoryStock, InventoryTransactionType } from "@/types";
+import { InventoryTransactionType } from "@/types";
 import { InventoryTransactionsFilters } from "@/hooks/useInventoryStockTransactions";
 
 const buildTransactionsFilterConditions = (
@@ -188,17 +200,40 @@ export const fulfillBackorders = async (
       return;
     }
 
-    const newInventory: InventoryStock = await tx
+    const [newInventory] = await tx
       .select()
       .from(inventoryTable)
-      .where(eq(inventoryTable.id, newInventoryId))
-      .then((res: InventoryStock[]) => res[0]);
+      .where(eq(inventoryTable.id, newInventoryId));
 
     if (!newInventory) {
       throw new Error("New inventory not found");
     }
 
     let remainingQty = newInventory.quantity;
+
+    // Arrays to collect batch operations
+    const backorderFulfillmentsToInsert: any[] = [];
+    const saleItemInventoryToInsert: any[] = [];
+    const inventoryTransactionsToInsert: any[] = [];
+
+    // Arrays/Maps for batch updates
+    const backorderUpdates: {
+      id: string;
+      pendingQuantity: number;
+      isActive: boolean;
+    }[] = [];
+
+    // Map to keep track of total fulfilled quantity per sale item
+    const saleItemFulfilledMap = new Map<
+      string,
+      { totalFulfilled: number; currentBackorderQty: number }
+    >();
+    for (const backorder of pendingBackorders) {
+      saleItemFulfilledMap.set(backorder.saleItemId, {
+        totalFulfilled: 0,
+        currentBackorderQty: backorder.pendingQuantity,
+      });
+    }
 
     for (const backorder of pendingBackorders) {
       if (remainingQty <= 0) {
@@ -208,77 +243,100 @@ export const fulfillBackorders = async (
 
       const fulfillQty = Math.min(remainingQty, backorder.pendingQuantity);
 
-      // Create fulfillment record
-      await tx.insert(backorderFulfillmentsTable).values({
+      // Collect fulfillment record
+      backorderFulfillmentsToInsert.push({
         backorderId: backorder.id,
         inventoryId: newInventoryId,
         fulfilledQuantity: fulfillQty,
       });
 
-      // Update sale item with actual inventory
-      await tx.insert(saleItemInventoryTable).values({
+      // Collect sale item inventory record
+      saleItemInventoryToInsert.push({
         saleItemId: backorder.saleItemId,
         inventoryStockId: newInventoryId,
         lotNumber: newInventory.lotNumber,
         quantityToTake: fulfillQty,
       });
 
-      // Update backorder status
+      // Update backorder and sale item status locally for batching
       const newPending = backorder.pendingQuantity - fulfillQty;
-      if (newPending > 0) {
-        await tx
-          .update(backordersTable)
-          .set({
-            pendingQuantity: newPending,
-          })
-          .where(eq(backordersTable.id, backorder.id));
-
-        await tx
-          .update(saleItemsTable)
-          .set({
-            backorderQuantity: sql`${saleItemsTable.backorderQuantity} - ${fulfillQty}`,
-          })
-          .where(eq(saleItemsTable.id, backorder.saleItemId));
-      } else {
-        await tx
-          .update(saleItemsTable)
-          .set({
-            backorderQuantity: 0,
-            hasBackorder: false,
-          })
-          .where(eq(saleItemsTable.id, backorder.saleItemId));
-
-        await tx
-          .update(backordersTable)
-          .set({
-            isActive: false,
-          })
-          .where(eq(backordersTable.id, backorder.id));
+      const currentSaleItem = saleItemFulfilledMap.get(backorder.saleItemId);
+      if (currentSaleItem) {
+        currentSaleItem.totalFulfilled += fulfillQty;
+        currentSaleItem.currentBackorderQty -= fulfillQty;
       }
 
-      // Update inventory quantity
-      remainingQty -= fulfillQty;
-      await tx
-        .update(inventoryTable)
-        .set({
-          quantity: remainingQty,
-        })
-        .where(eq(inventoryTable.id, newInventoryId));
+      backorderUpdates.push({
+        id: backorder.id,
+        pendingQuantity: newPending,
+        isActive: newPending <= 0 ? false : true,
+      });
 
-      // Log transaction for backorder fulfillment
-      await tx.insert(inventoryTransactionsTable).values({
+      // Log transaction data
+      inventoryTransactionsToInsert.push({
         inventoryId: newInventoryId,
         productId: productId,
         storeId: storeId,
         userId: userId,
         transactionType: "backorder_fulfillment",
-        quantityBefore: newInventory.quantity,
-        quantityAfter: remainingQty,
+        quantityBefore: remainingQty,
+        quantityAfter: remainingQty - fulfillQty,
         transactionDate: new Date(),
         referenceId: backorder.saleItemId,
-        notes: `Fulfilled backorder for sale item ${backorder.saleItemId}`,
+        notes: `Fulfilled backorder for sale item ${backorder.saleItemId} with ${fulfillQty} units`,
       });
+
+      remainingQty -= fulfillQty;
     }
+
+    // --- Execute all batch operations ---
+
+    if (backorderFulfillmentsToInsert.length > 0) {
+      await tx
+        .insert(backorderFulfillmentsTable)
+        .values(backorderFulfillmentsToInsert);
+    }
+    if (saleItemInventoryToInsert.length > 0) {
+      await tx.insert(saleItemInventoryTable).values(saleItemInventoryToInsert);
+    }
+    if (inventoryTransactionsToInsert.length > 0) {
+      await tx
+        .insert(inventoryTransactionsTable)
+        .values(inventoryTransactionsToInsert);
+    }
+
+    // Batch update backorders
+    await Promise.all(
+      backorderUpdates.map((update) =>
+        tx
+          .update(backordersTable)
+          .set({
+            pendingQuantity: update.pendingQuantity,
+            isActive: update.isActive,
+          })
+          .where(eq(backordersTable.id, update.id))
+      )
+    );
+
+    const distinctSaleItemIds = Array.from(saleItemFulfilledMap.keys());
+    await Promise.all(
+      distinctSaleItemIds.map((saleItemId) => {
+        const itemInfo = saleItemFulfilledMap.get(saleItemId);
+        if (itemInfo) {
+          const newBackorderQty = itemInfo.currentBackorderQty;
+          const hasBackorder = newBackorderQty > 0;
+
+          return tx
+            .update(saleItemsTable)
+            .set({
+              backorderQuantity: newBackorderQty,
+              hasBackorder: hasBackorder,
+            })
+            .where(eq(saleItemsTable.id, saleItemId));
+        }
+        return Promise.resolve();
+      })
+    );
   } catch (error) {
     console.error("Error in fulfillBackorders:", error);
     throw error;
@@ -293,110 +351,150 @@ export const addInventoryStock = async (
   try {
     const { storeId, receivedDate, products, notes } = data;
 
-    // Start a transaction
     const result = await db.transaction(async (tx) => {
-      const inventoryItems = [];
-      const transactions = [];
+      const inventoryItemsToInsert: any[] = [];
+      const inventoryUpdates: Promise<any>[] = [];
+      const transactionsToInsert: any[] = [];
+      const backorderFulfillmentCalls: Promise<void>[] = [];
 
-      // Process each product
-      for (const product of products) {
-        // Add or update inventory record
-        const existingInventory = await tx
-          .select()
-          .from(inventoryTable)
-          .where(
-            and(
-              eq(inventoryTable.productId, product.productId),
-              eq(inventoryTable.storeId, storeId),
-              eq(inventoryTable.lotNumber, product.lotNumber),
-              eq(inventoryTable.isActive, true)
-            )
+      // First, get all existing inventories for the products in one go
+      const productLotCombinations = products.map((p) => ({
+        productId: p.productId,
+        lotNumber: p.lotNumber,
+      }));
+
+      const existingInventories = await tx
+        .select()
+        .from(inventoryTable)
+        .where(
+          and(
+            eq(inventoryTable.storeId, storeId),
+            eq(inventoryTable.isActive, true),
+            sql`${inventoryTable.productId} || ${
+              inventoryTable.lotNumber
+            } IN (${productLotCombinations
+              .map((p) => `${p.productId}${p.lotNumber}`)
+              .join(",")})`
           )
-          .then((res) => res[0]);
+        );
+
+      const existingInventoryMap = new Map<
+        string,
+        typeof inventoryTable.$inferSelect
+      >();
+      existingInventories.forEach((inv) =>
+        existingInventoryMap.set(`${inv.productId}-${inv.lotNumber}`, inv)
+      );
+
+      for (const product of products) {
+        const key = `${product.productId}-${product.lotNumber}`;
+        const existingInventory = existingInventoryMap.get(key);
 
         if (existingInventory) {
           // Update existing inventory
-          const [updatedInventory] = await tx
-            .update(inventoryTable)
-            .set({
-              quantity: existingInventory.quantity + product.quantity,
-              costPrice: product.costPrice,
-              sellingPrice: product.sellingPrice,
-              manufactureDate: product.manufactureDate,
-              expiryDate: product.expiryDate,
-              updatedAt: new Date(),
-            })
-            .where(eq(inventoryTable.id, existingInventory.id))
-            .returning();
-
-          inventoryItems.push(updatedInventory);
+          const newQuantity = existingInventory.quantity + product.quantity;
+          inventoryUpdates.push(
+            tx
+              .update(inventoryTable)
+              .set({
+                quantity: newQuantity,
+                costPrice: product.costPrice,
+                sellingPrice: product.sellingPrice,
+                manufactureDate: product.manufactureDate,
+                expiryDate: product.expiryDate,
+                receivedDate: receivedDate,
+                updatedAt: new Date(),
+              })
+              .where(eq(inventoryTable.id, existingInventory.id))
+              .returning()
+          );
 
           // Log transaction (update)
-          const transaction = await tx
-            .insert(inventoryTransactionsTable)
-            .values({
-              inventoryId: existingInventory.id,
-              productId: product.productId,
-              storeId,
-              userId: userId,
-              transactionType: "adjustment",
-              quantityBefore: existingInventory.quantity,
-              quantityAfter: existingInventory.quantity + product.quantity,
-              transactionDate: new Date(),
-              notes: `Stock adjustment: Added ${product.quantity} units \n ${notes}`,
-            })
-            .returning();
-
-          transactions.push(transaction[0]);
+          transactionsToInsert.push({
+            inventoryId: existingInventory.id,
+            productId: product.productId,
+            storeId,
+            userId: userId,
+            transactionType: "adjustment",
+            quantityBefore: existingInventory.quantity,
+            quantityAfter: newQuantity,
+            transactionDate: new Date(),
+            notes: `Stock adjustment: Added ${product.quantity} units \n ${notes}`,
+          });
         } else {
           // Create new inventory record
-          const [newInventory] = await tx
-            .insert(inventoryTable)
-            .values({
-              productId: product.productId,
-              storeId,
-              lotNumber: product.lotNumber,
-              quantity: product.quantity,
-              costPrice: product.costPrice,
-              sellingPrice: product.sellingPrice,
-              manufactureDate: product.manufactureDate,
-              expiryDate: product.expiryDate,
-              receivedDate: receivedDate,
-            })
-            .returning();
-
-          inventoryItems.push(newInventory);
+          const newInventoryId = sql`gen_random_uuid()`;
+          inventoryItemsToInsert.push({
+            id: newInventoryId,
+            productId: product.productId,
+            storeId,
+            lotNumber: product.lotNumber,
+            quantity: product.quantity,
+            costPrice: product.costPrice,
+            sellingPrice: product.sellingPrice,
+            manufactureDate: product.manufactureDate,
+            expiryDate: product.expiryDate,
+            receivedDate: receivedDate,
+          });
 
           // Log transaction (new)
-          const transaction = await tx
-            .insert(inventoryTransactionsTable)
-            .values({
-              inventoryId: newInventory.id,
-              productId: product.productId,
+          transactionsToInsert.push({
+            inventoryId: newInventoryId,
+            productId: product.productId,
+            storeId,
+            userId: userId,
+            transactionType: "adjustment",
+            quantityBefore: 0,
+            quantityAfter: product.quantity,
+            transactionDate: new Date(),
+            notes: `New stock added: ${product.quantity} units \n ${notes}`,
+          });
+
+          backorderFulfillmentCalls.push(
+            fulfillBackorders(
+              product.productId,
               storeId,
-              userId: userId,
-              transactionType: "adjustment",
-              quantityBefore: 0,
-              quantityAfter: product.quantity,
-              transactionDate: new Date(),
-              notes: `New stock added: ${product.quantity} units \n ${notes}`,
-            })
-            .returning();
-
-          transactions.push(transaction[0]);
-
-          // Fulfill Backorders for new inventory
-          fulfillBackorders(
-            newInventory.productId,
-            newInventory.storeId,
-            newInventory.id,
-            userId,
-            tx
+              newInventoryId as unknown as string,
+              userId,
+              tx
+            )
           );
         }
       }
 
-      return { inventoryItems, transactions };
+      // --- Execute all batch operations ---
+
+      // Perform all new inventory inserts
+      let insertedInventoryRecords: any[] = [];
+      if (inventoryItemsToInsert.length > 0) {
+        insertedInventoryRecords = await tx
+          .insert(inventoryTable)
+          .values(inventoryItemsToInsert)
+          .returning();
+      }
+
+      // Execute all pending inventory updates
+      const updatedInventoryRecords = await Promise.all(inventoryUpdates);
+
+      // Perform all transaction inserts
+      let insertedTransactions: any[] = [];
+      if (transactionsToInsert.length > 0) {
+        insertedTransactions = await tx
+          .insert(inventoryTransactionsTable)
+          .values(transactionsToInsert)
+          .returning();
+      }
+
+      // Execute all backorder fulfillments
+      await Promise.all(backorderFulfillmentCalls);
+
+      return {
+        inventoryItems: [
+          ...insertedInventoryRecords,
+          ...updatedInventoryRecords.flat(),
+        ],
+        transactions: insertedTransactions,
+      };
     });
 
     revalidatePath("/inventory");
@@ -419,26 +517,46 @@ export const adjustInventoryStock = async (
 
     // Start a transaction
     const result = await db.transaction(async (tx) => {
-      const inventoryItems = [];
-      const transactions = [];
+      const updatedInventoryRecords: any[] = [];
+      const transactionsToInsert: any[] = [];
+
+      // Fetch all relevant existing inventories in one go
+      const inventoryIdsToFetch = entries.map(
+        (entry) => entry.inventoryStockId
+      );
+      if (inventoryIdsToFetch.length === 0) {
+        return { inventoryItems: [], transactions: [] };
+      }
+
+      const existingInventories = await tx
+        .select()
+        .from(inventoryTable)
+        .where(
+          and(
+            eq(inventoryTable.storeId, storeId),
+            eq(inventoryTable.isActive, true),
+            inArray(inventoryTable.id, inventoryIdsToFetch)
+          )
+        );
+
+      const existingInventoryMap = new Map<
+        string,
+        typeof inventoryTable.$inferSelect
+      >();
+      existingInventories.forEach((inv) =>
+        existingInventoryMap.set(inv.id, inv)
+      );
 
       // Process each adjustment entry
       for (const entry of entries) {
-        // Get the existing inventory record
-        const existingInventory = await tx
-          .select()
-          .from(inventoryTable)
-          .where(
-            and(
-              eq(inventoryTable.id, entry.inventoryStockId),
-              eq(inventoryTable.isActive, true)
-            )
-          )
-          .then((res) => res[0]);
+        // Get the existing inventory record from the map
+        const existingInventory = existingInventoryMap.get(
+          entry.inventoryStockId
+        );
 
         if (!existingInventory) {
           throw new Error(
-            `Inventory stock not found for ID: ${entry.inventoryStockId}`
+            `Inventory stock not found for ID: ${entry.inventoryStockId} or is inactive`
           );
         }
 
@@ -459,8 +577,8 @@ export const adjustInventoryStock = async (
           adjustmentNote = `Subtracted ${entry.adjustmentQuantity} units`;
         }
 
-        // Update inventory record
-        const updatedInventory = await tx
+        // Update inventory record (individual update due to varying newQuantity)
+        const [updatedInventory] = await tx
           .update(inventoryTable)
           .set({
             quantity: newQuantity,
@@ -469,28 +587,37 @@ export const adjustInventoryStock = async (
           .where(eq(inventoryTable.id, existingInventory.id))
           .returning();
 
-        inventoryItems.push(updatedInventory[0]);
+        updatedInventoryRecords.push(updatedInventory);
 
-        // Log transaction
-        const transaction = await tx
-          .insert(inventoryTransactionsTable)
-          .values({
-            inventoryId: existingInventory.id,
-            productId: existingInventory.productId,
-            storeId,
-            userId: userId,
-            transactionType: "adjustment",
-            quantityBefore: existingInventory.quantity,
-            quantityAfter: newQuantity,
-            transactionDate: new Date(),
-            notes: `${adjustmentNote} | ${notes || "No additional notes"}`,
-          })
-          .returning();
-
-        transactions.push(transaction[0]);
+        // Collect transaction for batch insert
+        transactionsToInsert.push({
+          inventoryId: existingInventory.id,
+          productId: existingInventory.productId,
+          storeId,
+          userId: userId,
+          transactionType: "adjustment",
+          quantityBefore: existingInventory.quantity,
+          quantityAfter: newQuantity,
+          transactionDate: new Date(),
+          notes: `${adjustmentNote} | ${notes || "No additional notes"}`,
+        });
       }
 
-      return { inventoryItems, transactions };
+      // --- Execute batch operations ---
+
+      // Perform all transaction inserts
+      let insertedTransactions: any[] = [];
+      if (transactionsToInsert.length > 0) {
+        insertedTransactions = await tx
+          .insert(inventoryTransactionsTable)
+          .values(transactionsToInsert)
+          .returning();
+      }
+
+      return {
+        inventoryItems: updatedInventoryRecords,
+        transactions: insertedTransactions,
+      };
     });
 
     revalidatePath("/inventory");

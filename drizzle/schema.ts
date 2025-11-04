@@ -522,7 +522,7 @@ export const inventoryTable = pgTable(
     sellingPrice: numeric("selling_price").notNull(),
     manufactureDate: timestamp("manufacture_date"),
     expiryDate: timestamp("expiry_date"),
-    receivedDate: timestamp("received_date").notNull(),
+    receivedDate: timestamp("received_date").defaultNow().notNull(),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -2038,6 +2038,9 @@ export const paymentsReceivedTable = pgTable(
         }>
       >()
       .default([]),
+    checkNumber: text("check_number").default(""),
+    checkBankName: text("check_bank_name").default(""),
+    checkDate: timestamp("check_date").default(sql`NULL`),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -2246,6 +2249,98 @@ export const auditLogsTable = pgTable(
     ),
     auditLogsCreatedAtIndex: index("audit_logs_created_at_idx").on(
       table.createdAt
+    ),
+  })
+);
+
+// Receipts Table
+export const receiptsTable = pgTable(
+  "receipts",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    receiptNumber: text("receipt_number").notNull().unique(),
+    receiptDate: timestamp("receipt_date").notNull(),
+    customerId: uuid("customer_id").references(() => customersTable.id, {
+      onDelete: "set null",
+    }),
+    totalAmountReceived: numeric("total_amount_received").notNull(),
+    totalAmountDue: numeric("total_amount_due").notNull(),
+    totalBalanceDue: numeric("total_balance_due").notNull(), // general balance due after this receipt for customer.
+    attachments: jsonb("attachments")
+      .$type<
+        Array<{
+          id: string;
+          url: string;
+          name: string;
+          size: number;
+          type: string;
+        }>
+      >()
+      .default([]),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    receiptsActiveIndex: index("receipts_active_idx").on(table.isActive),
+    receiptsNumberIndex: index("receipts_number_idx").on(table.receiptNumber),
+    receiptsCustomerIdIndex: index("receipts_customer_id_idx").on(
+      table.customerId
+    ),
+    receiptsReceiptDateIndex: index("receipts_receipt_date_idx").on(
+      table.receiptDate
+    ),
+    receiptsCreatedAtIndex: index("receipts_created_at_idx").on(
+      table.createdAt
+    ),
+  })
+);
+
+export const receiptItemsTable = pgTable(
+  "receipt_items",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    receiptId: uuid("receipt_id")
+      .notNull()
+      .references(() => receiptsTable.id, { onDelete: "cascade" }),
+    paymentReceivedId: uuid("payment_received_id")
+      .notNull()
+      .references(() => paymentsReceivedTable.id, { onDelete: "cascade" }),
+
+    // Item Details
+    invoiceNumber: text("invoice_number"),
+    invoiceDate: timestamp("invoice_date"),
+    amountDue: numeric("amunt_due").notNull(),
+    amountReceived: numeric("amount_received").notNull(),
+    balanceDue: numeric("balance_due"),
+    paymentMethod: paymentMethodEnum("payment_method").notNull(),
+
+    // References
+    saleId: uuid("sale_id").references(() => salesTable.id, {
+      onDelete: "set null",
+    }),
+    incomeCategoryId: uuid("income_category_id").references(
+      () => incomeCategoriesTable.id,
+      { onDelete: "set null" }
+    ),
+
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    receiptItemsReceiptIdIndex: index("receipt_items_receipt_id_idx").on(
+      table.receiptId
+    ),
+    receiptItemsSaleIdIndex: index("receipt_items_sale_id_idx").on(
+      table.saleId
+    ),
+    receiptItemsActiveIndex: index("receipt_items_active_idx").on(
+      table.isActive
     ),
   })
 );

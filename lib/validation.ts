@@ -701,9 +701,12 @@ export type StoreFormValues = z.infer<typeof StoreFormValidation>;
 // New Stock Adjustments
 export const StockAdjustmentFormValidation = z.object({
   storeId: z.string().nonempty("Store is required"),
-  receivedDate: z.date().refine((date) => date <= new Date(), {
-    message: "Received date cannot be in the future",
-  }),
+  receivedDate: z
+    .date()
+    .refine((date) => date <= new Date(), {
+      message: "Received date cannot be in the future",
+    })
+    .default(new Date()),
   notes: z.string().optional(),
   products: z
     .array(
@@ -1633,6 +1636,9 @@ export const IncomeFormValidation = z
       .number()
       .min(0, "Balance cannot be negative")
       .optional(),
+    checkNumber: z.string().optional().nullable(),
+    checkBankName: z.string().optional().nullable(),
+    checkDate: z.date().optional().nullable(),
   })
   .superRefine((data, ctx) => {
     // If a saleId is provided, customerId must also be present
@@ -1852,3 +1858,131 @@ export const IncomeTrackerFiltersSchema = z.object({
   specificDate_end: z.string().optional(),
 });
 export type IncomeTrackerFilters = z.infer<typeof IncomeTrackerFiltersSchema>;
+
+// Receipt Form Validation
+export const ReceiptFormValidation = z
+  .object({
+    receiptNumber: z.string().nonempty("Receipt number is required"),
+    receiptDate: z.date().refine((date) => date <= new Date(), {
+      message: "Receipt date cannot be in the future",
+    }),
+    customerId: z.string().nonempty("Customer is required"),
+    totalAmountReceived: z
+      .number()
+      .min(0, "Total amount received must be 0 or more"),
+    totalAmountDue: z.number().min(0, "Total amount due must be 0 or more"),
+    totalBalanceDue: z.number().min(0, "Total balance due must be 0 or more"),
+    attachments: z.any().optional(),
+    receiptItems: z
+      .array(
+        z.object({
+          paymentReceivedId: z
+            .string()
+            .nonempty("Payment received ID is required"),
+          invoiceNumber: z.string().optional().nullable(),
+          invoiceDate: z.date().optional().nullable(),
+          amountDue: z.number().min(0, "Amount due must be 0 or more"),
+          amountReceived: z
+            .number()
+            .min(0.01, "Amount received must be greater than 0"),
+          balanceDue: z
+            .number()
+            .min(0, "Balance due must be 0 or more")
+            .optional()
+            .nullable(),
+          paymentMethod: z
+            .enum(Object.values(PaymentMethod) as [string, ...string[]])
+            .default(PaymentMethod.Cash),
+          saleId: z.string().optional().nullable(),
+          incomeCategoryId: z.string().optional().nullable(),
+        })
+      )
+      .min(1, "At least one receipt item is required"),
+
+    selectedPayment: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    // Validate that total amount received equals sum of receipt items
+    const calculatedTotalReceived = data.receiptItems.reduce(
+      (sum, item) => sum + item.amountReceived,
+      0
+    );
+
+    if (Math.abs(calculatedTotalReceived - data.totalAmountReceived) > 0.001) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Total amount received (${data.totalAmountReceived.toFixed(
+          2
+        )}) must match sum of receipt items (${calculatedTotalReceived.toFixed(
+          2
+        )})`,
+        path: ["totalAmountReceived"],
+      });
+    }
+
+    // Validate that each item with saleId has required invoice details
+    data.receiptItems.forEach((item, index) => {
+      if (item.saleId) {
+        if (!item.invoiceNumber) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Invoice number is required for sales payments",
+            path: ["receiptItems", index, "invoiceNumber"],
+          });
+        }
+        if (!item.invoiceDate) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Invoice date is required for sales payments",
+            path: ["receiptItems", index, "invoiceDate"],
+          });
+        }
+      }
+
+      // Validate that either saleId or incomeCategoryId is present, not both
+      if (item.saleId && item.incomeCategoryId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            "Receipt item cannot have both sale and income category references",
+          path: ["receiptItems", index],
+        });
+      }
+
+      if (!item.saleId && !item.incomeCategoryId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            "Receipt item must reference either a sale or an income category",
+          path: ["receiptItems", index],
+        });
+      }
+
+      // Validate balance calculation
+      const calculatedBalance = item.amountDue - item.amountReceived;
+      if (
+        item.balanceDue !== null &&
+        item.balanceDue !== undefined &&
+        Math.abs(calculatedBalance - item.balanceDue) > 0.001
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Balance Due must equal amount due minus amount received`,
+          path: ["receiptItems", index, "balanceDue"],
+        });
+      }
+    });
+  });
+
+export type ReceiptFormValues = z.infer<typeof ReceiptFormValidation>;
+
+// Filters for Receipt fetching
+export const ReceiptFiltersSchema = z.object({
+  search: z.string().optional(),
+  customerId: z.string().optional(),
+  receiptDate_start: z.string().optional(),
+  receiptDate_end: z.string().optional(),
+  amount_min: z.number().optional(),
+  amount_max: z.number().optional(),
+});
+export type ReceiptFilters = z.infer<typeof ReceiptFiltersSchema>;

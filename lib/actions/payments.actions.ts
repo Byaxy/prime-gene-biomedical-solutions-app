@@ -330,6 +330,7 @@ export const recordIncome = async (
     });
 
     revalidatePath("/accounting-and-finance/income");
+    revalidatePath("/accounting-and-finance/income/register");
     if (values.saleId) {
       revalidatePath(`/sales`);
     }
@@ -874,6 +875,7 @@ export const updateIncome = async (
     });
 
     revalidatePath("/accounting-and-finance/income");
+    revalidatePath("/accounting-and-finance/income/register");
     if (values.saleId) {
       revalidatePath(`/sales`);
     }
@@ -1026,6 +1028,7 @@ export const softDeleteIncome = async (id: string, userId: string) => {
     });
 
     revalidatePath("/accounting-and-finance/income");
+    revalidatePath("/accounting-and-finance/income/register");
     if (result.saleId) {
       // If the original income was linked to a sale
       revalidatePath(`/sales`);

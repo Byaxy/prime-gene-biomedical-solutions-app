@@ -505,6 +505,20 @@
       "when": 1761743377169,
       "tag": "0071_noisy_wolf_cub",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1762158011699,
+      "tag": "0072_vengeful_elektra",
+      "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1762268853705,
+      "tag": "0073_lively_mandarin",
+      "breakpoints": true
     }
   ]
 }
