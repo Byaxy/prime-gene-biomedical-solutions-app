@@ -642,8 +642,8 @@ export const ReceiptForm: React.FC<ReceiptFormProps> = ({
             <TableBody className="w-full bg-white text-blue-800">
               {fields.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-4">
-                    No products added
+                  <TableCell colSpan={9} className="text-center py-4">
+                    No Payments added yet.
                   </TableCell>
                 </TableRow>
               )}
@@ -654,8 +654,8 @@ export const ReceiptForm: React.FC<ReceiptFormProps> = ({
                     (ip) => ip.payment.id === field.paymentReceivedId
                   );
                 const payment = incomeWithRel?.payment;
-                const linkedSale = incomeWithRel?.sale; // Already contains linked sale details
-                const linkedIncomeCategory = incomeWithRel?.incomeCategory; // Already contains linked category details
+                const linkedSale = incomeWithRel?.sale;
+                const linkedIncomeCategory = incomeWithRel?.incomeCategory;
 
                 return (
                   <TableRow
@@ -772,23 +772,23 @@ export const ReceiptForm: React.FC<ReceiptFormProps> = ({
               name="totalAmountReceived"
               label="Total Amount Received"
               placeholder="0.00"
-              disabled={true} // Read-only
+              disabled={true}
             />
             <CustomFormField
               fieldType={FormFieldType.AMOUNT}
               control={form.control}
               name="totalAmountDue"
-              label="Total Amount Due (Aggregated)"
+              label="Total Amount Due"
               placeholder="0.00"
-              disabled={true} // Read-only
+              disabled={true}
             />
             <CustomFormField
               fieldType={FormFieldType.AMOUNT}
               control={form.control}
               name="totalBalanceDue"
-              label="Total Balance Due (Aggregated)"
+              label="Total Balance Due"
               placeholder="0.00"
-              disabled={true} // Read-only
+              disabled={true}
             />
           </div>
         </div>
