@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 import IncomeDialog from "./IncomeDialog";
+import { File } from "lucide-react";
 
 const IncomeActions = ({ income }: { income: IncomeWithRelations }) => {
   const [openDialog, setOpenDialog] = useState(false);
@@ -23,6 +24,12 @@ const IncomeActions = ({ income }: { income: IncomeWithRelations }) => {
 
   const handleEdit = () => {
     router.push(`/accounting-and-finance/income/edit/${income.payment.id}`);
+  };
+
+  const handleGenerateReceipt = () => {
+    router.push(
+      `/accounting-and-finance/income/receipts/generate-receipt?sourcePaymentReceivedId=${income.payment.id}`
+    );
   };
 
   const handleView = () => {
@@ -65,6 +72,12 @@ const IncomeActions = ({ income }: { income: IncomeWithRelations }) => {
             className="text-[#475BE8] p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
           >
             <EditIcon className="mr-2 h-4 w-4" /> Edit Income
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={handleGenerateReceipt}
+            className="text-dark-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
+          >
+            <File className="mr-2 h-4 w-4" /> Generate Receipt
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={handleDeleteClick}

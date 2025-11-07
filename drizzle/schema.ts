@@ -2023,6 +2023,7 @@ export const paymentsReceivedTable = pgTable(
       .notNull()
       .references(() => accountsTable.id, { onDelete: "cascade" }), // Account where payment was received
     amountReceived: numeric("amount_received").notNull(),
+    balanceDueAfterPayment: numeric("balance_due_after_payment"),
     paymentMethod: paymentMethodEnum("payment_method")
       .notNull()
       .default("cash"),

@@ -1,4 +1,3 @@
-// src/components/forms/ReceiptForm.tsx
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
@@ -16,7 +15,6 @@ import {
   ReceiptWithRelations,
   IncomeWithRelations,
   SaleWithRelations,
-  IncomeCategoryWithRelations,
   Attachment,
   PaymentMethod,
 } from "@/types";
@@ -53,7 +51,6 @@ interface ReceiptFormProps {
   customers: Customer[];
   availablePayments: IncomeWithRelations[];
   sales: SaleWithRelations[];
-  incomeCategories: IncomeCategoryWithRelations[];
   generatedReceiptNumber?: string;
 }
 
@@ -63,6 +60,7 @@ export const ReceiptForm: React.FC<ReceiptFormProps> = ({
   customers,
   availablePayments,
   generatedReceiptNumber: initialGeneratedReceiptNumber,
+  sales,
 }) => {
   const router = useRouter();
   const { user } = useAuth();
@@ -152,32 +150,74 @@ export const ReceiptForm: React.FC<ReceiptFormProps> = ({
     );
   }, [availablePayments, selectedCustomerId, receiptItems]);
 
+  // calculate the customer's total amount due from all their sales
+  const customerTotalAmountDue = useMemo(() => {
+    if (!selectedCustomerId) return 0;
+
+    // Calculate total from sales
+    const customerSales = sales.filter(
+      (sale) => sale.sale.customerId === selectedCustomerId
+    );
+
+    const totalSalesAmount = customerSales.reduce(
+      (sum, sale) => sum + parseFloat((sale.sale.totalAmount as any) || "0"),
+      0
+    );
+
+    const totalAmountPaid = customerSales.reduce(
+      (sum, sale) => sum + parseFloat((sale.sale.amountPaid as any) || "0"),
+      0
+    );
+
+    // Current outstanding balance for sales
+    const currentSalesBalance = totalSalesAmount - totalAmountPaid;
+
+    // For non-sales income (income categories), we only consider the current receipt items
+    // since they don't have ongoing balances - they're one-time payments
+    const currentReceiptSalesPayments = receiptItems
+      .filter((item) => item.saleId !== null) // Only sales-related payments
+      .reduce((sum, item) => sum + (item.amountReceived || 0), 0);
+
+    const currentReceiptNonSalesPayments = receiptItems
+      .filter((item) => item.saleId === null && item.incomeCategoryId !== null) // Only income category payments
+      .reduce((sum, item) => sum + (item.amountReceived || 0), 0);
+
+    // Total Amount Due =
+    // (Sales balance before receipt payments) + (Non-sales payments in this receipt)
+    return (
+      currentSalesBalance +
+      currentReceiptSalesPayments +
+      currentReceiptNonSalesPayments
+    );
+  }, [selectedCustomerId, sales, receiptItems]);
+
   // Update totals whenever receipt items change
   const updateTotals = useCallback(() => {
     let totalReceived = 0;
-    let totalItemsAmountDue = 0; // Sum of amountDue from items
-    let totalItemsBalanceDue = 0; // Sum of balanceDue from items
 
     receiptItems.forEach((item) => {
       totalReceived += item.amountReceived;
-      totalItemsAmountDue += item.amountDue; // Sum of the 'Amount Due' column
-      totalItemsBalanceDue += item.balanceDue || 0; // Sum of the 'Balance Due' column
     });
 
     form.setValue("totalAmountReceived", totalReceived, {
       shouldValidate: true,
     });
-    form.setValue("totalAmountDue", totalItemsAmountDue, {
+
+    // Set the customer's overall amount due from all sales
+    form.setValue("totalAmountDue", customerTotalAmountDue, {
       shouldValidate: true,
     });
-    form.setValue("totalBalanceDue", totalItemsBalanceDue, {
+
+    // Balance due is the difference between customer's total amount due and total received
+    const totalBalanceDue = customerTotalAmountDue - totalReceived;
+    form.setValue("totalBalanceDue", totalBalanceDue, {
       shouldValidate: true,
     });
-  }, [receiptItems, form]);
+  }, [receiptItems, customerTotalAmountDue, form]);
 
   useEffect(() => {
     updateTotals();
-  }, [receiptItems, updateTotals]);
+  }, [receiptItems, updateTotals, customerTotalAmountDue]);
 
   useEffect(() => {
     if (
@@ -203,6 +243,7 @@ export const ReceiptForm: React.FC<ReceiptFormProps> = ({
     }
   };
 
+  //handleAddPayment function
   const handleAddPayment = () => {
     if (!selectedPayment) return;
 
@@ -211,59 +252,30 @@ export const ReceiptForm: React.FC<ReceiptFormProps> = ({
 
     const payment = incomeWithRel.payment;
     const linkedSale = incomeWithRel.sale;
-    // const linkedIncomeCategory = incomeWithRel.incomeCategory; // Not used directly for display, but available
+    const linkedIncomeCategory = incomeWithRel.incomeCategory;
 
-    // Derive values for the receipt item
     let invoiceNumber: string | null = null;
     let invoiceDate: Date | null = null;
-    let itemAmountDue: number = 0; // Will represent the "Amount Paid Towards Invoice" or "Original Payment Amount"
-    let itemBalanceDue: number = 0; // The actual balance *after* this payment for the invoice (hard to calculate accurately without history)
+    let itemAmountDue: number = 0;
+    let itemBalanceDue: number = 0;
 
-    // Default to the payment's amount for simplicity in 'Amount Due' and 'Amount Received'
-    // This acknowledges that THIS payment of X amount was received.
     const paymentAmount = parseFloat(payment.amountReceived as any);
-    const totalSaleAmount = parseFloat((linkedSale?.totalAmount as any) || "0");
-    const saleAmountPaid = parseFloat((linkedSale?.amountPaid as any) || "0");
 
     if (linkedSale) {
+      // Handle sales-linked payments (existing logic)
       invoiceNumber = linkedSale.invoiceNumber;
       invoiceDate = new Date(linkedSale.saleDate);
 
-      // --- CRITICAL LOGIC FOR AMOUNT DUE / BALANCE DUE IN RECEIPT ITEM ---
-      // For a receipt, Amount Due column often refers to what the *customer was expected to pay for that item*,
-      // and Balance Due is what is *remaining on that item/invoice*.
-      // If payment.actions already updates sale.amountPaid correctly, then here:
-      // Amount Due: The full total of the linked sale.
-      // Amount Received: This specific payment's amount.
-      // Balance Due: The remaining balance of the sale *after this payment was accounted for in sales.amountPaid*.
-      // This requires careful handling if editing a receipt that impacts amounts already paid.
-
-      // Option 1 (Simple): Receipt item shows THIS payment.
-      // itemAmountDue = paymentAmount; // This payment 'covers' this amount.
-      // itemBalanceDue = 0; // This payment is fully received.
-
-      // Option 2 (Better for Sales/Invoices): Reflect the Sale's state.
-      // We are *adding* a payment to the receipt that *has already been recorded* and thus *already impacted* the sale.
-      // So, if `sale.amountPaid` already includes this `paymentAmount`, calculating the balance requires:
-      // Sale's total amount - (Sale's amountPaid - this paymentAmount) => Balance Before This Payment.
-      // Sale's total amount - Sale's amountPaid => Balance After All Payments (including this one).
-
-      // Let's go with the interpretation that for the *receipt item line*,
-      // Amount Due refers to the *invoice's total*, Amount Received is *this payment*,
-      // and Balance Due is the *invoice's remaining amount after all payments including this one*.
-      // This makes the receipt table more informative about the actual invoice state.
-
-      // Note: This relies on `sale.amountPaid` in `incomeWithRel.sale` reflecting the state *after* the `payment` was recorded.
-      const currentInvoiceBalance = totalSaleAmount - saleAmountPaid;
-      // To get the balance due *before* this payment, we'd add this payment amount back to the current balance.
-      // But for display on the receipt line for THIS payment, it's often:
-      // Total Amount of Invoice | Amount of THIS Payment | Balance Remaining on Invoice
-      itemAmountDue = totalSaleAmount;
-      itemBalanceDue = currentInvoiceBalance; // This is balance after ALL payments received for this invoice.
+      itemAmountDue =
+        (payment.balanceDueAfterPayment || 0) + payment.amountReceived;
+      itemBalanceDue = payment.balanceDueAfterPayment || 0;
+    } else if (linkedIncomeCategory) {
+      invoiceNumber = linkedIncomeCategory.name;
+      invoiceDate = new Date(payment.paymentDate);
+      itemAmountDue = paymentAmount;
+      itemBalanceDue = 0; // No balance for one-time income category payments
     } else {
-      // For unlinked income categories or other payments
-      // For general income or unlinked payments, there's no invoice "balance".
-      // So, Amount Due is simply the amount of the payment, and Balance Due is 0.
+      // Handle unlinked payments (fallback)
       itemAmountDue = paymentAmount;
       itemBalanceDue = 0;
     }
@@ -826,7 +838,7 @@ export const ReceiptForm: React.FC<ReceiptFormProps> = ({
           <SubmitButton
             isLoading={isAnyMutationLoading}
             className="shad-primary-btn"
-            disabled={true}
+            disabled={isAnyMutationLoading}
           >
             {mode === "create" ? "Create Receipt" : "Update Receipt"}
           </SubmitButton>

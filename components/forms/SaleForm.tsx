@@ -1417,7 +1417,7 @@ const SaleForm = ({
               name="amountPaid"
               label="Amount Paid"
               placeholder="Amount paid"
-              disabled={isAnyMutationLoading}
+              disabled={true}
             />
             <CustomFormField
               fieldType={FormFieldType.SELECT}
@@ -1426,7 +1426,7 @@ const SaleForm = ({
               label="Payment Method"
               placeholder="Select payment method"
               key={`payment-select-${form.watch("status") || ""}`}
-              disabled={isAnyMutationLoading}
+              disabled={true}
             >
               {Object.values(PaymentMethod).map((method) => (
                 <SelectItem
@@ -1446,7 +1446,7 @@ const SaleForm = ({
               label="Payment Status"
               placeholder="Select payment status"
               key={`payment-status-${form.watch("status") || ""}`}
-              disabled={isAnyMutationLoading}
+              disabled={true}
             >
               {Object.values(PaymentStatus).map((status) => (
                 <SelectItem

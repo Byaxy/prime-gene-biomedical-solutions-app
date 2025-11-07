@@ -1,16 +1,13 @@
-// src/components/receipts/ReceiptFormWrapper.tsx
 import { notFound } from "next/navigation";
 import { parseStringify } from "@/lib/utils";
 import {
   Customer,
   IncomeWithRelations,
   SaleWithRelations,
-  IncomeCategoryWithRelations,
   ReceiptWithRelations,
 } from "@/types";
 import { getCustomers } from "@/lib/actions/customer.actions";
 import { getSales } from "@/lib/actions/sale.actions";
-import { getIncomeCategories } from "@/lib/actions/incomeCategories.actions";
 import {
   generateReceiptNumber,
   getReceiptById,
@@ -31,29 +28,21 @@ export default async function ReceiptFormWrapper({
 }: ReceiptFormWrapperProps) {
   let initialData: ReceiptWithRelations | undefined;
   let customers: Customer[] = [];
-  let availablePayments: IncomeWithRelations[] = []; // Type changed
-  let allSales: SaleWithRelations[] = []; // To look up sales details
-  let incomeCategories: IncomeCategoryWithRelations[] = []; // To look up category details
+  let availablePayments: IncomeWithRelations[] = [];
+  let allSales: SaleWithRelations[] = [];
 
   let generatedReceiptNumber: string | undefined;
 
   // Fetch all necessary data concurrently
-  const [
-    fetchedCustomers,
-    fetchedPayments,
-    fetchedSales,
-    fetchedIncomeCategories,
-  ] = await Promise.all([
+  const [fetchedCustomers, fetchedPayments, fetchedSales] = await Promise.all([
     getCustomers(0, 0, true),
     getIncome(0, 0, true),
     getSales(0, 0, true),
-    getIncomeCategories(0, 0, true),
   ]);
 
   customers = parseStringify(fetchedCustomers.documents);
   availablePayments = parseStringify(fetchedPayments.documents);
   allSales = parseStringify(fetchedSales.documents);
-  incomeCategories = parseStringify(fetchedIncomeCategories.documents);
 
   if (mode === "edit") {
     if (!receiptId) notFound();
@@ -98,9 +87,11 @@ export default async function ReceiptFormWrapper({
               invoiceDate: linkedSale?.saleDate
                 ? new Date(linkedSale.saleDate)
                 : null,
-              amountDue: sourcePayment.amountReceived,
+              amountDue:
+                sourcePayment.amountReceived +
+                (sourcePayment.balanceDueAfterPayment || 0),
               amountReceived: sourcePayment.amountReceived,
-              balanceDue: 0,
+              balanceDue: sourcePayment.balanceDueAfterPayment || 0,
               paymentMethod: sourcePayment.paymentMethod,
               saleId: sourcePayment.saleId || null,
               incomeCategoryId: sourcePayment.incomeCategoryId || null,
@@ -125,7 +116,6 @@ export default async function ReceiptFormWrapper({
       customers={customers}
       availablePayments={availablePayments}
       sales={allSales}
-      incomeCategories={incomeCategories}
       generatedReceiptNumber={generatedReceiptNumber}
     />
   );

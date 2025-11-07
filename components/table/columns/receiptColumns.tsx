@@ -5,10 +5,10 @@ import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatDateTime } from "@/lib/utils";
 import FormatNumber from "@/components/FormatNumber";
-import { IncomeWithRelations } from "@/types";
-import IncomeActions from "@/components/income/IncomeActions";
+import { ReceiptWithRelations } from "@/types";
+import ReceiptActions from "@/components/receipts/ReceiptActions";
 
-export const incomeColumns: ColumnDef<IncomeWithRelations>[] = [
+export const receiptColumns: ColumnDef<ReceiptWithRelations>[] = [
   {
     id: "index",
     header: "#",
@@ -21,8 +21,8 @@ export const incomeColumns: ColumnDef<IncomeWithRelations>[] = [
     enableSorting: false,
   },
   {
-    id: "payment.paymentDate",
-    accessorKey: "payment.paymentDate",
+    id: "receipt.receiptDate",
+    accessorKey: "receipt.receiptDate",
     header: ({ column }) => {
       return (
         <Button
@@ -36,17 +36,17 @@ export const incomeColumns: ColumnDef<IncomeWithRelations>[] = [
       );
     },
     cell: ({ row }) => {
-      const income = row.original;
+      const receipt = row.original;
       return (
         <p className="text-14-medium ">
-          {formatDateTime(income.payment.paymentDate).dateOnly}
+          {formatDateTime(receipt.receipt.receiptDate).dateOnly}
         </p>
       );
     },
   },
   {
-    id: "payment.paymentRefNumber",
-    accessorKey: "payment.paymentRefNumber",
+    id: "receipt.receiptNumber",
+    accessorKey: "receipt.receiptNumber",
     header: ({ column }) => {
       return (
         <Button
@@ -54,16 +54,16 @@ export const incomeColumns: ColumnDef<IncomeWithRelations>[] = [
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           className="font-semibold px-0"
         >
-          Reference
+          Receipt #
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       );
     },
     cell: ({ row }) => {
-      const income = row.original;
+      const receipt = row.original;
       return (
         <p className="text-14-medium ">
-          {income.payment.paymentRefNumber || "-"}
+          {receipt.receipt.receiptNumber || "-"}
         </p>
       );
     },
@@ -73,61 +73,13 @@ export const incomeColumns: ColumnDef<IncomeWithRelations>[] = [
     accessorKey: "customer.name",
     header: "Customer",
     cell: ({ row }) => {
-      const income = row.original;
-      return <p className="text-14-medium ">{income.customer?.name || "-"}</p>;
+      const receipt = row.original;
+      return <p className="text-14-medium ">{receipt.customer?.name || "-"}</p>;
     },
   },
   {
-    id: "sale.invoiceNumber",
-    accessorKey: "sale.invoiceNumber",
-    header: "Linked Sale",
-    cell: ({ row }) => {
-      const income = row.original;
-      return (
-        <p className="text-14-medium ">{income.sale?.invoiceNumber || "-"}</p>
-      );
-    },
-  },
-  {
-    id: "incomeCategory.name",
-    accessorKey: "incomeCategory.name",
-    header: "Category",
-    cell: ({ row }) => {
-      const income = row.original;
-      return (
-        <p className="text-14-medium ">{income.incomeCategory?.name || "-"}</p>
-      );
-    },
-  },
-  {
-    id: "receivingAccount.name",
-    accessorKey: "receivingAccount.name",
-    header: "Receiving Account",
-    cell: ({ row }) => {
-      const income = row.original;
-      return (
-        <p className="text-14-medium ">
-          {income.receivingAccount?.name || "-"}
-        </p>
-      );
-    },
-  },
-  {
-    id: "payment.paymentMethod",
-    accessorKey: "payment.paymentMethod",
-    header: "Method",
-    cell: ({ row }) => {
-      const income = row.original;
-      return (
-        <p className="text-14-medium capitalize">
-          {income.payment.paymentMethod.replace(/_/g, " ") || "-"}
-        </p>
-      );
-    },
-  },
-  {
-    id: "payment.amountReceived",
-    accessorKey: "payment.amountReceived",
+    id: "receipt.totalAmountReceived",
+    accessorKey: "receipt.totalAmountReceived",
     header: ({ column }) => {
       return (
         <Button
@@ -135,16 +87,46 @@ export const incomeColumns: ColumnDef<IncomeWithRelations>[] = [
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           className="font-semibold px-0"
         >
-          Amount
+          Amount Received
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       );
     },
     cell: ({ row }) => {
-      const income = row.original;
+      const receipt = row.original;
       return (
         <p className="text-14-medium">
-          <FormatNumber value={income.payment.amountReceived} />
+          <FormatNumber value={receipt.receipt.totalAmountReceived} />
+        </p>
+      );
+    },
+  },
+  {
+    id: "receipt.totalBalanceDue",
+    accessorKey: "receipt.totalBalanceDue",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="font-semibold px-0"
+        >
+          Balance Due
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      );
+    },
+    cell: ({ row }) => {
+      const receipt = row.original;
+      return (
+        <p
+          className={`text-14-medium ${
+            receipt.receipt.totalBalanceDue > 0
+              ? "text-red-600"
+              : "text-green-600"
+          }`}
+        >
+          <FormatNumber value={receipt.receipt.totalBalanceDue} />
         </p>
       );
     },
@@ -153,7 +135,7 @@ export const incomeColumns: ColumnDef<IncomeWithRelations>[] = [
     id: "actions",
     header: "Actions",
     cell: ({ row }) => {
-      return <IncomeActions income={row.original} />;
+      return <ReceiptActions receipt={row.original} />;
     },
     meta: {
       skipRowClick: true,

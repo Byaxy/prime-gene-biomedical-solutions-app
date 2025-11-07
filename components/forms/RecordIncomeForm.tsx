@@ -101,6 +101,7 @@ export const RecordIncomeForm: React.FC<RecordIncomeFormProps> = ({
       receivingAccountId: initialData?.payment?.receivingAccountId || "",
       amountReceived:
         parseFloat(initialData?.payment?.amountReceived as any) || 0,
+      balanceDueAfterPayment: initialData?.payment?.balanceDueAfterPayment || 0,
       paymentMethod: initialData?.payment?.paymentMethod || PaymentMethod.Cash,
       checkNumber: initialData?.payment?.checkNumber || "",
       checkDate: initialData?.payment?.checkDate
@@ -129,6 +130,41 @@ export const RecordIncomeForm: React.FC<RecordIncomeFormProps> = ({
   const selectedCustomerId = form.watch("customerId");
   const selectedSaleId = form.watch("saleId");
   const selectedPaymentMethod = form.watch("paymentMethod");
+  const amountReceived = form.watch("amountReceived");
+
+  // Auto-set balance due after payment
+  useEffect(() => {
+    if (incomeTypeTab === "sales_payment" && selectedSaleId) {
+      const selectedSale = sales.find(
+        (sale) => sale.sale.id === selectedSaleId
+      );
+      if (selectedSale) {
+        // Calculate current amount due (totalAmount - amountPaid)
+        const currentAmountDue =
+          parseFloat(selectedSale.sale.totalAmount as any) -
+          parseFloat(selectedSale.sale.amountPaid as any);
+
+        // Calculate balance due after this payment
+        const newBalanceDue = Math.max(
+          0,
+          currentAmountDue - (amountReceived || 0)
+        );
+
+        form.setValue("balanceDueAfterPayment", newBalanceDue, {
+          shouldValidate: true,
+          shouldDirty: true,
+          shouldTouch: true,
+        });
+      }
+    } else if (incomeTypeTab === "other_income") {
+      // For other income, there's no balance due
+      form.setValue("balanceDueAfterPayment", 0, {
+        shouldValidate: true,
+        shouldDirty: true,
+        shouldTouch: true,
+      });
+    }
+  }, [incomeTypeTab, sales, selectedSaleId, amountReceived, form]);
 
   // Auto-set payment method based on receiving account type
   useEffect(() => {
@@ -316,7 +352,7 @@ export const RecordIncomeForm: React.FC<RecordIncomeFormProps> = ({
               toast.success("Income recorded successfully!", {
                 id: loadingToastId,
               });
-              router.push("/accounting-and-finance/income");
+              router.push("/accounting-and-finance/income/register");
               router.refresh();
               form.reset(defaultValues);
             },
@@ -624,6 +660,16 @@ export const RecordIncomeForm: React.FC<RecordIncomeFormProps> = ({
               </SelectItem>
             ))}
           </CustomFormField>
+
+          <CustomFormField
+            fieldType={FormFieldType.AMOUNT}
+            control={form.control}
+            name="balanceDueAfterPayment"
+            label="Balance Due After Payment"
+            placeholder="0.00"
+            disabled={true}
+            key={form.watch("balanceDueAfterPayment") || 0}
+          />
         </div>
 
         {/* Check Details Section - Only visible when payment method is Check */}

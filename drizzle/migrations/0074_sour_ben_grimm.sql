@@ -1,0 +1,1 @@
+ALTER TABLE "payments_received" ADD COLUMN "balance_due_after_payment" numeric(12, 2);

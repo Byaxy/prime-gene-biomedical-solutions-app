@@ -118,6 +118,7 @@ export default async function RecordIncomeFormWrapper({
           amountReceived:
             parseFloat(String(sourceSale.sale.totalAmount)) -
             parseFloat(String(sourceSale.sale.amountPaid)),
+          balanceDueAfterPayment: 0,
           paymentMethod: PaymentMethod.Cash,
           notes: `Payment for Invoice ${sourceSale.sale.invoiceNumber}`,
           attachments: [],

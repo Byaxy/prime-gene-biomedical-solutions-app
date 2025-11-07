@@ -1627,6 +1627,10 @@ export const IncomeFormValidation = z
     amountReceived: z
       .number()
       .min(0.01, "Amount received must be greater than 0"),
+    balanceDueAfterPayment: z
+      .number()
+      .min(0, "Balance due cannot be negative")
+      .optional(),
     paymentMethod: z
       .enum(Object.values(PaymentMethod) as [string, ...string[]])
       .default(PaymentMethod.Cash),

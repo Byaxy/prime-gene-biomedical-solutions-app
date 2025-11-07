@@ -288,6 +288,7 @@ export const recordIncome = async (
             .set({
               amountPaid: newAmountPaid,
               paymentStatus: newPaymentStatus,
+              paymentMethod: values.paymentMethod as PaymentMethod,
               updatedAt: new Date(),
             })
             .where(eq(salesTable.id, values.saleId))
@@ -743,6 +744,7 @@ export const updateIncome = async (
             .set({
               amountPaid: revertedAmountPaid,
               paymentStatus: revertedPaymentStatus,
+              paymentMethod: saleToUpdate.paymentMethod,
               updatedAt: new Date(),
             })
             .where(eq(salesTable.id, currentIncome.saleId));
@@ -822,6 +824,7 @@ export const updateIncome = async (
             .set({
               amountPaid: newAmountPaid,
               paymentStatus: newPaymentStatus,
+              paymentMethod: values.paymentMethod as PaymentMethod,
               updatedAt: new Date(),
             })
             .where(eq(salesTable.id, newSaleId))
