@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -9,10 +10,17 @@ import {
   promissoryNoteItemsTable,
   promissoryNotesTable,
   salesTable,
+  waybillItemsTable,
+  waybillsTable,
 } from "@/drizzle/schema";
 import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import { PromissoryNoteFilters } from "@/hooks/usePromissoryNote";
-import { PromissoryNoteStatus } from "@/types";
+import {
+  PromissoryNoteItem,
+  PromissoryNoteStatus,
+  SaleItem,
+  WaybillProductForPromissoryNote,
+} from "@/types";
 import { getSaleById } from "./sale.actions";
 
 const buildFilterConditions = (filters: PromissoryNoteFilters) => {
@@ -62,56 +70,179 @@ const buildFilterConditions = (filters: PromissoryNoteFilters) => {
 };
 
 export const addPromissoryNote = async (
-  promissoryNote: PromissoryNoteFormValues
+  promissoryNoteData: PromissoryNoteFormValues
 ) => {
   try {
-    // validate sale has no promissory note
-    const sale = await getSaleById(promissoryNote.saleId);
+    // 1. Validate sale existence and prevent duplicate promissory notes
+    const sale = await getSaleById(promissoryNoteData.saleId);
 
-    if (sale && sale.promissoryNote) {
-      throw new Error("Sale already has a promissory note");
+    if (!sale) {
+      throw new Error("Associated sale not found.");
+    }
+    // Check if a promissory note already exists for this sale
+    if (sale.promissoryNote && sale.promissoryNote.promissoryNote.id) {
+      throw new Error("Sale already has an active promissory note.");
     }
 
     const result = await db.transaction(async (tx) => {
-      // Create main promissory note record
       const [newPromissoryNote] = await tx
         .insert(promissoryNotesTable)
         .values({
-          customerId: promissoryNote.customerId,
-          saleId: promissoryNote.saleId,
-          promissoryNoteRefNumber: promissoryNote.promissoryNoteRefNumber,
-          promissoryNoteDate: promissoryNote.promissoryNoteDate,
-          totalAmount: promissoryNote.totalAmount,
-          notes: promissoryNote.notes,
+          customerId: promissoryNoteData.customerId,
+          saleId: promissoryNoteData.saleId,
+          promissoryNoteRefNumber: promissoryNoteData.promissoryNoteRefNumber,
+          promissoryNoteDate: promissoryNoteData.promissoryNoteDate,
+          totalAmount: 0,
+          notes: promissoryNoteData.notes,
           status: "pending",
+          isActive: true,
         })
         .returning();
 
-      // Process each product in the promissory note
-      const promissoryNoteItems = [];
-      for (const product of promissoryNote.products) {
-        // Create promissory note item
-        const [promissoryNoteItem] = await tx
-          .insert(promissoryNoteItemsTable)
-          .values({
+      // 3. Batch fetch all relevant delivered quantities from waybills for this sale
+      // This is crucial for server-side validation and calculation.
+      const deliveredQuantitiesMap = new Map<string, number>(); // Map<saleItemId, totalDeliveredQuantity>
+
+      // Get all sale item IDs that the promissory note form intends to cover
+      const saleItemIdsToProcess = promissoryNoteData.products.map(
+        (p) => p.saleItemId
+      );
+
+      // Fetch all waybill items linked to this sale that match the saleItemIdsToProcess
+      const waybillItemsForSale = await tx
+        .select({
+          saleItemId: waybillItemsTable.saleItemId,
+          quantitySupplied: waybillItemsTable.quantitySupplied,
+        })
+        .from(waybillsTable)
+        .innerJoin(
+          waybillItemsTable,
+          eq(waybillsTable.id, waybillItemsTable.waybillId)
+        )
+        .where(
+          and(
+            eq(waybillsTable.saleId, promissoryNoteData.saleId),
+            eq(waybillsTable.isActive, true),
+            eq(waybillItemsTable.isActive, true),
+            inArray(waybillItemsTable.saleItemId, saleItemIdsToProcess)
+          )
+        );
+
+      waybillItemsForSale.forEach((record) => {
+        if (record.saleItemId) {
+          // Ensure saleItemId is not null
+          const currentDelivered =
+            deliveredQuantitiesMap.get(record.saleItemId) || 0;
+          deliveredQuantitiesMap.set(
+            record.saleItemId,
+            currentDelivered + record.quantitySupplied
+          );
+        }
+      });
+
+      // 4. Process each product from the form, recalculating quantities server-side
+      const promissoryNoteItemsToInsert: PromissoryNoteItem[] = [];
+      let calculatedTotalAmount = 0;
+
+      for (const product of promissoryNoteData.products) {
+        // Get the original sale item data (from the `sale` object fetched earlier)
+        const originalSaleItem = sale.products.find(
+          (si: SaleItem) => si.id === product.saleItemId
+        );
+
+        if (!originalSaleItem) {
+          console.warn(
+            `Sale item with ID ${product.saleItemId} not found in original sale data.`
+          );
+          // Depending on strictness, you might throw an error here, or skip the product.
+          // For now, we'll skip it with a warning.
+          continue;
+        }
+
+        const alreadyDelivered =
+          deliveredQuantitiesMap.get(originalSaleItem.id) || 0;
+        const pendingQuantity = Math.max(
+          0,
+          originalSaleItem.quantity - alreadyDelivered
+        );
+
+        // Optional: Server-side validation of client-provided quantity
+        if (product.quantity !== pendingQuantity) {
+          console.warn(
+            `Client-side quantity for product ${product.productID} (${product.quantity}) ` +
+              `mismatch with server-calculated pending quantity (${pendingQuantity}). ` +
+              `Using server-calculated quantity.`
+          );
+          // In a very strict scenario, you might throw an error here:
+          // throw new Error(`Quantity mismatch for product ${product.productID}. Please refresh.`);
+        }
+
+        if (pendingQuantity > 0) {
+          // Ensure unitPrice is treated as a number
+          const pendingSubTotal = pendingQuantity * (product.unitPrice || 0);
+          promissoryNoteItemsToInsert.push({
             promissoryNoteId: newPromissoryNote.id,
             productId: product.productId,
-            saleItemId: product.saleItemId,
-            quantity: product.quantity,
+            saleItemId: product.saleItemId ?? "",
+            quantity: pendingQuantity,
+            fulfilledQuantity: 0,
             unitPrice: product.unitPrice,
-            subTotal: product.subTotal,
-            productName: product.productName,
-            productID: product.productID,
-          })
-          .returning();
-
-        promissoryNoteItems.push(promissoryNoteItem);
+            subTotal: pendingSubTotal,
+            productName: product.productName ?? "",
+            productID: product.productID ?? "",
+            isActive: true,
+            id: "",
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+          calculatedTotalAmount += pendingSubTotal;
+        }
       }
 
-      return { promissoryNote: newPromissoryNote, items: promissoryNoteItems };
+      // 5. Batch insert promissory note items
+      let insertedPromissoryNoteItems: PromissoryNoteItem[] = [];
+      if (promissoryNoteItemsToInsert.length > 0) {
+        const insertedRows = await tx
+          .insert(promissoryNoteItemsTable)
+          .values(promissoryNoteItemsToInsert)
+          .returning();
+
+        // Normalize database-returned rows to match PromissoryNoteItem type (ensure saleItemId is string)
+        insertedPromissoryNoteItems = insertedRows.map((r: any) => ({
+          ...r,
+          saleItemId: r.saleItemId ?? "",
+        })) as PromissoryNoteItem[];
+      }
+
+      // 6. Update the main promissory note's total amount and final status
+      let finalPromissoryNoteStatus: PromissoryNoteStatus =
+        PromissoryNoteStatus.Pending;
+      let finalPromissoryNoteIsActive: boolean = true;
+
+      if (insertedPromissoryNoteItems.length === 0) {
+        finalPromissoryNoteStatus = PromissoryNoteStatus.Fulfiled; // If no items, the note is effectively completed
+        finalPromissoryNoteIsActive = false;
+        calculatedTotalAmount = 0; // If no items, total is 0
+      }
+
+      const [updatedPromissoryNote] = await tx
+        .update(promissoryNotesTable)
+        .set({
+          totalAmount: calculatedTotalAmount,
+          status: finalPromissoryNoteStatus,
+          isActive: finalPromissoryNoteIsActive,
+        })
+        .where(eq(promissoryNotesTable.id, newPromissoryNote.id))
+        .returning();
+
+      return {
+        promissoryNote: updatedPromissoryNote,
+        items: insertedPromissoryNoteItems,
+      };
     });
 
     revalidatePath("/promissory-notes");
+    revalidatePath("/sales");
     return parseStringify(result);
   } catch (error) {
     console.error("Error adding promissory note:", error);
@@ -429,5 +560,597 @@ export const getPromissoryNotes = async (
   } catch (error) {
     console.error("Error getting promissory notes:", error);
     throw error;
+  }
+};
+
+// Helper function to update promissory note based on waybill creation
+export const updatePromissoryNoteForWaybill = async (
+  tx: any, // Drizzle transaction object
+  saleId: string,
+  waybillProducts: WaybillProductForPromissoryNote[]
+) => {
+  // 1. BATCH FETCH: Get the promissory note for this sale
+  const [promissoryNote] = await tx
+    .select()
+    .from(promissoryNotesTable)
+    .where(
+      and(
+        eq(promissoryNotesTable.saleId, saleId),
+        eq(promissoryNotesTable.isActive, true)
+      )
+    )
+    .limit(1);
+
+  // If no active promissory note exists, nothing to update
+  if (!promissoryNote) {
+    return;
+  }
+
+  // 2. BATCH FETCH: Get all active promissory note items for this note
+  const promissoryNoteItems: PromissoryNoteItem[] = await tx
+    .select()
+    .from(promissoryNoteItemsTable)
+    .where(
+      and(
+        eq(promissoryNoteItemsTable.promissoryNoteId, promissoryNote.id),
+        eq(promissoryNoteItemsTable.isActive, true)
+      )
+    );
+
+  // If no active items, soft delete the promissory note
+  if (promissoryNoteItems.length === 0) {
+    await tx
+      .update(promissoryNotesTable)
+      .set({ isActive: false, status: "completed" as PromissoryNoteStatus })
+      .where(eq(promissoryNotesTable.id, promissoryNote.id));
+    return;
+  }
+
+  // 3. Create maps for efficient lookup
+  const promissoryNoteItemsMap = new Map<string, PromissoryNoteItem>(
+    promissoryNoteItems.map((item) => [
+      `${item.productId}_${item.productID}`,
+      item,
+    ])
+  );
+
+  const waybillProductsMap = new Map<string, number>(); // Aggregated quantitySupplied by product key
+
+  // Aggregate waybill quantities by product (in case same product appears multiple times)
+  waybillProducts.forEach((product) => {
+    const key = `${product.productId}_${product.productID}`;
+    const existing = waybillProductsMap.get(key) || 0;
+    waybillProductsMap.set(key, existing + product.quantitySupplied);
+  });
+
+  // 4. Identify overlapping products and calculate updates
+  const itemsToUpdate: Array<{
+    id: string;
+    newQuantity: number;
+    newSubTotal: number;
+  }> = [];
+  const itemsToDeactivate: string[] = [];
+
+  for (const [key, promissoryItem] of promissoryNoteItemsMap.entries()) {
+    const quantitySuppliedByWaybill = waybillProductsMap.get(key) || 0;
+
+    if (quantitySuppliedByWaybill > 0) {
+      // Overlapping product found and supplied
+      const newQuantity = Math.max(
+        0,
+        promissoryItem.quantity - quantitySuppliedByWaybill
+      );
+      // Ensure unitPrice is treated as a number
+      const newSubTotal = newQuantity * promissoryItem.unitPrice;
+
+      if (newQuantity === 0) {
+        itemsToDeactivate.push(promissoryItem.id);
+      } else {
+        itemsToUpdate.push({
+          id: promissoryItem.id,
+          newQuantity,
+          newSubTotal,
+        });
+      }
+    }
+  }
+
+  // 5. BATCH UPDATE: Update quantities and subTotals for items that still have remaining quantity
+  if (itemsToUpdate.length > 0) {
+    const updatePromises = itemsToUpdate.map((item) =>
+      tx
+        .update(promissoryNoteItemsTable)
+        .set({
+          quantity: item.newQuantity,
+          subTotal: item.newSubTotal,
+        })
+        .where(eq(promissoryNoteItemsTable.id, item.id))
+    );
+    await Promise.all(updatePromises);
+  }
+
+  // 6. BATCH UPDATE: Soft delete fully fulfilled items
+  if (itemsToDeactivate.length > 0) {
+    await tx
+      .update(promissoryNoteItemsTable)
+      .set({ isActive: false })
+      .where(inArray(promissoryNoteItemsTable.id, itemsToDeactivate));
+  }
+
+  // 7. Check if all items are now inactive
+  const remainingActiveItemsCount = await tx
+    .select({ count: sql<number>`count(*)` })
+    .from(promissoryNoteItemsTable)
+    .where(
+      and(
+        eq(promissoryNoteItemsTable.promissoryNoteId, promissoryNote.id),
+        eq(promissoryNoteItemsTable.isActive, true)
+      )
+    )
+    .then((res: { count: number }[]) => res[0]?.count || 0);
+
+  // 8. If no active items remain, soft delete the promissory note and update total amount
+  if (remainingActiveItemsCount === 0) {
+    await tx
+      .update(promissoryNotesTable)
+      .set({
+        isActive: false,
+        status: "completed" as PromissoryNoteStatus,
+        totalAmount: 0,
+      })
+      .where(eq(promissoryNotesTable.id, promissoryNote.id));
+  } else {
+    // 9. Recalculate total amount based on remaining items
+    const activeItems = await tx
+      .select({ subTotal: promissoryNoteItemsTable.subTotal })
+      .from(promissoryNoteItemsTable)
+      .where(
+        and(
+          eq(promissoryNoteItemsTable.promissoryNoteId, promissoryNote.id),
+          eq(promissoryNoteItemsTable.isActive, true)
+        )
+      );
+
+    const newTotalAmount = activeItems.reduce(
+      (sum: number, item: { subTotal: number }) => sum + item.subTotal,
+      0
+    );
+
+    await tx
+      .update(promissoryNotesTable)
+      .set({ totalAmount: newTotalAmount })
+      .where(eq(promissoryNotesTable.id, promissoryNote.id));
+  }
+};
+
+// Enhanced helper function for edit scenarios (reverses previous impact and applies new)
+export const updatePromissoryNoteForWaybillEdit = async (
+  tx: any, // Drizzle transaction object
+  saleId: string,
+  previousWaybillProducts: WaybillProductForPromissoryNote[],
+  newWaybillProducts: WaybillProductForPromissoryNote[]
+) => {
+  // 1. BATCH FETCH: Get the promissory note for this sale
+  const [promissoryNote] = await tx
+    .select()
+    .from(promissoryNotesTable)
+    .where(
+      and(
+        eq(promissoryNotesTable.saleId, saleId),
+        eq(promissoryNotesTable.isActive, true)
+      )
+    )
+    .limit(1);
+
+  // If no active promissory note exists, nothing to update
+  if (!promissoryNote) {
+    return;
+  }
+
+  // 2. BATCH FETCH: Get all promissory note items (both active and inactive)
+  // We need inactive ones too because they might need to be reactivated if waybill changes restore them.
+  const allPromissoryNoteItems: PromissoryNoteItem[] = await tx
+    .select()
+    .from(promissoryNoteItemsTable)
+    .where(eq(promissoryNoteItemsTable.promissoryNoteId, promissoryNote.id));
+
+  if (allPromissoryNoteItems.length === 0) {
+    return;
+  }
+
+  // 3. Create maps for efficient lookup
+  const promissoryNoteItemsMap = new Map<string, PromissoryNoteItem>(
+    allPromissoryNoteItems.map((item) => [
+      `${item.productId}_${item.productID}`,
+      item,
+    ])
+  );
+
+  // 4. Aggregate previous waybill quantities by product
+  const previousWaybillMap = new Map<string, number>();
+  previousWaybillProducts.forEach((product) => {
+    const key = `${product.productId}_${product.productID}`;
+    const existing = previousWaybillMap.get(key) || 0;
+    previousWaybillMap.set(key, existing + product.quantitySupplied);
+  });
+
+  // 5. Aggregate new waybill quantities by product
+  const newWaybillMap = new Map<string, number>();
+  newWaybillProducts.forEach((product) => {
+    const key = `${product.productId}_${product.productID}`;
+    const existing = newWaybillMap.get(key) || 0;
+    newWaybillMap.set(key, existing + product.quantitySupplied);
+  });
+
+  // 6. Calculate net changes and determine updates
+  const itemsToUpdate: Array<{
+    id: string;
+    newQuantity: number;
+    newSubTotal: number;
+    shouldActivate: boolean;
+  }> = [];
+
+  const itemsToDeactivate: string[] = [];
+
+  for (const [key, promissoryItem] of promissoryNoteItemsMap.entries()) {
+    const previousQuantitySupplied = previousWaybillMap.get(key) || 0;
+    const newQuantitySupplied = newWaybillMap.get(key) || 0;
+
+    // Calculate net change: (what was previously supplied by this waybill) - (what is now supplied by this waybill)
+    // A positive netChange means less is being supplied by the *new* waybill, so we "restore" that difference to the PN.
+    // A negative netChange means more is being supplied by the *new* waybill, so we "reduce" that difference from the PN.
+    const netChangeInDelivered = previousQuantitySupplied - newQuantitySupplied;
+
+    // Calculate the new quantity for this promissory note item
+    // Add the netChangeInDelivered to the current promissory item quantity.
+    // This effectively restores the old delivery, then subtracts the new delivery.
+    let updatedPromissoryQuantity =
+      promissoryItem.quantity + netChangeInDelivered;
+
+    // Ensure quantity doesn't go negative
+    updatedPromissoryQuantity = Math.max(0, updatedPromissoryQuantity);
+
+    // Ensure unitPrice is treated as a number
+    const newSubTotal = updatedPromissoryQuantity * promissoryItem.unitPrice;
+
+    // Determine action based on new quantity and current active status
+    if (updatedPromissoryQuantity === 0 && promissoryItem.isActive) {
+      // Item should be deactivated (it was active and now has no remaining quantity)
+      itemsToDeactivate.push(promissoryItem.id);
+    } else if (updatedPromissoryQuantity > 0 && !promissoryItem.isActive) {
+      // Item should be reactivated and updated (it was inactive but now has quantity)
+      itemsToUpdate.push({
+        id: promissoryItem.id,
+        newQuantity: updatedPromissoryQuantity,
+        newSubTotal,
+        shouldActivate: true,
+      });
+    } else if (updatedPromissoryQuantity > 0 && promissoryItem.isActive) {
+      // Item remains active but quantity changes
+      if (updatedPromissoryQuantity !== promissoryItem.quantity) {
+        itemsToUpdate.push({
+          id: promissoryItem.id,
+          newQuantity: updatedPromissoryQuantity,
+          newSubTotal,
+          shouldActivate: false, // Remains active
+        });
+      }
+    }
+    // If updatedPromissoryQuantity === 0 && !promissoryItem.isActive, no action needed (already inactive)
+  }
+
+  // 7. BATCH UPDATE: Update quantities and potentially reactivate items
+  if (itemsToUpdate.length > 0) {
+    const updatePromises = itemsToUpdate.map((item) =>
+      tx
+        .update(promissoryNoteItemsTable)
+        .set({
+          quantity: item.newQuantity,
+          subTotal: item.newSubTotal,
+          ...(item.shouldActivate && { isActive: true }),
+        })
+        .where(eq(promissoryNoteItemsTable.id, item.id))
+    );
+    await Promise.all(updatePromises);
+  }
+
+  // 8. BATCH UPDATE: Soft delete fully fulfilled items
+  if (itemsToDeactivate.length > 0) {
+    await tx
+      .update(promissoryNoteItemsTable)
+      .set({ isActive: false })
+      .where(inArray(promissoryNoteItemsTable.id, itemsToDeactivate));
+  }
+
+  // 9. Check if any active items remain to update promissory note status and total amount
+  const remainingActiveItemsCount = await tx
+    .select({ count: sql<number>`count(*)` })
+    .from(promissoryNoteItemsTable)
+    .where(
+      and(
+        eq(promissoryNoteItemsTable.promissoryNoteId, promissoryNote.id),
+        eq(promissoryNoteItemsTable.isActive, true)
+      )
+    )
+    .then((res: { count: number }[]) => res[0]?.count || 0);
+
+  // 10. Update promissory note status and total amount
+  if (remainingActiveItemsCount === 0) {
+    await tx
+      .update(promissoryNotesTable)
+      .set({
+        isActive: false,
+        status: "completed" as PromissoryNoteStatus,
+        totalAmount: 0,
+      })
+      .where(eq(promissoryNotesTable.id, promissoryNote.id));
+  } else {
+    // Recalculate total amount based on remaining active items
+    const activeItems = await tx
+      .select({ subTotal: promissoryNoteItemsTable.subTotal })
+      .from(promissoryNoteItemsTable)
+      .where(
+        and(
+          eq(promissoryNoteItemsTable.promissoryNoteId, promissoryNote.id),
+          eq(promissoryNoteItemsTable.isActive, true)
+        )
+      );
+
+    const newTotalAmount = activeItems.reduce(
+      (sum: number, item: { subTotal: number }) => sum + item.subTotal,
+      0
+    );
+
+    // Reactivate promissory note if it was previously completed and now has active items
+    await tx
+      .update(promissoryNotesTable)
+      .set({
+        totalAmount: newTotalAmount,
+        isActive: true,
+        status: "pending" as PromissoryNoteStatus, // Assuming 'pending' is the default active status
+      })
+      .where(eq(promissoryNotesTable.id, promissoryNote.id));
+  }
+};
+
+export const reconcilePromissoryNotes = async () => {
+  console.log("Starting promissory note reconciliation...");
+  const errors: string[] = [];
+  let reconciledSalesCount = 0;
+
+  try {
+    // 1. Get all active promissory notes
+    const activePromissoryNotes = await db
+      .select({
+        id: promissoryNotesTable.id,
+        saleId: promissoryNotesTable.saleId,
+      })
+      .from(promissoryNotesTable)
+      .where(eq(promissoryNotesTable.isActive, true));
+
+    if (activePromissoryNotes.length === 0) {
+      console.log("No active promissory notes found to reconcile.");
+      return parseStringify({
+        message: "No active promissory notes found.",
+        errors: [],
+      });
+    }
+
+    // Process each promissory note in a transaction
+    for (const pn of activePromissoryNotes) {
+      try {
+        await db.transaction(async (tx) => {
+          console.log(
+            `Reconciling Promissory Note ID: ${pn.id} for Sale ID: ${pn.saleId}`
+          );
+
+          // Fetch full sale data using getSaleById
+          const sale = await getSaleById(pn.saleId);
+          if (!sale) {
+            throw new Error(`Sale with ID ${pn.saleId} not found.`);
+          }
+
+          // 1a. Fetch ALL promissory note items (active and inactive) for this PN
+          const pnItemsRaw = await tx
+            .select()
+            .from(promissoryNoteItemsTable)
+            .where(eq(promissoryNoteItemsTable.promissoryNoteId, pn.id));
+
+          // Normalize nullable DB fields to match PromissoryNoteItem type
+          const pnItems: PromissoryNoteItem[] = (pnItemsRaw as any[]).map(
+            (r) => ({
+              ...r,
+              saleItemId: r.saleItemId ?? "",
+              productName: r.productName ?? "",
+              productID: r.productID ?? "",
+            })
+          );
+
+          if (pnItems.length === 0) {
+            // If PN has no items, mark the PN as completed/inactive
+            await tx
+              .update(promissoryNotesTable)
+              .set({
+                isActive: false,
+                status: "completed" as PromissoryNoteStatus,
+                totalAmount: 0,
+              })
+              .where(eq(promissoryNotesTable.id, pn.id));
+            console.log(`PN ${pn.id} marked completed as it had no items.`);
+            reconciledSalesCount++;
+            return; // Move to next PN
+          }
+
+          // Create maps for efficient lookup
+          const originalSaleItemsMap = new Map<string, SaleItem>(
+            sale.products.map((si: SaleItem) => [si.id, si])
+          );
+
+          // 1b. Calculate total delivered quantities for this sale from all waybills
+          const totalDeliveredQuantitiesMap = new Map<string, number>(); // Map<saleItemId, totalDeliveredQuantity>
+
+          const saleItemIdsInPN = pnItems.map((pni) => pni.saleItemId);
+
+          const waybillItemsForSale = await tx
+            .select({
+              saleItemId: waybillItemsTable.saleItemId,
+              quantitySupplied: waybillItemsTable.quantitySupplied,
+            })
+            .from(waybillsTable)
+            .innerJoin(
+              waybillItemsTable,
+              eq(waybillsTable.id, waybillItemsTable.waybillId)
+            )
+            .where(
+              and(
+                eq(waybillsTable.saleId, pn.saleId),
+                eq(waybillsTable.isActive, true),
+                eq(waybillItemsTable.isActive, true),
+                inArray(waybillItemsTable.saleItemId, saleItemIdsInPN) // Only relevant sale items
+              )
+            );
+
+          waybillItemsForSale.forEach((record) => {
+            if (record.saleItemId) {
+              const currentDelivered =
+                totalDeliveredQuantitiesMap.get(record.saleItemId) || 0;
+              totalDeliveredQuantitiesMap.set(
+                record.saleItemId,
+                currentDelivered + record.quantitySupplied
+              );
+            }
+          });
+
+          const updatesToPNItems = [];
+          let newPNTotalAmount = 0;
+          let remainingActivePNItemsCount = 0;
+
+          // 1c. Reconcile each promissory note item
+          for (const pnItem of pnItems) {
+            const originalSaleItem = originalSaleItemsMap.get(
+              pnItem.saleItemId
+            );
+
+            if (!originalSaleItem) {
+              console.warn(
+                `Original Sale Item ${pnItem.saleItemId} for PN Item ${pnItem.id} not found. Skipping.`
+              );
+              // If original sale item is missing, we might consider deactivating the PN item
+              // or handle as an error depending on data integrity expectations.
+              // For now, it will be skipped from reconciliation,
+              // and if no other valid items exist, the PN itself will become inactive.
+              if (pnItem.isActive) {
+                // If it was active, and now we can't find its source
+                updatesToPNItems.push(
+                  tx
+                    .update(promissoryNoteItemsTable)
+                    .set({ isActive: false })
+                    .where(eq(promissoryNoteItemsTable.id, pnItem.id))
+                );
+              }
+              continue;
+            }
+
+            const alreadyDelivered =
+              totalDeliveredQuantitiesMap.get(originalSaleItem.id) || 0;
+            const trueRemainingQuantity = Math.max(
+              0,
+              originalSaleItem.quantity - alreadyDelivered
+            );
+            const newSubTotal = trueRemainingQuantity * pnItem.unitPrice; // Use pnIpnItemstem.unitPrice from fetched PN item
+            const newIsActive = trueRemainingQuantity > 0;
+
+            if (newIsActive) {
+              remainingActivePNItemsCount++;
+              newPNTotalAmount += newSubTotal;
+            }
+
+            // Prepare update if values have changed
+            if (
+              pnItem.quantity !== trueRemainingQuantity ||
+              pnItem.subTotal !== newSubTotal ||
+              pnItem.isActive !== newIsActive
+            ) {
+              updatesToPNItems.push(
+                tx
+                  .update(promissoryNoteItemsTable)
+                  .set({
+                    quantity: trueRemainingQuantity,
+                    subTotal: newSubTotal,
+                    isActive: newIsActive,
+                  })
+                  .where(eq(promissoryNoteItemsTable.id, pnItem.id))
+              );
+            }
+          }
+
+          await Promise.all(updatesToPNItems); // Execute all item updates
+
+          // 1d. Update the main promissory note record
+          const finalPNIsActive = remainingActivePNItemsCount > 0;
+          const finalPNStatus = finalPNIsActive
+            ? PromissoryNoteStatus.Pending
+            : PromissoryNoteStatus.Fulfiled;
+
+          // Only update if changes are necessary
+          const currentPN = (
+            await tx
+              .select()
+              .from(promissoryNotesTable)
+              .where(eq(promissoryNotesTable.id, pn.id))
+              .limit(1)
+          )[0];
+          if (
+            currentPN.totalAmount !== newPNTotalAmount ||
+            currentPN.isActive !== finalPNIsActive ||
+            currentPN.status !== finalPNStatus
+          ) {
+            await tx
+              .update(promissoryNotesTable)
+              .set({
+                totalAmount: newPNTotalAmount,
+                isActive: finalPNIsActive,
+                status: finalPNStatus,
+              })
+              .where(eq(promissoryNotesTable.id, pn.id));
+          }
+
+          console.log(`Successfully reconciled Promissory Note ID: ${pn.id}`);
+          reconciledSalesCount++;
+        });
+      } catch (innerError: any) {
+        const errorMessage = `Failed to reconcile Promissory Note ID ${pn.id}: ${innerError.message}`;
+        console.error(errorMessage);
+        errors.push(errorMessage);
+      }
+    }
+
+    console.log(
+      `Reconciliation completed. ${reconciledSalesCount} promissory notes processed.`
+    );
+    if (errors.length > 0) {
+      console.warn(
+        `${errors.length} errors encountered during reconciliation.`
+      );
+    }
+
+    // Revalidate relevant paths after reconciliation
+    revalidatePath("/promissory-notes"); // Revalidate the main promissory notes page
+    // You might also want to revalidate individual sale pages if they show PN status
+    // or the sales list page if total outstanding amounts are shown.
+    revalidatePath("/sales");
+
+    return parseStringify({
+      message: "Promissory note reconciliation finished.",
+      errors,
+      reconciledCount: reconciledSalesCount,
+    });
+  } catch (error: any) {
+    console.error("Error during overall reconciliation process:", error);
+    return parseStringify({
+      message: "Failed to perform reconciliation.",
+      errors: [error.message],
+      reconciledCount: 0,
+    });
   }
 };

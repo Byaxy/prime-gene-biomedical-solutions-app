@@ -565,6 +565,12 @@ export interface PromissoryNoteWithRelations {
   sale: Sale;
 }
 
+export interface WaybillProductForPromissoryNote {
+  productId: string;
+  productID: string;
+  quantitySupplied: number;
+}
+
 // Received Purchases
 export interface ReceivedPurchase {
   id: string;

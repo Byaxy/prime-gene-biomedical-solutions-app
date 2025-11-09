@@ -125,6 +125,7 @@ export default async function RecordIncomeFormWrapper({
           checkNumber: null,
           checkBankName: null,
           checkDate: null,
+          isReceiptGenerated: false,
           isActive: true,
           createdAt: new Date(),
           updatedAt: new Date(),

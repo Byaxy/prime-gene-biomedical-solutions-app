@@ -526,6 +526,13 @@
       "when": 1762518887431,
       "tag": "0074_sour_ben_grimm",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1762684901063,
+      "tag": "0075_minor_kulan_gath",
+      "breakpoints": true
     }
   ]
 }

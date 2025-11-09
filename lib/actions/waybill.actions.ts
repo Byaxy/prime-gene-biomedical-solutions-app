@@ -20,10 +20,15 @@ import {
   DeliveryStatus,
   InventoryTransactionType,
   WaybillConversionStatus,
+  WaybillProductForPromissoryNote,
   WaybillType,
 } from "@/types";
 import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import { WaybillFilters } from "@/hooks/useWaybills";
+import {
+  updatePromissoryNoteForWaybill,
+  updatePromissoryNoteForWaybillEdit,
+} from "./promissoryNote.actions";
 
 const buildFilterConditions = (filters: WaybillFilters) => {
   const conditions = [];
@@ -349,6 +354,23 @@ export const addWaybill = async (
         }
       }
 
+      // 8. If there's an associated sale, update the promissory note
+      if (newWaybill.saleId) {
+        // Collect the necessary product information from the waybill items
+        const waybillProductsForPromissoryNote = insertedWaybillItems.map(
+          (item) => ({
+            productId: item.productId,
+            productID: item.productID ?? "",
+            quantitySupplied: item.quantitySupplied, // Use quantitySupplied from the inserted item
+          })
+        );
+        await updatePromissoryNoteForWaybill(
+          tx,
+          newWaybill.saleId,
+          waybillProductsForPromissoryNote
+        );
+      }
+
       return { waybill: newWaybill, items: insertedWaybillItems };
     });
 
@@ -594,6 +616,44 @@ export const editWaybill = async (
       if (!existingWaybill) {
         throw new Error("Waybill not found");
       }
+
+      // --- START: Capture previous waybill products for Promissory Note reconciliation ---
+      let previousWaybillProductsForPN: WaybillProductForPromissoryNote[] = [];
+      if (existingWaybill.saleId) {
+        // Only if the existing waybill was tied to a sale
+        const previousWaybillItems = await tx
+          .select({
+            productId: waybillItemsTable.productId,
+            productID: waybillItemsTable.productID ?? "",
+            quantitySupplied: waybillItemsTable.quantitySupplied,
+          })
+          .from(waybillItemsTable)
+          .where(eq(waybillItemsTable.waybillId, waybillId));
+
+        // Aggregate quantities if the same product ID appears multiple times
+        const aggregatedPreviousProducts = new Map<
+          string,
+          WaybillProductForPromissoryNote
+        >();
+        previousWaybillItems.forEach((item) => {
+          const key = `${item.productId}_${item.productID}`;
+          const existing = aggregatedPreviousProducts.get(key);
+          if (existing) {
+            existing.quantitySupplied += item.quantitySupplied;
+          } else {
+            // Ensure productID is always a string to satisfy WaybillProductForPromissoryNote
+            aggregatedPreviousProducts.set(key, {
+              productId: item.productId,
+              productID: (item.productID ?? "") as string,
+              quantitySupplied: item.quantitySupplied,
+            });
+          }
+        });
+        previousWaybillProductsForPN = Array.from(
+          aggregatedPreviousProducts.values()
+        );
+      }
+      // --- END: Capture previous waybill products ---
 
       // 2. Batch validate sale items and sale existence upfront
       const saleItemIds = waybill.products
@@ -1064,6 +1124,25 @@ export const editWaybill = async (
           .where(eq(saleItemsTable.id, id))
       );
       await Promise.all(newSaleItemUpdatePromises);
+
+      // --- START: Integrate updatePromissoryNoteForWaybillEdit here ---
+      if (updatedWaybill.saleId) {
+        // Only if the updated waybill is tied to a sale
+        const newWaybillProductsForPN: WaybillProductForPromissoryNote[] =
+          waybill.products.map((product) => ({
+            productId: product.productId,
+            productID: product.productID,
+            quantitySupplied: product.quantitySupplied,
+          }));
+
+        await updatePromissoryNoteForWaybillEdit(
+          tx,
+          updatedWaybill.saleId,
+          previousWaybillProductsForPN,
+          newWaybillProductsForPN
+        );
+      }
+      // --- END: Integrate updatePromissoryNoteForWaybillEdit here ---
 
       // 19. Recalculate sale fulfillment status (only for sale waybills)
       if (waybillType === WaybillType.Sale && waybill.saleId) {

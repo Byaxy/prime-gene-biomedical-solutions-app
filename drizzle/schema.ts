@@ -2019,6 +2019,9 @@ export const paymentsReceivedTable = pgTable(
       () => incomeCategoriesTable.id,
       { onDelete: "set null" }
     ), // For other income, or default for sales income
+    isReceiptGenerated: boolean("is_receipt_generated")
+      .notNull()
+      .default(false),
     receivingAccountId: uuid("receiving_account_id")
       .notNull()
       .references(() => accountsTable.id, { onDelete: "cascade" }), // Account where payment was received

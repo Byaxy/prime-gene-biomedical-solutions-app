@@ -1,0 +1,1 @@
+ALTER TABLE "payments_received" ADD COLUMN "is_receipt_generated" boolean DEFAULT false NOT NULL;

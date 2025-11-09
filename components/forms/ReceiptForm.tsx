@@ -146,7 +146,8 @@ export const ReceiptForm: React.FC<ReceiptFormProps> = ({
     return availablePayments.filter(
       (incomeWithRel) =>
         incomeWithRel.payment.customerId === selectedCustomerId &&
-        !addedPaymentIds.has(incomeWithRel.payment.id)
+        !addedPaymentIds.has(incomeWithRel.payment.id) &&
+        !incomeWithRel.payment.isReceiptGenerated
     );
   }, [availablePayments, selectedCustomerId, receiptItems]);
 

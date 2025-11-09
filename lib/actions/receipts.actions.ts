@@ -110,6 +110,16 @@ export const createReceipt = async (values: ReceiptFormValues) => {
       }));
       await tx.insert(receiptItemsTable).values(receiptItemsToInsert);
 
+      const paymentIdsToUpdate = receiptItemEntities.map(
+        (item) => item.paymentReceivedId
+      );
+      if (paymentIdsToUpdate.length > 0) {
+        await tx
+          .update(paymentsReceivedTable)
+          .set({ isReceiptGenerated: true, updatedAt: new Date() })
+          .where(inArray(paymentsReceivedTable.id, paymentIdsToUpdate));
+      }
+
       return { receipt: newReceipt };
     });
 
@@ -406,6 +416,40 @@ export const updateReceipt = async (id: string, values: ReceiptFormValues) => {
       // Perform deletions, insertions, and updates in parallel
       const modificationPromises = [];
 
+      // Determine payment IDs that were previously in this receipt but are no longer
+      const paymentIdsNoLongerInReceipt = existingReceiptItems
+        .filter(
+          (item) => !incomingPaymentReceivedIds.has(item.paymentReceivedId)
+        )
+        .map((item) => item.paymentReceivedId);
+
+      // Determine new payment IDs being added to this receipt
+      const newPaymentIdsInReceipt = itemsToInsert.map(
+        (item) => item.paymentReceivedId
+      );
+
+      // Update isReceiptGenerated to false for payments removed from this receipt
+      if (paymentIdsNoLongerInReceipt.length > 0) {
+        modificationPromises.push(
+          tx
+            .update(paymentsReceivedTable)
+            .set({ isReceiptGenerated: false, updatedAt: new Date() })
+            .where(
+              inArray(paymentsReceivedTable.id, paymentIdsNoLongerInReceipt)
+            )
+        );
+      }
+
+      // Update isReceiptGenerated to true for new payments added to this receipt
+      if (newPaymentIdsInReceipt.length > 0) {
+        modificationPromises.push(
+          tx
+            .update(paymentsReceivedTable)
+            .set({ isReceiptGenerated: true, updatedAt: new Date() })
+            .where(inArray(paymentsReceivedTable.id, newPaymentIdsInReceipt))
+        );
+      }
+
       if (itemsToDeleteIds.length > 0) {
         modificationPromises.push(
           tx
@@ -481,6 +525,13 @@ export const softDeleteReceipt = async (id: string) => {
         throw new Error("Receipt record not found.");
       }
 
+      const linkedPaymentIds = await tx
+        .select({ paymentId: receiptItemsTable.paymentReceivedId })
+        .from(receiptItemsTable)
+        .where(eq(receiptItemsTable.receiptId, id));
+
+      const paymentIdsToReset = linkedPaymentIds.map((item) => item.paymentId);
+
       // Deactivate the receipt record
       const [updatedReceipt] = await tx
         .update(receiptsTable)
@@ -493,6 +544,13 @@ export const softDeleteReceipt = async (id: string) => {
         .update(receiptItemsTable)
         .set({ isActive: false, updatedAt: new Date() })
         .where(eq(receiptItemsTable.receiptId, id));
+
+      if (paymentIdsToReset.length > 0) {
+        await tx
+          .update(paymentsReceivedTable)
+          .set({ isReceiptGenerated: false, updatedAt: new Date() })
+          .where(inArray(paymentsReceivedTable.id, paymentIdsToReset));
+      }
 
       return updatedReceipt;
     });
