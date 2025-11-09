@@ -4,7 +4,6 @@ import { getPromissoryNotes } from "@/lib/actions/promissoryNote.actions";
 import dynamic from "next/dynamic";
 import { Suspense } from "react";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
-import ReconciliationButton from "@/components/ReconciliationButton";
 
 const PromissoryNotesTableData = async ({
   currentPage,
@@ -58,18 +57,13 @@ const PromissoryNotes = async ({
       buttonText="Add Promissory Note"
       buttonPath="/promissory-notes/create-promissory-note"
     >
-      <>
-        <div className="flex w-full py-4 justify-items-end">
-          <ReconciliationButton />
-        </div>
-        <Suspense fallback={<TableSkeleton />}>
-          <PromissoryNotesTableData
-            currentPage={currentPage}
-            currentPageSize={currentPageSize}
-            filters={filtersForServer}
-          />
-        </Suspense>
-      </>
+      <Suspense fallback={<TableSkeleton />}>
+        <PromissoryNotesTableData
+          currentPage={currentPage}
+          currentPageSize={currentPageSize}
+          filters={filtersForServer}
+        />
+      </Suspense>
     </PageWraper>
   );
 };
