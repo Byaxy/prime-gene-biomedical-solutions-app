@@ -229,6 +229,149 @@ const SaleForm = ({
     }, []);
   }, [inventoryStock, products, searchQuery, selectedStoreId]);
 
+  // Load data from local storage on mount (create mode)
+  useEffect(() => {
+    if (
+      mode === "create" &&
+      typeof window !== "undefined" &&
+      !sourceQuotation
+    ) {
+      const savedData = window.localStorage.getItem("saleForm");
+      if (savedData) {
+        try {
+          const parsedData: SaleFormValues = JSON.parse(savedData);
+
+          parsedData.saleDate = parsedData.saleDate
+            ? new Date(parsedData.saleDate)
+            : new Date();
+
+          const loadedProducts = parsedData.products.map((product) => ({
+            productId: product?.productId,
+            inventoryStock: product?.inventoryStock || [],
+            hasBackorder: product?.hasBackorder,
+            backorderQuantity: product?.backorderQuantity,
+            quantity: product?.quantity,
+            unitPrice: product?.unitPrice,
+            totalPrice: product?.totalPrice,
+            subTotal: product?.subTotal,
+            taxAmount: product?.taxAmount,
+            taxRate: product?.taxRate,
+            discountRate: product?.discountRate,
+            taxRateId: product?.taxRateId,
+            discountAmount: product?.discountAmount,
+            productID: product?.productID,
+            productName: product?.productName,
+          }));
+
+          form.reset(
+            {
+              ...defaultValues,
+              ...parsedData,
+              products: loadedProducts,
+            },
+            { keepDefaultValues: false }
+          );
+        } catch (error) {
+          console.error(
+            "Failed to parse saved form data from localStorage:",
+            error
+          );
+          window.localStorage.removeItem("saleForm");
+        }
+      } else {
+        form.reset(defaultValues);
+      }
+    }
+  }, [mode, defaultValues, form, sourceQuotation]);
+
+  // Explicitly sync field array after loading from localStorage
+  useEffect(() => {
+    if (
+      mode === "create" &&
+      typeof window !== "undefined" &&
+      !sourceQuotation
+    ) {
+      const savedData = window.localStorage.getItem("saleForm");
+      if (savedData) {
+        try {
+          const parsedData: SaleFormValues = JSON.parse(savedData);
+
+          if (
+            parsedData.products &&
+            parsedData.products.length > 0 &&
+            fields.length === 0
+          ) {
+            // Manually trigger a form reset to sync the field array
+            const loadedProducts = parsedData.products.map((product) => ({
+              productId: product?.productId,
+              inventoryStock: product?.inventoryStock || [],
+              hasBackorder: product?.hasBackorder,
+              backorderQuantity: product?.backorderQuantity,
+              quantity: product?.quantity,
+              unitPrice: product?.unitPrice,
+              totalPrice: product?.totalPrice,
+              subTotal: product?.subTotal,
+              taxAmount: product?.taxAmount,
+              taxRate: product?.taxRate,
+              discountRate: product?.discountRate,
+              taxRateId: product?.taxRateId,
+              discountAmount: product?.discountAmount,
+              productID: product?.productID,
+              productName: product?.productName,
+            }));
+
+            form.setValue("products", loadedProducts);
+          }
+        } catch (error) {
+          console.error("Failed to sync products from localStorage:", error);
+        }
+      }
+    }
+  }, [mode, fields.length, form, sourceQuotation]);
+
+  // Save data to localStorage whenever form values change (debounced)
+  useEffect(() => {
+    if (mode !== "create" || typeof window === "undefined") {
+      return;
+    }
+
+    const subscription = form.watch((value) => {
+      const timeoutId = setTimeout(() => {
+        const dataToSave = JSON.stringify({
+          ...value,
+          saleDate:
+            value.saleDate instanceof Date
+              ? value.saleDate.toISOString()
+              : value.saleDate,
+          invoiceNumber: "",
+          products: value.products?.map((product) => ({
+            productId: product?.productId,
+            inventoryStock: product?.inventoryStock || [],
+            hasBackorder: product?.hasBackorder,
+            backorderQuantity: product?.backorderQuantity,
+            quantity: product?.quantity,
+            unitPrice: product?.unitPrice,
+            totalPrice: product?.totalPrice,
+            subTotal: product?.subTotal,
+            taxAmount: product?.taxAmount,
+            taxRate: product?.taxRate,
+            discountRate: product?.discountRate,
+            taxRateId: product?.taxRateId,
+            discountAmount: product?.discountAmount,
+            productID: product?.productID,
+            productName: product?.productName,
+          })),
+          selectedProductId: "",
+        });
+        window.localStorage.setItem("saleForm", dataToSave);
+      }, 500);
+
+      return () => clearTimeout(timeoutId);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [form, mode]);
+
   // initialize data in edit mode
   useEffect(() => {
     if (initialMount.current) {
@@ -370,6 +513,7 @@ const SaleForm = ({
     mode,
     form,
     stores,
+    defaultValues,
   ]);
 
   useEffect(() => {
@@ -433,49 +577,9 @@ const SaleForm = ({
 
   // Cancel button handler
   const handleCancel = () => {
-    if (mode === "create") {
-      form.reset(defaultValues);
-      form.setValue("invoiceNumber", initialGeneratedInvoiceNumber || "");
-    } else {
-      form.reset(
-        initialData
-          ? {
-              invoiceNumber: initialData.sale.invoiceNumber || "",
-              saleDate: initialData.sale.saleDate
-                ? new Date(initialData.sale.saleDate)
-                : new Date(),
-              products: initialData.products || [],
-              customerId: initialData.sale.customerId || "",
-              storeId: initialData.sale.storeId || "",
-              status: initialData.sale.status || SaleStatus.Pending,
-              notes: initialData.sale.notes || "",
-              amountPaid: initialData.sale.amountPaid || 0,
-              discountAmount: initialData.sale.discountAmount || 0,
-              totalTaxAmount: initialData.sale.totalTaxAmount || 0,
-              subTotal: initialData.sale.subTotal || 0,
-              totalAmount: initialData.sale.totalAmount || 0,
-              attachments: initialData.sale.attachments || [],
-              isDeliveryAddressAdded:
-                initialData.sale.isDeliveryAddressAdded || false,
-              deliveryAddress: {
-                addressName:
-                  initialData.sale.deliveryAddress?.addressName || "",
-                address: initialData.sale.deliveryAddress?.address || "",
-                city: initialData.sale.deliveryAddress?.city || "",
-                state: initialData.sale.deliveryAddress?.state || "",
-                country: initialData.sale.deliveryAddress?.country || "",
-                email: initialData.sale.deliveryAddress?.email || "",
-                phone: initialData.sale.deliveryAddress?.phone || "",
-              },
-              paymentMethod:
-                initialData.sale.paymentMethod || PaymentMethod.Cash,
-              paymentStatus:
-                initialData.sale.paymentStatus || PaymentStatus.Pending,
-              quotationId: initialData.sale.quotationId || undefined,
-              selectedProductId: "",
-            }
-          : defaultValues
-      );
+    form.reset(defaultValues, { keepDefaultValues: false });
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem("saleForm");
     }
   };
 
@@ -639,6 +743,9 @@ const SaleForm = ({
                 router.push("/sales");
                 router.refresh();
                 form.reset(defaultValues);
+                if (typeof window !== "undefined") {
+                  window.localStorage.removeItem("saleForm");
+                }
               },
             }
           );
@@ -661,6 +768,9 @@ const SaleForm = ({
                 router.push("/sales");
                 router.refresh();
                 form.reset(defaultValues);
+                if (typeof window !== "undefined") {
+                  window.localStorage.removeItem("saleForm");
+                }
               },
             }
           );
