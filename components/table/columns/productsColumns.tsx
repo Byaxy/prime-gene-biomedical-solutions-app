@@ -171,9 +171,17 @@ export const productsColumns: ColumnDef<ProductWithRelations>[] = [
         totalInventoryStockQuantity - totalBackorderStockQuantity;
 
       let backgroundColorClass = "";
-      if (quantityOnHand <= product.alertQuantity) {
+      if (quantityOnHand < 0) {
         backgroundColorClass = "bg-red-600";
-      } else if (quantityOnHand <= product.maxAlertQuantity) {
+      } else if (
+        quantityOnHand >= 0 &&
+        quantityOnHand <= product.alertQuantity
+      ) {
+        backgroundColorClass = "bg-orange-600";
+      } else if (
+        quantityOnHand > product.alertQuantity &&
+        quantityOnHand <= product.maxAlertQuantity
+      ) {
         backgroundColorClass = "bg-[#f59e0b]";
       } else {
         backgroundColorClass = "bg-green-500";
