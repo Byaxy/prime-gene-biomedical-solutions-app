@@ -264,7 +264,10 @@ export const getProducts = async (
         .leftJoin(unitsTable, eq(productsTable.unitId, unitsTable.id))
         .leftJoin(
           inventoryTable,
-          eq(productsTable.id, inventoryTable.productId)
+          and(
+            eq(productsTable.id, inventoryTable.productId),
+            eq(inventoryTable.isActive, true)
+          )
         )
         .leftJoin(
           backordersTable,
@@ -409,7 +412,10 @@ export const getProductById = async (productId: string) => {
         .leftJoin(unitsTable, eq(productsTable.unitId, unitsTable.id))
         .leftJoin(
           inventoryTable,
-          eq(productsTable.id, inventoryTable.productId)
+          and(
+            eq(productsTable.id, inventoryTable.productId),
+            eq(inventoryTable.isActive, true)
+          )
         )
         .leftJoin(
           backordersTable,

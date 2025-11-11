@@ -352,17 +352,18 @@ export const addInventoryStock = async (
     const { storeId, receivedDate, products, notes } = data;
 
     const result = await db.transaction(async (tx) => {
-      const inventoryItemsToInsert: any[] = [];
-      const inventoryUpdates: Promise<any>[] = [];
-      const transactionsToInsert: any[] = [];
+      const inventoryItemsToInsert: Array<typeof inventoryTable.$inferInsert> =
+        [];
+      const inventoryUpdates: Promise<
+        Array<typeof inventoryTable.$inferSelect>
+      >[] = [];
+      const transactionsToInsert: Array<
+        typeof inventoryTransactionsTable.$inferInsert
+      > = [];
       const backorderFulfillmentCalls: Promise<void>[] = [];
 
       // First, get all existing inventories for the products in one go
-      const productLotCombinations = products.map((p) => ({
-        productId: p.productId,
-        lotNumber: p.lotNumber,
-      }));
-
+      const productIds = products.map((p) => p.productId);
       const existingInventories = await tx
         .select()
         .from(inventoryTable)
@@ -370,14 +371,11 @@ export const addInventoryStock = async (
           and(
             eq(inventoryTable.storeId, storeId),
             eq(inventoryTable.isActive, true),
-            sql`${inventoryTable.productId} || ${
-              inventoryTable.lotNumber
-            } IN (${productLotCombinations
-              .map((p) => `${p.productId}${p.lotNumber}`)
-              .join(",")})`
+            inArray(inventoryTable.productId, productIds) // Filter by product IDs first
           )
         );
 
+      // Create a more refined map that also considers lotNumber
       const existingInventoryMap = new Map<
         string,
         typeof inventoryTable.$inferSelect
@@ -419,11 +417,12 @@ export const addInventoryStock = async (
             quantityBefore: existingInventory.quantity,
             quantityAfter: newQuantity,
             transactionDate: new Date(),
-            notes: `Stock adjustment: Added ${product.quantity} units \n ${notes}`,
+            notes: `Stock adjustment: Added ${product.quantity} units.\n${notes}`,
           });
         } else {
           // Create new inventory record
-          const newInventoryId = sql`gen_random_uuid()`;
+          const newInventoryId = crypto.randomUUID(); // Use crypto for robust UUID generation
+
           inventoryItemsToInsert.push({
             id: newInventoryId,
             productId: product.productId,
@@ -443,18 +442,18 @@ export const addInventoryStock = async (
             productId: product.productId,
             storeId,
             userId: userId,
-            transactionType: "adjustment",
+            transactionType: "purchase",
             quantityBefore: 0,
             quantityAfter: product.quantity,
             transactionDate: new Date(),
-            notes: `New stock added: ${product.quantity} units \n ${notes}`,
+            notes: `New stock added: ${product.quantity} units.\n${notes}`,
           });
 
           backorderFulfillmentCalls.push(
             fulfillBackorders(
               product.productId,
               storeId,
-              newInventoryId as unknown as string,
+              newInventoryId,
               userId,
               tx
             )
@@ -464,8 +463,8 @@ export const addInventoryStock = async (
 
       // --- Execute all batch operations ---
 
-      // Perform all new inventory inserts
-      let insertedInventoryRecords: any[] = [];
+      let insertedInventoryRecords: Array<typeof inventoryTable.$inferSelect> =
+        [];
       if (inventoryItemsToInsert.length > 0) {
         insertedInventoryRecords = await tx
           .insert(inventoryTable)
@@ -473,11 +472,13 @@ export const addInventoryStock = async (
           .returning();
       }
 
-      // Execute all pending inventory updates
+      // Await all inventory updates in parallel
       const updatedInventoryRecords = await Promise.all(inventoryUpdates);
 
-      // Perform all transaction inserts
-      let insertedTransactions: any[] = [];
+      // Perform all transaction inserts (after inventories are guaranteed to exist)
+      let insertedTransactions: Array<
+        typeof inventoryTransactionsTable.$inferSelect
+      > = [];
       if (transactionsToInsert.length > 0) {
         insertedTransactions = await tx
           .insert(inventoryTransactionsTable)
@@ -485,13 +486,13 @@ export const addInventoryStock = async (
           .returning();
       }
 
-      // Execute all backorder fulfillments
+      // Execute all backorder fulfillments in parallel
       await Promise.all(backorderFulfillmentCalls);
 
       return {
         inventoryItems: [
           ...insertedInventoryRecords,
-          ...updatedInventoryRecords.flat(),
+          ...updatedInventoryRecords.flat(), // Flatten array of arrays
         ],
         transactions: insertedTransactions,
       };

@@ -160,22 +160,31 @@ export const productsColumns: ColumnDef<ProductWithRelations>[] = [
     accessorKey: "product.quantity",
     header: "Qnty on Hand",
     cell: ({ row }) => {
-      const product = row.original;
+      const product = row.original.product;
+      const totalInventoryStockQuantity =
+        row.original.totalInventoryStockQuantity;
+      const totalBackorderStockQuantity =
+        row.original.totalBackorderStockQuantity;
+      const unit = row.original.unit;
+
+      const quantityOnHand =
+        totalInventoryStockQuantity - totalBackorderStockQuantity;
+
+      let backgroundColorClass = "";
+      if (quantityOnHand <= product.alertQuantity) {
+        backgroundColorClass = "bg-red-600";
+      } else if (quantityOnHand <= product.maxAlertQuantity) {
+        backgroundColorClass = "bg-[#f59e0b]";
+      } else {
+        backgroundColorClass = "bg-green-500";
+      }
+
       return (
         <div
-          className={`text-14-medium flex flex-row items-center justify-center gap-1 px-1.5 py-2 text-white font-bold rounded-md ${
-            product.product.quantity <= product.product.alertQuantity
-              ? "bg-red-600"
-              : product.product.quantity <= product.product.maxAlertQuantity
-              ? "bg-[#f59e0b]"
-              : "bg-green-500"
-          }`}
+          className={`text-14-medium flex flex-row items-center justify-center gap-1 px-1.5 py-2 text-white font-bold rounded-md ${backgroundColorClass}`}
         >
-          <span>
-            {product.totalInventoryStockQuantity -
-              product.totalBackorderStockQuantity}
-          </span>
-          <span>{product?.unit ? product?.unit.code : "-"}</span>
+          <span>{quantityOnHand}</span>
+          <span>{unit ? unit.code : "-"}</span>
         </div>
       );
     },
