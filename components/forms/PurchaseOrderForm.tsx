@@ -157,6 +157,112 @@ const PurchaseOrderForm = ({
     }, []);
   }, [inventoryStock, products, searchQuery]);
 
+  useEffect(() => {
+    if (mode === "create" && typeof window !== "undefined") {
+      const savedData = window.localStorage.getItem("purchaseOrderForm");
+      if (savedData) {
+        try {
+          const parsedData: PurchaseOrderFormValues = JSON.parse(savedData);
+
+          parsedData.purchaseOrderDate = parsedData.purchaseOrderDate
+            ? new Date(parsedData.purchaseOrderDate)
+            : new Date();
+
+          const loadedProducts = parsedData.products.map((product) => ({
+            productId: product?.productId,
+            quantity: product?.quantity,
+            costPrice: product?.costPrice,
+            totalPrice: product?.totalPrice,
+            productID: product?.productID,
+            productName: product?.productName,
+          }));
+
+          form.reset(
+            {
+              ...defaultValues,
+              ...parsedData,
+              products: loadedProducts,
+            },
+            { keepDefaultValues: false }
+          );
+        } catch (error) {
+          console.error(
+            "Failed to parse saved form data from localStorage:",
+            error
+          );
+          window.localStorage.removeItem("purchaseOrderForm");
+        }
+      } else {
+        form.reset(defaultValues);
+      }
+    }
+  }, [mode, defaultValues, form]);
+
+  // Explicitly sync field array after loading from localStorage
+  useEffect(() => {
+    if (mode === "create" && typeof window !== "undefined") {
+      const savedData = window.localStorage.getItem("purchaseOrderForm");
+      if (savedData) {
+        try {
+          const parsedData: PurchaseOrderFormValues = JSON.parse(savedData);
+
+          if (
+            parsedData.products &&
+            parsedData.products.length > 0 &&
+            fields.length === 0
+          ) {
+            const loadedProducts = parsedData.products.map((product) => ({
+              productId: product?.productId,
+              quantity: product?.quantity,
+              costPrice: product?.costPrice,
+              totalPrice: product?.totalPrice,
+              productID: product?.productID,
+              productName: product?.productName,
+            }));
+
+            form.setValue("products", loadedProducts);
+          }
+        } catch (error) {
+          console.error("Failed to sync products from localStorage:", error);
+        }
+      }
+    }
+  }, [mode, fields.length, form]);
+
+  // Save data to localStorage whenever form values change (debounced)
+  useEffect(() => {
+    if (mode !== "create" || typeof window === "undefined") {
+      return;
+    }
+
+    const subscription = form.watch((value) => {
+      const timeoutId = setTimeout(() => {
+        const dataToSave = JSON.stringify({
+          ...value,
+          purchaseOrderDate:
+            value.purchaseOrderDate instanceof Date
+              ? value.purchaseOrderDate.toISOString()
+              : value.purchaseOrderDate,
+          purchaseOrderNumber: "",
+          products: value.products?.map((product) => ({
+            productId: product?.productId,
+            quantity: product?.quantity,
+            costPrice: product?.costPrice,
+            totalPrice: product?.totalPrice,
+            productID: product?.productID,
+            productName: product?.productName,
+          })),
+          selectedProductId: "",
+        });
+        window.localStorage.setItem("purchaseOrderForm", dataToSave);
+      }, 500);
+
+      return () => clearTimeout(timeoutId);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [form, mode]);
+
   // Initialize edit mode data
   useEffect(() => {
     if (initialMount.current) {
@@ -183,6 +289,16 @@ const PurchaseOrderForm = ({
       initialMount.current = false;
     }
   }, [mode, initialData, form, initialGeneratedPurchaseOrderNumber]);
+
+  useEffect(() => {
+    if (
+      mode === "create" &&
+      initialGeneratedPurchaseOrderNumber &&
+      form.getValues("purchaseOrderNumber") === ""
+    ) {
+      form.setValue("purchaseOrderNumber", initialGeneratedPurchaseOrderNumber);
+    }
+  }, [initialGeneratedPurchaseOrderNumber, form, mode]);
 
   // Update the refresh button handler
   const handleRefreshPurchaseOrderNumber = async () => {
@@ -219,6 +335,9 @@ const PurchaseOrderForm = ({
         "purchaseOrderNumber",
         initialGeneratedPurchaseOrderNumber || ""
       );
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem("purchaseOrderForm");
+      }
     } else {
       if (initialData) {
         form.reset({
@@ -336,6 +455,9 @@ const PurchaseOrderForm = ({
               router.push("/purchases/purchase-orders");
               router.refresh();
               form.reset(defaultValues);
+              if (typeof window !== "undefined") {
+                window.localStorage.removeItem("purchaseOrderForm");
+              }
             },
           });
         }

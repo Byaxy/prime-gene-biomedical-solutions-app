@@ -196,6 +196,130 @@ const QuotationForm = ({
     }, []);
   }, [products, inventoryStock, searchQuery]);
 
+  useEffect(() => {
+    if (mode === "create" && typeof window !== "undefined") {
+      const savedData = window.localStorage.getItem("quotationForm");
+      if (savedData) {
+        try {
+          const parsedData: QuotationFormValues = JSON.parse(savedData);
+
+          parsedData.quotationDate = parsedData.quotationDate
+            ? new Date(parsedData.quotationDate)
+            : new Date();
+
+          const loadedProducts = parsedData.products.map((product) => ({
+            productId: product?.productId,
+            quantity: product?.quantity,
+            unitPrice: product?.unitPrice,
+            totalPrice: product?.totalPrice,
+            subTotal: product?.subTotal,
+            taxAmount: product?.taxAmount,
+            taxRate: product?.taxRate,
+            discountRate: product?.discountRate,
+            taxRateId: product?.taxRateId,
+            discountAmount: product?.discountAmount,
+            productID: product?.productID,
+            productName: product?.productName,
+          }));
+
+          form.reset(
+            {
+              ...defaultValues,
+              ...parsedData,
+              products: loadedProducts,
+            },
+            { keepDefaultValues: false }
+          );
+        } catch (error) {
+          console.error(
+            "Failed to parse saved form data from localStorage:",
+            error
+          );
+          window.localStorage.removeItem("quotationForm");
+        }
+      } else {
+        form.reset(defaultValues);
+      }
+    }
+  }, [mode, defaultValues, form]);
+
+  // Explicitly sync field array after loading from localStorage
+  useEffect(() => {
+    if (mode === "create" && typeof window !== "undefined") {
+      const savedData = window.localStorage.getItem("quotationForm");
+      if (savedData) {
+        try {
+          const parsedData: QuotationFormValues = JSON.parse(savedData);
+
+          if (
+            parsedData.products &&
+            parsedData.products.length > 0 &&
+            fields.length === 0
+          ) {
+            const loadedProducts = parsedData.products.map((product) => ({
+              productId: product?.productId,
+              quantity: product?.quantity,
+              unitPrice: product?.unitPrice,
+              totalPrice: product?.totalPrice,
+              subTotal: product?.subTotal,
+              taxAmount: product?.taxAmount,
+              taxRate: product?.taxRate,
+              discountRate: product?.discountRate,
+              taxRateId: product?.taxRateId,
+              discountAmount: product?.discountAmount,
+              productID: product?.productID,
+              productName: product?.productName,
+            }));
+
+            form.setValue("products", loadedProducts);
+          }
+        } catch (error) {
+          console.error("Failed to sync products from localStorage:", error);
+        }
+      }
+    }
+  }, [mode, fields.length, form]);
+
+  // Save data to localStorage whenever form values change (debounced)
+  useEffect(() => {
+    if (mode !== "create" || typeof window === "undefined") {
+      return;
+    }
+
+    const subscription = form.watch((value) => {
+      const timeoutId = setTimeout(() => {
+        const dataToSave = JSON.stringify({
+          ...value,
+          quotationDate:
+            value.quotationDate instanceof Date
+              ? value.quotationDate.toISOString()
+              : value.quotationDate,
+          quotationNumber: "",
+          products: value.products?.map((product) => ({
+            productId: product?.productId,
+            quantity: product?.quantity,
+            unitPrice: product?.unitPrice,
+            totalPrice: product?.totalPrice,
+            subTotal: product?.subTotal,
+            taxAmount: product?.taxAmount,
+            taxRate: product?.taxRate,
+            discountRate: product?.discountRate,
+            taxRateId: product?.taxRateId,
+            discountAmount: product?.discountAmount,
+            productID: product?.productID,
+            productName: product?.productName,
+          })),
+          selectedProductId: "",
+        });
+        window.localStorage.setItem("quotationForm", dataToSave);
+      }, 500);
+
+      return () => clearTimeout(timeoutId);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [form, mode]);
+
   // Set initial values for the form
   useEffect(() => {
     if (initialMount.current) {
@@ -268,6 +392,16 @@ const QuotationForm = ({
   }, [initialData, form, mode, initialGeneratedQuotationNumber]);
 
   useEffect(() => {
+    if (
+      mode === "create" &&
+      initialGeneratedQuotationNumber &&
+      form.getValues("quotationNumber") === ""
+    ) {
+      form.setValue("quotationNumber", initialGeneratedQuotationNumber);
+    }
+  }, [initialGeneratedQuotationNumber, form, mode]);
+
+  useEffect(() => {
     if (selectedCountry) {
       setStates(State.getStatesOfCountry(selectedCountry) || []);
       setCities([]);
@@ -328,6 +462,9 @@ const QuotationForm = ({
     if (mode === "create") {
       form.reset(defaultValues);
       form.setValue("quotationNumber", initialGeneratedQuotationNumber || "");
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem("quotationForm");
+      }
     } else {
       if (initialData) {
         form.reset({
@@ -528,6 +665,9 @@ const QuotationForm = ({
               router.push("/quotations");
               router.refresh();
               form.reset(defaultValues);
+              if (typeof window !== "undefined") {
+                window.localStorage.removeItem("quotationForm");
+              }
             },
           });
         }
