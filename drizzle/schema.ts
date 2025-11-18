@@ -1,5 +1,5 @@
 import { PaymentStatus, ShippingStatus } from "@/types";
-import { sql } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   pgTable,
   text,
@@ -173,8 +173,23 @@ export const journalEntryReferenceTypeEnum = pgEnum(
     "payment_received",
     "bill_payment",
     "adjustment",
+    "commission_payment",
   ]
 );
+
+export const commissionPaymentStatusEnum = pgEnum("commission_payment_status", [
+  "pending",
+  "paid",
+  "partial",
+  "cancelled",
+]);
+
+export const commissionStatusEnum = pgEnum("commission_status", [
+  "pending_approval",
+  "approved",
+  "processed",
+  "cancelled",
+]);
 
 // Users
 export const usersTable = pgTable(
@@ -2271,7 +2286,7 @@ export const receiptsTable = pgTable(
     }),
     totalAmountReceived: numeric("total_amount_received").notNull(),
     totalAmountDue: numeric("total_amount_due").notNull(),
-    totalBalanceDue: numeric("total_balance_due").notNull(), // general balance due after this receipt for customer.
+    totalBalanceDue: numeric("total_balance_due").notNull(),
     attachments: jsonb("attachments")
       .$type<
         Array<{
@@ -2346,5 +2361,126 @@ export const receiptItemsTable = pgTable(
     receiptItemsActiveIndex: index("receipt_items_active_idx").on(
       table.isActive
     ),
+  })
+);
+
+// --- Sales Agents Table ---
+export const salesAgentsTable = pgTable("sales_agents", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(),
+  email: text("email"),
+  phone: text("phone"),
+  agentCode: text("agent_code").unique(),
+  userId: uuid("user_id").references(() => usersTable.id, {
+    onDelete: "set null",
+  }),
+  notes: text("notes"),
+
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const salesAgentsRelations = relations(
+  salesAgentsTable,
+  ({ one, many }) => ({
+    user: one(usersTable, {
+      fields: [salesAgentsTable.userId],
+      references: [usersTable.id],
+    }),
+    commissions: many(commissionRecipientsTable),
+  })
+);
+
+// --- Sales Commissions Table (Main Record) ---
+export const commissionsTable = pgTable("commissions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  commissionRefNumber: text("commission_ref_number").notNull().unique(),
+  commissionDate: timestamp("commission_date").notNull(),
+  saleId: uuid("sale_id")
+    .notNull()
+    .references(() => salesTable.id, { onDelete: "cascade" }),
+  notes: text("notes"),
+  amountReceived: numeric("amount_received").notNull(),
+  additions: numeric("additions").default(0.0).notNull(),
+  deductions: numeric("deductions").default(0.0).notNull(),
+  commissionRate: numeric("commission_rate").notNull(),
+  withholdingTaxRate: numeric("withholding_tax_rate").notNull(),
+  withholdingTaxId: uuid("withholding_tax_id").references(
+    () => taxRatesTable.id,
+    {
+      onDelete: "set null",
+    }
+  ),
+  baseForCommission: numeric("base_for_commission").notNull(),
+  grossCommission: numeric("gross_commission").notNull(),
+  withholdingTaxAmount: numeric("withholding_tax_amount").notNull(),
+  totalCommissionPayable: numeric("total_commission_payable").notNull(),
+  status: commissionStatusEnum("status").default("pending_approval").notNull(),
+  paymentStatus: commissionPaymentStatusEnum("payment_status")
+    .default("pending")
+    .notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const commissionsRelations = relations(
+  commissionsTable,
+  ({ one, many }) => ({
+    sale: one(salesTable, {
+      fields: [commissionsTable.saleId],
+      references: [salesTable.id],
+    }),
+    withholdingTax: one(taxRatesTable, {
+      fields: [commissionsTable.withholdingTaxId],
+      references: [taxRatesTable.id],
+    }),
+    recipients: many(commissionRecipientsTable),
+  })
+);
+
+// --- Commission Recipients Table ---
+export const commissionRecipientsTable = pgTable("commission_recipients", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  commissionId: uuid("commission_id")
+    .notNull()
+    .references(() => commissionsTable.id, { onDelete: "cascade" }),
+  salesAgentId: uuid("sales_agent_id")
+    .notNull()
+    .references(() => salesAgentsTable.id),
+  amount: numeric("amount").notNull(),
+  paymentStatus: commissionPaymentStatusEnum("payment_status")
+    .default("pending")
+    .notNull(),
+  paidDate: timestamp("paid_date"),
+  payingAccountId: uuid("paying_account_id").references(
+    () => accountsTable.id,
+    {
+      onDelete: "set null",
+    }
+  ),
+  notes: text("notes"),
+
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const commissionRecipientsRelations = relations(
+  commissionRecipientsTable,
+  ({ one }) => ({
+    commission: one(commissionsTable, {
+      fields: [commissionRecipientsTable.commissionId],
+      references: [commissionsTable.id],
+    }),
+    salesAgent: one(salesAgentsTable, {
+      fields: [commissionRecipientsTable.salesAgentId],
+      references: [salesAgentsTable.id],
+    }),
+    payingAccount: one(accountsTable, {
+      fields: [commissionRecipientsTable.payingAccountId],
+      references: [accountsTable.id],
+    }),
   })
 );

@@ -533,6 +533,27 @@
       "when": 1762684901063,
       "tag": "0075_minor_kulan_gath",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1763037987886,
+      "tag": "0076_spooky_penance",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1763480696589,
+      "tag": "0077_bright_mongoose",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1763481788194,
+      "tag": "0078_famous_colonel_america",
+      "breakpoints": true
     }
   ]
 }

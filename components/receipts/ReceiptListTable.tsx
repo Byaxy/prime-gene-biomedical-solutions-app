@@ -115,7 +115,6 @@ const ReceiptListTable: React.FC<ReceiptListTableProps> = ({
   // Close dialog handler
   const closeDialog = useCallback(() => {
     setOpenDialog(false);
-    // You might need this setTimeout to address any specific z-index/pointer-events issues with Mui components
     setTimeout(() => {
       const stuckSection = document.querySelector(".MuiBox-root.css-0");
       if (stuckSection instanceof HTMLElement) {

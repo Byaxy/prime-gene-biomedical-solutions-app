@@ -2,6 +2,8 @@ import {
   AccountType,
   CarrierType,
   ChartOfAccountType,
+  CommissionPaymentStatus,
+  CommissionStatus,
   DateRange,
   DeliveryStatus,
   PackageType,
@@ -16,6 +18,7 @@ import {
   WaybillType,
 } from "@/types";
 import { z } from "zod";
+import { calculateCommissionAmounts } from "./utils";
 
 export const LoginFormValidation = z.object({
   email: z
@@ -1990,3 +1993,257 @@ export const ReceiptFiltersSchema = z.object({
   amount_max: z.number().optional(),
 });
 export type ReceiptFilters = z.infer<typeof ReceiptFiltersSchema>;
+
+// --- Sales Agent Form Validation ---
+export const SalesAgentFormValidation = z.object({
+  name: z.string().nonempty("Agent name is required"),
+  email: z.string().optional(),
+  phone: z.string().nonempty("Phone number is required"),
+  agentCode: z
+    .string()
+    .nonempty("Agent code is required")
+    .min(2, "Agent code must be at least 2 characters"),
+  userId: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+});
+export type SalesAgentFormValues = z.infer<typeof SalesAgentFormValidation>;
+
+// --- Commission Recipient Item (for splitting total) ---
+export const CommissionRecipientItemValidation = z.object({
+  id: z.string().optional(),
+  salesAgentId: z.string().nonempty("Sales Agent is required"),
+  amount: z.number().min(0.01, "Amount must be greater than 0"),
+});
+export type CommissionRecipientItemFormValues = z.infer<
+  typeof CommissionRecipientItemValidation
+>;
+
+// --- Single Sale Commission Entry ---
+export const SaleCommissionEntryValidation = z.object({
+  saleId: z.string().nonempty("Sale (Invoice) is required"),
+  amountReceived: z
+    .number()
+    .min(0.01, "Amount received must be greater than 0"),
+  additions: z.number().min(0, "Additions cannot be negative").default(0),
+  deductions: z.number().min(0, "Deductions cannot be negative").default(0),
+  commissionRate: z
+    .number()
+    .min(0.01, "Commission rate is required and must be greater than 0")
+    .max(100, "Commission rate cannot exceed 100"),
+  withholdingTaxRate: z
+    .number()
+    .min(0, "WHT rate cannot be negative")
+    .max(100, "WHT rate cannot exceed 100")
+    .default(0),
+  withholdingTaxId: z.string().optional().nullable(),
+
+  // Calculated fields
+  baseForCommission: z.number().optional(),
+  grossCommission: z.number().optional(),
+  withholdingTaxAmount: z.number().optional(),
+  totalCommissionPayable: z.number().optional(),
+
+  // Recipients for THIS specific sale
+  recipients: z
+    .array(CommissionRecipientItemValidation)
+    .min(1, "At least one commission recipient is required per sale"),
+});
+
+export type SaleCommissionEntryFormValues = z.infer<
+  typeof SaleCommissionEntryValidation
+>;
+
+// --- Sales Commission Calculation & Payment Form Validation ---
+export const SalesCommissionFormValidation = z
+  .object({
+    commissionDate: z.date().refine((date) => date <= new Date(), {
+      message: "Commission date cannot be in the future",
+    }),
+
+    // Array of sale entries
+    saleEntries: z
+      .array(SaleCommissionEntryValidation)
+      .min(1, "At least one sale entry is required"),
+
+    notes: z.string().optional().nullable(),
+  })
+  .superRefine((data, ctx) => {
+    // Validate each sale entry's calculations
+    data.saleEntries.forEach((entry, entryIndex) => {
+      const amountReceived = entry.amountReceived || 0;
+      const additions = entry.additions || 0;
+      const deductions = entry.deductions || 0;
+      const commissionRate = (entry.commissionRate || 0) / 100;
+      const withholdingTaxRate = (entry.withholdingTaxRate || 0) / 100;
+
+      // Calculate using utility function
+      const {
+        baseForCommission: calculatedBaseForCommission,
+        grossCommission: calculatedGrossCommission,
+        withholdingTaxAmount: calculatedWithholdingTaxAmount,
+        totalCommissionPayable: calculatedTotalCommissionPayable,
+      } = calculateCommissionAmounts(
+        amountReceived,
+        additions,
+        deductions,
+        commissionRate,
+        withholdingTaxRate
+      );
+
+      // Validate calculated fields
+      if (
+        entry.baseForCommission !== undefined &&
+        entry.baseForCommission !== null &&
+        Math.abs(entry.baseForCommission - calculatedBaseForCommission) > 0.01
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Base for Commission should be ${calculatedBaseForCommission.toFixed(
+            2
+          )}`,
+          path: ["saleEntries", entryIndex, "baseForCommission"],
+        });
+      }
+
+      if (
+        entry.grossCommission !== undefined &&
+        entry.grossCommission !== null &&
+        Math.abs(entry.grossCommission - calculatedGrossCommission) > 0.01
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Gross Commission should be ${calculatedGrossCommission.toFixed(
+            2
+          )}`,
+          path: ["saleEntries", entryIndex, "grossCommission"],
+        });
+      }
+
+      if (
+        entry.withholdingTaxAmount !== undefined &&
+        entry.withholdingTaxAmount !== null &&
+        Math.abs(entry.withholdingTaxAmount - calculatedWithholdingTaxAmount) >
+          0.01
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Withholding Tax Amount should be ${calculatedWithholdingTaxAmount.toFixed(
+            2
+          )}`,
+          path: ["saleEntries", entryIndex, "withholdingTaxAmount"],
+        });
+      }
+
+      if (
+        entry.totalCommissionPayable !== undefined &&
+        entry.totalCommissionPayable !== null &&
+        Math.abs(
+          entry.totalCommissionPayable - calculatedTotalCommissionPayable
+        ) > 0.01
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Total Commission Payable should be ${calculatedTotalCommissionPayable.toFixed(
+            2
+          )}`,
+          path: ["saleEntries", entryIndex, "totalCommissionPayable"],
+        });
+      }
+
+      // Validate recipients total for this sale
+      const totalRecipientsAmount = entry.recipients.reduce(
+        (sum, r) => sum + (r.amount || 0),
+        0
+      );
+      if (totalRecipientsAmount > calculatedTotalCommissionPayable + 0.01) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Total distributed to agents (${totalRecipientsAmount.toFixed(
+            2
+          )}) cannot exceed total commission payable (${calculatedTotalCommissionPayable.toFixed(
+            2
+          )}) for this sale`,
+          path: ["saleEntries", entryIndex, "recipients"],
+        });
+      }
+
+      // Check for duplicate sales agents within this sale entry
+      const uniqueSalesAgents = new Set<string>();
+      entry.recipients.forEach((recipient, recipientIndex) => {
+        if (
+          recipient.salesAgentId &&
+          uniqueSalesAgents.has(recipient.salesAgentId)
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Duplicate sales agent in recipients for this sale.",
+            path: [
+              "saleEntries",
+              entryIndex,
+              "recipients",
+              recipientIndex,
+              "salesAgentId",
+            ],
+          });
+        }
+        if (recipient.salesAgentId) {
+          uniqueSalesAgents.add(recipient.salesAgentId);
+        }
+      });
+    });
+
+    // Check for duplicate sales across all entries
+    const uniqueSaleIds = new Set<string>();
+    data.saleEntries.forEach((entry, index) => {
+      if (uniqueSaleIds.has(entry.saleId)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "This sale has already been added to the commission.",
+          path: ["saleEntries", index, "saleId"],
+        });
+      }
+      uniqueSaleIds.add(entry.saleId);
+    });
+  });
+
+export type SalesCommissionFormValues = z.infer<
+  typeof SalesCommissionFormValidation
+>;
+
+// --- Commission Recipient Payout Form Validation ---
+export const CommissionRecipientPayoutFormValidation = z.object({
+  recipientId: z.string().nonempty("Recipient ID is required"),
+  payingAccountId: z.string().nonempty("Paying Account is required"),
+  paidDate: z.date().refine((date) => date <= new Date(), {
+    message: "Paid date cannot be in the future",
+  }),
+  notes: z.string().optional().nullable(),
+  amountToPay: z.number().min(0.01, "Amount to pay must be greater than 0"),
+  expenseCategoryId: z.string().nonempty("Expense Category is required"),
+  currentPayingAccountBalance: z
+    .number()
+    .min(0, "Balance cannot be negative")
+    .optional(),
+});
+export type CommissionRecipientPayoutFormValues = z.infer<
+  typeof CommissionRecipientPayoutFormValidation
+>;
+
+// --- Commission Filter Schema ---
+export const CommissionFiltersSchema = z.object({
+  search: z.string().optional(),
+  salesAgentId: z.string().optional(),
+  saleId: z.string().optional(),
+  status: z.nativeEnum(CommissionStatus).optional(),
+  paymentStatus: z.nativeEnum(CommissionPaymentStatus).optional(),
+  commissionDate_start: z.string().optional(),
+  commissionDate_end: z.string().optional(),
+  amount_min: z.number().optional(),
+  amount_max: z.number().optional(),
+});
+export type CommissionFilters = z.infer<typeof CommissionFiltersSchema>;
+
+export const SalesAgentFiltersSchema = z.object({
+  search: z.string().optional(),
+});
+export type SalesAgentFilters = z.infer<typeof SalesAgentFiltersSchema>;

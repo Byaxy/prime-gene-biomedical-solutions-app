@@ -1,0 +1,1 @@
+ALTER TYPE "public"."journal_entry_reference_type" ADD VALUE 'commission_payment';

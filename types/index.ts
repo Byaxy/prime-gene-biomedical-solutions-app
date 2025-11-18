@@ -7,6 +7,8 @@ import {
   billPaymentItemsTable,
   billPaymentsTable,
   chartOfAccountsTable,
+  commissionRecipientsTable,
+  commissionsTable,
   customersTable,
   expenseCategoriesTable,
   expenseItemsTable,
@@ -17,6 +19,7 @@ import {
   purchasesTable,
   receiptItemsTable,
   receiptsTable,
+  salesAgentsTable,
   salesTable,
   usersTable,
   vendorsTable,
@@ -885,6 +888,33 @@ export interface ReceiptWithRelations {
   items: ReceiptItemWithRelations[];
 }
 
+// --- Sales Agent ---
+export type SalesAgent = typeof salesAgentsTable.$inferSelect;
+
+export interface SalesAgentWithRelations {
+  salesAgent: SalesAgent;
+  user: User | null;
+}
+
+// --- Commission Record ---
+export type Commission = typeof commissionsTable.$inferSelect;
+
+export interface CommissionWithRelations {
+  commission: Commission;
+  sale: Sale;
+  withholdingTax: Tax | null;
+  recipients: CommissionRecipientWithRelations[];
+}
+
+// --- Commission Recipient ---
+export type CommissionRecipient = typeof commissionRecipientsTable.$inferSelect;
+
+export interface CommissionRecipientWithRelations {
+  recipient: CommissionRecipient;
+  salesAgent: SalesAgent;
+  payingAccount: Account;
+}
+
 // Enums
 
 // payment methods
@@ -1027,6 +1057,7 @@ export enum JournalEntryReferenceType {
   PAYMENT_RECEIVED = "payment_received",
   BILL_PAYMENT = "bill_payment",
   ADJUSTMENT = "adjustment",
+  COMMISSION_PAYMENT = "commission_payment",
 }
 
 export enum DateRange {
@@ -1042,4 +1073,19 @@ export enum DateRange {
   LAST_QUARTER = "last_quarter",
   THIS_YEAR = "this_year",
   LAST_YEAR = "last_year",
+}
+
+// Enums for Commissions
+export enum CommissionPaymentStatus {
+  Pending = "pending",
+  Paid = "paid",
+  Partial = "partial",
+  Cancelled = "cancelled",
+}
+
+export enum CommissionStatus {
+  PendingApproval = "pending_approval",
+  Approved = "approved",
+  Processed = "processed",
+  Cancelled = "cancelled",
 }

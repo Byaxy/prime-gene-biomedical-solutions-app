@@ -292,6 +292,24 @@ export const sidebarData: SidebarDataType[] = [
           },
         ],
       },
+      {
+        id: generateId(),
+        title: "Sales Agents",
+        path: "",
+
+        subCategories: [
+          {
+            id: generateId(),
+            title: "Sales Agents List",
+            path: "/sales-agents",
+          },
+          {
+            id: generateId(),
+            title: "Add Sales Agent",
+            path: "/sales-agents/create",
+          },
+        ],
+      },
     ],
   },
   {
@@ -347,6 +365,11 @@ export const sidebarData: SidebarDataType[] = [
             id: generateId(),
             title: "Expenses",
             path: "/accounting-and-finance/expenses",
+          },
+          {
+            id: generateId(),
+            title: "Sales Commissions",
+            path: "/accounting-and-finance/commissions",
           },
         ],
       },

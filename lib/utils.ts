@@ -157,3 +157,33 @@ export const transformProductsForExport = (
     };
   });
 };
+
+// Function to calculate commission amounts
+export const calculateCommissionAmounts = (
+  amountReceived: number,
+  additions: number,
+  deductions: number,
+  commissionRate: number, // As a decimal (e.g., 0.10)
+  withholdingTaxRate: number // As a decimal (e.g., 0.03)
+) => {
+  const withholdingTaxAmountCustomer = amountReceived * withholdingTaxRate;
+  const actualAmountReceived = amountReceived - withholdingTaxAmountCustomer;
+
+  const withholdingTaxAmount = actualAmountReceived * withholdingTaxRate;
+
+  const baseForCommission = Math.max(
+    0,
+    actualAmountReceived - withholdingTaxAmount - additions
+  );
+
+  const grossCommission = baseForCommission * commissionRate;
+
+  const totalCommissionPayable = Math.max(0, grossCommission - deductions);
+
+  return {
+    baseForCommission: parseFloat(baseForCommission.toFixed(2)),
+    grossCommission: parseFloat(grossCommission.toFixed(2)),
+    withholdingTaxAmount: parseFloat(withholdingTaxAmount.toFixed(2)),
+    totalCommissionPayable: parseFloat(totalCommissionPayable.toFixed(2)),
+  };
+};

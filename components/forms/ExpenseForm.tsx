@@ -479,7 +479,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
         >
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-semibold text-blue-800">
-              Expense Line Items
+              Expense Items
             </h2>
             <Button
               type="button"
