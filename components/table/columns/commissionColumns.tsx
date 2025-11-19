@@ -36,7 +36,7 @@ export const commissionColumns: ColumnDef<CommissionWithRelations>[] = [
   },
   {
     accessorKey: "commission.commissionDate",
-    header: "Date Earned",
+    header: "Date",
     cell: ({ row }) => {
       return (
         <p className="text-dark-500">
@@ -46,13 +46,30 @@ export const commissionColumns: ColumnDef<CommissionWithRelations>[] = [
     },
   },
   {
-    accessorKey: "sale.invoiceNumber",
-    header: "Related Sale",
+    accessorKey: "customer.name",
+    header: "Customer",
     cell: ({ row }) => {
-      return <p className="text-dark-500">{row.original.sale.invoiceNumber}</p>;
+      return <p className="text-dark-500">{row.original.customer.name}</p>;
     },
   },
-
+  {
+    accessorKey: "commissionSales",
+    header: "Related Sales",
+    cell: ({ row }) => {
+      const salesCount = row.original.commissionSales.length;
+      if (salesCount === 0) {
+        return <p className="text-dark-500">N/A</p>;
+      }
+      const firstSaleInvoice =
+        row.original.commissionSales[0].sale?.invoiceNumber || "N/A";
+      return (
+        <p className="text-dark-500">
+          {firstSaleInvoice}{" "}
+          {salesCount > 1 ? ` (+${salesCount - 1} more)` : ""}
+        </p>
+      );
+    },
+  },
   {
     accessorKey: "recipients",
     header: "Recipients",
@@ -76,15 +93,12 @@ export const commissionColumns: ColumnDef<CommissionWithRelations>[] = [
       const status = row.original.commission.status;
       return (
         <span
-          className={cn(
-            "rounded-xl px-3 py-1 text-white text-14-medium capitalize",
-            {
-              "bg-yellow-500": status === CommissionStatus.PendingApproval,
-              "bg-blue-600": status === CommissionStatus.Approved,
-              "bg-green-500": status === CommissionStatus.Processed,
-              "bg-red-600": status === CommissionStatus.Cancelled,
-            }
-          )}
+          className={cn("rounded-xl px-3 py-1 text-white capitalize", {
+            "bg-yellow-500": status === CommissionStatus.PendingApproval,
+            "bg-blue-600": status === CommissionStatus.Approved,
+            "bg-green-500": status === CommissionStatus.Processed,
+            "bg-red-600": status === CommissionStatus.Cancelled,
+          })}
         >
           {status.split("_").join(" ")}
         </span>
@@ -98,17 +112,12 @@ export const commissionColumns: ColumnDef<CommissionWithRelations>[] = [
       const paymentStatus = row.original.commission.paymentStatus;
       return (
         <span
-          className={cn(
-            "rounded-xl px-3 py-1 text-white text-14-medium capitalize",
-            {
-              "bg-yellow-500":
-                paymentStatus === CommissionPaymentStatus.Pending,
-              "bg-orange-500":
-                paymentStatus === CommissionPaymentStatus.Partial,
-              "bg-green-500": paymentStatus === CommissionPaymentStatus.Paid,
-              "bg-red-600": paymentStatus === CommissionPaymentStatus.Cancelled,
-            }
-          )}
+          className={cn("rounded-xl px-3 py-1 text-white capitalize", {
+            "bg-yellow-500": paymentStatus === CommissionPaymentStatus.Pending,
+            "bg-orange-600": paymentStatus === CommissionPaymentStatus.Partial,
+            "bg-green-500": paymentStatus === CommissionPaymentStatus.Paid,
+            "bg-red-600": paymentStatus === CommissionPaymentStatus.Cancelled,
+          })}
         >
           {paymentStatus.split("_").join(" ")}
         </span>

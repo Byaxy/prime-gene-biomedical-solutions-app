@@ -207,7 +207,7 @@ const CommissionDialog: React.FC<CommissionDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl bg-light-200 overflow-y-auto max-h-[90vh]">
+      <DialogContent className="sm:max-w-5xl bg-light-200 overflow-y-auto max-h-[90vh]">
         <DialogHeader>
           <DialogTitle className="text-xl text-blue-800">
             {mode === "delete"
@@ -221,7 +221,7 @@ const CommissionDialog: React.FC<CommissionDialogProps> = ({
               ? "Are you sure you want to deactivate this commission? This action will prevent further use and any pending payouts will be cancelled."
               : mode === "payout"
               ? `Select a recipient to process their payment for commission ${commission.commission.commissionRefNumber}.`
-              : `Details for Commission (${commission.commission.commissionRefNumber}) related to Sale: ${commission.sale.invoiceNumber}.`}
+              : `Details for Commission (${commission.commission.commissionRefNumber})`}
           </DialogDescription>
         </DialogHeader>
 
@@ -243,43 +243,35 @@ const CommissionDialog: React.FC<CommissionDialogProps> = ({
               </div>
               <div>
                 <p className="font-semibold">Related Sale:</p>
-                <p>{commission.sale.invoiceNumber}</p>
+                <p>{commission.commissionSales[0].sale.invoiceNumber}</p>
               </div>
 
               <div>
                 <p className="font-semibold">Amount Received (Net Sales):</p>
                 <p>
-                  <FormatNumber value={commission.commission.amountReceived} />
+                  <FormatNumber
+                    value={commission.commission.totalAmountReceived}
+                  />
                 </p>
               </div>
               <div>
                 <p className="font-semibold">Additions:</p>
                 <p>
-                  <FormatNumber value={commission.commission.additions} />
+                  <FormatNumber value={commission.commission.totalAdditions} />
                 </p>
               </div>
               <div>
                 <p className="font-semibold">Deductions:</p>
                 <p>
-                  <FormatNumber value={commission.commission.deductions} />
+                  <FormatNumber value={commission.commission.totalDeductions} />
                 </p>
               </div>
-              <div>
-                <p className="font-semibold">Commission Rate:</p>
-                <p>{commission.commission.commissionRate}%</p>
-              </div>
-              <div>
-                <p className="font-semibold">Withholding Tax:</p>
-                <p>
-                  {commission.withholdingTax?.name || "N/A"} (
-                  {commission.commission.withholdingTaxRate}%)
-                </p>
-              </div>
+
               <div>
                 <p className="font-semibold">WHT Amount:</p>
                 <p>
                   <FormatNumber
-                    value={commission.commission.withholdingTaxAmount}
+                    value={commission.commission.totalWithholdingTaxAmount}
                   />
                 </p>
               </div>
@@ -300,7 +292,7 @@ const CommissionDialog: React.FC<CommissionDialogProps> = ({
                 <p>
                   <span
                     className={cn(
-                      "text-14-medium capitalize",
+                      " capitalize",
                       {
                         "bg-yellow-500":
                           commission.commission.status ===
@@ -327,7 +319,7 @@ const CommissionDialog: React.FC<CommissionDialogProps> = ({
                 <p>
                   <span
                     className={cn(
-                      "text-14-medium capitalize",
+                      " capitalize",
                       {
                         "bg-yellow-500":
                           commission.commission.paymentStatus ===
@@ -357,7 +349,7 @@ const CommissionDialog: React.FC<CommissionDialogProps> = ({
               </div>
             </div>
 
-            <h3 className="text-lg font-semibold text-blue-700 mt-6 mb-3">
+            <h3 className="text-lg font-semibold text-blue-800 mt-6 mb-3">
               Recipients
             </h3>
             <Table className="shad-table">
@@ -389,7 +381,7 @@ const CommissionDialog: React.FC<CommissionDialogProps> = ({
                     <TableCell>
                       <span
                         className={cn(
-                          "rounded-xl px-3 py-1 text-white text-14-medium capitalize",
+                          "rounded-xl px-3 py-1 text-white capitalize",
                           {
                             "bg-yellow-500":
                               rec.recipient.paymentStatus ===

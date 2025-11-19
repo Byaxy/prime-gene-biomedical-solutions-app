@@ -1,0 +1,1 @@
+ALTER TABLE "sales" ADD COLUMN "is_commission_applied" boolean DEFAULT false NOT NULL;

@@ -118,6 +118,7 @@ export default async function SaleFormWrapper({
           dueDate: initialData?.sale.dueDate
             ? new Date(initialData.sale.dueDate)
             : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          isCommissionApplied: initialData?.sale.isCommissionApplied || false,
           createdAt: new Date(),
           updatedAt: new Date(),
         },

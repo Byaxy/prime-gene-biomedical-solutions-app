@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus } from "lucide-react";
@@ -46,7 +46,6 @@ interface SaleEntryDialogProps {
   sales: SaleWithRelations[];
   salesAgents: SalesAgentWithRelations[];
   taxes: Tax[];
-  existingSaleIds: string[];
 }
 
 export const SaleEntryDialog: React.FC<SaleEntryDialogProps> = ({
@@ -57,12 +56,12 @@ export const SaleEntryDialog: React.FC<SaleEntryDialogProps> = ({
   sales,
   salesAgents,
   taxes: allTaxes,
-  existingSaleIds,
 }) => {
   const form = useForm<SaleCommissionEntryFormValues>({
     resolver: zodResolver(SaleCommissionEntryValidation),
     mode: "all",
     defaultValues: initialSaleEntryData || {
+      id: undefined,
       saleId: "",
       amountReceived: 0,
       additions: 0,
@@ -93,34 +92,47 @@ export const SaleEntryDialog: React.FC<SaleEntryDialogProps> = ({
 
   // Effect to set initial data on dialog open or if initialSaleEntryData changes
   useEffect(() => {
-    if (isOpen && initialSaleEntryData) {
-      form.reset(initialSaleEntryData);
-    } else if (isOpen && !initialSaleEntryData) {
-      form.reset({
-        saleId: "",
-        amountReceived: 0,
-        additions: 0,
-        deductions: 0,
-        commissionRate: 0,
-        withholdingTaxRate: 0,
-        withholdingTaxId: "",
-        recipients: [],
-      });
+    if (isOpen) {
+      if (initialSaleEntryData) {
+        form.reset(initialSaleEntryData);
+      } else {
+        form.reset({
+          id: undefined,
+          saleId: "",
+          amountReceived: 0,
+          additions: 0,
+          deductions: 0,
+          commissionRate: 0,
+          withholdingTaxRate: 0,
+          withholdingTaxId: "",
+          recipients: [],
+          baseForCommission: 0,
+          grossCommission: 0,
+          withholdingTaxAmount: 0,
+          totalCommissionPayable: 0,
+        });
+      }
     }
   }, [isOpen, initialSaleEntryData, form]);
 
-  // Effect to set initial data on saleId change
+  // Effect to set saleAmount and amountReceived on saleId change
   useEffect(() => {
     if (watchSaleId) {
       const sale = sales.find(
         (s: SaleWithRelations) => s.sale.id === watchSaleId
       );
       if (sale) {
-        form.setValue("amountReceived", sale.sale.totalAmount, {
-          shouldValidate: true,
-          shouldDirty: true,
-        });
+        form.setValue(
+          "amountReceived",
+          parseFloat(sale.sale.totalAmount as any) || 0,
+          {
+            shouldValidate: true,
+            shouldDirty: true,
+          }
+        );
       }
+    } else {
+      form.setValue("amountReceived", 0);
     }
   }, [watchSaleId, sales, form]);
 
@@ -192,25 +204,13 @@ export const SaleEntryDialog: React.FC<SaleEntryDialogProps> = ({
     appendRecipient({
       salesAgentId: "",
       amount: 0,
-      payingAccountId: "",
     } as CommissionRecipientItemFormValues);
   };
 
   const onSubmit = (values: SaleCommissionEntryFormValues) => {
     onSave(values);
-    form.reset(); // Reset form after saving
     onClose();
   };
-
-  // Filter sales to exclude those already in the main form (unless it's the current entry being edited)
-  const availableSales = useMemo(() => {
-    const currentSaleId = initialSaleEntryData?.saleId;
-    return sales.filter(
-      (sale) =>
-        !existingSaleIds.includes(sale.sale.id) ||
-        sale.sale.id === currentSaleId
-    );
-  }, [sales, existingSaleIds, initialSaleEntryData?.saleId]);
 
   const totalDistributed = form
     .watch("recipients")
@@ -222,12 +222,12 @@ export const SaleEntryDialog: React.FC<SaleEntryDialogProps> = ({
       <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto bg-light-200">
         <DialogHeader>
           <DialogTitle>
-            {initialSaleEntryData
+            {initialSaleEntryData?.id
               ? "Edit Sale Commission Entry"
               : "Add New Sale Commission Entry"}
           </DialogTitle>
           <DialogDescription>
-            {initialSaleEntryData
+            {initialSaleEntryData?.id
               ? "Modify details for this specific sale's commission."
               : "Fill in the details for a new sale's commission calculation and recipients."}
           </DialogDescription>
@@ -241,8 +241,9 @@ export const SaleEntryDialog: React.FC<SaleEntryDialogProps> = ({
                 name="saleId"
                 label="Related Sale (Invoice)"
                 placeholder="Select a sale"
+                disabled={!!initialSaleEntryData?.id}
               >
-                {availableSales.map((sale: SaleWithRelations) => (
+                {sales.map((sale: SaleWithRelations) => (
                   <SelectItem
                     key={sale.sale.id}
                     value={sale.sale.id}
@@ -294,7 +295,7 @@ export const SaleEntryDialog: React.FC<SaleEntryDialogProps> = ({
                 fieldType={FormFieldType.SELECT}
                 control={form.control}
                 name="withholdingTaxId"
-                label="Withholding Tax"
+                label="Withholding Tax Type"
                 placeholder="Select WHT"
                 key={`withholding-tax-${form.watch("withholdingTaxId") || ""}`}
               >
@@ -319,9 +320,9 @@ export const SaleEntryDialog: React.FC<SaleEntryDialogProps> = ({
             </div>
 
             <h4 className="text-md font-semibold text-blue-800 mt-4">
-              Calculated Totals
+              Calculated Totals (for this Sale Entry)
             </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
               <CustomFormField
                 fieldType={FormFieldType.AMOUNT}
                 control={form.control}
@@ -356,7 +357,7 @@ export const SaleEntryDialog: React.FC<SaleEntryDialogProps> = ({
               />
             </div>
 
-            {/* --- COMMISSION RECIPIENTS SECTION for THIS Sale --- */}
+            {/* --- COMMISSION RECIPIENTS SECTION for THIS Sale Entry --- */}
             <div
               className={cn(
                 "space-y-3 p-3 rounded-md border",
@@ -373,6 +374,7 @@ export const SaleEntryDialog: React.FC<SaleEntryDialogProps> = ({
                   type="button"
                   onClick={handleAddRecipient}
                   className="shad-primary-btn flex items-center gap-2"
+                  disabled={!form.watch("totalCommissionPayable")}
                 >
                   <Plus className="h-4 w-4" /> Add Recipient
                 </Button>
@@ -392,7 +394,7 @@ export const SaleEntryDialog: React.FC<SaleEntryDialogProps> = ({
                 <TableBody className="w-full bg-white text-blue-800">
                   {recipientFields.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-3">
+                      <TableCell colSpan={4} className="text-center py-3">
                         {` No recipients added for this sale. Click "Add Recipient".`}
                       </TableCell>
                     </TableRow>
@@ -475,14 +477,18 @@ export const SaleEntryDialog: React.FC<SaleEntryDialogProps> = ({
             </div>
 
             <DialogFooter>
-              <Button type="button" variant="secondary" onClick={onClose}>
+              <Button
+                type="button"
+                className="shad-danger-btn"
+                onClick={onClose}
+              >
                 Cancel
               </Button>
               <SubmitButton
                 isLoading={form.formState.isSubmitting}
                 className="shad-primary-btn"
               >
-                {initialSaleEntryData ? "Update Entry" : "Add Entry"}
+                {initialSaleEntryData?.id ? "Update Entry" : "Add Entry"}
               </SubmitButton>
             </DialogFooter>
           </form>

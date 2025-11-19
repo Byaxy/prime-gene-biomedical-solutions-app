@@ -273,7 +273,7 @@ export const useCommissions = ({
   const { mutate: createCommissionMutation, status: createCommissionStatus } =
     useMutation({
       mutationFn: async (data: { values: SalesCommissionFormValues }) =>
-        createCommission(data.values),
+        createCommission({ values: data.values }),
       onSuccess: () =>
         queryClient.invalidateQueries({ queryKey: ["commissions"] }),
       onError: (error) => console.error("Error creating commission:", error),
@@ -286,7 +286,7 @@ export const useCommissions = ({
     mutationFn: async (data: {
       id: string;
       values: SalesCommissionFormValues;
-    }) => updateCommission(data.id, data.values),
+    }) => updateCommission({ id: data.id, values: data.values }),
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: ["commissions"] }),
     onError: (error) => console.error("Error updating commission:", error),

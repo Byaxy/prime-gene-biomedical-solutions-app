@@ -1090,6 +1090,9 @@ export const salesTable = pgTable(
         email: "",
         phone: "",
       }),
+    isCommissionApplied: boolean("is_commission_applied")
+      .notNull()
+      .default(false),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -2393,50 +2396,119 @@ export const salesAgentsRelations = relations(
 );
 
 // --- Sales Commissions Table (Main Record) ---
-export const commissionsTable = pgTable("commissions", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  commissionRefNumber: text("commission_ref_number").notNull().unique(),
-  commissionDate: timestamp("commission_date").notNull(),
-  saleId: uuid("sale_id")
-    .notNull()
-    .references(() => salesTable.id, { onDelete: "cascade" }),
-  notes: text("notes"),
-  amountReceived: numeric("amount_received").notNull(),
-  additions: numeric("additions").default(0.0).notNull(),
-  deductions: numeric("deductions").default(0.0).notNull(),
-  commissionRate: numeric("commission_rate").notNull(),
-  withholdingTaxRate: numeric("withholding_tax_rate").notNull(),
-  withholdingTaxId: uuid("withholding_tax_id").references(
-    () => taxRatesTable.id,
-    {
-      onDelete: "set null",
-    }
-  ),
-  baseForCommission: numeric("base_for_commission").notNull(),
-  grossCommission: numeric("gross_commission").notNull(),
-  withholdingTaxAmount: numeric("withholding_tax_amount").notNull(),
-  totalCommissionPayable: numeric("total_commission_payable").notNull(),
-  status: commissionStatusEnum("status").default("pending_approval").notNull(),
-  paymentStatus: commissionPaymentStatusEnum("payment_status")
-    .default("pending")
-    .notNull(),
-  isActive: boolean("is_active").default(true).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const commissionsTable = pgTable(
+  "commissions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    commissionRefNumber: text("commission_ref_number").notNull().unique(),
+    commissionDate: timestamp("commission_date").notNull(),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customersTable.id, { onDelete: "restrict" }),
+    notes: text("notes"),
+    totalAmountReceived: numeric("total_amount_received").notNull(),
+    totalAdditions: numeric("total_additions").default(0.0).notNull(),
+    totalDeductions: numeric("total_deductions").default(0.0).notNull(),
+    totalBaseForCommission: numeric("total_base_for_commission").notNull(),
+    totalGrossCommission: numeric("total_gross_commission").notNull(),
+    totalWithholdingTaxAmount: numeric(
+      "total_withholding_tax_amount"
+    ).notNull(),
+    totalCommissionPayable: numeric("total_commission_payable").notNull(),
+
+    status: commissionStatusEnum("status")
+      .default("pending_approval")
+      .notNull(),
+    paymentStatus: commissionPaymentStatusEnum("payment_status")
+      .default("pending")
+      .notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    commissionsActiveIndex: index("commissions_active_idx").on(table.isActive),
+    commissionsCustomerIdIndex: index("commissions_customer_id_idx").on(
+      table.customerId
+    ),
+    commissionsCommissionDateIndex: index("commissions_commission_date_idx").on(
+      table.commissionDate
+    ),
+    commissionsStatusIndex: index("commissions_status_idx").on(table.status),
+    commissionsPaymentStatusIndex: index("commissions_payment_status_idx").on(
+      table.paymentStatus
+    ),
+  })
+);
 
 export const commissionsRelations = relations(
   commissionsTable,
   ({ one, many }) => ({
+    customer: one(customersTable, {
+      fields: [commissionsTable.customerId],
+      references: [customersTable.id],
+    }),
+    recipients: many(commissionRecipientsTable),
+    commissionSales: many(commissionSalesTable),
+  })
+);
+
+// --- Commission Sales Junction Table ---
+export const commissionSalesTable = pgTable(
+  "commission_sales",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    commissionId: uuid("commission_id")
+      .notNull()
+      .references(() => commissionsTable.id, { onDelete: "cascade" }),
+    saleId: uuid("sale_id")
+      .notNull()
+      .references(() => salesTable.id, { onDelete: "restrict" }),
+    amountReceived: numeric("amount_received").notNull(),
+    additions: numeric("additions").default(0.0).notNull(),
+    deductions: numeric("deductions").default(0.0).notNull(),
+    commissionRate: numeric("commission_rate").notNull(),
+    withholdingTaxRate: numeric("withholding_tax_rate").notNull(),
+    withholdingTaxId: uuid("withholding_tax_id").references(
+      () => taxRatesTable.id,
+      {
+        onDelete: "set null",
+      }
+    ),
+    isActive: boolean("is_active").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    commissionSalesCommissionIdIndex: index(
+      "commission_sales_commission_id_idx"
+    ).on(table.commissionId),
+    commissionSalesSaleIdIndex: index("commission_sales_sale_id_idx").on(
+      table.saleId
+    ),
+    // Ensure a sale can only be in one commission at a time
+    commissionSalesSaleIdUnique: unique("commission_sales_sale_id_unique").on(
+      table.saleId
+    ),
+  })
+);
+
+export const commissionSalesRelations = relations(
+  commissionSalesTable,
+  ({ one, many }) => ({
+    commission: one(commissionsTable, {
+      fields: [commissionSalesTable.commissionId],
+      references: [commissionsTable.id],
+    }),
     sale: one(salesTable, {
-      fields: [commissionsTable.saleId],
+      fields: [commissionSalesTable.saleId],
       references: [salesTable.id],
     }),
     withholdingTax: one(taxRatesTable, {
-      fields: [commissionsTable.withholdingTaxId],
+      fields: [commissionSalesTable.withholdingTaxId],
       references: [taxRatesTable.id],
     }),
-    recipients: many(commissionRecipientsTable),
+    recipientSales: many(commissionRecipientSalesTable),
   })
 );
 
@@ -2449,7 +2521,7 @@ export const commissionRecipientsTable = pgTable("commission_recipients", {
   salesAgentId: uuid("sales_agent_id")
     .notNull()
     .references(() => salesAgentsTable.id),
-  amount: numeric("amount").notNull(),
+  amount: numeric("amount").notNull(), // Total amount for this agent across all linked sales in this commission
   paymentStatus: commissionPaymentStatusEnum("payment_status")
     .default("pending")
     .notNull(),
@@ -2469,7 +2541,7 @@ export const commissionRecipientsTable = pgTable("commission_recipients", {
 
 export const commissionRecipientsRelations = relations(
   commissionRecipientsTable,
-  ({ one }) => ({
+  ({ one, many }) => ({
     commission: one(commissionsTable, {
       fields: [commissionRecipientsTable.commissionId],
       references: [commissionsTable.id],
@@ -2481,6 +2553,54 @@ export const commissionRecipientsRelations = relations(
     payingAccount: one(accountsTable, {
       fields: [commissionRecipientsTable.payingAccountId],
       references: [accountsTable.id],
+    }),
+    recipientSales: many(commissionRecipientSalesTable),
+  })
+);
+
+export const commissionRecipientSalesTable = pgTable(
+  "commission_recipient_sales",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    commissionRecipientId: uuid("commission_recipient_id")
+      .notNull()
+      .references(() => commissionRecipientsTable.id, { onDelete: "cascade" }),
+    commissionSalesId: uuid("commission_sales_id")
+      .notNull()
+      .references(() => commissionSalesTable.id, { onDelete: "cascade" }),
+    amount: numeric("amount").notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    // Composite unique constraint: a recipient can only have one entry for a given commission_sale
+    commissionRecipientSalesUnique: unique().on(
+      table.commissionRecipientId,
+      table.commissionSalesId
+    ),
+    commissionRecipientSalesRecipientIdIndex: index(
+      "commission_recipient_sales_recipient_id_idx"
+    ).on(table.commissionRecipientId),
+    commissionRecipientSalesSalesIdIndex: index(
+      "commission_recipient_sales_sales_id_idx"
+    ).on(table.commissionSalesId),
+    commissionRecipientSalesActiveIndex: index(
+      "commission_recipient_sales_active_idx"
+    ).on(table.isActive),
+  })
+);
+
+export const commissionRecipientSalesRelations = relations(
+  commissionRecipientSalesTable,
+  ({ one }) => ({
+    commissionRecipient: one(commissionRecipientsTable, {
+      fields: [commissionRecipientSalesTable.commissionRecipientId],
+      references: [commissionRecipientsTable.id],
+    }),
+    commissionSale: one(commissionSalesTable, {
+      fields: [commissionRecipientSalesTable.commissionSalesId],
+      references: [commissionSalesTable.id],
     }),
   })
 );

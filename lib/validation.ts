@@ -2020,6 +2020,7 @@ export type CommissionRecipientItemFormValues = z.infer<
 
 // --- Single Sale Commission Entry ---
 export const SaleCommissionEntryValidation = z.object({
+  id: z.string().optional(),
   saleId: z.string().nonempty("Sale (Invoice) is required"),
   amountReceived: z
     .number()
@@ -2056,27 +2057,58 @@ export type SaleCommissionEntryFormValues = z.infer<
 // --- Sales Commission Calculation & Payment Form Validation ---
 export const SalesCommissionFormValidation = z
   .object({
+    commissionRefNumber: z
+      .string()
+      .nonempty("Commission reference number is required"),
     commissionDate: z.date().refine((date) => date <= new Date(), {
       message: "Commission date cannot be in the future",
     }),
+    customerId: z.string().nonempty("Customer is required"),
 
-    // Array of sale entries
     saleEntries: z
       .array(SaleCommissionEntryValidation)
-      .min(1, "At least one sale entry is required"),
+      .min(1, "At least one sale entry is required for the commission"),
 
     notes: z.string().optional().nullable(),
+
+    totalAmountReceived: z.number().optional(),
+    totalAdditions: z.number().optional(),
+    totalDeductions: z.number().optional(),
+    totalBaseForCommission: z.number().optional(),
+    totalGrossCommission: z.number().optional(),
+    totalWithholdingTaxAmount: z.number().optional(),
+    totalCommissionPayable: z.number().optional(),
+
+    overallRecipients: z
+      .array(
+        z.object({
+          salesAgentId: z.string(),
+          totalAmount: z.number(),
+          id: z.string().optional(),
+        })
+      )
+      .optional(),
   })
   .superRefine((data, ctx) => {
-    // Validate each sale entry's calculations
-    data.saleEntries.forEach((entry, entryIndex) => {
+    // Check for duplicate sales across all entries
+    const uniqueSaleIds = new Set<string>();
+    data.saleEntries.forEach((entry, index) => {
+      if (uniqueSaleIds.has(entry.saleId)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "This sale has already been added to the commission.",
+          path: ["saleEntries", index, "saleId"],
+        });
+      }
+      uniqueSaleIds.add(entry.saleId);
+
+      // --- Per-Sale Entry Calculations & Validations (Moved from previous main validation) ---
       const amountReceived = entry.amountReceived || 0;
       const additions = entry.additions || 0;
       const deductions = entry.deductions || 0;
       const commissionRate = (entry.commissionRate || 0) / 100;
       const withholdingTaxRate = (entry.withholdingTaxRate || 0) / 100;
 
-      // Calculate using utility function
       const {
         baseForCommission: calculatedBaseForCommission,
         grossCommission: calculatedGrossCommission,
@@ -2090,7 +2122,8 @@ export const SalesCommissionFormValidation = z
         withholdingTaxRate
       );
 
-      // Validate calculated fields
+      // Validate calculated fields for THIS sale entry
+      // (These are optional for frontend to set, but good to check if provided)
       if (
         entry.baseForCommission !== undefined &&
         entry.baseForCommission !== null &&
@@ -2100,8 +2133,8 @@ export const SalesCommissionFormValidation = z
           code: z.ZodIssueCode.custom,
           message: `Base for Commission should be ${calculatedBaseForCommission.toFixed(
             2
-          )}`,
-          path: ["saleEntries", entryIndex, "baseForCommission"],
+          )} for this sale.`,
+          path: ["saleEntries", index, "baseForCommission"],
         });
       }
 
@@ -2114,8 +2147,8 @@ export const SalesCommissionFormValidation = z
           code: z.ZodIssueCode.custom,
           message: `Gross Commission should be ${calculatedGrossCommission.toFixed(
             2
-          )}`,
-          path: ["saleEntries", entryIndex, "grossCommission"],
+          )} for this sale.`,
+          path: ["saleEntries", index, "grossCommission"],
         });
       }
 
@@ -2129,8 +2162,8 @@ export const SalesCommissionFormValidation = z
           code: z.ZodIssueCode.custom,
           message: `Withholding Tax Amount should be ${calculatedWithholdingTaxAmount.toFixed(
             2
-          )}`,
-          path: ["saleEntries", entryIndex, "withholdingTaxAmount"],
+          )} for this sale.`,
+          path: ["saleEntries", index, "withholdingTaxAmount"],
         });
       }
 
@@ -2145,41 +2178,45 @@ export const SalesCommissionFormValidation = z
           code: z.ZodIssueCode.custom,
           message: `Total Commission Payable should be ${calculatedTotalCommissionPayable.toFixed(
             2
-          )}`,
-          path: ["saleEntries", entryIndex, "totalCommissionPayable"],
+          )} for this sale.`,
+          path: ["saleEntries", index, "totalCommissionPayable"],
         });
       }
 
-      // Validate recipients total for this sale
-      const totalRecipientsAmount = entry.recipients.reduce(
+      // Validate recipients total for THIS specific sale entry
+      const totalRecipientsAmountForThisSale = entry.recipients.reduce(
         (sum, r) => sum + (r.amount || 0),
         0
       );
-      if (totalRecipientsAmount > calculatedTotalCommissionPayable + 0.01) {
+      if (
+        totalRecipientsAmountForThisSale >
+        calculatedTotalCommissionPayable + 0.01
+      ) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: `Total distributed to agents (${totalRecipientsAmount.toFixed(
+          message: `Total distributed to agents (${totalRecipientsAmountForThisSale.toFixed(
             2
           )}) cannot exceed total commission payable (${calculatedTotalCommissionPayable.toFixed(
             2
-          )}) for this sale`,
-          path: ["saleEntries", entryIndex, "recipients"],
+          )}) for THIS sale entry.`,
+          path: ["saleEntries", index, "recipients"],
         });
       }
 
-      // Check for duplicate sales agents within this sale entry
-      const uniqueSalesAgents = new Set<string>();
+      // Check for duplicate sales agents within THIS sale entry
+      const uniqueSalesAgentsPerSale = new Set<string>();
       entry.recipients.forEach((recipient, recipientIndex) => {
         if (
           recipient.salesAgentId &&
-          uniqueSalesAgents.has(recipient.salesAgentId)
+          uniqueSalesAgentsPerSale.has(recipient.salesAgentId)
         ) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: "Duplicate sales agent in recipients for this sale.",
+            message:
+              "Duplicate sales agent in recipients for this specific sale entry.",
             path: [
               "saleEntries",
-              entryIndex,
+              index,
               "recipients",
               recipientIndex,
               "salesAgentId",
@@ -2187,23 +2224,193 @@ export const SalesCommissionFormValidation = z
           });
         }
         if (recipient.salesAgentId) {
-          uniqueSalesAgents.add(recipient.salesAgentId);
+          uniqueSalesAgentsPerSale.add(recipient.salesAgentId);
         }
       });
     });
 
-    // Check for duplicate sales across all entries
-    const uniqueSaleIds = new Set<string>();
-    data.saleEntries.forEach((entry, index) => {
-      if (uniqueSaleIds.has(entry.saleId)) {
+    if (data.overallRecipients) {
+      const calculatedOverallRecipients = new Map<string, number>();
+      data.saleEntries.forEach((entry) => {
+        entry.recipients.forEach((recipient) => {
+          calculatedOverallRecipients.set(
+            recipient.salesAgentId,
+            (calculatedOverallRecipients.get(recipient.salesAgentId) || 0) +
+              recipient.amount
+          );
+        });
+      });
+
+      // Check that the form's `overallRecipients` match the calculated totals
+      if (data.overallRecipients.length !== calculatedOverallRecipients.size) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "This sale has already been added to the commission.",
-          path: ["saleEntries", index, "saleId"],
+          message:
+            "Mismatch in overall recipient count. Please check allocations.",
+          path: ["overallRecipients"],
+        });
+      } else {
+        data.overallRecipients.forEach((overallRecipient, overallIndex) => {
+          const calculatedAmount = calculatedOverallRecipients.get(
+            overallRecipient.salesAgentId
+          );
+          if (
+            calculatedAmount === undefined ||
+            Math.abs(overallRecipient.totalAmount - calculatedAmount) > 0.01
+          ) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `Overall amount for agent ${
+                overallRecipient.salesAgentId
+              } (${overallRecipient.totalAmount.toFixed(
+                2
+              )}) does not match calculated total (${(
+                calculatedAmount || 0
+              ).toFixed(2)}).`,
+              path: ["overallRecipients", overallIndex, "totalAmount"],
+            });
+          }
         });
       }
-      uniqueSaleIds.add(entry.saleId);
-    });
+    }
+
+    // --- Overall Commission Totals Validation (Optional for Frontend, crucial for Backend) ---
+    // These checks ensure the aggregated fields match the sum of individual entries.
+    // In the frontend, these might be display-only, but the backend *must* recalculate these.
+    const grandTotalAmountReceived = data.saleEntries.reduce(
+      (sum, entry) => sum + (entry.amountReceived || 0),
+      0
+    );
+    const grandTotalAdditions = data.saleEntries.reduce(
+      (sum, entry) => sum + (entry.additions || 0),
+      0
+    );
+    const grandTotalDeductions = data.saleEntries.reduce(
+      (sum, entry) => sum + (entry.deductions || 0),
+      0
+    );
+    const grandTotalBaseForCommission = data.saleEntries.reduce(
+      (sum, entry) => sum + (entry.baseForCommission || 0),
+      0
+    );
+    const grandTotalGrossCommission = data.saleEntries.reduce(
+      (sum, entry) => sum + (entry.grossCommission || 0),
+      0
+    );
+    const grandTotalWithholdingTaxAmount = data.saleEntries.reduce(
+      (sum, entry) => sum + (entry.withholdingTaxAmount || 0),
+      0
+    );
+    const grandTotalCommissionPayable = data.saleEntries.reduce(
+      (sum, entry) => sum + (entry.totalCommissionPayable || 0),
+      0
+    );
+
+    // If these fields are sent from frontend, validate them. Otherwise, backend computes.
+    if (
+      data.totalAmountReceived !== undefined &&
+      Math.abs(data.totalAmountReceived - grandTotalAmountReceived) > 0.01
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Overall Total Amount Received (${data.totalAmountReceived.toFixed(
+          2
+        )}) does not match sum of entries (${grandTotalAmountReceived.toFixed(
+          2
+        )}).`,
+        path: ["totalAmountReceived"],
+      });
+    }
+
+    if (
+      data.totalAdditions !== undefined &&
+      Math.abs(data.totalAdditions - grandTotalAdditions) > 0.01
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Overall Total Amount Received (${data.totalAdditions.toFixed(
+          2
+        )}) does not match sum of entries (${grandTotalAdditions.toFixed(2)}).`,
+        path: ["totalAdditions"],
+      });
+    }
+
+    if (
+      data.totalDeductions !== undefined &&
+      Math.abs(data.totalDeductions - grandTotalDeductions) > 0.01
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Overall Total Amount Received (${data.totalDeductions.toFixed(
+          2
+        )}) does not match sum of entries (${grandTotalDeductions.toFixed(
+          2
+        )}).`,
+        path: ["totalDeductions"],
+      });
+    }
+
+    if (
+      data.totalBaseForCommission !== undefined &&
+      Math.abs(data.totalBaseForCommission - grandTotalBaseForCommission) > 0.01
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Overall Total Amount Received (${data.totalBaseForCommission.toFixed(
+          2
+        )}) does not match sum of entries (${grandTotalBaseForCommission.toFixed(
+          2
+        )}).`,
+        path: ["totalBaseForCommission"],
+      });
+    }
+
+    if (
+      data.totalGrossCommission !== undefined &&
+      Math.abs(data.totalGrossCommission - grandTotalGrossCommission) > 0.01
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Overall Total Amount Received (${data.totalGrossCommission.toFixed(
+          2
+        )}) does not match sum of entries (${grandTotalGrossCommission.toFixed(
+          2
+        )}).`,
+        path: ["totalGrossCommission"],
+      });
+    }
+
+    if (
+      data.totalWithholdingTaxAmount !== undefined &&
+      Math.abs(
+        data.totalWithholdingTaxAmount - grandTotalWithholdingTaxAmount
+      ) > 0.01
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Overall Total Amount Received (${data.totalWithholdingTaxAmount.toFixed(
+          2
+        )}) does not match sum of entries (${grandTotalWithholdingTaxAmount.toFixed(
+          2
+        )}).`,
+        path: ["totalWithholdingTaxAmount"],
+      });
+    }
+
+    if (
+      data.totalCommissionPayable !== undefined &&
+      Math.abs(data.totalCommissionPayable - grandTotalCommissionPayable) > 0.01
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Overall Total Commission Payable (${data.totalCommissionPayable.toFixed(
+          2
+        )}) does not match sum of entries (${grandTotalCommissionPayable.toFixed(
+          2
+        )}).`,
+        path: ["totalCommissionPayable"],
+      });
+    }
   });
 
 export type SalesCommissionFormValues = z.infer<
@@ -2234,6 +2441,7 @@ export const CommissionFiltersSchema = z.object({
   search: z.string().optional(),
   salesAgentId: z.string().optional(),
   saleId: z.string().optional(),
+  customerId: z.string().optional(),
   status: z.nativeEnum(CommissionStatus).optional(),
   paymentStatus: z.nativeEnum(CommissionPaymentStatus).optional(),
   commissionDate_start: z.string().optional(),
