@@ -42,7 +42,8 @@ export const generateCommissionRefNumber = async (): Promise<string> => {
         .from(commissionsTable)
         .where(sql`commission_ref_number LIKE ${`COMM.${year}/${month}/%`}`)
         .orderBy(desc(commissionsTable.createdAt))
-        .limit(1);
+        .limit(1)
+        .for("update");
 
       let nextSequence = 1;
       if (lastCommission.length > 0) {
@@ -73,133 +74,149 @@ export const createCommission = async ({
   values: SalesCommissionFormValues;
 }) => {
   try {
-    const result = await db.transaction(async (tx) => {
-      // Initial Validations
-      const customer = await tx.query.customersTable.findFirst({
-        where: and(
-          eq(customersTable.id, values.customerId),
-          eq(customersTable.isActive, true)
-        ),
-      });
-      if (!customer) {
-        throw new Error("Customer not found or inactive.");
-      }
+    // Validate customer
+    const customer = await db.query.customersTable.findFirst({
+      where: and(
+        eq(customersTable.id, values.customerId),
+        eq(customersTable.isActive, true)
+      ),
+    });
+    if (!customer) {
+      throw new Error("Customer not found or inactive.");
+    }
 
-      const saleIds = values.saleEntries.map((entry) => entry.saleId);
-      const sales = await tx.query.salesTable.findMany({
-        where: and(
-          inArray(salesTable.id, saleIds),
-          eq(salesTable.customerId, values.customerId),
-          eq(salesTable.paymentStatus, "paid"),
-          eq(salesTable.isActive, true)
-        ),
-      });
+    // Validate sales
+    const saleIds = values.saleEntries.map((entry) => entry.saleId);
+    const sales = await db.query.salesTable.findMany({
+      where: and(
+        inArray(salesTable.id, saleIds),
+        eq(salesTable.customerId, values.customerId),
+        eq(salesTable.paymentStatus, "paid"),
+        eq(salesTable.isActive, true)
+      ),
+    });
 
-      if (sales.length !== saleIds.length) {
-        throw new Error(
-          "One or more sales not found, unpaid, or do not belong to the selected customer."
-        );
-      }
-      const salesMap = new Map(sales.map((s) => [s.id, s]));
-
-      const existingCommissionSales =
-        await tx.query.commissionSalesTable.findMany({
-          where: and(
-            inArray(commissionSalesTable.saleId, saleIds),
-            eq(commissionSalesTable.isActive, true)
-          ),
-        });
-
-      if (existingCommissionSales.length > 0) {
-        const commissionedSaleNumbers = existingCommissionSales
-          .map((cs) => salesMap.get(cs.saleId)?.invoiceNumber)
-          .join(", ");
-        throw new Error(
-          `One or more sales (${commissionedSaleNumbers}) are already part of a commission.`
-        );
-      }
-
-      const whtIds = values.saleEntries
-        .map((entry) => entry.withholdingTaxId)
-        .filter((id): id is string => id != null);
-      if (whtIds.length > 0) {
-        const uniqueWhtIds = [...new Set(whtIds)];
-        const whtTaxes = await tx.query.taxRatesTable.findMany({
-          where: and(
-            inArray(taxRatesTable.id, uniqueWhtIds),
-            eq(taxRatesTable.isActive, true)
-          ),
-        });
-        if (whtTaxes.length !== uniqueWhtIds.length) {
-          throw new Error(
-            "One or more withholding tax records not found or inactive."
-          );
-        }
-      }
-
-      const allSalesAgentIds = values.saleEntries.flatMap((entry) =>
-        entry.recipients.map((r) => r.salesAgentId)
+    if (sales.length !== saleIds.length) {
+      throw new Error(
+        "One or more sales not found, unpaid, or do not belong to the selected customer."
       );
-      const uniqueSalesAgentIds = [...new Set(allSalesAgentIds)];
-      const salesAgents = await tx.query.salesAgentsTable.findMany({
+    }
+    const salesMap = new Map(sales.map((s) => [s.id, s]));
+
+    // Check for existing commissions
+    const existingCommissionSales =
+      await db.query.commissionSalesTable.findMany({
         where: and(
-          inArray(salesAgentsTable.id, uniqueSalesAgentIds),
-          eq(salesAgentsTable.isActive, true)
+          inArray(commissionSalesTable.saleId, saleIds),
+          eq(commissionSalesTable.isActive, true)
         ),
       });
-      if (salesAgents.length !== uniqueSalesAgentIds.length) {
-        throw new Error("One or more sales agents not found or inactive.");
-      }
 
-      // Calculate aggregated totals for the main commission record
-      let totalAmountReceived = 0;
-      let totalAdditions = 0;
-      let totalDeductions = 0;
-      let totalBaseForCommission = 0;
-      let totalGrossCommission = 0;
-      let totalWithholdingTaxAmount = 0;
-      let totalCommissionPayable = 0;
+    if (existingCommissionSales.length > 0) {
+      const commissionedSaleNumbers = existingCommissionSales
+        .map((cs) => salesMap.get(cs.saleId)?.invoiceNumber)
+        .join(", ");
+      throw new Error(
+        `One or more sales (${commissionedSaleNumbers}) are already part of a commission.`
+      );
+    }
 
-      for (const entry of values.saleEntries) {
-        const {
-          baseForCommission,
-          grossCommission,
-          withholdingTaxAmount,
-          totalCommissionPayable: entryTotalCommissionPayable,
-        } = calculateCommissionAmounts(
-          entry.amountReceived,
-          entry.additions || 0,
-          entry.deductions || 0,
-          entry.commissionRate / 100,
-          entry.withholdingTaxRate / 100
+    // Validate withholding tax
+    const whtIds = values.saleEntries
+      .map((entry) => entry.withholdingTaxId)
+      .filter((id): id is string => id != null);
+    if (whtIds.length > 0) {
+      const uniqueWhtIds = [...new Set(whtIds)];
+      const whtTaxes = await db.query.taxRatesTable.findMany({
+        where: and(
+          inArray(taxRatesTable.id, uniqueWhtIds),
+          eq(taxRatesTable.isActive, true)
+        ),
+      });
+      if (whtTaxes.length !== uniqueWhtIds.length) {
+        throw new Error(
+          "One or more withholding tax records not found or inactive."
         );
-
-        totalAmountReceived += entry.amountReceived;
-        totalAdditions += entry.additions || 0;
-        totalDeductions += entry.deductions || 0;
-        totalBaseForCommission += baseForCommission;
-        totalGrossCommission += grossCommission;
-        totalWithholdingTaxAmount += withholdingTaxAmount;
-        totalCommissionPayable += entryTotalCommissionPayable;
-
-        const totalRecipientsAmount = entry.recipients.reduce(
-          (sum, r) => sum + r.amount,
-          0
-        );
-        if (
-          Math.abs(totalRecipientsAmount - entryTotalCommissionPayable) > 0.01
-        ) {
-          throw new Error(
-            `Total distributed to agents (${totalRecipientsAmount.toFixed(
-              2
-            )}) does not exactly match commission payable (${entryTotalCommissionPayable.toFixed(
-              2
-            )}) for sale ${salesMap.get(entry.saleId)?.invoiceNumber}.`
-          );
-        }
       }
+    }
 
-      // validate that commissionRefNumber is unique
+    // Validate sales agents
+    const allSalesAgentIds = values.saleEntries.flatMap((entry) =>
+      entry.recipients.map((r) => r.salesAgentId)
+    );
+    const uniqueSalesAgentIds = [...new Set(allSalesAgentIds)];
+    const salesAgents = await db.query.salesAgentsTable.findMany({
+      where: and(
+        inArray(salesAgentsTable.id, uniqueSalesAgentIds),
+        eq(salesAgentsTable.isActive, true)
+      ),
+    });
+    if (salesAgents.length !== uniqueSalesAgentIds.length) {
+      throw new Error("One or more sales agents not found or inactive.");
+    }
+
+    // Calculate totals BEFORE transaction
+    let totalAmountReceived = 0;
+    let totalAdditions = 0;
+    let totalDeductions = 0;
+    let totalBaseForCommission = 0;
+    let totalGrossCommission = 0;
+    let totalWithholdingTaxAmount = 0;
+    let totalCommissionPayable = 0;
+
+    for (const entry of values.saleEntries) {
+      const {
+        baseForCommission,
+        grossCommission,
+        withholdingTaxAmount,
+        totalCommissionPayable: entryTotalCommissionPayable,
+      } = calculateCommissionAmounts(
+        entry.amountReceived,
+        entry.additions || 0,
+        entry.deductions || 0,
+        entry.commissionRate / 100,
+        entry.withholdingTaxRate / 100
+      );
+
+      totalAmountReceived += entry.amountReceived;
+      totalAdditions += entry.additions || 0;
+      totalDeductions += entry.deductions || 0;
+      totalBaseForCommission += baseForCommission;
+      totalGrossCommission += grossCommission;
+      totalWithholdingTaxAmount += withholdingTaxAmount;
+      totalCommissionPayable += entryTotalCommissionPayable;
+
+      const totalRecipientsAmount = entry.recipients.reduce(
+        (sum, r) => sum + r.amount,
+        0
+      );
+      if (
+        Math.abs(totalRecipientsAmount - entryTotalCommissionPayable) > 0.01
+      ) {
+        throw new Error(
+          `Total distributed to agents (${totalRecipientsAmount.toFixed(
+            2
+          )}) does not exactly match commission payable (${entryTotalCommissionPayable.toFixed(
+            2
+          )}) for sale ${salesMap.get(entry.saleId)?.invoiceNumber}.`
+        );
+      }
+    }
+
+    // Prepare data structures
+    const overallRecipientsMap = new Map<string, number>();
+    values.saleEntries.forEach((entry) => {
+      entry.recipients.forEach((r) => {
+        overallRecipientsMap.set(
+          r.salesAgentId,
+          (overallRecipientsMap.get(r.salesAgentId) || 0) + r.amount
+        );
+      });
+    });
+
+    // ===== NOW START TRANSACTION =====
+    const result = await db.transaction(async (tx) => {
+      // Check reference number uniqueness in transaction (with lock)
       const existingCommissionWithRefNumber =
         await tx.query.commissionsTable.findFirst({
           where: eq(
@@ -212,7 +229,7 @@ export const createCommission = async ({
         throw new Error("Commission reference number already exists.");
       }
 
-      // Create main commissions record
+      // Insert main commission
       const [insertedCommission] = await tx
         .insert(commissionsTable)
         .values({
@@ -220,13 +237,13 @@ export const createCommission = async ({
           commissionDate: values.commissionDate,
           customerId: values.customerId,
           notes: values.notes || null,
-          totalAmountReceived: totalAmountReceived,
-          totalAdditions: totalAdditions,
-          totalDeductions: totalDeductions,
-          totalBaseForCommission: totalBaseForCommission,
-          totalGrossCommission: totalGrossCommission,
-          totalWithholdingTaxAmount: totalWithholdingTaxAmount,
-          totalCommissionPayable: totalCommissionPayable,
+          totalAmountReceived,
+          totalAdditions,
+          totalDeductions,
+          totalBaseForCommission,
+          totalGrossCommission,
+          totalWithholdingTaxAmount,
+          totalCommissionPayable,
           status: CommissionStatus.PendingApproval,
           paymentStatus: CommissionPaymentStatus.Pending,
         })
@@ -236,56 +253,31 @@ export const createCommission = async ({
         throw new Error("Failed to create main commission record.");
       }
 
-      // Insert into commission_sales (one entry per sale in saleEntries)
-      const commissionSalesToInsert = values.saleEntries.map((entry) => {
-        const sale = salesMap.get(entry.saleId);
-        if (!sale) throw new Error(`Sale ${entry.saleId} details missing.`);
+      // Prepare bulk inserts
+      const commissionSalesToInsert = values.saleEntries.map((entry) => ({
+        commissionId: insertedCommission.id,
+        saleId: entry.saleId,
+        amountReceived: entry.amountReceived,
+        additions: entry.additions || 0,
+        deductions: entry.deductions || 0,
+        commissionRate: entry.commissionRate,
+        withholdingTaxRate: entry.withholdingTaxRate,
+        withholdingTaxId: entry.withholdingTaxId || null,
+      }));
 
-        return {
-          commissionId: insertedCommission.id,
-          saleId: entry.saleId,
-          amountReceived: entry.amountReceived,
-          additions: entry.additions || 0,
-          deductions: entry.deductions || 0,
-          commissionRate: entry.commissionRate,
-          withholdingTaxRate: entry.withholdingTaxRate,
-          withholdingTaxId: entry.withholdingTaxId || null,
-        };
-      });
-
+      // Single bulk insert for commission sales
       const insertedCommissionSales = await tx
         .insert(commissionSalesTable)
         .values(commissionSalesToInsert)
         .returning();
 
-      if (insertedCommissionSales.length !== commissionSalesToInsert.length) {
-        throw new Error("Failed to create all commission sales entries.");
-      }
+      // Update sales in single query
+      await tx
+        .update(salesTable)
+        .set({ isCommissionApplied: true, updatedAt: new Date() })
+        .where(inArray(salesTable.id, saleIds));
 
-      // Update isCommissionApplied to true for all affected sales
-      const affectedSaleIds = insertedCommissionSales.map((cs) => cs.saleId);
-      if (affectedSaleIds.length > 0) {
-        await tx
-          .update(salesTable)
-          .set({ isCommissionApplied: true, updatedAt: new Date() })
-          .where(inArray(salesTable.id, affectedSaleIds));
-      }
-
-      const commissionSalesMap = new Map(
-        insertedCommissionSales.map((cs) => [cs.saleId, cs])
-      );
-
-      // Insert into commission_recipients
-      const overallRecipientsMap = new Map<string, number>();
-      values.saleEntries.forEach((entry) => {
-        entry.recipients.forEach((r) => {
-          overallRecipientsMap.set(
-            r.salesAgentId,
-            (overallRecipientsMap.get(r.salesAgentId) || 0) + r.amount
-          );
-        });
-      });
-
+      // Prepare and insert recipients
       const commissionRecipientsToInsert = Array.from(
         overallRecipientsMap.entries()
       ).map(([salesAgentId, totalAmount]) => ({
@@ -301,28 +293,24 @@ export const createCommission = async ({
         .values(commissionRecipientsToInsert)
         .returning();
 
-      if (
-        insertedCommissionRecipients.length !==
-        commissionRecipientsToInsert.length
-      ) {
-        throw new Error("Failed to create all commission recipients.");
-      }
-
+      const commissionSalesMap = new Map(
+        insertedCommissionSales.map((cs) => [cs.saleId, cs])
+      );
       const commissionRecipientsMap = new Map(
         insertedCommissionRecipients.map((cr) => [cr.salesAgentId, cr])
       );
 
-      // Insert into commission_recipient_sales (granular linking)
+      // Prepare granular recipient sales
       const commissionRecipientSalesToInsert = [];
       for (const entry of values.saleEntries) {
         const commissionSale = commissionSalesMap.get(entry.saleId);
-        if (!commissionSale) continue; // Should not happen
+        if (!commissionSale) continue;
 
         for (const recipientEntry of entry.recipients) {
           const commissionRecipient = commissionRecipientsMap.get(
             recipientEntry.salesAgentId
           );
-          if (!commissionRecipient) continue; // Should not happen
+          if (!commissionRecipient) continue;
 
           commissionRecipientSalesToInsert.push({
             commissionRecipientId: commissionRecipient.id,
@@ -332,17 +320,18 @@ export const createCommission = async ({
         }
       }
 
+      // Single bulk insert for recipient sales
       if (commissionRecipientSalesToInsert.length > 0) {
         await tx
           .insert(commissionRecipientSalesTable)
           .values(commissionRecipientSalesToInsert);
       }
 
-      revalidatePath("/accounting-and-finance/commissions");
-      return parseStringify(insertedCommission);
+      return insertedCommission;
     });
 
-    return result;
+    revalidatePath("/accounting-and-finance/commissions");
+    return parseStringify(result);
   } catch (error: any) {
     console.error("Error creating sales commission:", error);
     if (
@@ -366,203 +355,294 @@ export const updateCommission = async ({
   values: SalesCommissionFormValues;
 }) => {
   try {
-    const result = await db.transaction(async (tx) => {
-      // 1. Fetch current state with all relations
-      const currentCommission = await tx.query.commissionsTable.findFirst({
-        where: eq(commissionsTable.id, id),
-        with: {
-          customer: true,
-
-          commissionSales: {
-            with: {
-              sale: true,
-              withholdingTax: true,
-            },
-          },
-          recipients: {
-            with: {
-              salesAgent: true,
-              recipientSales: true,
-            },
+    // 1. Fetch current state with all relations (READ-ONLY)
+    const currentCommission = await db.query.commissionsTable.findFirst({
+      where: eq(commissionsTable.id, id),
+      with: {
+        customer: true,
+        commissionSales: {
+          with: {
+            sale: true,
+            withholdingTax: true,
           },
         },
-      });
+        recipients: {
+          with: {
+            salesAgent: true,
+            recipientSales: true,
+          },
+        },
+      },
+    });
 
-      if (!currentCommission) {
-        throw new Error("Commission record not found.");
-      }
+    if (!currentCommission) {
+      throw new Error("Commission record not found.");
+    }
 
-      // Check if commission can be edited (no payments made)
-      if (
-        currentCommission.paymentStatus === CommissionPaymentStatus.Paid ||
-        currentCommission.paymentStatus === CommissionPaymentStatus.Partial ||
-        currentCommission.status === CommissionStatus.Processed
-      ) {
-        throw new Error(
-          "Cannot edit a commission that has already been partially or fully paid or processed."
-        );
-      }
-
-      // 2. Initial Validations (similar to create)
-      const customer = await tx.query.customersTable.findFirst({
-        where: and(
-          eq(customersTable.id, values.customerId),
-          eq(customersTable.isActive, true)
-        ),
-      });
-      if (!customer) {
-        throw new Error("Customer not found or inactive.");
-      }
-      if (currentCommission.customerId !== values.customerId) {
-        throw new Error("Cannot change customer for an existing commission.");
-      }
-
-      const incomingSaleIds = values.saleEntries.map((entry) => entry.saleId);
-      const currentCommissionSaleIds = currentCommission.commissionSales.map(
-        (cs) => cs.saleId
+    // 2. Check if commission can be edited (no payments made)
+    if (
+      currentCommission.paymentStatus === CommissionPaymentStatus.Paid ||
+      currentCommission.paymentStatus === CommissionPaymentStatus.Partial ||
+      currentCommission.status === CommissionStatus.Processed
+    ) {
+      throw new Error(
+        "Cannot edit a commission that has already been partially or fully paid or processed."
       );
+    }
 
-      // Validate new sales that are being added
-      const newSaleIds = incomingSaleIds.filter(
-        (saleId) => !currentCommissionSaleIds.includes(saleId)
-      );
-      if (newSaleIds.length > 0) {
-        const newSales = await tx.query.salesTable.findMany({
-          where: and(
-            inArray(salesTable.id, newSaleIds),
-            eq(salesTable.customerId, values.customerId),
-            eq(salesTable.paymentStatus, "paid"),
-            eq(salesTable.isActive, true)
-          ),
-        });
-        if (newSales.length !== newSaleIds.length) {
-          throw new Error(
-            "One or more new sales not found, unpaid, or do not belong to the selected customer."
-          );
-        }
-        // Check if any new sales are already commissioned elsewhere
-        const existingCommissionSalesForNewIds =
-          await tx.query.commissionSalesTable.findMany({
-            where: and(
-              inArray(commissionSalesTable.saleId, newSaleIds),
-              eq(commissionSalesTable.isActive, true)
-            ),
-          });
-        if (existingCommissionSalesForNewIds.length > 0) {
-          const alreadyCommissionedSaleNumbers =
-            existingCommissionSalesForNewIds
-              .map(
-                (cs) => newSales.find((s) => s.id === cs.saleId)?.invoiceNumber
-              )
-              .join(", ");
-          throw new Error(
-            `One or more new sales (${alreadyCommissionedSaleNumbers}) are already part of a different commission.`
-          );
-        }
-      }
+    // 3. Validate customer
+    const customer = await db.query.customersTable.findFirst({
+      where: and(
+        eq(customersTable.id, values.customerId),
+        eq(customersTable.isActive, true)
+      ),
+    });
+    if (!customer) {
+      throw new Error("Customer not found or inactive.");
+    }
+    if (currentCommission.customerId !== values.customerId) {
+      throw new Error("Cannot change customer for an existing commission.");
+    }
 
-      const allUniqueSaleIdsInRequest = [...new Set(incomingSaleIds)];
-      const sales = await tx.query.salesTable.findMany({
+    // 4. Identify new sales being added
+    const incomingSaleIds = values.saleEntries.map((entry) => entry.saleId);
+    const currentCommissionSaleIds = currentCommission.commissionSales.map(
+      (cs) => cs.saleId
+    );
+    const newSaleIds = incomingSaleIds.filter(
+      (saleId) => !currentCommissionSaleIds.includes(saleId)
+    );
+
+    // 5. Validate new sales that are being added
+    if (newSaleIds.length > 0) {
+      const newSales = await db.query.salesTable.findMany({
         where: and(
-          inArray(salesTable.id, allUniqueSaleIdsInRequest),
+          inArray(salesTable.id, newSaleIds),
+          eq(salesTable.customerId, values.customerId),
+          eq(salesTable.paymentStatus, "paid"),
           eq(salesTable.isActive, true)
         ),
       });
-      const salesMap = new Map(sales.map((s) => [s.id, s]));
+      if (newSales.length !== newSaleIds.length) {
+        throw new Error(
+          "One or more new sales not found, unpaid, or do not belong to the selected customer."
+        );
+      }
 
-      const whtIds = values.saleEntries
-        .map((entry) => entry.withholdingTaxId)
-        .filter((id): id is string => id != null);
-      if (whtIds.length > 0) {
-        const uniqueWhtIds = [...new Set(whtIds)];
-        const whtTaxes = await tx.query.taxRatesTable.findMany({
+      // Check if any new sales are already commissioned elsewhere
+      const existingCommissionSalesForNewIds =
+        await db.query.commissionSalesTable.findMany({
           where: and(
-            inArray(taxRatesTable.id, uniqueWhtIds),
-            eq(taxRatesTable.isActive, true)
+            inArray(commissionSalesTable.saleId, newSaleIds),
+            eq(commissionSalesTable.isActive, true)
           ),
         });
-        if (whtTaxes.length !== uniqueWhtIds.length) {
-          throw new Error(
-            "One or more withholding tax records not found or inactive."
-          );
-        }
+      if (existingCommissionSalesForNewIds.length > 0) {
+        const alreadyCommissionedSaleNumbers = existingCommissionSalesForNewIds
+          .map((cs) => newSales.find((s) => s.id === cs.saleId)?.invoiceNumber)
+          .join(", ");
+        throw new Error(
+          `One or more new sales (${alreadyCommissionedSaleNumbers}) are already part of a different commission.`
+        );
       }
+    }
 
-      const allSalesAgentIds = values.saleEntries.flatMap((entry) =>
-        entry.recipients.map((r) => r.salesAgentId)
-      );
-      const uniqueSalesAgentIds = [...new Set(allSalesAgentIds)];
-      const salesAgents = await tx.query.salesAgentsTable.findMany({
+    // 6. Fetch all sales data
+    const allUniqueSaleIdsInRequest = [...new Set(incomingSaleIds)];
+    const sales = await db.query.salesTable.findMany({
+      where: and(
+        inArray(salesTable.id, allUniqueSaleIdsInRequest),
+        eq(salesTable.isActive, true)
+      ),
+    });
+    const salesMap = new Map(sales.map((s) => [s.id, s]));
+
+    // 7. Validate withholding tax records
+    const whtIds = values.saleEntries
+      .map((entry) => entry.withholdingTaxId)
+      .filter((id): id is string => id != null);
+    if (whtIds.length > 0) {
+      const uniqueWhtIds = [...new Set(whtIds)];
+      const whtTaxes = await db.query.taxRatesTable.findMany({
         where: and(
-          inArray(salesAgentsTable.id, uniqueSalesAgentIds),
-          eq(salesAgentsTable.isActive, true)
+          inArray(taxRatesTable.id, uniqueWhtIds),
+          eq(taxRatesTable.isActive, true)
         ),
       });
-      if (salesAgents.length !== uniqueSalesAgentIds.length) {
-        throw new Error("One or more sales agents not found or inactive.");
+      if (whtTaxes.length !== uniqueWhtIds.length) {
+        throw new Error(
+          "One or more withholding tax records not found or inactive."
+        );
       }
+    }
 
-      // Calculate aggregated totals based on `values.saleEntries`
-      let totalAmountReceived = 0;
-      let totalAdditions = 0;
-      let totalDeductions = 0;
-      let totalBaseForCommission = 0;
-      let totalGrossCommission = 0;
-      let totalWithholdingTaxAmount = 0;
-      let totalCommissionPayable = 0;
+    // 8. Validate sales agents
+    const allSalesAgentIds = values.saleEntries.flatMap((entry) =>
+      entry.recipients.map((r) => r.salesAgentId)
+    );
+    const uniqueSalesAgentIds = [...new Set(allSalesAgentIds)];
+    const salesAgents = await db.query.salesAgentsTable.findMany({
+      where: and(
+        inArray(salesAgentsTable.id, uniqueSalesAgentIds),
+        eq(salesAgentsTable.isActive, true)
+      ),
+    });
+    if (salesAgents.length !== uniqueSalesAgentIds.length) {
+      throw new Error("One or more sales agents not found or inactive.");
+    }
 
-      for (const entry of values.saleEntries) {
-        const {
-          baseForCommission,
-          grossCommission,
-          withholdingTaxAmount,
-          totalCommissionPayable: entryTotalCommissionPayable,
-        } = calculateCommissionAmounts(
-          entry.amountReceived,
-          entry.additions || 0,
-          entry.deductions || 0,
-          entry.commissionRate / 100,
-          entry.withholdingTaxRate / 100
+    // 9. Calculate aggregated totals based on `values.saleEntries`
+    let totalAmountReceived = 0;
+    let totalAdditions = 0;
+    let totalDeductions = 0;
+    let totalBaseForCommission = 0;
+    let totalGrossCommission = 0;
+    let totalWithholdingTaxAmount = 0;
+    let totalCommissionPayable = 0;
+
+    for (const entry of values.saleEntries) {
+      const {
+        baseForCommission,
+        grossCommission,
+        withholdingTaxAmount,
+        totalCommissionPayable: entryTotalCommissionPayable,
+      } = calculateCommissionAmounts(
+        entry.amountReceived,
+        entry.additions || 0,
+        entry.deductions || 0,
+        entry.commissionRate / 100,
+        entry.withholdingTaxRate / 100
+      );
+
+      totalAmountReceived += entry.amountReceived;
+      totalAdditions += entry.additions || 0;
+      totalDeductions += entry.deductions || 0;
+      totalBaseForCommission += baseForCommission;
+      totalGrossCommission += grossCommission;
+      totalWithholdingTaxAmount += withholdingTaxAmount;
+      totalCommissionPayable += entryTotalCommissionPayable;
+
+      const totalRecipientsAmount = entry.recipients.reduce(
+        (sum, r) => sum + r.amount,
+        0
+      );
+      if (
+        Math.abs(totalRecipientsAmount - entryTotalCommissionPayable) > 0.01
+      ) {
+        throw new Error(
+          `Total distributed to agents (${totalRecipientsAmount.toFixed(
+            2
+          )}) does not exactly match commission payable (${entryTotalCommissionPayable.toFixed(
+            2
+          )}) for sale ${salesMap.get(entry.saleId)?.invoiceNumber}.`
         );
+      }
+    }
 
-        totalAmountReceived += entry.amountReceived;
-        totalAdditions += entry.additions || 0;
-        totalDeductions += entry.deductions || 0;
-        totalBaseForCommission += baseForCommission;
-        totalGrossCommission += grossCommission;
-        totalWithholdingTaxAmount += withholdingTaxAmount;
-        totalCommissionPayable += entryTotalCommissionPayable;
+    // 10. Prepare data structures for transaction
+    const currentCsMap = new Map(
+      currentCommission.commissionSales.map((cs) => [cs.id, cs])
+    );
+    const incomingCsIds = new Set(
+      values.saleEntries.filter((e) => e.id).map((e) => e.id!)
+    );
 
-        const totalRecipientsAmount = entry.recipients.reduce(
-          (sum, r) => sum + r.amount,
-          0
+    const csToDeleteIds = currentCommission.commissionSales
+      .filter((cs) => !incomingCsIds.has(cs.id))
+      .map((cs) => cs.id);
+
+    const salesToRevertIsCommissionApplied = currentCommission.commissionSales
+      .filter((cs) => csToDeleteIds.includes(cs.id))
+      .map((cs) => cs.saleId);
+
+    const csToUpdate = values.saleEntries.filter(
+      (e) => e.id && currentCsMap.has(e.id)
+    );
+
+    const csToInsert = values.saleEntries.filter((e) => !e.id);
+
+    // 11. Prepare overall recipients map
+    const overallRecipientsMap = new Map<string, number>();
+    values.saleEntries.forEach((entry) => {
+      entry.recipients.forEach((r) => {
+        overallRecipientsMap.set(
+          r.salesAgentId,
+          (overallRecipientsMap.get(r.salesAgentId) || 0) + r.amount
         );
-        if (
-          Math.abs(totalRecipientsAmount - entryTotalCommissionPayable) > 0.01
-        ) {
+      });
+    });
+
+    const currentRecipientsMap = new Map(
+      currentCommission.recipients.map((r) => [r.salesAgentId, r])
+    );
+
+    const crToDeleteSalesAgentIds = Array.from(
+      currentRecipientsMap.keys()
+    ).filter((agentId) => !overallRecipientsMap.has(agentId));
+
+    // 12. Validate recipients can be deleted (not paid)
+    if (crToDeleteSalesAgentIds.length > 0) {
+      const recipientIdsToDelete = currentCommission.recipients
+        .filter((r) => crToDeleteSalesAgentIds.includes(r.salesAgentId))
+        .map((r) => r.id);
+
+      if (recipientIdsToDelete.length > 0) {
+        const paidRecipientsToDelete = currentCommission.recipients.filter(
+          (r) =>
+            recipientIdsToDelete.includes(r.id) &&
+            (r.paymentStatus === CommissionPaymentStatus.Paid ||
+              r.paymentStatus === CommissionPaymentStatus.Partial)
+        );
+        if (paidRecipientsToDelete.length > 0) {
           throw new Error(
-            `Total distributed to agents (${totalRecipientsAmount.toFixed(
-              2
-            )}) does not exactly match commission payable (${entryTotalCommissionPayable.toFixed(
-              2
-            )}) for sale ${salesMap.get(entry.saleId)?.invoiceNumber}.`
+            `Cannot remove sales agent(s) [${paidRecipientsToDelete
+              .map(
+                (r) =>
+                  salesAgents.find((sa) => sa.id === r.salesAgentId)?.name ||
+                  r.salesAgentId
+              )
+              .join(
+                ", "
+              )}] as their commission has already been partially or fully paid.`
           );
         }
       }
+    }
 
+    // 13. Validate recipients can be updated (must be pending)
+    const incomingRecipientSalesAgentIds = Array.from(
+      overallRecipientsMap.keys()
+    );
+    for (const salesAgentId of incomingRecipientSalesAgentIds) {
+      const currentRecipient = currentRecipientsMap.get(salesAgentId);
+      if (
+        currentRecipient &&
+        currentRecipient.paymentStatus !== CommissionPaymentStatus.Pending
+      ) {
+        throw new Error(
+          `Cannot update sales agent (${
+            salesAgents.find((sa) => sa.id === salesAgentId)?.name ||
+            salesAgentId
+          }) as their commission is not pending.`
+        );
+      }
+    }
+
+    // ===== NOW START TRANSACTION =====
+    const result = await db.transaction(async (tx) => {
       // Update main commissions record
       const [updatedCommission] = await tx
         .update(commissionsTable)
         .set({
           commissionDate: values.commissionDate,
           notes: values.notes || null,
-          totalAmountReceived: totalAmountReceived,
-          totalAdditions: totalAdditions,
-          totalDeductions: totalDeductions,
-          totalBaseForCommission: totalBaseForCommission,
-          totalGrossCommission: totalGrossCommission,
-          totalWithholdingTaxAmount: totalWithholdingTaxAmount,
-          totalCommissionPayable: totalCommissionPayable,
+          totalAmountReceived,
+          totalAdditions,
+          totalDeductions,
+          totalBaseForCommission,
+          totalGrossCommission,
+          totalWithholdingTaxAmount,
+          totalCommissionPayable,
           status: CommissionStatus.PendingApproval,
           updatedAt: new Date(),
         })
@@ -573,24 +653,7 @@ export const updateCommission = async ({
         throw new Error("Failed to update main commission record.");
       }
 
-      // Manage commission_sales entries
-      const currentCsMap = new Map(
-        currentCommission.commissionSales.map((cs) => [cs.id, cs])
-      );
-      const incomingCsIds = new Set(
-        values.saleEntries.filter((e) => e.id).map((e) => e.id!)
-      );
-
-      const csToDeleteIds = currentCommission.commissionSales
-        .filter((cs) => !incomingCsIds.has(cs.id))
-        .map((cs) => cs.id);
-
-      // Get sale IDs associated with commission_sales being deleted
-      const salesToRevertIsCommissionApplied = currentCommission.commissionSales
-        .filter((cs) => csToDeleteIds.includes(cs.id))
-        .map((cs) => cs.saleId);
-
-      // Delete associated commission_recipient_sales first
+      // Handle commission_sales deletions
       if (csToDeleteIds.length > 0) {
         const recipientsToCascadeDelete =
           await tx.query.commissionRecipientSalesTable.findMany({
@@ -614,7 +677,7 @@ export const updateCommission = async ({
           .delete(commissionSalesTable)
           .where(inArray(commissionSalesTable.id, csToDeleteIds));
 
-        // Revert isCommissionApplied for sales whose commission_sales entry was deleted
+        // Revert isCommissionApplied for deleted sales
         if (salesToRevertIsCommissionApplied.length > 0) {
           await tx
             .update(salesTable)
@@ -623,53 +686,46 @@ export const updateCommission = async ({
         }
       }
 
-      const csToUpdate = values.saleEntries.filter(
-        (e) => e.id && currentCsMap.has(e.id)
-      );
-      await Promise.all(
-        csToUpdate.map((entry) => {
-          const sale = salesMap.get(entry.saleId);
-          if (!sale) throw new Error(`Sale ${entry.saleId} details missing.`);
+      // Update existing commission_sales (batch updates)
+      if (csToUpdate.length > 0) {
+        await Promise.all(
+          csToUpdate.map((entry) => {
+            return tx
+              .update(commissionSalesTable)
+              .set({
+                amountReceived: entry.amountReceived,
+                additions: entry.additions || 0,
+                deductions: entry.deductions || 0,
+                commissionRate: entry.commissionRate,
+                withholdingTaxRate: entry.withholdingTaxRate,
+                withholdingTaxId: entry.withholdingTaxId || null,
+                updatedAt: new Date(),
+              })
+              .where(eq(commissionSalesTable.id, entry.id!));
+          })
+        );
+      }
 
-          return tx
-            .update(commissionSalesTable)
-            .set({
-              amountReceived: entry.amountReceived,
-              additions: entry.additions || 0,
-              deductions: entry.deductions || 0,
-              commissionRate: entry.commissionRate,
-              withholdingTaxRate: entry.withholdingTaxRate,
-              withholdingTaxId: entry.withholdingTaxId || null,
-              updatedAt: new Date(),
-            })
-            .where(eq(commissionSalesTable.id, entry.id!));
-        })
-      );
-
-      const csToInsert = values.saleEntries.filter((e) => !e.id);
+      // Insert new commission_sales (bulk insert)
       let newlyInsertedCommissionSales: (typeof commissionSalesTable.$inferSelect)[] =
         [];
       if (csToInsert.length > 0) {
-        const insertData = csToInsert.map((entry) => {
-          const sale = salesMap.get(entry.saleId);
-          if (!sale) throw new Error(`Sale ${entry.saleId} details missing.`);
-          return {
-            commissionId: id,
-            saleId: entry.saleId,
-            amountReceived: entry.amountReceived,
-            additions: entry.additions || 0,
-            deductions: entry.deductions || 0,
-            commissionRate: entry.commissionRate,
-            withholdingTaxRate: entry.withholdingTaxRate,
-            withholdingTaxId: entry.withholdingTaxId || null,
-          };
-        });
+        const insertData = csToInsert.map((entry) => ({
+          commissionId: id,
+          saleId: entry.saleId,
+          amountReceived: entry.amountReceived,
+          additions: entry.additions || 0,
+          deductions: entry.deductions || 0,
+          commissionRate: entry.commissionRate,
+          withholdingTaxRate: entry.withholdingTaxRate,
+          withholdingTaxId: entry.withholdingTaxId || null,
+        }));
         newlyInsertedCommissionSales = await tx
           .insert(commissionSalesTable)
           .values(insertData)
           .returning();
 
-        // Set isCommissionApplied to true for newly inserted sales
+        // Set isCommissionApplied for newly inserted sales
         const newSalesToMarkCommissioned = newlyInsertedCommissionSales.map(
           (cs) => cs.saleId
         );
@@ -681,6 +737,7 @@ export const updateCommission = async ({
         }
       }
 
+      // Build map of all commission_sales in this update
       const updatedAndNewCommissionSales = [
         ...csToUpdate.map((e) => ({ id: e.id!, saleId: e.saleId })),
         ...newlyInsertedCommissionSales.map((e) => ({
@@ -692,53 +749,13 @@ export const updateCommission = async ({
         updatedAndNewCommissionSales.map((cs) => [cs.saleId, cs.id])
       );
 
-      // Manage commission_recipients (overall agent summaries)
-      const currentRecipientsMap = new Map(
-        currentCommission.recipients.map((r) => [r.salesAgentId, r])
-      );
-
-      const overallRecipientsMap = new Map<string, number>();
-      values.saleEntries.forEach((entry) => {
-        entry.recipients.forEach((r) => {
-          overallRecipientsMap.set(
-            r.salesAgentId,
-            (overallRecipientsMap.get(r.salesAgentId) || 0) + r.amount
-          );
-        });
-      });
-
-      const crToDeleteSalesAgentIds = Array.from(
-        currentRecipientsMap.keys()
-      ).filter((agentId) => !overallRecipientsMap.has(agentId));
-
+      // Handle commission_recipients deletions
       if (crToDeleteSalesAgentIds.length > 0) {
-        // Find actual recipient IDs to delete
         const recipientIdsToDelete = currentCommission.recipients
           .filter((r) => crToDeleteSalesAgentIds.includes(r.salesAgentId))
           .map((r) => r.id);
 
         if (recipientIdsToDelete.length > 0) {
-          // Check if any recipient to be deleted has been paid
-          const paidRecipientsToDelete = currentCommission.recipients.filter(
-            (r) =>
-              recipientIdsToDelete.includes(r.id) &&
-              (r.paymentStatus === CommissionPaymentStatus.Paid ||
-                r.paymentStatus === CommissionPaymentStatus.Partial)
-          );
-          if (paidRecipientsToDelete.length > 0) {
-            throw new Error(
-              `Cannot remove sales agent(s) [${paidRecipientsToDelete
-                .map(
-                  (r) =>
-                    salesAgents.find((sa) => sa.id === r.salesAgentId)?.name ||
-                    r.salesAgentId
-                )
-                .join(
-                  ", "
-                )}] as their commission has already been partially or fully paid.`
-            );
-          }
-
           // Delete associated granular entries first
           await tx
             .delete(commissionRecipientSalesTable)
@@ -757,9 +774,6 @@ export const updateCommission = async ({
       // Update or Insert commission_recipients
       const allCurrentAndNewRecipients: (typeof commissionRecipientsTable.$inferSelect)[] =
         [];
-      const incomingRecipientSalesAgentIds = Array.from(
-        overallRecipientsMap.keys()
-      );
 
       for (const salesAgentId of incomingRecipientSalesAgentIds) {
         const newTotalAmount = overallRecipientsMap.get(salesAgentId)!;
@@ -767,16 +781,6 @@ export const updateCommission = async ({
 
         if (currentRecipient) {
           // Update existing
-          if (
-            currentRecipient.paymentStatus !== CommissionPaymentStatus.Pending
-          ) {
-            throw new Error(
-              `Cannot update sales agent (${
-                salesAgents.find((sa) => sa.id === salesAgentId)?.name ||
-                salesAgentId
-              }) as their commission is not pending.`
-            );
-          }
           const [updatedCr] = await tx
             .update(commissionRecipientsTable)
             .set({ amount: newTotalAmount, updatedAt: new Date() })
@@ -798,6 +802,7 @@ export const updateCommission = async ({
           if (newCr) allCurrentAndNewRecipients.push(newCr);
         }
       }
+
       const allRecipientsMap = new Map(
         allCurrentAndNewRecipients.map((cr) => [cr.salesAgentId, cr])
       );
@@ -811,7 +816,6 @@ export const updateCommission = async ({
         r.recipientSales.forEach((crs) => {
           const agentId = allRecipientsMap.get(r.salesAgentId)?.id;
           if (agentId) {
-            // Ensure the recipient still exists
             currentCrsMap.set(`${agentId}-${crs.commissionSalesId}`, crs);
           }
         });
@@ -819,7 +823,7 @@ export const updateCommission = async ({
 
       const crsBatchToInsert = [];
       const crsBatchToUpdate = [];
-      const incomingCrsKeys = new Set<string>(); // Keep track of current granular allocations
+      const incomingCrsKeys = new Set<string>();
 
       for (const entry of values.saleEntries) {
         const commissionSaleId = allCommissionSalesInThisUpdate.get(
@@ -831,7 +835,7 @@ export const updateCommission = async ({
           const commissionRecipient = allRecipientsMap.get(
             recipientEntry.salesAgentId
           );
-          if (!commissionRecipient) continue; // Should always exist by now
+          if (!commissionRecipient) continue;
 
           const currentCrsKey = `${commissionRecipient.id}-${commissionSaleId}`;
           incomingCrsKeys.add(currentCrsKey);
@@ -859,7 +863,7 @@ export const updateCommission = async ({
         }
       }
 
-      // Identify granular allocations to delete (exist in current but not in incoming)
+      // Identify granular allocations to delete
       const crsToDeleteIds: string[] = [];
       for (const [key, crs] of currentCrsMap.entries()) {
         if (!incomingCrsKeys.has(key)) {
@@ -867,6 +871,7 @@ export const updateCommission = async ({
         }
       }
 
+      // Execute granular allocation changes
       if (crsToDeleteIds.length > 0) {
         await tx
           .delete(commissionRecipientSalesTable)
@@ -879,12 +884,12 @@ export const updateCommission = async ({
         await Promise.all(crsBatchToUpdate);
       }
 
-      revalidatePath("/accounting-and-finance/commissions");
-      revalidatePath(`/accounting-and-finance/commissions/edit/${id}`);
-      return parseStringify(updatedCommission);
+      return updatedCommission;
     });
 
-    return result;
+    revalidatePath("/accounting-and-finance/commissions");
+    revalidatePath(`/accounting-and-finance/commissions/edit/${id}`);
+    return parseStringify(result);
   } catch (error: any) {
     console.error("Error updating commission:", error);
     throw new Error(error.message || "Failed to update commission.");

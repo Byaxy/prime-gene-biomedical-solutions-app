@@ -442,6 +442,33 @@ const SalesCommissionForm = ({
     currentSaleEntryBeingEdited?.saleId,
   ]);
 
+  const filteredCustomers = useMemo(() => {
+    const existingSaleIdsInForm = new Set(
+      saleEntryFields.map((field) => field.saleId)
+    );
+
+    const customerSalesMap = new Map<string, SaleWithRelations[]>();
+
+    sales.forEach((sale) => {
+      if (
+        sale.sale.paymentStatus === "paid" &&
+        (sale.sale.isCommissionApplied === false ||
+          existingSaleIdsInForm.has(sale.sale.id))
+      ) {
+        const customerId = sale.sale.customerId;
+        if (!customerSalesMap.has(customerId)) {
+          customerSalesMap.set(customerId, []);
+        }
+        customerSalesMap.get(customerId)!.push(sale);
+      }
+    });
+
+    return customers.filter((customer) => {
+      const customerSales = customerSalesMap.get(customer.id);
+      return customerSales && customerSales.length > 0;
+    });
+  }, [sales, customers, saleEntryFields]);
+
   return (
     <Form {...form}>
       <form
@@ -494,7 +521,7 @@ const SalesCommissionForm = ({
             disabled={isAnyMutationLoading || saleEntryFields.length > 0}
             key={`customer-${form.watch("customerId") || ""}`}
           >
-            {customers.map((customer: Customer) => (
+            {filteredCustomers.map((customer: Customer) => (
               <SelectItem
                 key={customer.id}
                 value={customer.id}
