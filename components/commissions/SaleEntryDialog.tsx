@@ -2,14 +2,12 @@
 "use client";
 
 import React, { useEffect } from "react";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus } from "lucide-react";
 
 import {
   SaleCommissionEntryFormValues,
   SaleCommissionEntryValidation,
-  CommissionRecipientItemFormValues,
 } from "@/lib/validation";
 import {
   Dialog,
@@ -22,21 +20,12 @@ import {
 import { Button } from "@/components/ui/button";
 import CustomFormField, { FormFieldType } from "../CustomFormField";
 import { SelectItem } from "../ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { cn, calculateCommissionAmounts } from "@/lib/utils";
+import { calculateCommissionAmounts } from "@/lib/utils";
 import FormatNumber from "../FormatNumber";
 import SubmitButton from "../SubmitButton";
 
-import { SaleWithRelations, SalesAgentWithRelations, Tax } from "@/types";
+import { SaleWithRelations, Tax } from "@/types";
 import { Form } from "../ui/form";
-import DeleteIcon from "@mui/icons-material/Delete";
 
 interface SaleEntryDialogProps {
   isOpen: boolean;
@@ -44,7 +33,7 @@ interface SaleEntryDialogProps {
   onSave: (data: SaleCommissionEntryFormValues) => void;
   initialSaleEntryData?: SaleCommissionEntryFormValues;
   sales: SaleWithRelations[];
-  salesAgents: SalesAgentWithRelations[];
+
   taxes: Tax[];
 }
 
@@ -54,7 +43,6 @@ export const SaleEntryDialog: React.FC<SaleEntryDialogProps> = ({
   onSave,
   initialSaleEntryData,
   sales,
-  salesAgents,
   taxes: allTaxes,
 }) => {
   const form = useForm<SaleCommissionEntryFormValues>({
@@ -69,17 +57,11 @@ export const SaleEntryDialog: React.FC<SaleEntryDialogProps> = ({
       commissionRate: 0,
       withholdingTaxRate: 0,
       withholdingTaxId: "",
-      recipients: [],
+      baseForCommission: 0,
+      grossCommission: 0,
+      withholdingTaxAmount: 0,
+      totalCommissionPayable: 0,
     },
-  });
-
-  const {
-    fields: recipientFields,
-    append: appendRecipient,
-    remove: removeRecipient,
-  } = useFieldArray({
-    control: form.control,
-    name: "recipients",
   });
 
   const watchAmountReceived = form.watch("amountReceived");
@@ -90,7 +72,6 @@ export const SaleEntryDialog: React.FC<SaleEntryDialogProps> = ({
   const watchWithholdingTaxId = form.watch("withholdingTaxId");
   const watchSaleId = form.watch("saleId");
 
-  // Effect to set initial data on dialog open or if initialSaleEntryData changes
   useEffect(() => {
     if (isOpen) {
       if (initialSaleEntryData) {
@@ -105,7 +86,6 @@ export const SaleEntryDialog: React.FC<SaleEntryDialogProps> = ({
           commissionRate: 0,
           withholdingTaxRate: 0,
           withholdingTaxId: "",
-          recipients: [],
           baseForCommission: 0,
           grossCommission: 0,
           withholdingTaxAmount: 0,
@@ -200,22 +180,10 @@ export const SaleEntryDialog: React.FC<SaleEntryDialogProps> = ({
     form,
   ]);
 
-  const handleAddRecipient = () => {
-    appendRecipient({
-      salesAgentId: "",
-      amount: 0,
-    } as CommissionRecipientItemFormValues);
-  };
-
   const onSubmit = (values: SaleCommissionEntryFormValues) => {
     onSave(values);
     onClose();
   };
-
-  const totalDistributed = form
-    .watch("recipients")
-    ?.reduce((sum, r) => sum + (r.amount || 0), 0);
-  const totalCommissionPayable = form.watch("totalCommissionPayable") || 0;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -229,7 +197,7 @@ export const SaleEntryDialog: React.FC<SaleEntryDialogProps> = ({
           <DialogDescription>
             {initialSaleEntryData?.id
               ? "Modify details for this specific sale's commission."
-              : "Fill in the details for a new sale's commission calculation and recipients."}
+              : "Fill in the details for a new sale's commission calculation."}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -355,125 +323,6 @@ export const SaleEntryDialog: React.FC<SaleEntryDialogProps> = ({
                 placeholder="0.00"
                 disabled={true}
               />
-            </div>
-
-            {/* --- COMMISSION RECIPIENTS SECTION for THIS Sale Entry --- */}
-            <div
-              className={cn(
-                "space-y-3 p-3 rounded-md border",
-                form.formState.errors.recipients
-                  ? "border-red-500"
-                  : "border-gray-300"
-              )}
-            >
-              <div className="flex justify-between items-center">
-                <h4 className="text-lg font-semibold text-blue-800">
-                  Commission Recipients (Shares for this Sale)
-                </h4>
-                <Button
-                  type="button"
-                  onClick={handleAddRecipient}
-                  className="shad-primary-btn flex items-center gap-2"
-                  disabled={!form.watch("totalCommissionPayable")}
-                >
-                  <Plus className="h-4 w-4" /> Add Recipient
-                </Button>
-              </div>
-
-              <Table className="shad-table">
-                <TableHeader className="bg-blue-800 text-white">
-                  <TableRow>
-                    <TableHead className="w-[8%] text-center">#</TableHead>
-                    <TableHead className="w-[50%]">Sales Agent</TableHead>
-                    <TableHead className="">Amount</TableHead>
-                    <TableHead className="w-[10%] text-center">
-                      Actions
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody className="w-full bg-white text-blue-800">
-                  {recipientFields.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-center py-3">
-                        {` No recipients added for this sale. Click "Add Recipient".`}
-                      </TableCell>
-                    </TableRow>
-                  )}
-                  {recipientFields.map((field, index) => (
-                    <TableRow
-                      key={field.id}
-                      className={cn("w-full", {
-                        "bg-blue-50": index % 2 === 1,
-                      })}
-                    >
-                      <TableCell className="text-center">{index + 1}</TableCell>
-                      <TableCell>
-                        <CustomFormField
-                          fieldType={FormFieldType.SELECT}
-                          control={form.control}
-                          name={`recipients.${index}.salesAgentId`}
-                          label=""
-                          placeholder="Select sales agent"
-                        >
-                          {salesAgents.map((agent: SalesAgentWithRelations) => (
-                            <SelectItem
-                              key={agent.salesAgent.id}
-                              value={agent.salesAgent.id}
-                              className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
-                            >
-                              {agent.salesAgent.name}
-                            </SelectItem>
-                          ))}
-                        </CustomFormField>
-                      </TableCell>
-                      <TableCell>
-                        <CustomFormField
-                          fieldType={FormFieldType.AMOUNT}
-                          control={form.control}
-                          name={`recipients.${index}.amount`}
-                          label=""
-                          placeholder="0.00"
-                        />
-                      </TableCell>
-
-                      <TableCell>
-                        <div className="flex flex-row items-center justify-center">
-                          <span
-                            onClick={() => removeRecipient(index)}
-                            className="p-1 cursor-pointer text-red-600 hover:bg-light-200 hover:rounded-md"
-                          >
-                            <DeleteIcon className="h-5 w-5" />
-                          </span>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  <TableRow>
-                    <TableCell colSpan={2} className="text-right font-semibold">
-                      Total Distributed:
-                    </TableCell>
-                    <TableCell colSpan={2} className="font-bold">
-                      <FormatNumber value={totalDistributed} /> /{" "}
-                      <FormatNumber value={totalCommissionPayable} />
-                      {totalDistributed > totalCommissionPayable + 0.01 && (
-                        <p className="text-red-500 text-xs">
-                          Total distributed exceeds commission payable!
-                        </p>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-              {form.formState.errors.recipients && (
-                <p className="shad-error text-sm pt-2">
-                  {form.formState.errors.recipients.message}
-                </p>
-              )}
-              {form.formState.errors.recipients?.root?.message && (
-                <p className="shad-error text-sm pt-2">
-                  {form.formState.errors.recipients.root.message}
-                </p>
-              )}
             </div>
 
             <DialogFooter>

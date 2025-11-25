@@ -3,13 +3,12 @@
 
 import { useCommissions } from "@/hooks/useCommissions";
 import {
+  CommissionRecipientItemFormValues,
   SaleCommissionEntryFormValues,
   SalesCommissionFormValidation,
   SalesCommissionFormValues,
-  CommissionRecipientItemFormValues,
 } from "@/lib/validation";
 import {
-  CommissionRecipientWithRelations,
   CommissionWithRelations,
   Customer,
   SalesAgentWithRelations,
@@ -25,7 +24,7 @@ import { Form } from "../ui/form";
 import CustomFormField, { FormFieldType } from "../CustomFormField";
 import { Button } from "../ui/button";
 import SubmitButton from "../SubmitButton";
-import { cn, calculateCommissionAmounts } from "@/lib/utils";
+import { calculateCommissionAmounts, cn, parseServerError } from "@/lib/utils";
 import FormatNumber from "../FormatNumber";
 import {
   Table,
@@ -76,110 +75,12 @@ const SalesCommissionForm = ({
   );
   const [isRefetchingReffNumber, setIsRefetchingReffNumber] = useState(false);
 
-  const mapInitialDataToFormValues = useCallback(
-    (data: CommissionWithRelations): SalesCommissionFormValues => {
-      if (!data?.commission) {
-        return {
-          commissionRefNumber: "",
-          commissionDate: new Date(),
-          customerId: "",
-          saleEntries: [],
-          notes: "",
-        };
-      }
-
-      const commission = data.commission;
-
-      // Map commissionSales to saleEntries
-      const saleEntries: SaleCommissionEntryFormValues[] =
-        data.commissionSales.map((cs) => {
-          // Re-calculate the fields for this specific sale entry
-          const {
-            baseForCommission,
-            grossCommission,
-            withholdingTaxAmount,
-            totalCommissionPayable,
-          } = calculateCommissionAmounts(
-            parseFloat(cs.commissionSale.amountReceived as any) || 0,
-            parseFloat(cs.commissionSale.additions as any) || 0,
-            parseFloat(cs.commissionSale.deductions as any) || 0,
-            parseFloat(cs.commissionSale.commissionRate as any) / 100 || 0,
-            parseFloat(cs.commissionSale.withholdingTaxRate as any) / 100 || 0
-          );
-
-          // Map recipients related to this specific commissionSale
-          const recipients: CommissionRecipientItemFormValues[] =
-            cs.recipients.map((crs) => ({
-              id: crs.recipientSale.id, // ID from commission_recipient_sales
-              salesAgentId: crs.commissionRecipient.salesAgentId,
-              amount: parseFloat(crs.recipientSale.amount as any) || 0,
-            }));
-
-          return {
-            id: cs.commissionSale.id, // ID from commission_sales
-            saleId: cs.commissionSale.saleId,
-            amountReceived:
-              parseFloat(cs.commissionSale.amountReceived as any) || 0,
-            additions: parseFloat(cs.commissionSale.additions as any) || 0,
-            deductions: parseFloat(cs.commissionSale.deductions as any) || 0,
-            commissionRate:
-              parseFloat(cs.commissionSale.commissionRate as any) || 0,
-            withholdingTaxRate:
-              parseFloat(cs.commissionSale.withholdingTaxRate as any) || 0,
-            withholdingTaxId: cs.commissionSale.withholdingTaxId || null,
-
-            baseForCommission,
-            grossCommission,
-            withholdingTaxAmount,
-            totalCommissionPayable,
-            recipients,
-          };
-        });
-
-      // Aggregate overall recipients for the `overallRecipients` field (display only)
-      const overallRecipientsMap = new Map<
-        string,
-        { id?: string; salesAgentId: string; totalAmount: number }
-      >();
-      data.recipients.forEach((rec: CommissionRecipientWithRelations) => {
-        overallRecipientsMap.set(rec.salesAgent.id, {
-          id: rec.recipient.id, // ID from commission_recipients
-          salesAgentId: rec.salesAgent.id,
-          totalAmount: parseFloat(rec.recipient.amount as any) || 0,
-        });
-      });
-      const overallRecipients = Array.from(overallRecipientsMap.values());
-
-      return {
-        commissionRefNumber: commission.commissionRefNumber,
-        commissionDate: new Date(commission.commissionDate),
-        customerId: commission.customerId, // NEW: Customer ID
-        saleEntries: saleEntries,
-        notes: commission.notes || "",
-        totalAmountReceived:
-          parseFloat(commission.totalAmountReceived as any) || 0,
-        totalAdditions: parseFloat(commission.totalAdditions as any) || 0,
-        totalDeductions: parseFloat(commission.totalDeductions as any) || 0,
-        totalBaseForCommission:
-          parseFloat(commission.totalBaseForCommission as any) || 0,
-        totalGrossCommission:
-          parseFloat(commission.totalGrossCommission as any) || 0,
-        totalWithholdingTaxAmount:
-          parseFloat(commission.totalWithholdingTaxAmount as any) || 0,
-        totalCommissionPayable:
-          parseFloat(commission.totalCommissionPayable as any) || 0,
-        overallRecipients: overallRecipients,
-      };
-    },
-    []
-  );
-
-  const defaultFormValues = useMemo<SalesCommissionFormValues>(() => {
-    return {
+  const defaultFormValues: SalesCommissionFormValues = useMemo(
+    () => ({
       commissionRefNumber: generatedCommissionRefNumber || "",
       commissionDate: new Date(),
       customerId: "",
-      saleEntries: [],
+      commissionSales: [],
       notes: "",
       totalAmountReceived: 0,
       totalAdditions: 0,
@@ -188,9 +89,10 @@ const SalesCommissionForm = ({
       totalGrossCommission: 0,
       totalWithholdingTaxAmount: 0,
       totalCommissionPayable: 0,
-      overallRecipients: [],
-    };
-  }, [generatedCommissionRefNumber]);
+      recipients: [],
+    }),
+    [generatedCommissionRefNumber]
+  );
 
   const form = useForm<SalesCommissionFormValues>({
     resolver: zodResolver(SalesCommissionFormValidation),
@@ -205,13 +107,118 @@ const SalesCommissionForm = ({
     update: updateSaleEntry,
   } = useFieldArray({
     control: form.control,
-    name: "saleEntries",
+    name: "commissionSales",
+  });
+
+  const {
+    fields: recipientFields,
+    append: appendRecipient,
+    remove: removeRecipient,
+    update: updateRecipient,
+  } = useFieldArray({
+    control: form.control,
+    name: "recipients",
   });
 
   const isAnyMutationLoading = isCreatingCommission || isUpdatingCommission;
 
-  // Watch sale entries to calculate aggregate totals and overall recipients
-  const watchSaleEntries = form.watch("saleEntries");
+  const watchCommissionSales = form.watch("commissionSales");
+
+  // --- Effect to initialize form in EDIT mode ---
+  useEffect(() => {
+    if (mode === "edit" && initialData) {
+      const commissionSales = initialData.commissionSales;
+
+      form.setValue(
+        "commissionRefNumber",
+        initialData.commission.commissionRefNumber
+      );
+      form.setValue(
+        "commissionDate",
+        new Date(initialData.commission.commissionDate)
+      );
+      form.setValue("customerId", initialData.commission.customerId);
+      form.setValue("notes", initialData.commission.notes || "");
+      form.setValue(
+        "totalAmountReceived",
+        initialData.commission.totalAmountReceived
+      );
+      form.setValue("totalAdditions", initialData.commission.totalAdditions);
+      form.setValue("totalDeductions", initialData.commission.totalDeductions);
+      form.setValue(
+        "totalBaseForCommission",
+        initialData.commission.totalBaseForCommission
+      );
+      form.setValue(
+        "totalGrossCommission",
+        initialData.commission.totalGrossCommission
+      );
+      form.setValue(
+        "totalWithholdingTaxAmount",
+        initialData.commission.totalWithholdingTaxAmount
+      );
+      form.setValue(
+        "totalCommissionPayable",
+        initialData.commission.totalCommissionPayable
+      );
+
+      // Populate commissionSales
+      const initialCommissionSales: SaleCommissionEntryFormValues[] =
+        commissionSales.map((cs) => {
+          const commissionSaleData = cs.commissionSale;
+          const {
+            baseForCommission,
+            grossCommission,
+            withholdingTaxAmount,
+            totalCommissionPayable,
+          } = calculateCommissionAmounts(
+            parseFloat(commissionSaleData?.amountReceived as any) || 0,
+            parseFloat(commissionSaleData?.additions as any) || 0,
+            parseFloat(commissionSaleData?.deductions as any) || 0,
+            parseFloat(commissionSaleData?.commissionRate as any) / 100 || 0,
+            parseFloat(commissionSaleData?.withholdingTaxRate as any) / 100 || 0
+          );
+
+          return {
+            id: commissionSaleData?.id,
+            saleId: commissionSaleData?.saleId,
+            amountReceived: parseFloat(
+              commissionSaleData?.amountReceived as any
+            ),
+            additions: parseFloat(commissionSaleData?.additions as any),
+            deductions: parseFloat(commissionSaleData?.deductions as any),
+            commissionRate: parseFloat(
+              commissionSaleData?.commissionRate as any
+            ),
+            withholdingTaxRate:
+              parseFloat(commissionSaleData?.withholdingTaxRate as any) || 0,
+            withholdingTaxId: commissionSaleData?.withholdingTaxId || "",
+            baseForCommission: baseForCommission,
+            grossCommission: grossCommission,
+            withholdingTaxAmount: withholdingTaxAmount,
+            totalCommissionPayable: totalCommissionPayable,
+          };
+        });
+
+      form.setValue("commissionSales", initialCommissionSales, {
+        shouldValidate: true,
+      });
+
+      // Populate recipients
+      const initialRecipients: CommissionRecipientItemFormValues[] =
+        initialData.recipients.map((r) => ({
+          id: r?.recipient.id,
+          salesAgentId: r?.recipient.salesAgentId,
+          amount: parseFloat(r?.recipient.amount as any),
+        }));
+
+      form.setValue("recipients", initialRecipients, {
+        shouldValidate: true,
+      });
+
+      form.reset(form.getValues());
+    }
+  }, [mode, initialData, form]);
 
   useEffect(() => {
     let grandTotalAmountReceived = 0;
@@ -221,12 +228,8 @@ const SalesCommissionForm = ({
     let grandTotalGrossCommission = 0;
     let grandTotalWithholdingTaxAmount = 0;
     let grandTotalCommissionPayable = 0;
-    const overallRecipientsMap = new Map<
-      string,
-      { salesAgentId: string; totalAmount: number }
-    >();
 
-    watchSaleEntries.forEach((entry) => {
+    watchCommissionSales.forEach((entry) => {
       grandTotalAmountReceived += entry.amountReceived || 0;
       grandTotalAdditions += entry.additions || 0;
       grandTotalDeductions += entry.deductions || 0;
@@ -234,52 +237,30 @@ const SalesCommissionForm = ({
       grandTotalGrossCommission += entry.grossCommission || 0;
       grandTotalWithholdingTaxAmount += entry.withholdingTaxAmount || 0;
       grandTotalCommissionPayable += entry.totalCommissionPayable || 0;
-
-      entry.recipients.forEach((r) => {
-        overallRecipientsMap.set(r.salesAgentId, {
-          salesAgentId: r.salesAgentId,
-          totalAmount:
-            (overallRecipientsMap.get(r.salesAgentId)?.totalAmount || 0) +
-            r.amount,
-        });
-      });
     });
 
     form.setValue("totalAmountReceived", grandTotalAmountReceived, {
-      shouldValidate: true,
+      shouldValidate: false,
     });
     form.setValue("totalAdditions", grandTotalAdditions, {
-      shouldValidate: true,
+      shouldValidate: false,
     });
     form.setValue("totalDeductions", grandTotalDeductions, {
-      shouldValidate: true,
+      shouldValidate: false,
     });
     form.setValue("totalBaseForCommission", grandTotalBaseForCommission, {
-      shouldValidate: true,
+      shouldValidate: false,
     });
     form.setValue("totalGrossCommission", grandTotalGrossCommission, {
-      shouldValidate: true,
+      shouldValidate: false,
     });
     form.setValue("totalWithholdingTaxAmount", grandTotalWithholdingTaxAmount, {
-      shouldValidate: true,
+      shouldValidate: false,
     });
     form.setValue("totalCommissionPayable", grandTotalCommissionPayable, {
       shouldValidate: true,
     });
-    form.setValue(
-      "overallRecipients",
-      Array.from(overallRecipientsMap.values()),
-      { shouldValidate: true }
-    );
-  }, [watchSaleEntries, form]);
-
-  // Initialize form with initialData in edit mode
-  useEffect(() => {
-    if (mode === "edit" && initialData) {
-      const mappedData = mapInitialDataToFormValues(initialData);
-      form.reset(mappedData);
-    }
-  }, [initialData, mode, form, defaultFormValues, mapInitialDataToFormValues]);
+  }, [watchCommissionSales, form, updateRecipient]);
 
   useEffect(() => {
     if (
@@ -334,13 +315,21 @@ const SalesCommissionForm = ({
     toast.success("Sale entry removed.");
   };
 
+  // NEW: Functions for managing overall recipients
+  const handleAddRecipient = () => {
+    appendRecipient({
+      salesAgentId: "",
+      amount: 0,
+    } as CommissionRecipientItemFormValues);
+  };
+
+  const handleDeleteRecipient = (index: number) => {
+    removeRecipient(index);
+    toast.success("Recipient removed from overall allocation.");
+  };
+
   const handleCancel = () => {
-    if (mode === "edit" && initialData) {
-      const mappedData = mapInitialDataToFormValues(initialData);
-      form.reset(mappedData);
-    } else {
-      form.reset(defaultFormValues);
-    }
+    form.reset();
   };
 
   const onSubmit = async (values: SalesCommissionFormValues) => {
@@ -362,8 +351,9 @@ const SalesCommissionForm = ({
               form.reset(defaultFormValues);
             },
             onError: (error) => {
-              toast.error(error.message || "Failed to create commission.", {
+              toast.error(parseServerError(error), {
                 id: loadingToastId,
+                duration: 6000,
               });
             },
           }
@@ -382,9 +372,10 @@ const SalesCommissionForm = ({
               router.push("/accounting-and-finance/commissions");
               router.refresh();
             },
-            onError: (error: any) => {
-              toast.error(error.message || "Failed to update commission.", {
+            onError: (error) => {
+              toast.error(parseServerError(error), {
                 id: loadingToastId,
+                duration: 6000,
               });
             },
           }
@@ -392,8 +383,9 @@ const SalesCommissionForm = ({
       }
     } catch (error) {
       console.error("Submission error:", error);
-      toast.error("An unexpected error occurred during submission.", {
+      toast.error(parseServerError(error), {
         id: loadingToastId,
+        duration: 6000,
       });
     }
   };
@@ -406,18 +398,9 @@ const SalesCommissionForm = ({
     [sales]
   );
 
-  const getSalesAgentName = useCallback(
-    (salesAgentId: string) => {
-      const agent = salesAgents.find((sa) => sa.salesAgent.id === salesAgentId);
-      return agent ? agent.salesAgent.name : "N/A";
-    },
-    [salesAgents]
-  );
-
   const currentSaleEntryBeingEdited =
     editingEntryIndex !== null ? saleEntryFields[editingEntryIndex] : undefined;
 
-  // Filter available sales based on selected customer and existing sales in form
   const watchCustomerId = form.watch("customerId");
 
   const filteredSalesForDialog = useMemo(() => {
@@ -427,11 +410,18 @@ const SalesCommissionForm = ({
       saleEntryFields.map((field) => field.saleId)
     );
 
+    const initialDataSaleIds = new Set(
+      mode === "edit" && initialData
+        ? initialData.commissionSales.map((cs) => cs?.commissionSale.saleId)
+        : []
+    );
+
     return sales.filter(
       (sale) =>
         sale.sale.customerId === watchCustomerId &&
         sale.sale.paymentStatus === "paid" &&
-        sale.sale.isCommissionApplied === false &&
+        (sale.sale.isCommissionApplied === false ||
+          initialDataSaleIds.has(sale.sale.id)) &&
         (!existingSaleIdsInForm.has(sale.sale.id) ||
           sale.sale.id === currentSaleEntryBeingEdited?.saleId)
     );
@@ -440,6 +430,8 @@ const SalesCommissionForm = ({
     watchCustomerId,
     saleEntryFields,
     currentSaleEntryBeingEdited?.saleId,
+    mode,
+    initialData,
   ]);
 
   const filteredCustomers = useMemo(() => {
@@ -463,11 +455,26 @@ const SalesCommissionForm = ({
       }
     });
 
+    if (mode === "edit" && initialData?.commission?.customerId) {
+      const initialCustomerId = initialData.commission.customerId;
+      if (!customerSalesMap.has(initialCustomerId)) {
+        customerSalesMap.set(initialCustomerId, []);
+      }
+    }
+
     return customers.filter((customer) => {
       const customerSales = customerSalesMap.get(customer.id);
-      return customerSales && customerSales.length > 0;
+      return customerSales !== undefined;
     });
-  }, [sales, customers, saleEntryFields]);
+  }, [sales, customers, saleEntryFields, mode, initialData]);
+
+  // Calculate total allocated to overall recipients for display/validation
+
+  const totalAllocatedToRecipients = form
+    .watch("recipients")
+    ?.reduce((sum, r) => sum + (r.amount || 0), 0);
+
+  const totalCommissionPayable = form.watch("totalCommissionPayable") || 0;
 
   return (
     <Form {...form}>
@@ -518,7 +525,11 @@ const SalesCommissionForm = ({
             name="customerId"
             label="Customer"
             placeholder="Select a customer"
-            disabled={isAnyMutationLoading || saleEntryFields.length > 0}
+            disabled={
+              isAnyMutationLoading ||
+              saleEntryFields.length > 0 ||
+              mode === "edit"
+            }
             key={`customer-${form.watch("customerId") || ""}`}
           >
             {filteredCustomers.map((customer: Customer) => (
@@ -537,7 +548,7 @@ const SalesCommissionForm = ({
         <div
           className={cn(
             "space-y-5 p-4 rounded-md border bg-white",
-            form.formState.errors.saleEntries
+            form.formState.errors.commissionSales
               ? "border-red-500"
               : "border-gray-300"
           )}
@@ -560,19 +571,23 @@ const SalesCommissionForm = ({
             <TableHeader className="bg-blue-800 text-white">
               <TableRow>
                 <TableHead className="w-[5%] text-center">#</TableHead>
-                <TableHead className="w-[15%]">Invoice</TableHead>
-                <TableHead className="w-[15%]">Amount Recv.</TableHead>
-                <TableHead className="w-[10%]">Comm. Rate</TableHead>
-                <TableHead className="w-[15%]">Gross Comm.</TableHead>
-                <TableHead className="w-[15%]">Net Payable</TableHead>
-                <TableHead className="w-[15%]">Recipients</TableHead>
-                <TableHead className="w-[10%]">Actions</TableHead>
+                <TableHead className="w-[10%]">Invoice No.</TableHead>
+                <TableHead className="w-[10%]">Amount Recv.</TableHead>
+                <TableHead className="w-[8%]">Comm. Rate</TableHead>
+                <TableHead className="w-[7%]">WHT Rate</TableHead>
+                <TableHead className="w-[8%]">WHT Amount</TableHead>
+                <TableHead className="w-[8%]">Gross Comm.</TableHead>
+                <TableHead className="w-[8%]">Additions</TableHead>
+                <TableHead className="w-[8%]">Deductions</TableHead>
+                <TableHead className="w-[8%]">Net Payable</TableHead>
+                {/* Removed Recipients column here as it's now overall */}
+                <TableHead className="w-[5%]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody className="w-full bg-white text-blue-800">
               {saleEntryFields.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-4">
+                  <TableCell colSpan={11} className="text-center py-4">
                     {` No sale entries added. Select a customer and click "Add Sale Entry" to start.`}
                   </TableCell>
                 </TableRow>
@@ -585,10 +600,10 @@ const SalesCommissionForm = ({
                   <TableCell className="text-center">{index + 1}</TableCell>
                   <TableCell>
                     {getSaleInvoiceNumber(field.saleId)}
-                    {form.formState.errors.saleEntries?.[index]?.saleId && (
+                    {form.formState.errors.commissionSales?.[index]?.saleId && (
                       <p className="shad-error text-xs">
                         {
-                          form.formState.errors.saleEntries[index]?.saleId
+                          form.formState.errors.commissionSales[index]?.saleId
                             ?.message
                         }
                       </p>
@@ -598,40 +613,30 @@ const SalesCommissionForm = ({
                     <FormatNumber value={field.amountReceived} />
                   </TableCell>
                   <TableCell>{field.commissionRate}%</TableCell>
+                  <TableCell>{field.withholdingTaxRate}%</TableCell>
+                  <TableCell>
+                    <FormatNumber value={field.withholdingTaxAmount || 0} />
+                  </TableCell>
                   <TableCell>
                     <FormatNumber value={field.grossCommission || 0} />
                   </TableCell>
                   <TableCell>
+                    <FormatNumber value={field.additions || 0} />
+                  </TableCell>
+                  <TableCell>
+                    <FormatNumber value={field.deductions || 0} />
+                  </TableCell>
+                  <TableCell>
                     <FormatNumber value={field.totalCommissionPayable || 0} />
-                    {form.formState.errors.saleEntries?.[index]
+                    {form.formState.errors.commissionSales?.[index]
                       ?.totalCommissionPayable && (
                       <p className="shad-error text-xs">
                         {
-                          form.formState.errors.saleEntries[index]
+                          form.formState.errors.commissionSales[index]
                             ?.totalCommissionPayable?.message
                         }
                       </p>
                     )}
-                  </TableCell>
-                  <TableCell>
-                    {field.recipients.map((r, rIndex) => (
-                      <div key={rIndex} className="text-sm">
-                        <span className="pr-1">
-                          {getSalesAgentName(r.salesAgentId)}:
-                        </span>
-                        <FormatNumber value={r.amount} />
-
-                        {form.formState.errors.saleEntries?.[index]
-                          ?.recipients?.[rIndex] && (
-                          <p className="shad-error text-xs">
-                            {
-                              form.formState.errors.saleEntries[index]
-                                ?.recipients?.[rIndex]?.salesAgentId?.message
-                            }
-                          </p>
-                        )}
-                      </div>
-                    ))}
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-row items-center gap-1">
@@ -669,99 +674,151 @@ const SalesCommissionForm = ({
               {/* Totals Row */}
               {saleEntryFields.length > 0 && (
                 <TableRow className="font-bold bg-blue-100">
-                  <TableCell colSpan={4} className="text-right">
+                  <TableCell colSpan={9} className="text-right">
                     Total Commission Payable:
                   </TableCell>
                   <TableCell className="text-left">
-                    <FormatNumber
-                      value={form.watch("totalGrossCommission") || 0}
-                    />
+                    <FormatNumber value={totalCommissionPayable} />
                   </TableCell>
-                  <TableCell className="text-left">
-                    <FormatNumber
-                      value={form.watch("totalCommissionPayable") || 0}
-                    />
-                  </TableCell>
-                  <TableCell colSpan={2}></TableCell>
+                  <TableCell colSpan={1}></TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
 
-          {/* Display validation error for saleEntries if any */}
-          {form.formState.errors.saleEntries && (
+          {/* Display validation error for commissionSales if any */}
+          {form.formState.errors.commissionSales && (
             <p className="shad-error text-sm pt-2">
-              {form.formState.errors.saleEntries.message ||
-                form.formState.errors.saleEntries.root?.message}
+              {form.formState.errors.commissionSales.message ||
+                form.formState.errors.commissionSales.root?.message}
             </p>
           )}
         </div>
 
-        {/* --- OVERALL COMMISSION RECIPIENTS SECTION (represents commission_recipients) --- */}
+        {/* --- OVERALL COMMISSION RECIPIENTS SECTION (NOW PRIMARY) --- */}
         <div
           className={cn(
             "space-y-3 p-3 rounded-md border bg-white",
-            form.formState.errors.overallRecipients
+            form.formState.errors.recipients
               ? "border-red-500"
               : "border-gray-300"
           )}
         >
-          <h4 className="text-xl font-semibold text-blue-800">
-            Overall Commission Recipients
-          </h4>
+          <div className="flex justify-between items-center">
+            <h4 className="text-xl font-semibold text-blue-800">
+              Overall Commission Recipients
+            </h4>
+            <Button
+              type="button"
+              onClick={handleAddRecipient}
+              className="shad-primary-btn flex items-center gap-2"
+              disabled={isAnyMutationLoading || totalCommissionPayable === 0}
+            >
+              <Plus className="h-4 w-4" /> Add Recipient
+            </Button>
+          </div>
+
           <p className="text-sm text-gray-600">
-            This section shows the consolidated commission amounts for each
-            sales agent across all added sale entries.
+            Allocate the total commission payable (
+            <FormatNumber value={totalCommissionPayable} />) among sales agents.
           </p>
 
           <Table className="shad-table">
             <TableHeader className="bg-blue-800 text-white">
               <TableRow>
-                <TableHead className="w-[10%] text-center">#</TableHead>
-                <TableHead className="w-[60%]">Sales Agent</TableHead>
-                <TableHead className="w-[30%]">Total Amount</TableHead>
+                <TableHead className="w-[8%] text-center">#</TableHead>
+                <TableHead className="w-[50%]">Sales Agent</TableHead>
+                <TableHead className="">Amount</TableHead>
+                <TableHead className="w-[10%] text-center">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody className="w-full bg-white text-blue-800">
-              {(form.watch("overallRecipients") || []).length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={3} className="text-center py-3">
-                    {` No overall recipients yet. Add sale entries with recipient allocations.`}
+              {recipientFields.length === 0 && (
+                <TableRow key={"no-recipients"}>
+                  <TableCell colSpan={4} className="text-center py-3">
+                    {` No overall recipients yet. Add sales entries and then click "Add Recipient" to allocate.`}
                   </TableCell>
                 </TableRow>
               )}
-              {(form.watch("overallRecipients") || []).map(
-                (recipient, index) => (
-                  <TableRow
-                    key={recipient.salesAgentId} // Use salesAgentId as key as it's a rolled-up view
-                    className={cn("w-full", { "bg-blue-50": index % 2 === 1 })}
-                  >
-                    <TableCell className="text-center">{index + 1}</TableCell>
-                    <TableCell>
-                      {getSalesAgentName(recipient.salesAgentId)}
-                    </TableCell>
-                    <TableCell>
-                      <FormatNumber value={recipient.totalAmount} />
-                    </TableCell>
-                  </TableRow>
-                )
-              )}
-              <TableRow className="font-bold bg-blue-100">
-                <TableCell colSpan={2} className="text-right">
-                  Grand Total Distributed:
+              {recipientFields.map((field, index) => (
+                <TableRow
+                  key={field.id}
+                  className={cn("w-full", { "bg-blue-50": index % 2 === 1 })}
+                >
+                  <TableCell className="text-center">{index + 1}</TableCell>
+                  <TableCell>
+                    <CustomFormField
+                      fieldType={FormFieldType.SELECT}
+                      control={form.control}
+                      name={`recipients.${index}.salesAgentId`}
+                      label=""
+                      placeholder="Select sales agent"
+                      disabled={isAnyMutationLoading}
+                      key={`recipient-${index}-${field.salesAgentId || ""}`}
+                    >
+                      {salesAgents.map((agent: SalesAgentWithRelations) => (
+                        <SelectItem
+                          key={agent.salesAgent.id}
+                          value={agent.salesAgent.id}
+                          className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+                        >
+                          {agent.salesAgent.name}
+                        </SelectItem>
+                      ))}
+                    </CustomFormField>
+                  </TableCell>
+                  <TableCell>
+                    <CustomFormField
+                      fieldType={FormFieldType.AMOUNT}
+                      control={form.control}
+                      name={`recipients.${index}.amount`}
+                      label=""
+                      placeholder="0.00"
+                      disabled={isAnyMutationLoading}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-row items-center justify-center">
+                      <span
+                        onClick={() => {
+                          if (!isAnyMutationLoading)
+                            handleDeleteRecipient(index);
+                        }}
+                        className={cn(
+                          "p-1 cursor-pointer",
+                          isAnyMutationLoading
+                            ? "text-gray-400 cursor-not-allowed"
+                            : "text-red-600 hover:bg-light-200 hover:rounded-md"
+                        )}
+                      >
+                        <DeleteIcon className="h-5 w-5" />
+                      </span>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+
+              <TableRow className="font-bold bg-blue-100 mt-2">
+                <TableCell colSpan={2} className="text-right font-semibold">
+                  Total Distributed:
                 </TableCell>
-                <TableCell className="text-left">
-                  <FormatNumber
-                    value={form.watch("totalCommissionPayable") || 0}
-                  />
+                <TableCell colSpan={2} className="font-bold">
+                  <FormatNumber value={totalAllocatedToRecipients} /> /{" "}
+                  <FormatNumber value={totalCommissionPayable} />
+                  {totalAllocatedToRecipients >
+                    totalCommissionPayable + 0.01 && (
+                    <p className="text-red-500 text-xs">
+                      Total distributed exceeds commission payable!
+                    </p>
+                  )}
                 </TableCell>
               </TableRow>
             </TableBody>
           </Table>
-          {form.formState.errors.overallRecipients && (
+          {form.formState.errors.recipients && (
             <p className="shad-error text-sm pt-2">
-              {form.formState.errors.overallRecipients.message ||
-                form.formState.errors.overallRecipients.root?.message}
+              {form.formState.errors.recipients.message ||
+                form.formState.errors.recipients.root?.message}
             </p>
           )}
         </div>
@@ -801,7 +858,6 @@ const SalesCommissionForm = ({
         onSave={handleSaveSaleEntry}
         initialSaleEntryData={currentSaleEntryBeingEdited}
         sales={filteredSalesForDialog}
-        salesAgents={salesAgents}
         taxes={allTaxes}
       />
     </Form>

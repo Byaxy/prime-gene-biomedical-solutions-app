@@ -1,0 +1,1 @@
+ALTER TABLE "commission_sales" ALTER COLUMN "withholding_tax_rate" DROP NOT NULL;

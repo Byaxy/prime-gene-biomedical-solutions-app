@@ -131,5 +131,8 @@ export const commissionColumns: ColumnDef<CommissionWithRelations>[] = [
       const commission = row.original;
       return <CommissionActions commission={commission} />;
     },
+    meta: {
+      skipRowClick: true,
+    },
   },
 ];

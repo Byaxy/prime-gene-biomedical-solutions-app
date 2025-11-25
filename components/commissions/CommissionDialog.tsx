@@ -1,8 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// components/commissions/CommissionDialog.tsx
 "use client";
 
-import React, { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -15,12 +13,12 @@ import {
   CommissionWithRelations,
   CommissionPaymentStatus,
   CommissionStatus,
-  Account,
   AccountWithRelations,
+  ExpenseCategoryWithRelations,
 } from "@/types";
 import { useCommissions } from "@/hooks/useCommissions";
 import toast from "react-hot-toast";
-import { cn, formatDateTime } from "@/lib/utils";
+import { cn, formatDateTime, parseServerError } from "@/lib/utils";
 import FormatNumber from "@/components/FormatNumber";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -42,6 +40,8 @@ import { SelectItem } from "../ui/select";
 import { useAccounts } from "@/hooks/useAccounts";
 import SubmitButton from "../SubmitButton";
 import { Form } from "../ui/form";
+import { useEffect, useState, useRef } from "react";
+import { useExpenseCategories } from "@/hooks/useExpenseCategories";
 
 interface CommissionDialogProps {
   mode: "view" | "payout" | "status" | "delete";
@@ -56,6 +56,10 @@ const CommissionDialog: React.FC<CommissionDialogProps> = ({
   onOpenChange,
   commission,
 }) => {
+  const [
+    displayedCurrentReceivingAccountBalance,
+    setDisplayedCurrentReceivingAccountBalance,
+  ] = useState<number | null>(null);
   const { user } = useAuth();
   const {
     softDeleteCommission,
@@ -64,6 +68,12 @@ const CommissionDialog: React.FC<CommissionDialogProps> = ({
     isPayingOutCommissionRecipient,
   } = useCommissions();
   const { accounts: allAccounts } = useAccounts({ getAllAccounts: true });
+  const { expenseCategories } = useExpenseCategories({
+    getAllCategories: true,
+  });
+
+  // Use ref to track if we've already initialized the form for this recipient
+  const initializedRecipientRef = useRef<string | null>(null);
 
   const handleDelete = async () => {
     try {
@@ -72,12 +82,12 @@ const CommissionDialog: React.FC<CommissionDialogProps> = ({
           { id: commission.commission.id },
           {
             onSuccess: () => {
-              toast.success("Commission deactivated successfully.");
+              toast.success("Commission deleted successfully.");
               onOpenChange();
             },
             onError: (error) => {
               console.error("Error deactivating commission:", error);
-              toast.error(error.message || "Failed to deactivate commission.");
+              toast.error(error.message || "Failed to delete commission.");
             },
           }
         );
@@ -96,6 +106,7 @@ const CommissionDialog: React.FC<CommissionDialogProps> = ({
     defaultValues: {
       recipientId: "",
       payingAccountId: "",
+      expenseCategoryId: "",
       paidDate: new Date(),
       notes: "",
       amountToPay: 0,
@@ -103,9 +114,8 @@ const CommissionDialog: React.FC<CommissionDialogProps> = ({
     },
   });
 
-  const [selectedRecipientId, setSelectedRecipientId] = useState<string | null>(
-    null
-  );
+  const selectedRecipientId = payoutForm.watch("recipientId");
+  const selectedPayingAccountId = payoutForm.watch("payingAccountId");
 
   const handlePayoutForRecipient = async (
     values: CommissionRecipientPayoutFormValues
@@ -117,7 +127,7 @@ const CommissionDialog: React.FC<CommissionDialogProps> = ({
       }
 
       await payoutCommissionRecipient(
-        { recipientId: selectedRecipientId, values, userId: user.id },
+        { recipientId: values.recipientId, values, userId: user.id },
         {
           onSuccess: () => {
             toast.success("Recipient paid successfully!", {
@@ -126,24 +136,33 @@ const CommissionDialog: React.FC<CommissionDialogProps> = ({
             onOpenChange();
           },
           onError: (error) => {
-            toast.error(error.message || "Failed to process payout.", {
-              id: loadingToastId,
-            });
+            toast.error(
+              parseServerError(error) || "Failed to process payout.",
+              {
+                id: loadingToastId,
+                duration: 6000,
+              }
+            );
           },
         }
       );
     } catch (error: any) {
       console.error("Payout error:", error);
-      toast.error(
-        error.message || "An unexpected error occurred during payout.",
-        { id: loadingToastId }
-      );
+      toast.error(parseServerError(error), {
+        id: loadingToastId,
+        duration: 6000,
+      });
     }
   };
 
   // Effect to set form defaults when a recipient is selected for payout
-  React.useEffect(() => {
-    if (selectedRecipientId && mode === "payout") {
+  // FIXED: Removed payoutForm from dependencies to prevent infinite loop
+  useEffect(() => {
+    if (
+      selectedRecipientId &&
+      mode === "payout" &&
+      initializedRecipientRef.current !== selectedRecipientId
+    ) {
       const recipient = commission.recipients.find(
         (r) => r.recipient.id === selectedRecipientId
       );
@@ -154,12 +173,16 @@ const CommissionDialog: React.FC<CommissionDialogProps> = ({
         );
         payoutForm.reset({
           recipientId: recipient.recipient.id,
+          payingAccountId: recipient.recipient.payingAccountId || "",
           paidDate: new Date(),
           notes: "",
           amountToPay: parseFloat(recipient.recipient.amount as any) || 0,
           currentPayingAccountBalance:
-            parseFloat(payingAccount?.currentBalance as any) || 0,
+            parseFloat(payingAccount?.account?.currentBalance as any) || 0,
         });
+
+        // Mark this recipient as initialized
+        initializedRecipientRef.current = selectedRecipientId;
       }
     }
   }, [
@@ -170,31 +193,36 @@ const CommissionDialog: React.FC<CommissionDialogProps> = ({
     payoutForm,
   ]);
 
-  // Watch selected paying account for balance display
-  const selectedPayingAccountId = payoutForm.watch("payingAccountId");
-  const currentPayingAccountBalance = payoutForm.watch(
-    "currentPayingAccountBalance"
-  );
+  // Reset the initialized ref when dialog closes or mode changes
+  useEffect(() => {
+    if (!open || mode !== "payout") {
+      initializedRecipientRef.current = null;
+    }
+  }, [open, mode]);
 
   // Update currentPayingAccountBalance when payingAccountId changes
-  React.useEffect(() => {
+  useEffect(() => {
     if (mode === "payout" && selectedPayingAccountId) {
       const account = allAccounts.find(
         (acc: AccountWithRelations) =>
           acc.account.id === selectedPayingAccountId
       );
       if (account) {
-        payoutForm.setValue(
-          "currentPayingAccountBalance",
-          parseFloat(account.currentBalance as any) || 0,
-          {
-            shouldValidate: true,
-            shouldDirty: true,
-          }
-        );
+        const newBalance =
+          parseFloat(account.account.currentBalance as any) || 0;
+        payoutForm.setValue("currentPayingAccountBalance", newBalance, {
+          shouldValidate: true,
+          shouldDirty: true,
+        });
+        setDisplayedCurrentReceivingAccountBalance(newBalance);
+      } else {
+        payoutForm.setValue("currentPayingAccountBalance", undefined, {
+          shouldValidate: true,
+        });
+        setDisplayedCurrentReceivingAccountBalance(null);
       }
     }
-  }, [selectedPayingAccountId, allAccounts, payoutForm, mode]);
+  }, [payoutForm, allAccounts, mode, selectedPayingAccountId]);
 
   if (!commission?.commission) {
     return null;
@@ -207,18 +235,35 @@ const CommissionDialog: React.FC<CommissionDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-5xl bg-light-200 overflow-y-auto max-h-[90vh]">
+      <DialogContent
+        className={cn(
+          "sm:max-w-6xl bg-light-200 overflow-y-auto max-h-[90vh]",
+          (mode === "view" || mode === "payout") && "sm:max-w-[90rem]"
+        )}
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onInteractOutside={(e) => {
+          if (e.target instanceof Element) {
+            if (
+              e.target.closest('[role="listbox"]') ||
+              e.target.closest("[data-radix-select-viewport]")
+            ) {
+              e.preventDefault();
+            }
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle className="text-xl text-blue-800">
             {mode === "delete"
-              ? "Deactivate Commission"
+              ? "Delete Commission"
               : mode === "payout"
               ? `Process Commission Payout for: ${commission.commission.commissionRefNumber}`
               : `Commission Details: ${commission.commission.commissionRefNumber}`}
           </DialogTitle>
           <DialogDescription className="text-dark-500">
             {mode === "delete"
-              ? "Are you sure you want to deactivate this commission? This action will prevent further use and any pending payouts will be cancelled."
+              ? "Are you sure you want to delete this commission? This action will prevent further use and any pending payouts will be cancelled."
               : mode === "payout"
               ? `Select a recipient to process their payment for commission ${commission.commission.commissionRefNumber}.`
               : `Details for Commission (${commission.commission.commissionRefNumber})`}
@@ -227,12 +272,12 @@ const CommissionDialog: React.FC<CommissionDialogProps> = ({
 
         {mode === "view" && (
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-dark-600">
-              <div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-blue-800">
+              <div className="space-y-2">
                 <p className="font-semibold">Ref. Number:</p>
                 <p>{commission.commission.commissionRefNumber}</p>
               </div>
-              <div>
+              <div className="space-y-2">
                 <p className="font-semibold">Date:</p>
                 <p>
                   {
@@ -241,12 +286,7 @@ const CommissionDialog: React.FC<CommissionDialogProps> = ({
                   }
                 </p>
               </div>
-              <div>
-                <p className="font-semibold">Related Sale:</p>
-                <p>{commission.commissionSales[0].sale.invoiceNumber}</p>
-              </div>
-
-              <div>
+              <div className="space-y-2">
                 <p className="font-semibold">Amount Received (Net Sales):</p>
                 <p>
                   <FormatNumber
@@ -254,20 +294,20 @@ const CommissionDialog: React.FC<CommissionDialogProps> = ({
                   />
                 </p>
               </div>
-              <div>
+              <div className="space-y-2">
                 <p className="font-semibold">Additions:</p>
                 <p>
                   <FormatNumber value={commission.commission.totalAdditions} />
                 </p>
               </div>
-              <div>
+              <div className="space-y-2">
                 <p className="font-semibold">Deductions:</p>
                 <p>
                   <FormatNumber value={commission.commission.totalDeductions} />
                 </p>
               </div>
 
-              <div>
+              <div className="space-y-2">
                 <p className="font-semibold">WHT Amount:</p>
                 <p>
                   <FormatNumber
@@ -275,7 +315,7 @@ const CommissionDialog: React.FC<CommissionDialogProps> = ({
                   />
                 </p>
               </div>
-              <div>
+              <div className="space-y-2">
                 <p className="font-semibold">Total Commission Payable:</p>
                 <p>
                   <FormatNumber
@@ -283,11 +323,11 @@ const CommissionDialog: React.FC<CommissionDialogProps> = ({
                   />
                 </p>
               </div>
-              <div className="col-span-3">
+              <div className="col-span-3 space-y-2">
                 <p className="font-semibold">Internal Notes:</p>
-                <p>{commission.commission.notes || "-"}</p>
+                <p>{commission.commission.notes || "N/A"}</p>
               </div>
-              <div>
+              <div className="space-y-2">
                 <p className="font-semibold">Status:</p>
                 <p>
                   <span
@@ -314,7 +354,7 @@ const CommissionDialog: React.FC<CommissionDialogProps> = ({
                   </span>
                 </p>
               </div>
-              <div>
+              <div className="space-y-2">
                 <p className="font-semibold">Payment Status:</p>
                 <p>
                   <span
@@ -341,7 +381,7 @@ const CommissionDialog: React.FC<CommissionDialogProps> = ({
                   </span>
                 </p>
               </div>
-              <div>
+              <div className="space-y-2">
                 <p className="font-semibold">Created At:</p>
                 <p>
                   {formatDateTime(commission.commission.createdAt).dateTime}
@@ -349,63 +389,156 @@ const CommissionDialog: React.FC<CommissionDialogProps> = ({
               </div>
             </div>
 
-            <h3 className="text-lg font-semibold text-blue-800 mt-6 mb-3">
-              Recipients
-            </h3>
-            <Table className="shad-table">
-              <TableHeader className="bg-gray-200 text-dark-500">
-                <TableRow>
-                  <TableHead className="w-[5%] text-center">#</TableHead>
-                  <TableHead className="w-[30%]">Sales Agent</TableHead>
-                  <TableHead className="w-[20%]">Amount</TableHead>
-                  <TableHead className="w-[20%]">Source of Funds</TableHead>
-                  <TableHead className="w-[25%]">Payment Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {commission.recipients.length === 0 && (
+            <div className="flex flex-col gap-4 pt-6">
+              <h3 className="text-lg font-semibold text-blue-800">
+                Related Sales
+              </h3>
+              <Table className="shad-table">
+                <TableHeader className="bg-blue-800 text-white">
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-4">
-                      No recipients assigned.
-                    </TableCell>
+                    <TableHead className="w-[5%] text-center">#</TableHead>
+                    <TableHead className="w-[10%]">Invoice No.</TableHead>
+                    <TableHead className="w-[10%]">Amount Recv.</TableHead>
+                    <TableHead className="w-[8%]">Comm. Rate</TableHead>
+                    <TableHead className="w-[7%]">WHT Rate</TableHead>
+                    <TableHead className="w-[8%]">WHT Amount</TableHead>
+                    <TableHead className="w-[8%]">Gross Comm.</TableHead>
+                    <TableHead className="w-[8%]">Additions</TableHead>
+                    <TableHead className="w-[8%]">Deductions</TableHead>
+                    <TableHead className="w-[8%]">Net Payable</TableHead>
                   </TableRow>
-                )}
-                {commission.recipients.map((rec, index) => (
-                  <TableRow key={rec.recipient.id}>
-                    <TableCell className="text-center">{index + 1}</TableCell>
-                    <TableCell>{rec.salesAgent.name}</TableCell>
-                    <TableCell>
-                      <FormatNumber value={rec.recipient.amount} />
-                    </TableCell>
-                    <TableCell>{rec.payingAccount?.name || "N/A"}</TableCell>
-                    <TableCell>
-                      <span
-                        className={cn(
-                          "rounded-xl px-3 py-1 text-white capitalize",
-                          {
-                            "bg-yellow-500":
-                              rec.recipient.paymentStatus ===
-                              CommissionPaymentStatus.Pending,
-                            "bg-green-500":
-                              rec.recipient.paymentStatus ===
-                              CommissionPaymentStatus.Paid,
-                            "bg-red-600":
-                              rec.recipient.paymentStatus ===
-                              CommissionPaymentStatus.Cancelled,
-                          }
-                        )}
-                      >
-                        {rec.recipient.paymentStatus}{" "}
-                        {rec.recipient.paidDate &&
-                          `(${
-                            formatDateTime(rec.recipient.paidDate).dateOnly
-                          })`}
-                      </span>
-                    </TableCell>
+                </TableHeader>
+                <TableBody className="w-full bg-white text-blue-800">
+                  {commission.commissionSales.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={10} className="text-center py-4">
+                        {` No Sales Found.`}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {commission.commissionSales.map((entry, index) => (
+                    <TableRow
+                      key={entry.commissionSale.id}
+                      className={cn("w-full", {
+                        "bg-blue-50": index % 2 === 1,
+                      })}
+                    >
+                      <TableCell className="text-center">{index + 1}</TableCell>
+                      <TableCell>{entry.sale.invoiceNumber}</TableCell>
+                      <TableCell>
+                        <FormatNumber
+                          value={entry.commissionSale.amountReceived}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {entry.commissionSale.commissionRate}%
+                      </TableCell>
+                      <TableCell>
+                        {entry.commissionSale.withholdingTaxRate}%
+                      </TableCell>
+                      <TableCell>
+                        <FormatNumber
+                          value={entry.commissionSale.withholdingTaxAmount || 0}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <FormatNumber
+                          value={entry.commissionSale.grossCommission || 0}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <FormatNumber
+                          value={entry.commissionSale.additions || 0}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <FormatNumber
+                          value={entry.commissionSale.deductions || 0}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <FormatNumber
+                          value={entry.commissionSale.commissionPayable || 0}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {/* Totals Row */}
+                  {commission.commissionSales.length > 0 && (
+                    <TableRow className="font-bold bg-blue-100">
+                      <TableCell colSpan={9} className="text-right">
+                        Total Commission Payable:
+                      </TableCell>
+                      <TableCell className="text-left">
+                        <FormatNumber
+                          value={commission.commission.totalCommissionPayable}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            <div className="flex flex-col gap-4 pt-5">
+              <h3 className="text-lg font-semibold text-blue-800">
+                Recipients
+              </h3>
+              <Table className="shad-table">
+                <TableHeader className="bg-blue-800 text-white">
+                  <TableRow>
+                    <TableHead className="w-[5%] text-center">#</TableHead>
+                    <TableHead className="w-[30%]">Sales Agent</TableHead>
+                    <TableHead className="w-[20%]">Amount</TableHead>
+                    <TableHead className="w-[20%]">Source of Funds</TableHead>
+                    <TableHead className="w-[25%]">Payment Status</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody className="w-full bg-white text-blue-800">
+                  {commission.recipients.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-4">
+                        No recipients assigned.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {commission.recipients.map((rec, index) => (
+                    <TableRow key={rec.recipient.id}>
+                      <TableCell className="text-center">{index + 1}</TableCell>
+                      <TableCell>{rec.salesAgent.name}</TableCell>
+                      <TableCell>
+                        <FormatNumber value={rec.recipient.amount} />
+                      </TableCell>
+                      <TableCell>{rec.payingAccount?.name || "N/A"}</TableCell>
+                      <TableCell>
+                        <span
+                          className={cn(
+                            "rounded-xl px-3 py-1 text-white capitalize",
+                            {
+                              "bg-yellow-500":
+                                rec.recipient.paymentStatus ===
+                                CommissionPaymentStatus.Pending,
+                              "bg-green-500":
+                                rec.recipient.paymentStatus ===
+                                CommissionPaymentStatus.Paid,
+                              "bg-red-600":
+                                rec.recipient.paymentStatus ===
+                                CommissionPaymentStatus.Cancelled,
+                            }
+                          )}
+                        >
+                          {rec.recipient.paymentStatus}{" "}
+                          {rec.recipient.paidDate &&
+                            `(${
+                              formatDateTime(rec.recipient.paidDate).dateOnly
+                            })`}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         )}
 
@@ -422,13 +555,8 @@ const CommissionDialog: React.FC<CommissionDialogProps> = ({
                 label="Select Recipient for Payout"
                 placeholder="Choose an agent to pay"
                 disabled={isPayingOutCommissionRecipient}
-                onValueChange={(e) =>
-                  setSelectedRecipientId(e.currentTarget.value)
-                }
+                key={`recipient-${selectedRecipientId || ""}`}
               >
-                <SelectItem value="" disabled className="text-gray-500">
-                  Select a recipient...
-                </SelectItem>
                 {pendingRecipients.map((rec) => (
                   <SelectItem
                     key={rec.recipient.id}
@@ -440,37 +568,38 @@ const CommissionDialog: React.FC<CommissionDialogProps> = ({
                     }
                   >
                     {rec.salesAgent.name} -{" "}
-                    <FormatNumber value={rec.recipient.amount} /> (Source:{" "}
-                    {rec.payingAccount?.name || "N/A"})
+                    <FormatNumber value={rec.recipient.amount} />
                   </SelectItem>
                 ))}
               </CustomFormField>
 
-              {selectedRecipientId && (
-                <>
+              <CustomFormField
+                fieldType={FormFieldType.AMOUNT}
+                control={payoutForm.control}
+                name="amountToPay"
+                label="Amount to Pay"
+                placeholder="0.00"
+                disabled={true}
+              />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="flex flex-col gap-1">
                   <CustomFormField
-                    fieldType={FormFieldType.AMOUNT}
-                    control={payoutForm.control}
-                    name="amountToPay"
-                    label="Amount to Pay"
-                    placeholder="0.00"
-                    disabled={true}
-                  />
-                  <CustomFormField
+                    key={`payingAccount-${selectedPayingAccountId || ""}`}
                     fieldType={FormFieldType.SELECT}
                     control={payoutForm.control}
                     name="payingAccountId"
                     label="Source of Funds"
                     placeholder="Select paying account"
-                    disabled={true}
+                    disabled={isPayingOutCommissionRecipient}
                   >
-                    {allAccounts.map((account: Account) => (
+                    {allAccounts.map((account: AccountWithRelations) => (
                       <SelectItem
-                        key={account.id}
-                        value={account.id}
+                        key={account.account.id}
+                        value={account.account.id}
                         className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
                       >
-                        {account.name} ({account.accountNumber || "N/A"})
+                        {account.account.name} (
+                        {account.account.accountNumber || "N/A"})
                       </SelectItem>
                     ))}
                   </CustomFormField>
@@ -478,16 +607,21 @@ const CommissionDialog: React.FC<CommissionDialogProps> = ({
                     <p
                       className={cn(
                         "text-sm pl-2",
-                        currentPayingAccountBalance &&
-                          currentPayingAccountBalance > 0
+                        displayedCurrentReceivingAccountBalance &&
+                          displayedCurrentReceivingAccountBalance > 0
                           ? "text-green-500"
-                          : "text-red-600"
+                          : "text-red-600",
+                        payoutForm.formState.errors.currentPayingAccountBalance
+                          ?.message ||
+                          payoutForm.formState.errors.payingAccountId?.message
+                          ? "text-red-600"
+                          : ""
                       )}
                     >
                       Current Balance:{" "}
                       <span className="font-semibold">
                         <FormatNumber
-                          value={currentPayingAccountBalance || 0}
+                          value={displayedCurrentReceivingAccountBalance || 0}
                         />
                       </span>
                       {payoutForm.formState.errors.payingAccountId?.message && (
@@ -496,45 +630,79 @@ const CommissionDialog: React.FC<CommissionDialogProps> = ({
                           )
                         </span>
                       )}
+                      {payoutForm.formState.errors.currentPayingAccountBalance
+                        ?.message && (
+                        <span className="ml-2 text-red-600">
+                          (
+                          {
+                            payoutForm.formState.errors
+                              .currentPayingAccountBalance.message
+                          }
+                          )
+                        </span>
+                      )}
                     </p>
                   )}
-                  <CustomFormField
-                    fieldType={FormFieldType.DATE_PICKER}
-                    control={payoutForm.control}
-                    name="paidDate"
-                    label="Paid Date"
-                    dateFormat="MM/dd/yyyy"
-                    disabled={isPayingOutCommissionRecipient}
-                  />
-                  <CustomFormField
-                    fieldType={FormFieldType.TEXTAREA}
-                    control={payoutForm.control}
-                    name="notes"
-                    label="Payout Notes (Optional)"
-                    placeholder="Add any notes for this payment"
-                    disabled={isPayingOutCommissionRecipient}
-                  />
-                  <div className="flex justify-end gap-4 mt-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={onOpenChange}
-                      disabled={isPayingOutCommissionRecipient}
-                    >
-                      Cancel
-                    </Button>
-                    <SubmitButton
-                      isLoading={isPayingOutCommissionRecipient}
-                      className="shad-primary-btn"
-                      disabled={
-                        !selectedRecipientId || isPayingOutCommissionRecipient
-                      }
-                    >
-                      Confirm Payout
-                    </SubmitButton>
-                  </div>
-                </>
-              )}
+                </div>
+                <CustomFormField
+                  fieldType={FormFieldType.SELECT}
+                  control={payoutForm.control}
+                  name={"expenseCategoryId"}
+                  label="Expense Category"
+                  placeholder="Select category"
+                  disabled={isPayingOutCommissionRecipient}
+                >
+                  {expenseCategories.map(
+                    (cat: ExpenseCategoryWithRelations) => (
+                      <SelectItem
+                        key={cat.expenseCategory.id}
+                        value={cat.expenseCategory.id || ""}
+                        className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+                      >
+                        {cat.expenseCategory.name}
+                      </SelectItem>
+                    )
+                  )}
+                </CustomFormField>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <CustomFormField
+                  fieldType={FormFieldType.DATE_PICKER}
+                  control={payoutForm.control}
+                  name="paidDate"
+                  label="Paid Date"
+                  dateFormat="MM/dd/yyyy"
+                  disabled={isPayingOutCommissionRecipient}
+                />
+              </div>
+              <CustomFormField
+                fieldType={FormFieldType.TEXTAREA}
+                control={payoutForm.control}
+                name="notes"
+                label="Payout Notes (Optional)"
+                placeholder="Add any notes for this payment"
+                disabled={isPayingOutCommissionRecipient}
+              />
+              <div className="flex justify-end gap-4 mt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onOpenChange}
+                  className="shad-danger-btn"
+                  disabled={isPayingOutCommissionRecipient}
+                >
+                  Cancel
+                </Button>
+                <SubmitButton
+                  isLoading={isPayingOutCommissionRecipient}
+                  className="shad-primary-btn"
+                  disabled={
+                    !selectedRecipientId || isPayingOutCommissionRecipient
+                  }
+                >
+                  Confirm Payout
+                </SubmitButton>
+              </div>
             </form>
           </Form>
         )}
@@ -548,7 +716,7 @@ const CommissionDialog: React.FC<CommissionDialogProps> = ({
               disabled={isSoftDeletingCommission}
               className="shad-danger-btn"
             >
-              Deactivate Commission
+              Delete Commission
             </Button>
           </div>
         )}

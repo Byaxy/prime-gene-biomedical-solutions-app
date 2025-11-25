@@ -18,7 +18,7 @@ import {
 } from "@/types";
 import { useCommissions } from "@/hooks/useCommissions";
 import toast from "react-hot-toast";
-import { cn } from "@/lib/utils";
+import { cn, parseServerError } from "@/lib/utils";
 import CommissionDialog from "./CommissionDialog";
 
 interface CommissionActionsProps {
@@ -87,15 +87,19 @@ const CommissionActions: React.FC<CommissionActionsProps> = ({
           },
           onError: (error) => {
             toast.error(
-              error.message || `Failed to update status to ${newStatus}.`,
-              { id: loadingToastId }
+              parseServerError(error) ||
+                `Failed to update status to ${newStatus}.`,
+              { id: loadingToastId, duration: 6000 }
             );
           },
         }
       );
     } catch (error) {
       console.error(`Error updating commission status to ${newStatus}:`, error);
-      toast.error("An unexpected error occurred.", { id: loadingToastId });
+      toast.error(parseServerError(error), {
+        id: loadingToastId,
+        duration: 6000,
+      });
     }
   };
 
@@ -183,7 +187,7 @@ const CommissionActions: React.FC<CommissionActionsProps> = ({
               onClick={handleDeleteClick}
               className="text-red-600 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
             >
-              <DeleteIcon className="mr-2 h-4 w-4" /> Deactivate
+              <DeleteIcon className="mr-2 h-4 w-4" /> Delete
             </DropdownMenuItem>
           )}
         </DropdownMenuContent>

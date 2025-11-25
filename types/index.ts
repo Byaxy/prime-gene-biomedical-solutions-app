@@ -7,7 +7,6 @@ import {
   billPaymentItemsTable,
   billPaymentsTable,
   chartOfAccountsTable,
-  commissionRecipientSalesTable,
   commissionRecipientsTable,
   commissionSalesTable,
   commissionsTable,
@@ -904,13 +903,6 @@ export type Commission = typeof commissionsTable.$inferSelect;
 export interface CommissionWithRelations {
   commission: Commission;
   customer: Customer;
-  totalAmountReceived: number;
-  totalAdditions: number;
-  totalDeductions: number;
-  totalBaseForCommission: number;
-  totalGrossCommission: number;
-  totalWithholdingTaxAmount: number;
-  totalCommissionPayable: number;
   recipients: CommissionRecipientWithRelations[];
   commissionSales: CommissionSaleWithRelations[];
 }
@@ -922,25 +914,14 @@ export interface CommissionRecipientWithRelations {
   recipient: CommissionRecipient;
   salesAgent: SalesAgent;
   payingAccount: Account | null;
-  recipientSales: CommissionRecipientSaleWithRelations[];
 }
 
 export type CommissionSale = typeof commissionSalesTable.$inferSelect;
-
-export type CommissionRecipientSale =
-  typeof commissionRecipientSalesTable.$inferSelect;
 
 export interface CommissionSaleWithRelations {
   commissionSale: CommissionSale;
   sale: Sale;
   withholdingTax: Tax | null;
-  recipients: CommissionRecipientSaleWithRelations[];
-}
-
-export interface CommissionRecipientSaleWithRelations {
-  recipientSale: CommissionRecipientSale;
-  commissionRecipient: CommissionRecipient;
-  commissionSale: CommissionSaleWithRelations;
 }
 
 // Enums

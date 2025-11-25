@@ -187,3 +187,29 @@ export const calculateCommissionAmounts = (
     totalCommissionPayable: parseFloat(totalCommissionPayable.toFixed(2)),
   };
 };
+
+// Function to parse server error messages
+export const parseServerError = (error: any): string => {
+  // Handle error objects with message property
+  if (error?.message) {
+    return error.message;
+  }
+
+  // Handle error objects with error property (from server actions)
+  if (error?.error && error?.message) {
+    return error.message;
+  }
+
+  // Handle string errors
+  if (typeof error === "string") {
+    return error;
+  }
+
+  // Handle Error instances
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  // Fallback
+  return "An unexpected error occurred. Please try again.";
+};
