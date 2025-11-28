@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { ProductWithRelations } from "@/types";
+import { CommissionPayout, ProductWithRelations } from "@/types";
 import { type ClassValue, clsx } from "clsx";
 import { numericFormatter } from "react-number-format";
 import { twMerge } from "tailwind-merge";
@@ -212,4 +212,17 @@ export const parseServerError = (error: any): string => {
 
   // Fallback
   return "An unexpected error occurred. Please try again.";
+};
+
+export const calculateTotalPaidForRecipient = (
+  payouts: CommissionPayout[] | undefined
+): number => {
+  if (!payouts || payouts.length === 0) {
+    return 0;
+  }
+  return payouts.reduce(
+    (sum, payout) =>
+      sum + (payout.isActive ? parseFloat(payout.amount as any) : 0),
+    0
+  );
 };

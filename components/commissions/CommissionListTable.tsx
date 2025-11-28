@@ -43,7 +43,7 @@ const CommissionListTable: React.FC<CommissionListTableProps> = ({
     setSearch,
     setFilters,
     clearFilters,
-    refetch,
+    refetchCommissions: refetch,
   } = useCommissions({ initialData });
 
   const { salesAgents: allSalesAgents } = useSalesAgents({

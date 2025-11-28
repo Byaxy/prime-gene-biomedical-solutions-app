@@ -29,9 +29,7 @@ const CommissionActions: React.FC<CommissionActionsProps> = ({
   commission,
 }) => {
   const [openDialog, setOpenDialog] = useState(false);
-  const [mode, setMode] = useState<"view" | "payout" | "status" | "delete">(
-    "view"
-  );
+  const [mode, setMode] = useState<"view" | "status" | "delete">("view");
 
   const router = useRouter();
 
@@ -61,8 +59,9 @@ const CommissionActions: React.FC<CommissionActionsProps> = ({
   };
 
   const handlePayoutClick = () => {
-    setMode("payout");
-    setOpenDialog(true);
+    router.push(
+      `/accounting-and-finance/commissions/pay/${commission.commission.id}`
+    );
   };
 
   const handleDeleteClick = () => {
@@ -122,10 +121,12 @@ const CommissionActions: React.FC<CommissionActionsProps> = ({
     commission.commission.status === CommissionStatus.Approved &&
     commission.commission.paymentStatus !== CommissionPaymentStatus.Paid &&
     commission.recipients.some(
-      (r) => r.recipient.paymentStatus === CommissionPaymentStatus.Pending
-    ); // If any recipient is still pending
+      (r) =>
+        r.recipient.paymentStatus === CommissionPaymentStatus.Pending ||
+        r.recipient.paymentStatus === CommissionPaymentStatus.Partial
+    );
   const canDelete =
-    commission.commission.paymentStatus === CommissionPaymentStatus.Pending; // Only if no payouts have occurred
+    commission.commission.paymentStatus === CommissionPaymentStatus.Pending;
 
   return (
     <>

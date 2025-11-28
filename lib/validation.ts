@@ -2330,44 +2330,71 @@ export type SalesCommissionFormValues = z.infer<
   typeof SalesCommissionFormValidation
 >;
 
+export const RecipientPayoutEntryValidation = z.object({
+  id: z.string().optional(),
+  commissionRecipientId: z.string().nonempty("Recipient is required"),
+  payingAccountId: z.string().nonempty("Paying Account is required"),
+  expenseCategoryId: z.string().nonempty("Expense Category is required"),
+  amountToPay: z.number().min(0.01, "Amount to pay must be greater than 0"),
+  recipientName: z.string().optional(),
+  allocatedAmount: z.number().optional(),
+  paidSoFar: z.number().optional(),
+  remainingDue: z.number().optional(),
+  currentPayingAccountBalance: z.number().optional(),
+});
+export type RecipientPayoutEntryFormValues = z.infer<
+  typeof RecipientPayoutEntryValidation
+>;
+
 // --- Commission Recipient Payout Form Validation ---
 export const CommissionRecipientPayoutFormValidation = z
   .object({
-    recipientId: z.string().nonempty("Recipient ID is required"),
-    payingAccountId: z.string().nonempty("Paying Account is required"),
-    paidDate: z.date().refine((date) => date <= new Date(), {
-      message: "Paid date cannot be in the future",
+    payoutDate: z.date().refine((date) => date <= new Date(), {
+      message: "Payout date cannot be in the future",
     }),
+    payouts: z
+      .array(RecipientPayoutEntryValidation)
+      .min(1, "At least one recipient payout is required"),
     notes: z.string().optional().nullable(),
-    amountToPay: z.number().min(0.01, "Amount to pay must be greater than 0"),
-    expenseCategoryId: z.string().nonempty("Expense Category is required"),
-    currentPayingAccountBalance: z
-      .number()
-      .min(0, "Balance cannot be negative")
-      .optional(),
   })
-  .superRefine((data, ctx) => {
-    if (data.payingAccountId) {
-      if (!data.currentPayingAccountBalance) {
+  .superRefine(async (data, ctx) => {
+    const recipientIds = new Set<string>();
+    for (const [index, payout] of data.payouts.entries()) {
+      if (recipientIds.has(payout.commissionRecipientId)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "Current Paying Account Balance is required",
-          path: ["currentPayingAccountBalance"],
+          message: "Duplicate recipient in payouts is not allowed.",
+          path: ["payouts", index, "commissionRecipientId"],
         });
       }
-    }
+      recipientIds.add(payout.commissionRecipientId);
 
-    if (
-      data.currentPayingAccountBalance !== undefined &&
-      data.amountToPay > data.currentPayingAccountBalance
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `Insufficient funds. Available balance: ${data.currentPayingAccountBalance.toFixed(
-          2
-        )}`,
-        path: ["currentPayingAccountBalance"],
-      });
+      // Validate amountToPay against remainingDue
+      if (
+        payout.remainingDue !== undefined &&
+        payout.amountToPay > payout.remainingDue + 0.01
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Amount to pay (${payout.amountToPay.toFixed(
+            2
+          )}) exceeds remaining due (${payout.remainingDue.toFixed(2)}).`,
+          path: ["payouts", index, "amountToPay"],
+        });
+      }
+
+      if (
+        payout.currentPayingAccountBalance !== undefined &&
+        payout.amountToPay > payout.currentPayingAccountBalance + 0.01
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Insufficient funds in paying account for ${
+            payout.recipientName
+          }. Available: ${payout.currentPayingAccountBalance.toFixed(2)}`,
+          path: ["payouts", index, "payingAccountId"],
+        });
+      }
     }
   });
 export type CommissionRecipientPayoutFormValues = z.infer<
@@ -2393,3 +2420,20 @@ export const SalesAgentFiltersSchema = z.object({
   search: z.string().optional(),
 });
 export type SalesAgentFilters = z.infer<typeof SalesAgentFiltersSchema>;
+
+export const CommissionPayoutFiltersSchema = z.object({
+  search: z.string().optional(),
+  payoutRefNumber: z.string().optional(),
+  commissionId: z.string().optional(),
+  commissionRecipientId: z.string().optional(),
+  salesAgentId: z.string().optional(),
+  payingAccountId: z.string().optional(),
+  expenseCategoryId: z.string().optional(),
+  payoutDate_start: z.string().optional(),
+  payoutDate_end: z.string().optional(),
+  amount_min: z.number().optional(),
+  amount_max: z.number().optional(),
+});
+export type CommissionPayoutFilters = z.infer<
+  typeof CommissionPayoutFiltersSchema
+>;

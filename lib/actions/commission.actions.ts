@@ -2,7 +2,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { calculateCommissionAmounts, parseStringify } from "../utils";
+import {
+  calculateCommissionAmounts,
+  calculateTotalPaidForRecipient,
+  parseStringify,
+} from "../utils";
 import { db } from "@/drizzle/db";
 import {
   accountsTable,
@@ -13,12 +17,14 @@ import {
   expenseCategoriesTable,
   commissionSalesTable,
   customersTable,
+  commissionPayoutsTable,
 } from "@/drizzle/schema";
 import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import {
   CommissionFilters,
   CommissionRecipientPayoutFormValues,
   SalesCommissionFormValues,
+  CommissionPayoutFilters,
 } from "@/lib/validation";
 import {
   CommissionPaymentStatus,
@@ -537,19 +543,21 @@ export const getCommissionById = async (id: string) => {
       where: eq(commissionsTable.id, id),
       with: {
         customer: true,
-
-        // Fetch commission_sales (do not request an unknown nested 'recipients' property here)
         commissionSales: {
           with: {
             sale: true,
             withholdingTax: true,
           },
         },
-        // Fetch overall commission recipients (summaries for each agent)
         recipients: {
           with: {
             salesAgent: true,
-            payingAccount: true,
+            payouts: {
+              with: {
+                payingAccount: true,
+                expenseCategory: true,
+              },
+            },
           },
         },
       },
@@ -560,11 +568,27 @@ export const getCommissionById = async (id: string) => {
       fetchedCommission;
 
     const recipientsWithRelations = recipients.map((r) => {
-      const { salesAgent, payingAccount, ...rest } = r;
+      const paidSoFar = calculateTotalPaidForRecipient(r.payouts);
+      const allocatedAmount = parseFloat(r.amount as any);
+      const remainingDue = allocatedAmount - paidSoFar;
+
+      const { salesAgent, payouts, ...rest } = r;
+
+      const payoutsWithRelations = payouts.map((p) => {
+        const { payingAccount, expenseCategory, ...payout } = p;
+        return {
+          payout: payout,
+          payingAccount: payingAccount,
+          expenseCategory: expenseCategory,
+        };
+      });
+
       return {
         recipient: rest,
         salesAgent: salesAgent,
-        payingAccount: payingAccount,
+        payouts: payoutsWithRelations,
+        paidSoFar: paidSoFar,
+        remainingDue: remainingDue,
       };
     });
 
@@ -588,7 +612,6 @@ export const getCommissionById = async (id: string) => {
     throw new Error(error.message || "Failed to fetch commission by ID.");
   }
 };
-
 // Function to update main commission status (e.g., from pending_approval to approved)
 export const updateCommissionStatus = async (
   commissionId: string,
@@ -667,241 +690,311 @@ export const updateCommissionStatus = async (
 };
 
 // Function to pay out an individual recipient's commission share
-export const payoutCommissionRecipient = async (
-  recipientId: string,
+export const processCommissionPayouts = async (
   values: CommissionRecipientPayoutFormValues,
   userId: string
 ) => {
   try {
     const result = await db.transaction(async (tx) => {
-      // First, fetch the recipient with basic relations
-      const recipient = await tx.query.commissionRecipientsTable.findFirst({
-        where: eq(commissionRecipientsTable.id, recipientId),
-        with: {
-          salesAgent: true,
-          payingAccount: true,
-        },
-      });
+      const payoutResults = [];
 
-      if (!recipient) {
-        throw new Error("Commission recipient record not found.");
-      }
-
-      // Fetch the commission separately with its relations
-      const commission = await tx.query.commissionsTable.findFirst({
-        where: eq(commissionsTable.id, recipient.commissionId),
-        with: {
-          commissionSales: {
-            with: {
-              sale: true,
-            },
-          },
-        },
-      });
-
-      if (!commission) {
-        throw new Error("Commission record not found.");
-      }
-
-      // Validate recipient payment status
-      if (recipient.paymentStatus === CommissionPaymentStatus.Paid) {
-        throw new Error("This commission share has already been paid.");
-      }
-      if (recipient.paymentStatus === CommissionPaymentStatus.Cancelled) {
-        throw new Error("Cannot pay a cancelled commission share.");
-      }
-
-      // Validate main commission status
-      if (commission.status !== CommissionStatus.Approved) {
-        throw new Error(
-          "The main commission must be approved before paying individual shares."
-        );
-      }
-
-      // Validate and fetch paying account & expense category
-      const payingAccount = await tx.query.accountsTable.findFirst({
-        where: and(
-          eq(accountsTable.id, values.payingAccountId),
-          eq(accountsTable.isActive, true)
-        ),
-        with: { chartOfAccount: true },
-      });
-
-      if (!payingAccount) {
-        throw new Error("Paying account not found or inactive.");
-      }
-
-      if (!payingAccount.chartOfAccountsId) {
-        throw new Error("Paying account is not linked to a Chart of Account.");
-      }
-
-      const expenseCategory = await tx.query.expenseCategoriesTable.findFirst({
-        where: and(
-          eq(expenseCategoriesTable.id, values.expenseCategoryId),
-          eq(expenseCategoriesTable.isActive, true)
-        ),
-        with: { chartOfAccount: true },
-      });
-
-      if (!expenseCategory) {
-        throw new Error("Expense category not found or inactive.");
-      }
-
-      if (!expenseCategory.chartOfAccountsId) {
-        throw new Error(
-          "Expense category is not linked to a Chart of Account."
-        );
-      }
-
-      // Calculate and validate amounts
-      const commissionAmount = parseFloat(recipient.amount as any);
-      const amountToPay = values.amountToPay;
-
-      if (amountToPay > commissionAmount) {
-        throw new Error(
-          `Amount to pay (${amountToPay.toFixed(
-            2
-          )}) cannot exceed the recipient's commission amount (${commissionAmount.toFixed(
-            2
-          )}).`
-        );
-      }
-
-      // Validate account balance
-      const currentAccountBalance = parseFloat(
-        payingAccount.currentBalance as any
+      // Generate payout reference numbers
+      const payoutRefNumbers = await generateCommissionPayoutRefNumbers(
+        tx,
+        values.payouts.length
       );
 
-      if (currentAccountBalance < amountToPay) {
-        throw new Error(
-          `Insufficient funds in ${
-            payingAccount.name
-          }. Available: ${currentAccountBalance.toFixed(
-            2
-          )}, Required: ${amountToPay.toFixed(2)}`
+      // Fetch all unique commissionRecipientIds from the values
+      const uniqueRecipientIds = [
+        ...new Set(values.payouts.map((p) => p.commissionRecipientId)),
+      ];
+
+      // Fetch necessary data for all recipients and accounts in bulk
+      const [recipientsData, accountsData, expenseCategoriesData] =
+        await Promise.all([
+          tx.query.commissionRecipientsTable.findMany({
+            where: inArray(commissionRecipientsTable.id, uniqueRecipientIds),
+            with: {
+              salesAgent: true,
+              commission: {
+                with: {
+                  commissionSales: {
+                    with: { sale: true },
+                  },
+                },
+              },
+              payouts: true,
+            },
+          }),
+          tx.query.accountsTable.findMany({
+            where: and(
+              inArray(accountsTable.id, [
+                ...new Set(values.payouts.map((p) => p.payingAccountId)),
+              ]),
+              eq(accountsTable.isActive, true)
+            ),
+            with: { chartOfAccount: true },
+          }),
+          tx.query.expenseCategoriesTable.findMany({
+            where: and(
+              inArray(expenseCategoriesTable.id, [
+                ...new Set(values.payouts.map((p) => p.expenseCategoryId)),
+              ]),
+              eq(expenseCategoriesTable.isActive, true)
+            ),
+            with: { chartOfAccount: true },
+          }),
+        ]);
+
+      const recipientsMap = new Map(recipientsData.map((r) => [r.id, r]));
+      const accountsMap = new Map(accountsData.map((a) => [a.id, a]));
+      const expenseCategoriesMap = new Map(
+        expenseCategoriesData.map((ec) => [ec.id, ec])
+      );
+
+      // Process each payout entry
+      for (let index = 0; index < values.payouts.length; index++) {
+        const entry = values.payouts[index];
+        const payoutRefNumber = payoutRefNumbers[index];
+
+        const recipient = recipientsMap.get(entry.commissionRecipientId);
+        const payingAccount = accountsMap.get(entry.payingAccountId);
+        const expenseCategory = expenseCategoriesMap.get(
+          entry.expenseCategoryId
         );
+
+        // Validate recipient exists
+        if (!recipient) {
+          throw new Error(
+            `Commission recipient '${entry.commissionRecipientId}' not found.`
+          );
+        }
+
+        // Validate paying account exists and is active
+        if (!payingAccount) {
+          throw new Error(
+            `Paying account '${entry.payingAccountId}' not found or inactive.`
+          );
+        }
+
+        // Validate expense category exists and is active
+        if (!expenseCategory) {
+          throw new Error(
+            `Expense category '${entry.expenseCategoryId}' not found or inactive.`
+          );
+        }
+
+        // Validate paying account is linked to chart of accounts
+        if (!payingAccount.chartOfAccountsId) {
+          throw new Error(
+            `Paying account '${payingAccount.name}' is not linked to a Chart of Account.`
+          );
+        }
+
+        // Validate expense category is linked to chart of accounts
+        if (!expenseCategory.chartOfAccountsId) {
+          throw new Error(
+            `Expense category '${expenseCategory.name}' is not linked to a Chart of Account.`
+          );
+        }
+
+        // Validate commission is approved
+        if (recipient.commission.status !== CommissionStatus.Approved) {
+          throw new Error(
+            `Commission '${recipient.commission.commissionRefNumber}' must be approved before paying individual shares.`
+          );
+        }
+
+        // Calculate amounts
+        const commissionAmount = parseFloat(recipient.amount as any);
+        const paidSoFar = calculateTotalPaidForRecipient(recipient.payouts);
+        const remainingDue = commissionAmount - paidSoFar;
+
+        // Validate amount to pay doesn't exceed remaining due
+        if (entry.amountToPay > remainingDue + 0.01) {
+          throw new Error(
+            `Amount to pay for ${
+              recipient.salesAgent.name
+            } (${entry.amountToPay.toFixed(
+              2
+            )}) exceeds their remaining due (${remainingDue.toFixed(2)}).`
+          );
+        }
+
+        // Validate account has sufficient funds
+        const currentAccountBalance = parseFloat(
+          payingAccount.currentBalance as any
+        );
+        if (currentAccountBalance < entry.amountToPay) {
+          throw new Error(
+            `Insufficient funds in ${payingAccount.name} for payout to ${
+              recipient.salesAgent.name
+            }. Available: ${currentAccountBalance.toFixed(
+              2
+            )}, Required: ${entry.amountToPay.toFixed(2)}`
+          );
+        }
+
+        // Insert new commission payout record
+        const [newPayout] = await tx
+          .insert(commissionPayoutsTable)
+          .values({
+            payoutRefNumber,
+            commissionRecipientId: recipient.id,
+            payingAccountId: entry.payingAccountId,
+            expenseCategoryId: entry.expenseCategoryId,
+            amount: entry.amountToPay,
+            payoutDate: values.payoutDate,
+            notes: values.notes || null,
+            userId,
+          })
+          .returning();
+
+        if (!newPayout) {
+          throw new Error("Failed to create commission payout record.");
+        }
+
+        // Update paying account balance
+        const newAccountBalance = currentAccountBalance - entry.amountToPay;
+        await tx
+          .update(accountsTable)
+          .set({ currentBalance: newAccountBalance, updatedAt: new Date() })
+          .where(eq(accountsTable.id, payingAccount.id));
+
+        // Calculate new payment status for recipient
+        const newPaidSoFar = paidSoFar + entry.amountToPay;
+        let newRecipientPaymentStatus: CommissionPaymentStatus;
+
+        if (newPaidSoFar >= commissionAmount - 0.01) {
+          newRecipientPaymentStatus = CommissionPaymentStatus.Paid;
+        } else if (newPaidSoFar > 0) {
+          newRecipientPaymentStatus = CommissionPaymentStatus.Partial;
+        } else {
+          newRecipientPaymentStatus = CommissionPaymentStatus.Pending;
+        }
+
+        // Update recipient payment status
+        const [updatedRecipient] = await tx
+          .update(commissionRecipientsTable)
+          .set({
+            paymentStatus: newRecipientPaymentStatus,
+            updatedAt: new Date(),
+          })
+          .where(eq(commissionRecipientsTable.id, recipient.id))
+          .returning();
+
+        // Create Journal Entries for General Ledger
+        const firstSaleInvoice =
+          recipient.commission.commissionSales?.[0]?.sale?.invoiceNumber ||
+          "N/A";
+        const description = `Commission Payout: ${
+          recipient.salesAgent.name
+        } - ${payoutRefNumber} (Ref Comm: ${
+          recipient.commission.commissionRefNumber
+        }, Sale: ${firstSaleInvoice}${
+          recipient.commission.commissionSales &&
+          recipient.commission.commissionSales.length > 1
+            ? " + others"
+            : ""
+        })`;
+
+        const journalLines = [
+          {
+            chartOfAccountId: expenseCategory.chartOfAccountsId,
+            debit: entry.amountToPay,
+            credit: 0,
+            memo: `Commission expense for ${recipient.salesAgent.name}`,
+          },
+          {
+            chartOfAccountId: payingAccount.chartOfAccountsId,
+            debit: 0,
+            credit: entry.amountToPay,
+            memo: `Commission payment to ${recipient.salesAgent.name} from ${payingAccount.name}`,
+          },
+        ];
+
+        await createJournalEntry({
+          tx,
+          entryDate: values.payoutDate,
+          referenceType: JournalEntryReferenceType.COMMISSION_PAYMENT,
+          referenceId: newPayout.id,
+          userId,
+          description: description,
+          lines: journalLines,
+        });
+
+        // Store result for return
+        payoutResults.push({
+          payout: newPayout,
+          updatedRecipient,
+          payingAccount: {
+            id: payingAccount.id,
+            name: payingAccount.name,
+            previousBalance: currentAccountBalance,
+            newBalance: newAccountBalance,
+          },
+        });
       }
 
-      // Update paying account balance
-      const newAccountBalance = currentAccountBalance - amountToPay;
-      await tx
-        .update(accountsTable)
-        .set({ currentBalance: newAccountBalance, updatedAt: new Date() })
-        .where(eq(accountsTable.id, payingAccount.id));
-
-      // Update recipient record
-      const [updatedRecipient] = await tx
-        .update(commissionRecipientsTable)
-        .set({
-          paymentStatus: CommissionPaymentStatus.Paid,
-          paidDate: values.paidDate,
-          payingAccountId: values.payingAccountId,
-          notes: values.notes || recipient.notes,
-          updatedAt: new Date(),
-        })
-        .where(eq(commissionRecipientsTable.id, recipientId))
-        .returning();
-
-      if (!updatedRecipient) {
-        throw new Error("Failed to update recipient payment status.");
-      }
-
-      // Check and update main commission payment status
-      const allRecipientsForCommission =
+      const allCommissionRecipients =
         await tx.query.commissionRecipientsTable.findMany({
           where: and(
-            eq(commissionRecipientsTable.commissionId, recipient.commissionId),
+            eq(
+              commissionRecipientsTable.commissionId,
+              recipientsData[0].commissionId
+            ),
             eq(commissionRecipientsTable.isActive, true)
           ),
         });
 
-      const allPaid = allRecipientsForCommission.every(
+      // Check if all recipients are fully paid
+      const allPaid = allCommissionRecipients.every(
         (r) => r.paymentStatus === CommissionPaymentStatus.Paid
       );
-      const anyPaid = allRecipientsForCommission.some(
-        (r) =>
-          r.paymentStatus === CommissionPaymentStatus.Paid ||
-          r.paymentStatus === CommissionPaymentStatus.Partial
+
+      // Check if any recipients have partial payments
+      const anyPartial = allCommissionRecipients.some(
+        (r) => r.paymentStatus === CommissionPaymentStatus.Partial
       );
 
-      if (allPaid) {
-        await tx
-          .update(commissionsTable)
-          .set({
-            paymentStatus: CommissionPaymentStatus.Paid,
-            status: CommissionStatus.Processed,
-            updatedAt: new Date(),
-          })
-          .where(eq(commissionsTable.id, recipient.commissionId));
-      } else if (anyPaid) {
-        await tx
-          .update(commissionsTable)
-          .set({
-            paymentStatus: CommissionPaymentStatus.Partial,
-            updatedAt: new Date(),
-          })
-          .where(eq(commissionsTable.id, recipient.commissionId));
+      // Check if any recipients have been paid (fully or partially)
+      const anyPaid = allCommissionRecipients.some(
+        (r) => r.paymentStatus === CommissionPaymentStatus.Paid
+      );
+
+      // Determine overall commission payment status
+      const currentCommissionPaymentStatus = allPaid
+        ? CommissionPaymentStatus.Paid
+        : anyPartial || anyPaid
+        ? CommissionPaymentStatus.Partial
+        : CommissionPaymentStatus.Pending;
+
+      let updatedCommissionStatus = recipientsData[0].commission.status;
+      if (currentCommissionPaymentStatus === CommissionPaymentStatus.Paid) {
+        updatedCommissionStatus = CommissionStatus.Processed;
       }
 
-      // Create Journal Entries for General Ledger
-      // Get invoice number from the first sale or indicate multiple sales
-      const firstSaleInvoice =
-        commission.commissionSales?.[0]?.sale?.invoiceNumber || "N/A";
-      const description = `Commission Payment: ${recipient.salesAgent.name} - ${
-        commission.commissionRefNumber
-      } (Sales: ${firstSaleInvoice}${
-        commission.commissionSales && commission.commissionSales.length > 1
-          ? " + others"
-          : ""
-      })`;
+      // Update main commission record
+      await tx
+        .update(commissionsTable)
+        .set({
+          paymentStatus: currentCommissionPaymentStatus,
+          status: updatedCommissionStatus,
+          updatedAt: new Date(),
+        })
+        .where(eq(commissionsTable.id, recipientsData[0].commissionId));
 
-      const journalLines = [
-        {
-          chartOfAccountId: expenseCategory.chartOfAccountsId,
-          debit: amountToPay,
-          credit: 0,
-          memo: `Commission expense for ${recipient.salesAgent.name}`,
-        },
-        {
-          chartOfAccountId: payingAccount.chartOfAccountsId,
-          debit: 0,
-          credit: amountToPay,
-          memo: `Commission payment to ${recipient.salesAgent.name} from ${payingAccount.name}`,
-        },
-      ];
-
-      await createJournalEntry({
-        tx,
-        entryDate: values.paidDate,
-        referenceType: JournalEntryReferenceType.COMMISSION_PAYMENT,
-        referenceId: recipientId,
-        userId,
-        description: description,
-        lines: journalLines,
-      });
-
-      // Revalidate relevant paths
       revalidatePath("/accounting-and-finance/commissions");
       revalidatePath("/accounting-and-finance/accounts");
-      revalidatePath("/accounting-and-finance/general-ledger");
 
-      return parseStringify({
-        recipient: updatedRecipient,
-        commission: commission,
-        payingAccount: {
-          id: payingAccount.id,
-          name: payingAccount.name,
-          previousBalance: currentAccountBalance,
-          newBalance: newAccountBalance,
-        },
-      });
+      return payoutResults;
     });
 
-    return result;
+    return parseStringify(result);
   } catch (error: any) {
-    console.error("Error processing commission payout:", error);
+    console.error("Error processing multi-recipient payout:", error);
     throw new Error(
-      error.message || "Failed to process commission recipient payout."
+      error.message || "Failed to process multi-recipient payout."
     );
   }
 };
@@ -913,9 +1006,12 @@ export const softDeleteCommission = async (id: string) => {
       const commission = await tx.query.commissionsTable.findFirst({
         where: eq(commissionsTable.id, id),
         with: {
-          recipients: true,
+          recipients: {
+            with: {
+              payouts: true,
+            },
+          },
           commissionSales: {
-            // Fetch commission_sales to get their IDs
             columns: { id: true, saleId: true },
           },
         },
@@ -925,18 +1021,18 @@ export const softDeleteCommission = async (id: string) => {
         throw new Error("Commission record not found.");
       }
 
-      const paidRecipients = commission.recipients.filter(
-        (r) =>
-          r.paymentStatus === CommissionPaymentStatus.Paid ||
-          r.paymentStatus === CommissionPaymentStatus.Partial
+      // Check if ANY recipient has ANY payouts recorded
+      const recipientsWithActualPayouts = commission.recipients.filter((r) =>
+        r.payouts.some((p) => p.isActive)
       );
-      if (paidRecipients.length > 0) {
+
+      if (recipientsWithActualPayouts.length > 0) {
         throw new Error(
-          "Cannot deactivate a commission as some recipients have already been paid. Please reverse individual payouts first."
+          "Cannot deactivate a commission as some recipients have received payouts. Please reverse individual payouts first."
         );
       }
 
-      // Set main commission to inactive and cancelled
+      // Proceed with soft delete as before, but ensure recipients are also cancelled
       const [updatedCommission] = await tx
         .update(commissionsTable)
         .set({
@@ -947,10 +1043,7 @@ export const softDeleteCommission = async (id: string) => {
         .where(eq(commissionsTable.id, id))
         .returning();
 
-      // Get IDs of all related commission_recipients
       const recipientIds = commission.recipients.map((r) => r.id);
-
-      // Set all associated commission_recipients to inactive and cancelled
       if (recipientIds.length > 0) {
         await tx
           .update(commissionRecipientsTable)
@@ -962,12 +1055,10 @@ export const softDeleteCommission = async (id: string) => {
           .where(inArray(commissionRecipientsTable.id, recipientIds));
       }
 
-      // Get IDs of all related commission_sales
       const commissionSalesIds = commission.commissionSales.map((cs) => cs.id);
       const salesIdsToRevert = commission.commissionSales.map(
         (cs) => cs.saleId
       );
-      // Set all associated commission_sales to inactive
       if (commissionSalesIds.length > 0) {
         await tx
           .update(commissionSalesTable)
@@ -977,7 +1068,6 @@ export const softDeleteCommission = async (id: string) => {
           })
           .where(inArray(commissionSalesTable.id, commissionSalesIds));
 
-        // Revert isCommissionApplied for all sales associated with this commission
         if (salesIdsToRevert.length > 0) {
           await tx
             .update(salesTable)
@@ -1062,7 +1152,6 @@ export const getCommissions = async (
   try {
     const conditions = buildCommissionFilterConditions(filters ?? {});
 
-    // Main query to fetch commissions and their direct relations
     let query = db
       .select({
         commission: commissionsTable,
@@ -1120,7 +1209,7 @@ export const getCommissions = async (
       commissionSalesMap.get(key)?.push(cs);
     });
 
-    // Fetch commission_recipients (main summary per agent)
+    // Fetch commission_recipients and their payouts
     const allCommissionRecipients =
       commissionIds.length > 0
         ? await db.query.commissionRecipientsTable.findMany({
@@ -1130,17 +1219,38 @@ export const getCommissions = async (
             ),
             with: {
               salesAgent: true,
-              payingAccount: true,
+              payouts: {
+                with: {
+                  payingAccount: true,
+                  expenseCategory: true,
+                },
+              },
             },
           })
         : [];
 
     const recipientsWithRelations = allCommissionRecipients.map((r) => {
-      const { salesAgent, payingAccount, ...rest } = r;
+      const paidSoFar = calculateTotalPaidForRecipient(r.payouts);
+      const allocatedAmount = parseFloat(r.amount as any);
+      const remainingDue = allocatedAmount - paidSoFar;
+
+      const { salesAgent, payouts, ...rest } = r;
+
+      const payoutsWithRelations = payouts.map((p) => {
+        const { payingAccount, expenseCategory, ...payout } = p;
+        return {
+          payout: payout,
+          payingAccount: payingAccount,
+          expenseCategory: expenseCategory,
+        };
+      });
+
       return {
         recipient: rest,
         salesAgent: salesAgent,
-        payingAccount: payingAccount,
+        payouts: payoutsWithRelations,
+        paidSoFar: paidSoFar,
+        remainingDue: remainingDue,
       };
     });
     const commissionRecipientsMap = new Map<
@@ -1188,5 +1298,279 @@ export const getCommissions = async (
   } catch (error: any) {
     console.error("Error fetching commissions:", error);
     throw new Error(error.message || "Failed to fetch commissions.");
+  }
+};
+
+export const generateCommissionPayoutRefNumber = async (): Promise<string> => {
+  try {
+    const result = await db.transaction(async (tx) => {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+
+      const lastPayout = await tx
+        .select({ payoutRefNumber: commissionPayoutsTable.payoutRefNumber })
+        .from(commissionPayoutsTable)
+        .where(sql`payout_ref_number LIKE ${`COMM-PAY.${year}/${month}/%`}`)
+        .orderBy(desc(commissionPayoutsTable.createdAt))
+        .limit(1)
+        .for("update");
+
+      let nextSequence = 1;
+      if (lastPayout.length > 0) {
+        const lastReferenceNumber = lastPayout[0].payoutRefNumber;
+        const lastSequence = parseInt(
+          lastReferenceNumber.split("/").pop() || "0",
+          10
+        );
+        nextSequence = lastSequence + 1;
+      }
+
+      const sequenceNumber = String(nextSequence).padStart(4, "0");
+
+      return `COMM-PAY.${year}/${month}/${sequenceNumber}`;
+    });
+
+    return result;
+  } catch (error) {
+    console.error(
+      "Error generating commission payout reference number:",
+      error
+    );
+    throw error;
+  }
+};
+
+export const generateCommissionPayoutRefNumbers = async (
+  tx: any,
+  count: number
+): Promise<string[]> => {
+  try {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+
+    let startSequence = 1;
+
+    const prefix = `COMM-PAY.${year}/${month}/`;
+
+    const lastPayout = await tx
+      .select({ payoutRefNumber: commissionPayoutsTable.payoutRefNumber })
+      .from(commissionPayoutsTable)
+      .where(
+        sql`${commissionPayoutsTable.payoutRefNumber} LIKE ${prefix + "%"}`
+      )
+      .orderBy(desc(commissionPayoutsTable.payoutRefNumber))
+      .limit(1)
+      .for("update");
+
+    if (lastPayout.length > 0) {
+      const lastReferenceNumber = lastPayout[0].payoutRefNumber;
+      const lastSequence = parseInt(
+        lastReferenceNumber.split("/").pop() || "0",
+        10
+      );
+      startSequence = lastSequence + 1;
+    }
+
+    const refNumbers: string[] = [];
+    for (let i = 0; i < count; i++) {
+      const sequenceNumber = String(startSequence + i).padStart(4, "0");
+      refNumbers.push(`${prefix}${sequenceNumber}`);
+    }
+
+    return refNumbers;
+  } catch (error) {
+    console.error(
+      "Error generating commission payout reference numbers:",
+      error
+    );
+    throw error;
+  }
+};
+
+export const getCommissionPayouts = async (
+  page: number = 0,
+  limit: number = 10,
+  getAll: boolean = false,
+  filters?: CommissionPayoutFilters
+) => {
+  try {
+    const conditions = [eq(commissionPayoutsTable.isActive, true)];
+
+    // Build filter conditions
+
+    if (filters?.payoutRefNumber) {
+      conditions.push(
+        eq(commissionPayoutsTable.payoutRefNumber, filters.payoutRefNumber)
+      );
+    }
+    if (filters?.commissionId) {
+      conditions.push(eq(commissionsTable.id, filters.commissionId));
+    }
+    if (filters?.commissionRecipientId) {
+      conditions.push(
+        eq(
+          commissionPayoutsTable.commissionRecipientId,
+          filters.commissionRecipientId
+        )
+      );
+    }
+    if (filters?.salesAgentId) {
+      conditions.push(eq(salesAgentsTable.id, filters.salesAgentId));
+    }
+    if (filters?.payingAccountId) {
+      conditions.push(
+        eq(commissionPayoutsTable.payingAccountId, filters.payingAccountId)
+      );
+    }
+    if (filters?.expenseCategoryId) {
+      conditions.push(
+        eq(commissionPayoutsTable.expenseCategoryId, filters.expenseCategoryId)
+      );
+    }
+    if (filters?.payoutDate_start) {
+      conditions.push(
+        gte(
+          commissionPayoutsTable.payoutDate,
+          new Date(filters.payoutDate_start)
+        )
+      );
+    }
+    if (filters?.payoutDate_end) {
+      conditions.push(
+        lte(commissionPayoutsTable.payoutDate, new Date(filters.payoutDate_end))
+      );
+    }
+    if (filters?.amount_min !== undefined) {
+      conditions.push(gte(commissionPayoutsTable.amount, filters.amount_min));
+    }
+    if (filters?.amount_max !== undefined) {
+      conditions.push(lte(commissionPayoutsTable.amount, filters.amount_max));
+    }
+
+    // Select with all direct relations and aggregated sales info
+    let query = db
+      .select({
+        payout: commissionPayoutsTable,
+        recipient: commissionRecipientsTable,
+        salesAgent: salesAgentsTable,
+        commission: commissionsTable,
+        payingAccount: accountsTable,
+        expenseCategory: expenseCategoriesTable,
+        // NEW: Aggregated sales invoice numbers
+        aggregatedInvoiceNumbers:
+          sql<string>`STRING_AGG(${salesTable.invoiceNumber}, ', ' ORDER BY ${salesTable.invoiceNumber} ASC)`.as(
+            "invoiceNumbers"
+          ),
+      })
+      .from(commissionPayoutsTable)
+      .leftJoin(
+        commissionRecipientsTable,
+        eq(
+          commissionPayoutsTable.commissionRecipientId,
+          commissionRecipientsTable.id
+        )
+      )
+      .leftJoin(
+        salesAgentsTable,
+        eq(commissionRecipientsTable.salesAgentId, salesAgentsTable.id)
+      )
+      .leftJoin(
+        commissionsTable,
+        eq(commissionRecipientsTable.commissionId, commissionsTable.id)
+      )
+      // NEW: Join commissionSales and sales tables
+      .leftJoin(
+        commissionSalesTable,
+        eq(commissionsTable.id, commissionSalesTable.commissionId)
+      )
+      .leftJoin(salesTable, eq(commissionSalesTable.saleId, salesTable.id))
+      .leftJoin(
+        accountsTable,
+        eq(commissionPayoutsTable.payingAccountId, accountsTable.id)
+      )
+      .leftJoin(
+        expenseCategoriesTable,
+        eq(commissionPayoutsTable.expenseCategoryId, expenseCategoriesTable.id)
+      )
+      .where(and(...conditions))
+      .groupBy(
+        commissionPayoutsTable.id,
+        commissionRecipientsTable.id,
+        salesAgentsTable.id,
+        commissionsTable.id,
+        accountsTable.id,
+        expenseCategoriesTable.id
+      )
+      .orderBy(
+        desc(commissionPayoutsTable.payoutDate),
+        desc(commissionPayoutsTable.createdAt)
+      )
+      .$dynamic();
+
+    if (!getAll && limit > 0) {
+      query = query.limit(limit).offset(page * limit);
+    }
+
+    const fetchedPayouts = await query;
+
+    const totalCountQuery = db
+      .select({
+        count: sql<number>`count(DISTINCT ${commissionPayoutsTable.id})`,
+      })
+      .from(commissionPayoutsTable)
+      .leftJoin(
+        commissionRecipientsTable,
+        eq(
+          commissionPayoutsTable.commissionRecipientId,
+          commissionRecipientsTable.id
+        )
+      )
+      .leftJoin(
+        salesAgentsTable,
+        eq(commissionRecipientsTable.salesAgentId, salesAgentsTable.id)
+      )
+      .leftJoin(
+        commissionsTable,
+        eq(commissionRecipientsTable.commissionId, commissionsTable.id)
+      )
+      .leftJoin(
+        commissionSalesTable,
+        eq(commissionsTable.id, commissionSalesTable.commissionId)
+      )
+      .leftJoin(salesTable, eq(commissionSalesTable.saleId, salesTable.id))
+      .leftJoin(
+        accountsTable,
+        eq(commissionPayoutsTable.payingAccountId, accountsTable.id)
+      )
+      .leftJoin(
+        expenseCategoriesTable,
+        eq(commissionPayoutsTable.expenseCategoryId, expenseCategoriesTable.id)
+      )
+      .where(and(...conditions))
+      .then((res) => res[0]?.count || 0);
+
+    const total = getAll ? fetchedPayouts.length : await totalCountQuery;
+
+    const payoutsWithRelations = fetchedPayouts.map((row) => ({
+      payout: row.payout,
+      commissionRecipient: {
+        recipient: row.recipient!,
+        salesAgent: row.salesAgent!,
+        commission: row.commission!,
+      },
+      payingAccount: row.payingAccount!,
+      expenseCategory: row.expenseCategory!,
+      relatedInvoiceNumbers: row.aggregatedInvoiceNumbers || "N/A",
+    }));
+
+    return {
+      documents: parseStringify(payoutsWithRelations),
+      total,
+    };
+  } catch (error: any) {
+    console.error("Error fetching commission payouts:", error);
+    throw new Error(error.message || "Failed to fetch commission payouts.");
   }
 };

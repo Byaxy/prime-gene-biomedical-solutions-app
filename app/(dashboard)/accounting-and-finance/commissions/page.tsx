@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { Suspense } from "react";
 import { CommissionFilters } from "@/lib/validation";
 import { CommissionStatus, CommissionPaymentStatus } from "@/types";
+import CommissionPaymentsBtn from "@/components/commissions/CommissionPaymentsBtn";
 
 const CommissionListTableData = dynamic(
   () => import("@/components/commissions/CommissionListTableData"),
@@ -53,6 +54,7 @@ export default async function CommissionsPage({
       title="Sales Commissions"
       buttonText="Create Commission"
       buttonPath="/accounting-and-finance/commissions/create"
+      buttonAction={<CommissionPaymentsBtn />}
     >
       <Suspense fallback={<TableSkeleton />}>
         <CommissionListTableData

@@ -2563,13 +2563,6 @@ export const commissionRecipientsTable = pgTable("commission_recipients", {
   paymentStatus: commissionPaymentStatusEnum("payment_status")
     .default("pending")
     .notNull(),
-  paidDate: timestamp("paid_date"),
-  payingAccountId: uuid("paying_account_id").references(
-    () => accountsTable.id,
-    {
-      onDelete: "set null",
-    }
-  ),
   notes: text("notes"),
 
   isActive: boolean("is_active").default(true).notNull(),
@@ -2579,7 +2572,7 @@ export const commissionRecipientsTable = pgTable("commission_recipients", {
 
 export const commissionRecipientsRelations = relations(
   commissionRecipientsTable,
-  ({ one }) => ({
+  ({ one, many }) => ({
     commission: one(commissionsTable, {
       fields: [commissionRecipientsTable.commissionId],
       references: [commissionsTable.id],
@@ -2588,9 +2581,70 @@ export const commissionRecipientsRelations = relations(
       fields: [commissionRecipientsTable.salesAgentId],
       references: [salesAgentsTable.id],
     }),
+    payouts: many(commissionPayoutsTable),
+  })
+);
+
+export const commissionPayoutsTable = pgTable(
+  "commission_payouts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    payoutRefNumber: text("payout_ref_number").notNull().unique(),
+    commissionRecipientId: uuid("commission_recipient_id")
+      .notNull()
+      .references(() => commissionRecipientsTable.id, { onDelete: "restrict" }),
+    payingAccountId: uuid("paying_account_id")
+      .notNull()
+      .references(() => accountsTable.id, { onDelete: "restrict" }),
+    expenseCategoryId: uuid("expense_category_id")
+      .notNull()
+      .references(() => expenseCategoriesTable.id, { onDelete: "restrict" }),
+    amount: numeric("amount").notNull(),
+    payoutDate: timestamp("payout_date").notNull(),
+    notes: text("notes"),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "restrict" }),
+
+    isActive: boolean("is_active").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    payoutsCommissionRecipientIdIndex: index(
+      "payouts_commission_recipient_id_idx"
+    ).on(table.commissionRecipientId),
+    payoutsPayingAccountIdIndex: index("payouts_paying_account_id_idx").on(
+      table.payingAccountId
+    ),
+    payoutsExpenseCategoryIdIndex: index("payouts_expense_category_id_idx").on(
+      table.expenseCategoryId
+    ),
+    payoutsUserIdIndex: index("payouts_user_id_idx").on(table.userId),
+    payoutsPayoutDateIndex: index("payouts_payout_date_idx").on(
+      table.payoutDate
+    ),
+  })
+);
+
+export const commissionPayoutsRelations = relations(
+  commissionPayoutsTable,
+  ({ one }) => ({
+    commissionRecipient: one(commissionRecipientsTable, {
+      fields: [commissionPayoutsTable.commissionRecipientId],
+      references: [commissionRecipientsTable.id],
+    }),
     payingAccount: one(accountsTable, {
-      fields: [commissionRecipientsTable.payingAccountId],
+      fields: [commissionPayoutsTable.payingAccountId],
       references: [accountsTable.id],
+    }),
+    expenseCategory: one(expenseCategoriesTable, {
+      fields: [commissionPayoutsTable.expenseCategoryId],
+      references: [expenseCategoriesTable.id],
+    }),
+    user: one(usersTable, {
+      fields: [commissionPayoutsTable.userId],
+      references: [usersTable.id],
     }),
   })
 );

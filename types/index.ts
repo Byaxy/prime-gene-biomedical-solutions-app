@@ -7,6 +7,7 @@ import {
   billPaymentItemsTable,
   billPaymentsTable,
   chartOfAccountsTable,
+  commissionPayoutsTable,
   commissionRecipientsTable,
   commissionSalesTable,
   commissionsTable,
@@ -913,7 +914,9 @@ export type CommissionRecipient = typeof commissionRecipientsTable.$inferSelect;
 export interface CommissionRecipientWithRelations {
   recipient: CommissionRecipient;
   salesAgent: SalesAgent;
-  payingAccount: Account | null;
+  payouts: CommissionPayoutWithRelations[];
+  paidSoFar: number;
+  remainingDue: number;
 }
 
 export type CommissionSale = typeof commissionSalesTable.$inferSelect;
@@ -924,6 +927,25 @@ export interface CommissionSaleWithRelations {
   withholdingTax: Tax | null;
 }
 
+export type CommissionPayout = typeof commissionPayoutsTable.$inferSelect;
+
+export interface CommissionPayoutWithRelations {
+  payout: CommissionPayout;
+  payingAccount: Account | null;
+  expenseCategory: ExpenseCategory | null;
+}
+
+export type GetCommissionPayoutWithRelations = {
+  payout: CommissionPayout;
+  commissionRecipient: {
+    recipient: CommissionRecipient;
+    salesAgent: SalesAgent;
+    commission: Commission;
+  };
+  payingAccount: Account;
+  expenseCategory: ExpenseCategory;
+  relatedInvoiceNumbers: string;
+};
 // Enums
 
 // payment methods
