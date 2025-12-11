@@ -27,7 +27,18 @@ import {
   SaleInventoryStock,
   SaleStatus,
 } from "@/types";
-import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  gt,
+  gte,
+  ilike,
+  inArray,
+  lte,
+  or,
+  sql,
+} from "drizzle-orm";
 import { SaleFilters } from "@/hooks/useSales";
 
 const buildFilterConditions = (filters: SaleFilters) => {
@@ -222,6 +233,7 @@ export const addSale = async (sale: SaleFormValues) => {
             storeId: sale.storeId,
             saleItemId: saleItems[productIndex].id,
             pendingQuantity: product.backorderQuantity ?? 0,
+            originalPendingQuantity: product.backorderQuantity ?? 0,
           });
 
           saleItemBackorderUpdates.push({
@@ -789,7 +801,8 @@ export const getSaleById = async (saleId: string) => {
               .where(
                 and(
                   inArray(backordersTable.saleItemId, saleItemIds),
-                  eq(backordersTable.isActive, true)
+                  eq(backordersTable.isActive, true),
+                  gt(backordersTable.pendingQuantity, 0)
                 )
               )
           : [];
@@ -822,6 +835,7 @@ export const getSaleById = async (saleId: string) => {
           storeId: record.storeId,
           saleItemId: record.saleItemId,
           pendingQuantity: record.pendingQuantity,
+          originalPendingQuantity: record.originalPendingQuantity,
         });
       });
 
@@ -947,7 +961,8 @@ export const getSales = async (
               .where(
                 and(
                   inArray(backordersTable.saleItemId, saleItemIds),
-                  eq(backordersTable.isActive, true)
+                  eq(backordersTable.isActive, true),
+                  gt(backordersTable.pendingQuantity, 0)
                 )
               )
           : [];
@@ -980,6 +995,7 @@ export const getSales = async (
           storeId: record.storeId,
           saleItemId: record.saleItemId,
           pendingQuantity: record.pendingQuantity,
+          originalPendingQuantity: record.originalPendingQuantity,
         });
       });
 

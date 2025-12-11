@@ -71,7 +71,7 @@ const ProductDetails = ({ product }: { product: ProductWithRelations }) => {
                 Quantity on Hand
               </TableCell>
               <TableCell className="text-16-regular">
-                {product.product.quantity}
+                {product.totalQuantityOnHand}
               </TableCell>
             </TableRow>
             <TableRow className="border-b border-dark-700">

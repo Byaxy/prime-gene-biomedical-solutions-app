@@ -14,7 +14,19 @@ import {
   productTypesTable,
   unitsTable,
 } from "@/drizzle/schema";
-import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  gt,
+  gte,
+  ilike,
+  inArray,
+  lte,
+  ne,
+  or,
+  sql,
+} from "drizzle-orm";
 import { ProductFilters } from "@/hooks/useProducts";
 
 interface ProductDataWithImage extends Omit<ProductFormValues, "image"> {
@@ -22,7 +34,7 @@ interface ProductDataWithImage extends Omit<ProductFormValues, "image"> {
   imageUrl: string;
 }
 
-// Reusable function to build the WHERE conditions for Drizzle queries
+// --- buildFilterConditions Function ---
 const buildFilterConditions = async (filters: ProductFilters) => {
   const conditions = [];
 
@@ -40,14 +52,6 @@ const buildFilterConditions = async (filters: ProductFilters) => {
   }
   if (filters.sellingPrice_max !== undefined) {
     conditions.push(lte(productsTable.sellingPrice, filters.sellingPrice_max));
-  }
-
-  // Quantity range
-  if (filters.quantity_min !== undefined) {
-    conditions.push(gte(productsTable.quantity, filters.quantity_min));
-  }
-  if (filters.quantity_max !== undefined) {
-    conditions.push(lte(productsTable.quantity, filters.quantity_max));
   }
 
   // Search logic using ILIKE on joined tables.
@@ -76,9 +80,6 @@ const buildFilterConditions = async (filters: ProductFilters) => {
     );
 
     if (matchingCategories.length > 0) {
-      // For each category name match, find all its descendants.
-      // This will capture products whose *direct category* does not match the search
-      // but its *ancestor's name* matches the search term.
       const descendantConditions = allRelevantCategoryIdsForSearch.map((id) =>
         ilike(categoriesTable.path, `${id}%`)
       );
@@ -95,16 +96,14 @@ const buildFilterConditions = async (filters: ProductFilters) => {
       );
       allRelevantCategoryIdsForSearch = [
         ...new Set(allRelevantCategoryIdsForSearch),
-      ]; // Deduplicate
+      ];
     }
 
-    // If we found any relevant category IDs, add them to the main search OR condition
     if (allRelevantCategoryIdsForSearch.length > 0) {
       searchConditions.push(
         inArray(productsTable.categoryId, allRelevantCategoryIdsForSearch)
       );
     }
-    // Push all collected search OR conditions
     conditions.push(or(...searchConditions));
   }
   // isActive filter
@@ -152,9 +151,6 @@ const buildFilterConditions = async (filters: ProductFilters) => {
     }
   }
 
-  //if (filters.categoryId) {
-  //  conditions.push(eq(productsTable.categoryId, filters.categoryId));
-  //}
   if (filters.typeId) {
     conditions.push(eq(productsTable.typeId, filters.typeId));
   }
@@ -168,14 +164,28 @@ const buildFilterConditions = async (filters: ProductFilters) => {
   return conditions;
 };
 
-// Add Product
+// --- addProduct Function ---
 export const addProduct = async (productData: ProductDataWithImage) => {
   try {
+    // Basic validation (e.g., uniqueness of productID)
+    const existingProduct = await db
+      .select({ id: productsTable.id })
+      .from(productsTable)
+      .where(eq(productsTable.productID, productData.productID));
+
+    if (existingProduct.length > 0) {
+      throw new Error(`Product ID "${productData.productID}" already exists.`);
+    }
+
+    // Insert new product record (excluding the removed 'quantity' field)
     const insertedProduct = await db
       .insert(productsTable)
       .values({
         ...productData,
-        typeId: productData.typeId && productData.typeId,
+        typeId: productData.typeId || null,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       })
       .returning();
 
@@ -187,7 +197,7 @@ export const addProduct = async (productData: ProductDataWithImage) => {
   }
 };
 
-// Get Products with relations
+// --- getProducts Function ---
 export const getProducts = async (
   page: number = 0,
   limit: number = 10,
@@ -196,13 +206,13 @@ export const getProducts = async (
 ) => {
   try {
     const result = await db.transaction(async (tx) => {
+      // Define common columns for GROUP BY clause.
       const commonGroupByColumns = [
         productsTable.id,
         productsTable.productID,
         productsTable.name,
         productsTable.alertQuantity,
         productsTable.maxAlertQuantity,
-        productsTable.quantity,
         productsTable.costPrice,
         productsTable.sellingPrice,
         productsTable.description,
@@ -240,7 +250,7 @@ export const getProducts = async (
         unitsTable.updatedAt,
       ];
 
-      // Build the main products query
+      // Build the main products query with aggregate calculations for quantities.
       let productsQuery = tx
         .select({
           product: productsTable,
@@ -248,8 +258,8 @@ export const getProducts = async (
           brand: brandsTable,
           type: productTypesTable,
           unit: unitsTable,
-          totalInventoryStockQuantity: sql<number>`SUM(${inventoryTable.quantity})`,
-          totalBackorderStockQuantity: sql<number>`SUM(${backordersTable.pendingQuantity})`,
+          totalInventoryStockQuantity: sql<number>`COALESCE(SUM(${inventoryTable.quantity}), 0)`,
+          totalBackorderStockQuantity: sql<number>`COALESCE(SUM(${backordersTable.pendingQuantity}), 0)`,
         })
         .from(productsTable)
         .leftJoin(
@@ -266,43 +276,53 @@ export const getProducts = async (
           inventoryTable,
           and(
             eq(productsTable.id, inventoryTable.productId),
-            eq(inventoryTable.isActive, true)
+            eq(inventoryTable.isActive, true),
+            gte(inventoryTable.quantity, 0)
           )
         )
         .leftJoin(
           backordersTable,
           and(
             eq(productsTable.id, backordersTable.productId),
-            eq(backordersTable.isActive, true)
+            eq(backordersTable.isActive, true),
+            gt(backordersTable.pendingQuantity, 0)
           )
         )
         .$dynamic();
 
+      // Apply filters
       const conditions = await buildFilterConditions(filters ?? {});
       if (conditions.length > 0) {
         productsQuery = productsQuery.where(and(...conditions));
       }
 
+      // Group by all non-aggregate columns
       productsQuery = productsQuery
         .groupBy(...commonGroupByColumns)
         .orderBy(desc(productsTable.createdAt));
 
+      // Apply pagination if not getting all products
       if (!getAllProducts && limit > 0) {
         productsQuery = productsQuery.limit(limit).offset(page * limit);
       }
 
       const products = await productsQuery;
+
+      // Map the results to the desired `ProductWithRelations` structure
       const productsWithCalculatedQuantity = products.map((p) => ({
         ...p,
         product: {
           ...p.product,
-          quantity: Number(p.totalInventoryStockQuantity),
+          derivedQuantity: Number(p.totalInventoryStockQuantity),
         },
         totalInventoryStockQuantity: Number(p.totalInventoryStockQuantity),
         totalBackorderStockQuantity: Number(p.totalBackorderStockQuantity),
+        totalQuantityOnHand:
+          Number(p.totalInventoryStockQuantity) -
+          Number(p.totalBackorderStockQuantity),
       }));
 
-      // Get total count for pagination
+      // Get total count for pagination (count DISTINCT products to avoid overcounting due to joins)
       let totalQuery = tx
         .select({ count: sql<number>`count(DISTINCT ${productsTable.id})` })
         .from(productsTable)
@@ -342,7 +362,7 @@ export const getProducts = async (
   }
 };
 
-// Get Product by ID with relations
+// --- getProductById Function ---
 export const getProductById = async (productId: string) => {
   try {
     const commonGroupByColumns = [
@@ -351,7 +371,6 @@ export const getProductById = async (productId: string) => {
       productsTable.name,
       productsTable.alertQuantity,
       productsTable.maxAlertQuantity,
-      productsTable.quantity,
       productsTable.costPrice,
       productsTable.sellingPrice,
       productsTable.description,
@@ -388,6 +407,7 @@ export const getProductById = async (productId: string) => {
       unitsTable.createdAt,
       unitsTable.updatedAt,
     ];
+
     const result = await db.transaction(async (tx) => {
       const response = await tx
         .select({
@@ -396,8 +416,8 @@ export const getProductById = async (productId: string) => {
           brand: brandsTable,
           type: productTypesTable,
           unit: unitsTable,
-          totalInventoryStockQuantity: sql<number>`SUM(${inventoryTable.quantity})`,
-          totalBackorderStockQuantity: sql<number>`SUM(${backordersTable.pendingQuantity})`,
+          totalInventoryStockQuantity: sql<number>`COALESCE(SUM(${inventoryTable.quantity}), 0)`,
+          totalBackorderStockQuantity: sql<number>`COALESCE(SUM(${backordersTable.pendingQuantity}), 0)`,
         })
         .from(productsTable)
         .leftJoin(
@@ -414,14 +434,16 @@ export const getProductById = async (productId: string) => {
           inventoryTable,
           and(
             eq(productsTable.id, inventoryTable.productId),
-            eq(inventoryTable.isActive, true)
+            eq(inventoryTable.isActive, true),
+            gte(inventoryTable.quantity, 0)
           )
         )
         .leftJoin(
           backordersTable,
           and(
             eq(productsTable.id, backordersTable.productId),
-            eq(backordersTable.isActive, true)
+            eq(backordersTable.isActive, true),
+            gt(backordersTable.pendingQuantity, 0)
           )
         )
         .where(eq(productsTable.id, productId))
@@ -432,38 +454,56 @@ export const getProductById = async (productId: string) => {
         return null;
       }
 
-      return response;
+      // Map the result to include derived quantities
+      return {
+        ...response,
+        product: {
+          ...response.product,
+          derivedQuantity: Number(response.totalInventoryStockQuantity),
+        },
+        totalInventoryStockQuantity: Number(
+          response.totalInventoryStockQuantity
+        ),
+        totalBackorderStockQuantity: Number(
+          response.totalBackorderStockQuantity
+        ),
+        totalQuantityOnHand:
+          Number(response.totalInventoryStockQuantity) -
+          Number(response.totalBackorderStockQuantity),
+      };
     });
 
-    return result
-      ? parseStringify({
-          ...result,
-          product: {
-            ...result.product,
-            quantity: Number(result.totalInventoryStockQuantity),
-          },
-          totalInventoryStockQuantity: Number(
-            result.totalInventoryStockQuantity
-          ),
-          totalBackorderStockQuantity: Number(
-            result.totalBackorderStockQuantity
-          ),
-        })
-      : null;
+    return result ? parseStringify(result) : null;
   } catch (error) {
     console.error("Error getting product by ID:", error);
     throw error;
   }
 };
 
-// Edit Product
+// --- editProduct Function ---
 export const editProduct = async (
   productData: ProductDataWithImage,
   productId: string
 ) => {
   try {
+    // Validate uniqueness of productID (excluding current product)
+    const existingProduct = await db
+      .select({ id: productsTable.id })
+      .from(productsTable)
+      .where(
+        and(
+          eq(productsTable.productID, productData.productID),
+          ne(productsTable.id, productId)
+        )
+      );
+
+    if (existingProduct.length > 0) {
+      throw new Error(`Product ID "${productData.productID}" already exists.`);
+    }
+
     let updatedProductData;
 
+    //  Prepare update data
     if (productData.imageId && productData.imageUrl) {
       updatedProductData = {
         productID: productData.productID,
@@ -473,12 +513,13 @@ export const editProduct = async (
         costPrice: productData.costPrice,
         sellingPrice: productData.sellingPrice,
         categoryId: productData.categoryId,
+        typeId: productData.typeId || null,
         brandId: productData.brandId,
-        typeId: productData.typeId && productData.typeId,
         unitId: productData.unitId,
         description: productData.description,
         imageId: productData.imageId,
         imageUrl: productData.imageUrl,
+        updatedAt: new Date(),
       };
     } else {
       updatedProductData = {
@@ -489,13 +530,15 @@ export const editProduct = async (
         costPrice: productData.costPrice,
         sellingPrice: productData.sellingPrice,
         categoryId: productData.categoryId,
+        typeId: productData.typeId || null,
         brandId: productData.brandId,
-        typeId: productData.typeId && productData.typeId,
         unitId: productData.unitId,
         description: productData.description,
+        updatedAt: new Date(),
       };
     }
 
+    // 3. Perform the update
     const updatedProduct = await db
       .update(productsTable)
       .set(updatedProductData)
@@ -504,6 +547,7 @@ export const editProduct = async (
 
     revalidatePath("/inventory");
     revalidatePath(`/inventory/edit-inventory/${productId}`);
+    // Return only the updated product data
     return parseStringify(updatedProduct);
   } catch (error) {
     console.error("Error editing product:", error);
@@ -511,9 +555,10 @@ export const editProduct = async (
   }
 };
 
-// Permanently Delete Product
+// --- deleteProduct Function ---
 export const deleteProduct = async (productId: string) => {
   try {
+    // Delete the product record
     const deletedProduct = await db
       .delete(productsTable)
       .where(eq(productsTable.id, productId))
@@ -527,12 +572,13 @@ export const deleteProduct = async (productId: string) => {
   }
 };
 
-// Soft Delete Product
+// --- softDeleteProduct Function ---
 export const softDeleteProduct = async (productId: string) => {
   try {
+    // Update product status to inactive
     const updatedProduct = await db
       .update(productsTable)
-      .set({ isActive: false })
+      .set({ isActive: false, updatedAt: new Date() })
       .where(eq(productsTable.id, productId))
       .returning();
 
@@ -544,12 +590,13 @@ export const softDeleteProduct = async (productId: string) => {
   }
 };
 
-// Reactivate Product
+// --- reactivateProduct Function ---
 export const reactivateProduct = async (productId: string) => {
   try {
+    // Update product status to active
     const updatedProduct = await db
       .update(productsTable)
-      .set({ isActive: true })
+      .set({ isActive: true, updatedAt: new Date() })
       .where(eq(productsTable.id, productId))
       .returning();
 
@@ -561,6 +608,7 @@ export const reactivateProduct = async (productId: string) => {
   }
 };
 
+// --- reactivateMultipleProducts Function ---
 export const reactivateMultipleProducts = async (productIds: string[]) => {
   try {
     if (!productIds || productIds.length === 0) {
@@ -568,6 +616,7 @@ export const reactivateMultipleProducts = async (productIds: string[]) => {
     }
 
     const reactivatedProducts = await db.transaction(async (tx) => {
+      // Batch update product statuses to active
       const results = await tx
         .update(productsTable)
         .set({ isActive: true, updatedAt: new Date() })
@@ -580,17 +629,17 @@ export const reactivateMultipleProducts = async (productIds: string[]) => {
     revalidatePath("/inventory");
     return parseStringify(reactivatedProducts);
   } catch (error) {
-    console.error("Error deleting multiple products:", error);
+    console.error("Error reactivating multiple products:", error);
     throw error;
   }
 };
 
-// Optimized Bulk Products Upload
+// --- bulkAddProducts Function ---
 export const bulkAddProducts = async (
   products: (ProductFormValues & { id?: string; productID: string })[]
 ) => {
   try {
-    // Early validation: Check for duplicate product IDs using Set for O(n) performance
+    // Early validation: Check for duplicate product IDs in input
     const productIDSet = new Set<string>();
     const duplicateIDs: string[] = [];
 
@@ -611,7 +660,7 @@ export const bulkAddProducts = async (
     const productsToUpdate = products.filter((p) => p.id);
     const productsToCreate = products.filter((p) => !p.id);
 
-    // Validate foreign key references for all products
+    // Validate foreign key references for all products (optimized batch fetch)
     const allCategoryIds = [
       ...new Set(products.map((p) => p.categoryId).filter(Boolean)),
     ];
@@ -625,7 +674,6 @@ export const bulkAddProducts = async (
       ...new Set(products.map((p) => p.unitId).filter(Boolean)),
     ];
 
-    // Batch validate all foreign key references
     const [existingCategories, existingTypes, existingBrands, existingUnits] =
       await Promise.all([
         allCategoryIds.length
@@ -692,7 +740,7 @@ export const bulkAddProducts = async (
       throw new Error(validationErrors.join("; "));
     }
 
-    // Batch check for existing products (only for products to create)
+    // Batch check for existing productIDs for products to create
     if (productsToCreate.length > 0) {
       const productIDsToCheck = productsToCreate.map((p) => p.productID);
       const existingProducts = await db
@@ -716,11 +764,11 @@ export const bulkAddProducts = async (
         updatedProducts: [] as any[],
       };
 
-      // Batch insert new products (single query instead of loop)
+      // Batch insert new products
       if (productsToCreate.length > 0) {
         const productsData = productsToCreate.map((product) => ({
           ...product,
-          typeId: product.typeId && product.typeId,
+          typeId: product.typeId || null,
           isActive: false,
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -736,14 +784,11 @@ export const bulkAddProducts = async (
 
       // Batch update existing products
       if (productsToUpdate.length > 0) {
-        // For updates, we'll use a more efficient approach with fewer queries
-        // Group updates by chunks to avoid query size limits
-        const BATCH_SIZE = 100; // Adjust based on your DB limits
+        const BATCH_SIZE = 100;
 
         for (let i = 0; i < productsToUpdate.length; i += BATCH_SIZE) {
           const batch = productsToUpdate.slice(i, i + BATCH_SIZE);
 
-          // Use Promise.all for parallel updates within the transaction
           const updatedBatch = await Promise.all(
             batch.map(async (product) => {
               if (!product.id) return null;
@@ -759,7 +804,7 @@ export const bulkAddProducts = async (
                   alertQuantity: product.alertQuantity,
                   maxAlertQuantity: product.maxAlertQuantity,
                   categoryId: product.categoryId,
-                  typeId: product.typeId && product.typeId,
+                  typeId: product.typeId || null,
                   brandId: product.brandId,
                   unitId: product.unitId,
                   updatedAt: new Date(),
@@ -790,6 +835,8 @@ export const bulkAddProducts = async (
     throw error;
   }
 };
+
+// --- softDeleteMultipleProducts Function ---
 export const softDeleteMultipleProducts = async (productIds: string[]) => {
   try {
     if (!productIds || productIds.length === 0) {
@@ -797,6 +844,7 @@ export const softDeleteMultipleProducts = async (productIds: string[]) => {
     }
 
     const deletedProducts = await db.transaction(async (tx) => {
+      // Batch update product statuses to inactive
       const results = await tx
         .update(productsTable)
         .set({ isActive: false, updatedAt: new Date() })
@@ -814,6 +862,7 @@ export const softDeleteMultipleProducts = async (productIds: string[]) => {
   }
 };
 
+// --- deleteMultipleProducts Function ---
 export const deleteMultipleProducts = async (productIds: string[]) => {
   try {
     if (!productIds || productIds.length === 0) {
@@ -821,6 +870,7 @@ export const deleteMultipleProducts = async (productIds: string[]) => {
     }
 
     const deletedProducts = await db.transaction(async (tx) => {
+      // Batch delete product records
       const results = await tx
         .delete(productsTable)
         .where(inArray(productsTable.id, productIds))

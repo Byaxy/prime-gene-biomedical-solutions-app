@@ -69,7 +69,6 @@ const ProductForm = ({
       brandId: "",
       unitId: "",
       description: "",
-      quantity: 0,
       costPrice: 0,
       sellingPrice: 0,
       image: [],
@@ -96,7 +95,6 @@ const ProductForm = ({
           brandId: initialData.brandId,
           unitId: initialData.unitId,
           description: initialData.description,
-          quantity: initialData.quantity,
           costPrice: initialData.costPrice,
           sellingPrice: initialData.sellingPrice,
           image: initialData.imageUrl
@@ -427,14 +425,6 @@ const ProductForm = ({
               label="Max Reoder Level"
               placeholder="Enter max reoder level"
               disabled={isAnyMutationLoading}
-            />
-            <CustomFormField
-              fieldType={FormFieldType.NUMBER}
-              control={form.control}
-              name="quantity"
-              label="Quantity At Hand"
-              placeholder="Enter quantity at hand"
-              disabled
             />
           </div>
 

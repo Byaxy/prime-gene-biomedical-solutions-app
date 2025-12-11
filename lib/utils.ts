@@ -141,7 +141,6 @@ export const transformProductsForExport = (
       productID: product.productID,
       name: product.name,
       description: product.description || "",
-      quantity: product.quantity,
       costPrice: product.costPrice,
       sellingPrice: product.sellingPrice,
       alertQuantity: product.alertQuantity,

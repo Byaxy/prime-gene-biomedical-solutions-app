@@ -25,8 +25,6 @@ import FormatNumber from "@/components/FormatNumber";
 import { usePurchases } from "@/hooks/usePurchases";
 import {
   Attachment,
-  InventoryStockWithRelations,
-  Product,
   ProductWithRelations,
   PurchaseOrderWithRelations,
   PurchaseStatus,
@@ -49,7 +47,6 @@ interface PurchaseFormProps {
   initialData?: PurchaseWithRelations;
   sourcePurchaseOrder?: PurchaseOrderWithRelations;
   products: ProductWithRelations[];
-  inventoryStock: InventoryStockWithRelations[];
   vendors: Vendor[];
   purchaseOrders: PurchaseOrderWithRelations[];
   generatedPurchaseNumber?: string;
@@ -61,7 +58,6 @@ const PurchaseForm = ({
   initialData,
   sourcePurchaseOrder,
   products,
-  inventoryStock,
   vendors,
   purchaseOrders,
   generatedPurchaseNumber: initialGeneratedPurchaseNumber,
@@ -120,53 +116,28 @@ const PurchaseForm = ({
   }));
 
   const filteredProducts = useMemo(() => {
-    return products?.reduce((acc: Product[], product: ProductWithRelations) => {
-      if (!product?.product?.id || !product?.product?.productID) {
+    return products?.reduce(
+      (acc: ProductWithRelations[], product: ProductWithRelations) => {
+        if (!product?.product?.id || !product?.product?.productID) {
+          return acc;
+        }
+
+        // Apply search filter
+        if (searchQuery?.trim()) {
+          const query = searchQuery.toLowerCase().trim();
+          const matchesSearch =
+            product.product.productID?.toLowerCase().includes(query) ||
+            product.product.name?.toLowerCase().includes(query);
+
+          if (!matchesSearch) return acc;
+        }
+
+        acc.push(product);
         return acc;
-      }
-
-      const { product: pdt } = product;
-
-      const productQnty =
-        inventoryStock?.reduce(
-          (total: number, inv: InventoryStockWithRelations) => {
-            if (
-              !inv?.product?.id ||
-              !inv?.inventory?.quantity ||
-              !inv?.store?.id
-            ) {
-              return total;
-            }
-
-            if (
-              inv.product.id === pdt.id &&
-              inv.product.productID === pdt.productID &&
-              inv.inventory.quantity > 0
-            ) {
-              return total + inv.inventory.quantity;
-            }
-
-            return total;
-          },
-          0
-        ) || 0;
-
-      const updatedProduct = { ...pdt, quantity: productQnty };
-
-      // Apply search filter
-      if (searchQuery?.trim()) {
-        const query = searchQuery.toLowerCase().trim();
-        const matchesSearch =
-          updatedProduct.productID?.toLowerCase().includes(query) ||
-          updatedProduct.name?.toLowerCase().includes(query);
-
-        if (!matchesSearch) return acc;
-      }
-
-      acc.push(updatedProduct);
-      return acc;
-    }, []);
-  }, [inventoryStock, products, searchQuery]);
+      },
+      []
+    );
+  }, [products, searchQuery]);
 
   useEffect(() => {
     if (
@@ -723,50 +694,63 @@ const PurchaseForm = ({
                           </TableRow>
                         </TableHeader>
                         <TableBody className="w-full bg-white">
-                          {filteredProducts.map((product: Product) => (
-                            <TableRow
-                              key={product.id}
-                              className="cursor-pointer hover:bg-blue-50"
-                              onClick={() => {
-                                if (isAnyMutationLoading) return;
-                                form.setValue("selectedProductId", product.id);
-                                setPrevSelectedProductId(product.id);
-                                setSearchQuery("");
-                                // Find and click the hidden SelectItem with this value
-                                const selectItem = document.querySelector(
-                                  `[data-value="${product.id}"]`
-                                ) as HTMLElement;
-                                if (selectItem) {
-                                  selectItem.click();
-                                }
-                              }}
-                            >
-                              <TableCell>{product.productID}</TableCell>
-                              <TableCell>{product.name}</TableCell>
-                              <TableCell>{product.quantity}</TableCell>
-                              <TableCell className="w-10">
-                                {prevSelectedProductId === product.id && (
-                                  <span className="text-blue-800">
-                                    <Check className="h-5 w-5" />
-                                  </span>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          ))}
+                          {filteredProducts.map(
+                            (product: ProductWithRelations) => (
+                              <TableRow
+                                key={product.product.id}
+                                className="cursor-pointer hover:bg-blue-50"
+                                onClick={() => {
+                                  if (isAnyMutationLoading) return;
+                                  form.setValue(
+                                    "selectedProductId",
+                                    product.product.id
+                                  );
+                                  setPrevSelectedProductId(product.product.id);
+                                  setSearchQuery("");
+                                  // Find and click the hidden SelectItem with this value
+                                  const selectItem = document.querySelector(
+                                    `[data-value="${product.product.id}"]`
+                                  ) as HTMLElement;
+                                  if (selectItem) {
+                                    selectItem.click();
+                                  }
+                                }}
+                              >
+                                <TableCell>
+                                  {product.product.productID}
+                                </TableCell>
+                                <TableCell>{product.product.name}</TableCell>
+                                <TableCell>
+                                  {product.totalInventoryStockQuantity}
+                                </TableCell>
+                                <TableCell className="w-10">
+                                  {prevSelectedProductId ===
+                                    product.product.id && (
+                                    <span className="text-blue-800">
+                                      <Check className="h-5 w-5" />
+                                    </span>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            )
+                          )}
                         </TableBody>
                       </Table>
                       {/* Hidden select options for form control */}
                       <div className="hidden">
-                        {filteredProducts.map((product: Product) => (
-                          <SelectItem
-                            key={product.id}
-                            value={product.id}
-                            data-value={product.id}
-                          >
-                            {product.productID} -{product.name}
-                            {}
-                          </SelectItem>
-                        ))}
+                        {filteredProducts.map(
+                          (product: ProductWithRelations) => (
+                            <SelectItem
+                              key={product.product.id}
+                              value={product.product.id}
+                              data-value={product.product.id}
+                            >
+                              {product.product.productID} -
+                              {product.product.name}
+                              {}
+                            </SelectItem>
+                          )
+                        )}
                       </div>
                     </>
                   ) : (

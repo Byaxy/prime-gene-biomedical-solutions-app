@@ -95,7 +95,6 @@ export const ProductFormValidation = z.object({
     .nonempty("Name is required")
     .min(2, "Name must be at least 2 characters"),
   description: z.string().optional(),
-  quantity: z.number().int().min(0, "Quantity must be 0 or more"),
   costPrice: z.number().min(0, "Cost price must be positive"),
   sellingPrice: z.number().min(0, "Selling price must be positive"),
   alertQuantity: z.number().int().min(1, "Min reoder level must be 1 or more"),

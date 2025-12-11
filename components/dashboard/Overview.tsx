@@ -5,7 +5,7 @@ import OverviewCard from "./OverviewCard";
 import { usePurchases } from "@/hooks/usePurchases";
 import { useExpenses } from "@/hooks/useExpenses";
 import {
-  Expense,
+  ExpenseWithRelations,
   ProductWithRelations,
   PurchaseWithRelations,
   SaleWithRelations,
@@ -69,7 +69,8 @@ const Overview = () => {
 
   const totalExpenses = expenses
     ? expenses.reduce(
-        (sum: number, expense: Expense) => (sum += expense.amount),
+        (sum: number, expense: ExpenseWithRelations) =>
+          (sum += expense.expense.amount),
         0
       )
     : 0;

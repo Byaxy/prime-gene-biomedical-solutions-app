@@ -371,6 +371,11 @@ export const sidebarData: SidebarDataType[] = [
             title: "Sales Commissions",
             path: "/accounting-and-finance/commissions",
           },
+          {
+            id: generateId(),
+            title: "Commission Payments",
+            path: "/accounting-and-finance/commissions/payments",
+          },
         ],
       },
     ],

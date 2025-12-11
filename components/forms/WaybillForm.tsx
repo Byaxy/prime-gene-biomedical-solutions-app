@@ -14,7 +14,6 @@ import {
   Customer,
   DeliveryStatus,
   InventoryStockWithRelations,
-  Product,
   ProductWithRelations,
   SaleItem,
   SaleWithRelations,
@@ -204,7 +203,7 @@ const WaybillForm = ({
   // Filter products
   const filteredProducts = useMemo(() => {
     return products
-      ?.reduce((acc: Product[], product: ProductWithRelations) => {
+      ?.reduce((acc: ProductWithRelations[], product: ProductWithRelations) => {
         if (
           !selectedStoreId ||
           !product?.product?.id ||
@@ -213,50 +212,23 @@ const WaybillForm = ({
           return acc;
         }
 
-        const { product: pdt } = product;
-
-        const productQnty =
-          inventoryStock?.reduce(
-            (total: number, inv: InventoryStockWithRelations) => {
-              if (
-                !inv?.product?.id ||
-                !inv?.inventory?.quantity ||
-                !inv?.store?.id
-              ) {
-                return total;
-              }
-
-              if (
-                inv.product.id === pdt.id &&
-                inv.product.productID === pdt.productID &&
-                inv.store.id === selectedStoreId &&
-                inv.inventory.quantity > 0
-              ) {
-                return total + inv.inventory.quantity;
-              }
-
-              return total;
-            },
-            0
-          ) || 0;
-
-        const updatedProduct = { ...pdt, quantity: productQnty };
-
         // Apply search filter
         if (searchQuery?.trim()) {
           const query = searchQuery.toLowerCase().trim();
           const matchesSearch =
-            updatedProduct.productID?.toLowerCase().includes(query) ||
-            updatedProduct.name?.toLowerCase().includes(query);
+            product.product.productID?.toLowerCase().includes(query) ||
+            product.product.name?.toLowerCase().includes(query);
 
           if (!matchesSearch) return acc;
         }
 
-        acc.push(updatedProduct);
+        acc.push(product);
         return acc;
       }, [])
-      .filter((pdt: Product) => pdt.quantity > 0);
-  }, [products, inventoryStock, selectedStoreId, searchQuery]);
+      .filter(
+        (pdt: ProductWithRelations) => pdt.totalInventoryStockQuantity > 0
+      );
+  }, [products, selectedStoreId, searchQuery]);
 
   // Filter sales
   const filteredSales = useMemo(() => {
@@ -1299,9 +1271,12 @@ const WaybillForm = ({
                             </TableHeader>
                             <TableBody className="w-full bg-white">
                               {filteredProducts.map(
-                                (product: Product, index: number) => (
+                                (
+                                  product: ProductWithRelations,
+                                  index: number
+                                ) => (
                                   <TableRow
-                                    key={product.id}
+                                    key={product.product.id}
                                     className={cn("cursor-pointer", {
                                       "bg-blue-50": index % 2 === 1,
                                     })}
@@ -1309,24 +1284,33 @@ const WaybillForm = ({
                                       if (isAnyMutationLoading) return;
                                       form.setValue(
                                         "selectedProductId",
-                                        product.id
+                                        product.product.id
                                       );
-                                      setPrevSelectedProductId(product.id);
+                                      setPrevSelectedProductId(
+                                        product.product.id
+                                      );
                                       setSearchQuery("");
                                       // Find and click the hidden SelectItem with this value
                                       const selectItem = document.querySelector(
-                                        `[data-value="${product.id}"]`
+                                        `[data-value="${product.product.id}"]`
                                       ) as HTMLElement;
                                       if (selectItem) {
                                         selectItem.click();
                                       }
                                     }}
                                   >
-                                    <TableCell>{product.productID}</TableCell>
-                                    <TableCell>{product.name}</TableCell>
-                                    <TableCell>{product.quantity}</TableCell>
+                                    <TableCell>
+                                      {product.product.productID}
+                                    </TableCell>
+                                    <TableCell>
+                                      {product.product.name}
+                                    </TableCell>
+                                    <TableCell>
+                                      {product.totalInventoryStockQuantity}
+                                    </TableCell>
                                     <TableCell className="w-10">
-                                      {prevSelectedProductId === product.id && (
+                                      {prevSelectedProductId ===
+                                        product.product.id && (
                                         <span className="text-blue-800">
                                           <Check className="h-5 w-5" />
                                         </span>
@@ -1339,16 +1323,19 @@ const WaybillForm = ({
                           </Table>
                           {/* Hidden select options for form control */}
                           <div className="hidden">
-                            {filteredProducts.map((product: Product) => (
-                              <SelectItem
-                                key={product.id}
-                                value={product.id}
-                                data-value={product.id}
-                              >
-                                {product.productID} -{product.name}
-                                {}
-                              </SelectItem>
-                            ))}
+                            {filteredProducts.map(
+                              (product: ProductWithRelations) => (
+                                <SelectItem
+                                  key={product.product.id}
+                                  value={product.product.id}
+                                  data-value={product.product.id}
+                                >
+                                  {product.product.productID} -
+                                  {product.product.name}
+                                  {}
+                                </SelectItem>
+                              )
+                            )}
                           </div>
                         </>
                       ) : (

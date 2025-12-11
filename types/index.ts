@@ -137,7 +137,6 @@ export interface Product {
   costPrice: number;
   sellingPrice: number;
   description: string;
-  quantity: number;
   alertQuantity: number;
   maxAlertQuantity: number;
   categoryId: string;
@@ -152,13 +151,14 @@ export interface Product {
 }
 // Product with relations
 export interface ProductWithRelations {
-  product: Product;
+  product: Omit<Product, "quantity"> & { derivedQuantity: number };
   category: Category;
   brand: Brand;
   type: ProductType;
   unit: Unit;
   totalBackorderStockQuantity: number;
   totalInventoryStockQuantity: number;
+  totalQuantityOnHand: number;
 }
 
 // Company Settings
@@ -426,6 +426,7 @@ export interface SaleBackorder {
   storeId: string;
   saleItemId: string;
   pendingQuantity: number;
+  originalPendingQuantity: number;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;

@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import { getInventoryStock } from "@/lib/actions/inventoryStock.actions";
 import { getProducts } from "@/lib/actions/product.actions";
 import {
   generatePurchaseNumber,
@@ -12,7 +11,6 @@ import {
 } from "@/lib/actions/purchaseOrder.actions";
 import { getVendors } from "@/lib/actions/vendor.actions";
 import {
-  InventoryStockWithRelations,
   ProductWithRelations,
   PurchaseOrderWithRelations,
   PurchaseWithRelations,
@@ -31,26 +29,19 @@ const PurchaseFormWrapper = async ({
   sourcePurchaseOrderId,
   purchaseId,
 }: Props) => {
-  const [
-    productsData,
-    inventoryStockData,
-    vendorsData,
-    purchaseOrdersData,
-    purchaseData,
-  ] = await Promise.all([
-    getProducts(0, 0, true, { isActive: "true" }),
-    getInventoryStock(0, 0, true),
-    getVendors(0, 0, true),
-    getPurchaseOrders(0, 0, true),
-    getPurchases(0, 0, true),
-  ]);
+  const [productsData, vendorsData, purchaseOrdersData, purchaseData] =
+    await Promise.all([
+      getProducts(0, 0, true, { isActive: "true" }),
+      getVendors(0, 0, true),
+      getPurchaseOrders(0, 0, true),
+      getPurchases(0, 0, true),
+    ]);
 
   const products: ProductWithRelations[] = productsData.documents;
   const vendors: Vendor[] = vendorsData.documents;
   const purchaseOrders: PurchaseOrderWithRelations[] =
     purchaseOrdersData.documents;
-  const inventoryStock: InventoryStockWithRelations[] =
-    inventoryStockData.documents;
+
   const purchases: PurchaseWithRelations[] = purchaseData.documents;
 
   let initialData: PurchaseWithRelations | undefined = undefined;
@@ -79,7 +70,6 @@ const PurchaseFormWrapper = async ({
       initialData={initialData}
       products={products}
       vendors={vendors}
-      inventoryStock={inventoryStock}
       purchaseOrders={purchaseOrders}
       generatedPurchaseNumber={generatedPurchaseNumber}
       sourcePurchaseOrder={sourcePurchaseOrder}

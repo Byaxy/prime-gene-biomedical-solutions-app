@@ -20,7 +20,6 @@ const buildFilterConditions = (filters: PurchaseFilters) => {
   conditions.push(eq(purchasesTable.isActive, true));
 
   // Search logic using ILIKE on joined tables.
-  // GIN indexes are crucial here.
   if (filters.search?.trim()) {
     const searchTerm = `%${filters.search.trim()}%`;
     conditions.push(

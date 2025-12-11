@@ -430,7 +430,6 @@ export const productsTable = pgTable(
     description: text("description").default(""),
     costPrice: numeric("cost_price").notNull(),
     sellingPrice: numeric("selling_price").notNull(),
-    quantity: integer("quantity").notNull(),
     alertQuantity: integer("alert_quantity").default(1),
     maxAlertQuantity: integer("max_alert_quantity").default(5),
     categoryId: uuid("category_id")
@@ -473,7 +472,6 @@ export const productsTable = pgTable(
     productsSellingPriceIdx: index("products_selling_price_idx").on(
       table.sellingPrice
     ),
-    productsQuantityIdx: index("products_quantity_idx").on(table.quantity),
 
     // Composite indexes for common filter combinations
     productsActiveCategoryIdx: index("products_active_category_idx").on(
@@ -1210,6 +1208,9 @@ export const backordersTable = pgTable(
       .notNull()
       .references(() => saleItemsTable.id, { onDelete: "cascade" }),
     pendingQuantity: integer("pending_quantity").notNull(),
+    originalPendingQuantity: integer("original_pending_quantity")
+      .notNull()
+      .default(0),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
