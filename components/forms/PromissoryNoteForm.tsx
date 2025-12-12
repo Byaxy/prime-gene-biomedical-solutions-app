@@ -161,7 +161,9 @@ const PromissoryNoteForm = ({
               },
             }
           );
-        } else if (mode === "edit") {
+        }
+
+        if (mode === "edit") {
           if (!initialData?.promissoryNote.id) {
             throw new Error("Promissory Note ID is required for editing");
           }

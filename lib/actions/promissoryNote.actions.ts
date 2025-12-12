@@ -10,18 +10,14 @@ import {
   promissoryNoteItemsTable,
   promissoryNotesTable,
   salesTable,
-  waybillItemsTable,
-  waybillsTable,
 } from "@/drizzle/schema";
 import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import { PromissoryNoteFilters } from "@/hooks/usePromissoryNote";
 import {
   PromissoryNoteItem,
   PromissoryNoteStatus,
-  SaleItem,
   WaybillProductForPromissoryNote,
 } from "@/types";
-import { getSaleById } from "./sale.actions";
 
 const buildFilterConditions = (filters: PromissoryNoteFilters) => {
   const conditions = [];
@@ -74,17 +70,36 @@ export const addPromissoryNote = async (
 ) => {
   try {
     // 1. Validate sale existence and prevent duplicate promissory notes
-    const sale = await getSaleById(promissoryNoteData.saleId);
-
-    if (!sale) {
-      throw new Error("Associated sale not found.");
-    }
-    // Check if a promissory note already exists for this sale
-    if (sale.promissoryNote && sale.promissoryNote.promissoryNote.id) {
-      throw new Error("Sale already has an active promissory note.");
-    }
 
     const result = await db.transaction(async (tx) => {
+      const sale = await tx
+        .select({
+          sale: salesTable,
+          promissoryNote: promissoryNotesTable,
+        })
+        .from(salesTable)
+
+        .leftJoin(
+          promissoryNotesTable,
+          eq(salesTable.id, promissoryNotesTable.saleId)
+        )
+        .where(
+          and(
+            eq(salesTable.id, promissoryNoteData.saleId),
+            eq(salesTable.isActive, true)
+          )
+        )
+        .then((res) => res[0]);
+
+      if (!sale) {
+        throw new Error("Associated sale not found.");
+      }
+      // Check if a promissory note already exists for this sale
+      if (sale.promissoryNote && sale.promissoryNote.id) {
+        throw new Error("Sale already has an active promissory note.");
+      }
+
+      // 2. Create the main Promissory Note record
       const [newPromissoryNote] = await tx
         .insert(promissoryNotesTable)
         .values({
@@ -92,151 +107,40 @@ export const addPromissoryNote = async (
           saleId: promissoryNoteData.saleId,
           promissoryNoteRefNumber: promissoryNoteData.promissoryNoteRefNumber,
           promissoryNoteDate: promissoryNoteData.promissoryNoteDate,
-          totalAmount: 0,
+          totalAmount: promissoryNoteData.totalAmount,
           notes: promissoryNoteData.notes,
           status: "pending",
           isActive: true,
         })
         .returning();
 
-      // 3. Batch fetch all relevant delivered quantities from waybills for this sale
-      // This is crucial for server-side validation and calculation.
-      const deliveredQuantitiesMap = new Map<string, number>(); // Map<saleItemId, totalDeliveredQuantity>
-
-      // Get all sale item IDs that the promissory note form intends to cover
-      const saleItemIdsToProcess = promissoryNoteData.products.map(
-        (p) => p.saleItemId
-      );
-
-      // Fetch all waybill items linked to this sale that match the saleItemIdsToProcess
-      const waybillItemsForSale = await tx
-        .select({
-          saleItemId: waybillItemsTable.saleItemId,
-          quantitySupplied: waybillItemsTable.quantitySupplied,
-        })
-        .from(waybillsTable)
-        .innerJoin(
-          waybillItemsTable,
-          eq(waybillsTable.id, waybillItemsTable.waybillId)
-        )
-        .where(
-          and(
-            eq(waybillsTable.saleId, promissoryNoteData.saleId),
-            eq(waybillsTable.isActive, true),
-            eq(waybillItemsTable.isActive, true),
-            inArray(waybillItemsTable.saleItemId, saleItemIdsToProcess)
-          )
-        );
-
-      waybillItemsForSale.forEach((record) => {
-        if (record.saleItemId) {
-          // Ensure saleItemId is not null
-          const currentDelivered =
-            deliveredQuantitiesMap.get(record.saleItemId) || 0;
-          deliveredQuantitiesMap.set(
-            record.saleItemId,
-            currentDelivered + record.quantitySupplied
-          );
-        }
-      });
-
       // 4. Process each product from the form, recalculating quantities server-side
-      const promissoryNoteItemsToInsert: PromissoryNoteItem[] = [];
-      let calculatedTotalAmount = 0;
+      const promissoryNoteItems: (typeof promissoryNoteItemsTable.$inferInsert)[] =
+        [];
 
       for (const product of promissoryNoteData.products) {
-        // Get the original sale item data (from the `sale` object fetched earlier)
-        const originalSaleItem = sale.products.find(
-          (si: SaleItem) => si.id === product.saleItemId
-        );
-
-        if (!originalSaleItem) {
-          console.warn(
-            `Sale item with ID ${product.saleItemId} not found in original sale data.`
-          );
-          // Depending on strictness, you might throw an error here, or skip the product.
-          // For now, we'll skip it with a warning.
-          continue;
-        }
-
-        const alreadyDelivered =
-          deliveredQuantitiesMap.get(originalSaleItem.id) || 0;
-        const pendingQuantity = Math.max(
-          0,
-          originalSaleItem.quantity - alreadyDelivered
-        );
-
-        // Optional: Server-side validation of client-provided quantity
-        if (product.quantity !== pendingQuantity) {
-          console.warn(
-            `Client-side quantity for product ${product.productID} (${product.quantity}) ` +
-              `mismatch with server-calculated pending quantity (${pendingQuantity}). ` +
-              `Using server-calculated quantity.`
-          );
-          // In a very strict scenario, you might throw an error here:
-          // throw new Error(`Quantity mismatch for product ${product.productID}. Please refresh.`);
-        }
-
-        if (pendingQuantity > 0) {
-          // Ensure unitPrice is treated as a number
-          const pendingSubTotal = pendingQuantity * (product.unitPrice || 0);
-          promissoryNoteItemsToInsert.push({
-            promissoryNoteId: newPromissoryNote.id,
-            productId: product.productId,
-            saleItemId: product.saleItemId ?? "",
-            quantity: pendingQuantity,
-            fulfilledQuantity: 0,
-            unitPrice: product.unitPrice,
-            subTotal: pendingSubTotal,
-            productName: product.productName ?? "",
-            productID: product.productID ?? "",
-            isActive: true,
-            id: "",
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          });
-          calculatedTotalAmount += pendingSubTotal;
-        }
+        promissoryNoteItems.push({
+          promissoryNoteId: newPromissoryNote.id,
+          productId: product.productId,
+          saleItemId: product.saleItemId,
+          quantity: product.quantity,
+          unitPrice: product.unitPrice,
+          subTotal: product.subTotal,
+          fulfilledQuantity: 0,
+          productName: product.productName,
+          productID: product.productID,
+          isActive: true,
+        });
       }
 
-      // 5. Batch insert promissory note items
-      let insertedPromissoryNoteItems: PromissoryNoteItem[] = [];
-      if (promissoryNoteItemsToInsert.length > 0) {
-        const insertedRows = await tx
-          .insert(promissoryNoteItemsTable)
-          .values(promissoryNoteItemsToInsert)
-          .returning();
-
-        // Normalize database-returned rows to match PromissoryNoteItem type (ensure saleItemId is string)
-        insertedPromissoryNoteItems = insertedRows.map((r: any) => ({
-          ...r,
-          saleItemId: r.saleItemId ?? "",
-        })) as PromissoryNoteItem[];
-      }
-
-      // 6. Update the main promissory note's total amount and final status
-      let finalPromissoryNoteStatus: PromissoryNoteStatus =
-        PromissoryNoteStatus.Pending;
-      let finalPromissoryNoteIsActive: boolean = true;
-
-      if (insertedPromissoryNoteItems.length === 0) {
-        finalPromissoryNoteStatus = PromissoryNoteStatus.Fulfiled; // If no items, the note is effectively completed
-        finalPromissoryNoteIsActive = false;
-        calculatedTotalAmount = 0; // If no items, total is 0
-      }
-
-      const [updatedPromissoryNote] = await tx
-        .update(promissoryNotesTable)
-        .set({
-          totalAmount: calculatedTotalAmount,
-          status: finalPromissoryNoteStatus,
-          isActive: finalPromissoryNoteIsActive,
-        })
-        .where(eq(promissoryNotesTable.id, newPromissoryNote.id))
+      // 5. Insert the Promissory Note Items
+      const insertedPromissoryNoteItems = await tx
+        .insert(promissoryNoteItemsTable)
+        .values(promissoryNoteItems)
         .returning();
 
       return {
-        promissoryNote: updatedPromissoryNote,
+        promissoryNote: newPromissoryNote,
         items: insertedPromissoryNoteItems,
       };
     });
