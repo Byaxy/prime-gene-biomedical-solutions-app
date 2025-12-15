@@ -12,6 +12,7 @@ import {
   expensesTable,
   billPaymentAccountsTable,
   paymentsReceivedTable,
+  expenseItemsTable,
 } from "@/drizzle/schema";
 import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { parseStringify } from "@/lib/utils";
@@ -767,9 +768,9 @@ export const softDeleteAccount = async (id: string) => {
       // Check for related expenses, income payments, bill payments directly linked
       // This is a more direct check for records referencing this account as source/destination
       const linkedExpenses = await tx
-        .select({ id: expensesTable.id })
+        .select({ id: expenseItemsTable.id })
         .from(expensesTable)
-        .where(eq(expensesTable.payingAccountId, id));
+        .where(eq(expenseItemsTable.payingAccountId, id));
       const linkedPaymentsReceived = await tx
         .select({ id: paymentsReceivedTable.id })
         .from(paymentsReceivedTable)

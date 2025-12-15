@@ -1951,12 +1951,6 @@ export const expensesTable = pgTable(
       .default(sql`gen_random_uuid()`),
     amount: numeric("amount").notNull(),
     expenseDate: timestamp("expense_date").notNull(),
-    payingAccountId: uuid("paying_account_id").references(
-      () => accountsTable.id,
-      {
-        onDelete: "cascade",
-      }
-    ),
     referenceNumber: text("reference_number").notNull().unique(),
     notes: text("notes"),
     attachments: jsonb("attachments")
@@ -1976,9 +1970,6 @@ export const expensesTable = pgTable(
   },
   (table) => ({
     expensesActiveIndex: index("expenses_active_idx").on(table.isActive),
-    expensesPayingAccountIdIndex: index("expenses_paying_account_id_idx").on(
-      table.payingAccountId
-    ),
     expensesExpenseDateIndex: index("expenses_expense_date_idx").on(
       table.expenseDate
     ),
