@@ -1996,6 +1996,12 @@ export const expenseItemsTable = pgTable(
       .references(() => expensesTable.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
     itemAmount: numeric("item_amount").notNull(),
+    payingAccountId: uuid("paying_account_id").references(
+      () => accountsTable.id,
+      {
+        onDelete: "cascade",
+      }
+    ),
     expenseCategoryId: uuid("expense_category_id")
       .notNull()
       .references(() => expenseCategoriesTable.id, { onDelete: "set null" }),
@@ -2025,6 +2031,9 @@ export const expenseItemsTable = pgTable(
     expenseItemsPurchaseIdIndex: index("expense_items_purchase_id_idx").on(
       table.purchaseId
     ),
+    expensesItemPayingAccountIdIndex: index(
+      "expenses_item_paying_account_id_idx"
+    ).on(table.payingAccountId),
   })
 );
 

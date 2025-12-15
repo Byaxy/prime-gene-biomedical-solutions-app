@@ -54,7 +54,7 @@ export const expensesColumns: ColumnDef<ExpenseWithRelations>[] = [
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           className="font-semibold px-0"
         >
-          Reference
+          Reference No.
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       );
@@ -70,16 +70,22 @@ export const expensesColumns: ColumnDef<ExpenseWithRelations>[] = [
   },
 
   {
-    id: "payingAccount.name",
-    accessorKey: "payingAccount.name",
-    header: "Paying Account",
+    header: "Expense Category",
     cell: ({ row }) => {
       const expense = row.original;
+
       return (
-        <p className="text-14-medium ">{expense.payingAccount?.name || "-"}</p>
+        <div className="text-14-medium flex flex-col gap-1">
+          {expense.items.length > 0
+            ? expense.items.map((item) => (
+                <span key={item.expenseItem.id}>{item.category.name}</span>
+              ))
+            : "-"}
+        </div>
       );
     },
   },
+
   {
     id: "expense.amount",
     accessorKey: "expense.amount",
@@ -90,7 +96,7 @@ export const expensesColumns: ColumnDef<ExpenseWithRelations>[] = [
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           className="font-semibold px-0"
         >
-          Amount
+          Total Amount
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       );
@@ -101,6 +107,55 @@ export const expensesColumns: ColumnDef<ExpenseWithRelations>[] = [
         <p className="text-14-medium">
           <FormatNumber value={expense.expense.amount} />
         </p>
+      );
+    },
+  },
+
+  {
+    header: "Payee",
+    cell: ({ row }) => {
+      const expense = row.original;
+      return (
+        <div className="text-14-medium flex flex-col gap-1">
+          {expense.items.length > 0
+            ? expense.items.map((item) => (
+                <span key={item.expenseItem.id}>{item.expenseItem.payee}</span>
+              ))
+            : "-"}
+        </div>
+      );
+    },
+  },
+
+  {
+    header: "Description/Purpose",
+    cell: ({ row }) => {
+      const expense = row.original;
+      return (
+        <div className="text-14-medium flex flex-col gap-1">
+          {expense.items.length > 0
+            ? expense.items.map((item) => (
+                <span key={item.expenseItem.id}>{item.expenseItem.title}</span>
+              ))
+            : "-"}
+        </div>
+      );
+    },
+  },
+
+  {
+    accessorKey: "payingAccount.name",
+    header: "Paying Account",
+    cell: ({ row }) => {
+      const expense = row.original;
+      return (
+        <div className="text-14-medium flex flex-col gap-1">
+          {expense.items.length > 0
+            ? expense.items.map((item) => (
+                <span key={item.expenseItem.id}>{item.payingAccount.name}</span>
+              ))
+            : "-"}
+        </div>
       );
     },
   },

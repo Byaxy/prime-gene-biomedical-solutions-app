@@ -1,9 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { useMemo, useState, useEffect, useCallback } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 
@@ -43,6 +42,7 @@ import {
 } from "@/components/ui/table";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { generateExpenseReferenceNumber } from "@/lib/actions/expense.actions";
+import { zodResolver } from "@hookform/resolvers/zod";
 
 interface ExpenseFormProps {
   mode: "create" | "edit";
@@ -78,16 +78,10 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
       expenseDate: initialData?.expense?.expenseDate
         ? new Date(initialData.expense.expenseDate)
         : new Date(),
-      payingAccountId: initialData?.expense?.payingAccountId || "",
       referenceNumber:
         initialData?.expense?.referenceNumber || generatedReferenceNumber || "",
       notes: initialData?.expense?.notes || "",
       attachments: initialData?.expense?.attachments || [],
-      // Initialize currentPayingAccountBalance in RHF state directly from initialData
-      currentPayingAccountBalance: initialData?.payingAccount?.currentBalance
-        ? parseFloat(initialData.payingAccount.currentBalance as any)
-        : undefined,
-      // NEW: Initialize items array
       items:
         initialData?.items?.map((item) => ({
           id: item.expenseItem.id,
@@ -99,12 +93,12 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
           isAccompanyingExpense: item.expenseItem.isAccompanyingExpense,
           purchaseId: item.expenseItem.purchaseId,
           accompanyingExpenseTypeId: item.expenseItem.accompanyingExpenseTypeId,
+          payingAccountId: item.expenseItem.payingAccountId || "",
+          currentPayingAccountBalance: item.payingAccount?.currentBalance
+            ? parseFloat(item.payingAccount.currentBalance as any)
+            : undefined,
         })) || [],
 
-      originalAmount:
-        mode === "edit"
-          ? parseFloat(initialData?.expense?.amount as any) || 0
-          : undefined,
       isEditMode: mode === "edit",
     }),
     [initialData, generatedReferenceNumber, mode]
@@ -123,60 +117,93 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
 
   const isAnyMutationLoading = isAddingExpense || isUpdatingExpense;
 
-  const selectedPayingAccountId = form.watch("payingAccountId");
-  const currentPayingAccountBalance = form.watch("currentPayingAccountBalance");
-  const itemAmounts = fields.map((_, index) =>
-    form.watch(`items.${index}.itemAmount`)
+  // Watch the entire 'items' array for changes to trigger total amount recalculation
+  const itemAmounts = form.watch(() =>
+    fields.map((_, index) => `items.${index}.itemAmount`)
+  );
+  const itemPayingAccountIds = form.watch(() =>
+    fields.map((_, index) => `items.${index}.payingAccountId`)
   );
 
-  // --- REVISED useEffect to update FORM STATE for currentPayingAccountBalance ---
+  // Update balance for each item when its paying account changes
+
   useEffect(() => {
-    if (!selectedPayingAccountId) {
-      form.setValue("currentPayingAccountBalance", undefined, {
-        shouldValidate: true,
-      });
-      return;
-    }
+    fields.forEach((field, index) => {
+      // Use getValues for efficiency if not needing reactive updates in render for this specific value
+      const payingAccountId = form.getValues(`items.${index}.payingAccountId`);
 
-    const account = payingAccounts.find(
-      (acc) => acc.account.id === selectedPayingAccountId
-    );
+      if (!payingAccountId) {
+        if (
+          form.getValues(`items.${index}.currentPayingAccountBalance`) !==
+          undefined
+        ) {
+          form.setValue(
+            `items.${index}.currentPayingAccountBalance`,
+            undefined,
+            {
+              shouldValidate: false, // No need to re-validate entire form for this UI helper field
+              shouldDirty: true,
+            }
+          );
+        }
+        return;
+      }
 
-    if (account) {
-      const newBalance = parseFloat(account.account.currentBalance as any) || 0;
-      form.setValue("currentPayingAccountBalance", newBalance, {
-        shouldValidate: true,
-        shouldDirty: true,
-      });
-    } else {
-      form.setValue("currentPayingAccountBalance", undefined, {
-        shouldValidate: true,
-      });
-    }
-  }, [selectedPayingAccountId, payingAccounts, form]);
+      const account = payingAccounts.find(
+        (acc) => acc.account.id === payingAccountId
+      );
 
-  // --- NEW: Recalculate total amount when line items change ---
-  const calculateOverallTotalAmount = useCallback(() => {
+      if (account) {
+        const newBalance =
+          parseFloat(account.account.currentBalance as any) || 0;
+        if (
+          form.getValues(`items.${index}.currentPayingAccountBalance`) !==
+          newBalance
+        ) {
+          form.setValue(
+            `items.${index}.currentPayingAccountBalance`,
+            newBalance,
+            {
+              shouldValidate: false,
+              shouldDirty: true,
+            }
+          );
+        }
+      } else {
+        if (
+          form.getValues(`items.${index}.currentPayingAccountBalance`) !==
+          undefined
+        ) {
+          form.setValue(
+            `items.${index}.currentPayingAccountBalance`,
+            undefined,
+            {
+              shouldValidate: false,
+              shouldDirty: true,
+            }
+          );
+        }
+      }
+    });
+  }, [itemPayingAccountIds, payingAccounts, form, fields]);
+
+  // Recalculate total amount when line items (amounts) change
+  useEffect(() => {
     let total = 0;
-    const items = form.getValues("items");
-    items.forEach((item) => {
+
+    form.getValues("items").forEach((item) => {
       total += parseFloat(item.itemAmount as any) || 0;
     });
-    return total;
-  }, [form]);
 
-  useEffect(() => {
-    const newOverallTotal = calculateOverallTotalAmount();
-    const currentAmount = form.getValues("amount");
+    const currentAmountInForm = form.getValues("amount");
 
-    // Only update if the calculated total is different from current amount
-    if (currentAmount !== newOverallTotal) {
-      form.setValue("amount", newOverallTotal, {
+    if (currentAmountInForm !== total) {
+      form.setValue("amount", total, {
         shouldValidate: true,
         shouldDirty: true,
       });
     }
-  }, [itemAmounts, fields.length, calculateOverallTotalAmount, form]);
+  }, [itemAmounts, fields.length, form]);
 
   const handleCancel = () => {
     form.reset(defaultValues);
@@ -217,11 +244,18 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
       isAccompanyingExpense: false,
       purchaseId: "",
       accompanyingExpenseTypeId: "",
+      payingAccountId: "",
+      currentPayingAccountBalance: undefined,
     } as ExpenseItemFormValues);
   };
 
   const handleDeleteLineItem = (index: number) => {
     remove(index);
+  };
+
+  const getAccountCurrentBalance = (accountId: string) => {
+    const account = payingAccounts.find((acc) => acc.account.id === accountId);
+    return parseFloat(account?.account.currentBalance as any) || 0;
   };
 
   const onSubmit = async (values: ExpenseFormValues) => {
@@ -232,7 +266,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
     );
 
     try {
-      const isValid = await form.trigger(); // Trigger full validation explicitly
+      const isValid = await form.trigger();
       if (!isValid) {
         toast.error("Please correct the form errors before submitting.", {
           id: loadingToastId,
@@ -282,11 +316,18 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
         ...uploadedAttachments,
       ];
 
+      // Clean up items - remove balance fields
+      const cleanedItems = values.items.map((item) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { currentPayingAccountBalance, ...rest } = item;
+        return rest;
+      });
+
       const dataWithAttachments = {
         ...values,
         attachments: allAttachments,
-        currentPayingAccountBalance: undefined,
-        originalAmount: undefined,
+        items: cleanedItems,
+        // originalAmount is no longer needed
       };
 
       if (!user?.id) {
@@ -361,7 +402,6 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
       });
     }
   };
-
   return (
     <Form {...form}>
       <form
@@ -405,75 +445,22 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
           />
         </div>
 
-        <div className="w-full flex flex-col md:flex-row gap-5">
-          {/* Main Paying Account */}
-          <div className="flex flex-1 flex-col gap-2">
-            <CustomFormField
-              fieldType={FormFieldType.SELECT}
-              control={form.control}
-              name="payingAccountId"
-              label="Paying Account (Source of Funds)"
-              placeholder="Select paying account"
-              disabled={isAnyMutationLoading}
-              key={form.watch("payingAccountId") || ""}
-            >
-              {payingAccounts.map((account) => (
-                <SelectItem
-                  key={account.account.id}
-                  value={account.account.id || ""}
-                  className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
-                >
-                  {account.account.name} (
-                  {account.account.accountNumber || "N/A"})
-                </SelectItem>
-              ))}
-            </CustomFormField>
-            {/* Current Balance Display */}
-            {selectedPayingAccountId && (
-              <p
-                className={cn(
-                  "text-sm pl-2",
-                  currentPayingAccountBalance && currentPayingAccountBalance > 0
-                    ? "text-green-500"
-                    : "text-red-600"
-                )}
-              >
-                Current Balance:{" "}
-                <span className="font-semibold">
-                  <FormatNumber value={currentPayingAccountBalance || 0} />
-                </span>
-                {form.formState.errors.payingAccountId?.message && (
-                  <span className="ml-2 text-red-600">
-                    ({form.formState.errors.payingAccountId.message})
-                  </span>
-                )}
-              </p>
-            )}
-            {/* Hidden input field for Zod to use for cross-field validation */}
-            <input
-              type="hidden"
-              {...form.register("currentPayingAccountBalance", {
-                valueAsNumber: true,
-              })}
-            />
-          </div>
-          {/* Total Amount for the Report */}
-          <div className="flex flex-1 flex-col gap-2">
-            <CustomFormField
-              fieldType={FormFieldType.AMOUNT}
-              control={form.control}
-              name="amount"
-              label="Total Expense Amount"
-              placeholder="0.00"
-              disabled={true}
-            />
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <CustomFormField
+            fieldType={FormFieldType.AMOUNT}
+            control={form.control}
+            name="amount"
+            label="Total Expense Amount"
+            placeholder="0.00"
+            disabled={true}
+            key={"amount"}
+          />
         </div>
 
-        {/* --- EXPENSE LINE ITEMS SECTION --- */}
+        {/* EXPENSE LINE ITEMS SECTION */}
         <div
           className={cn(
-            "space-y-5 p-4 rounded-md border",
+            "space-y-5 p-4 rounded-md border bg-white",
             form.formState.errors.items ? "border-red-500" : "border-gray-300"
           )}
         >
@@ -495,11 +482,12 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
             <TableHeader className="bg-blue-800 text-white sticky top-0 z-10">
               <TableRow>
                 <TableHead className="w-[2%] text-center">#</TableHead>
-                <TableHead className="w-[20%]">Title</TableHead>
+                <TableHead className="w-[15%]">Title</TableHead>
                 <TableHead className="w-[10%]">Amount</TableHead>
-                <TableHead className="w-[18%]">Category</TableHead>
-                <TableHead className="w-[17%]">Payee</TableHead>
-                <TableHead className="w-[8%]">Accompanying?</TableHead>
+                <TableHead className="w-[15%]">Paying Account</TableHead>
+                <TableHead className="w-[13%]">Category</TableHead>
+                <TableHead className="w-[12%]">Payee</TableHead>
+                <TableHead className="w-[6%]">Accompanying?</TableHead>
                 <TableHead className="w-[10%]">Linked Purchase</TableHead>
                 <TableHead className="w-[10%]">Acc. Type</TableHead>
                 <TableHead className="w-[5%]">Actions</TableHead>
@@ -508,129 +496,180 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
             <TableBody className="w-full bg-white text-blue-800">
               {fields.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-4">
+                  <TableCell colSpan={10} className="text-center py-4">
                     {` No expense items added. Click "Add Item" to start.`}
                   </TableCell>
                 </TableRow>
               )}
-              {fields.map((field, index) => (
-                <TableRow
-                  key={field.id}
-                  className={cn("w-full", { "bg-blue-50": index % 2 === 1 })}
-                >
-                  <TableCell className="text-center">{index + 1}</TableCell>
-                  <TableCell>
-                    <CustomFormField
-                      fieldType={FormFieldType.INPUT}
-                      control={form.control}
-                      name={`items.${index}.title`}
-                      label=""
-                      placeholder="e.g., Office paper"
-                      disabled={isAnyMutationLoading}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <CustomFormField
-                      fieldType={FormFieldType.AMOUNT}
-                      control={form.control}
-                      name={`items.${index}.itemAmount`}
-                      label=""
-                      placeholder="0.00"
-                      disabled={isAnyMutationLoading}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <CustomFormField
-                      fieldType={FormFieldType.SELECT}
-                      control={form.control}
-                      name={`items.${index}.expenseCategoryId`}
-                      label=""
-                      placeholder="Select category"
-                      disabled={isAnyMutationLoading}
-                    >
-                      {expenseCategories.map((cat) => (
-                        <SelectItem
-                          key={cat.expenseCategory.id}
-                          value={cat.expenseCategory.id || ""}
-                          className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
-                        >
-                          {cat.expenseCategory.name}
-                        </SelectItem>
-                      ))}
-                    </CustomFormField>
-                  </TableCell>
-                  <TableCell>
-                    <CustomFormField
-                      fieldType={FormFieldType.INPUT}
-                      control={form.control}
-                      name={`items.${index}.payee`}
-                      label=""
-                      placeholder="e.g., Office Depot"
-                      disabled={isAnyMutationLoading}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <CustomFormField
-                      fieldType={FormFieldType.SWITCH}
-                      control={form.control}
-                      name={`items.${index}.isAccompanyingExpense`}
-                      label=""
-                      disabled={isAnyMutationLoading}
-                    />
-                  </TableCell>
-                  {/* Conditional fields for Accompanying Expense */}
-                  {form.watch(`items.${index}.isAccompanyingExpense`) ? (
-                    <>
-                      <TableCell>
+              {fields.map((field, index) => {
+                const selectedAccountId = form.watch(
+                  `items.${index}.payingAccountId`
+                );
+                // Watch the currentPayingAccountBalance directly for reactive updates in render
+                const currentBalance =
+                  getAccountCurrentBalance(selectedAccountId);
+
+                return (
+                  <TableRow
+                    key={field.id}
+                    className={cn("w-full", { "bg-blue-50": index % 2 === 1 })}
+                  >
+                    <TableCell className="text-center">{index + 1}</TableCell>
+                    <TableCell>
+                      <CustomFormField
+                        fieldType={FormFieldType.INPUT}
+                        control={form.control}
+                        name={`items.${index}.title`}
+                        label=""
+                        placeholder="e.g., Office paper"
+                        disabled={isAnyMutationLoading}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <CustomFormField
+                        fieldType={FormFieldType.AMOUNT}
+                        control={form.control}
+                        name={`items.${index}.itemAmount`}
+                        label=""
+                        placeholder="0.00"
+                        disabled={isAnyMutationLoading}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
                         <CustomFormField
                           fieldType={FormFieldType.SELECT}
                           control={form.control}
-                          name={`items.${index}.purchaseId`}
+                          name={`items.${index}.payingAccountId`}
                           label=""
-                          placeholder="Select purchase"
+                          placeholder="Select account"
                           disabled={isAnyMutationLoading}
                         >
-                          {purchases.map((purchase) => (
+                          {payingAccounts.map((account) => (
                             <SelectItem
-                              key={purchase.purchase.id}
-                              value={purchase.purchase.id || ""}
+                              key={account.account.id}
+                              value={account.account.id || ""}
                               className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
                             >
-                              {purchase.purchase.purchaseNumber} -{" "}
-                              {purchase.vendor.name}
+                              {account.account.name}
                             </SelectItem>
                           ))}
                         </CustomFormField>
-                      </TableCell>
-                      <TableCell>
-                        <CustomFormField
-                          fieldType={FormFieldType.SELECT}
-                          control={form.control}
-                          name={`items.${index}.accompanyingExpenseTypeId`}
-                          label=""
-                          placeholder="Select type"
-                          disabled={isAnyMutationLoading}
-                        >
-                          {accompanyingExpenseTypes.map((type) => (
-                            <SelectItem
-                              key={type.type.id}
-                              value={type.type.id || ""}
-                              className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
-                            >
-                              {type.type.name}
-                            </SelectItem>
-                          ))}
-                        </CustomFormField>
-                      </TableCell>
-                    </>
-                  ) : (
-                    <>
-                      <TableCell>{"-"}</TableCell> {/* Placeholder */}
-                      <TableCell>{"-"}</TableCell> {/* Placeholder */}
-                    </>
-                  )}
-                  <TableCell>
-                    <div className="flex flex-row items-center">
+                        {selectedAccountId && (
+                          <p
+                            className={cn(
+                              "text-xs pl-2",
+                              currentBalance !== undefined &&
+                                currentBalance >= 0
+                                ? "text-green-500"
+                                : "text-red-600"
+                            )}
+                          >
+                            Balance:{" "}
+                            <FormatNumber value={currentBalance || 0} />
+                          </p>
+                        )}
+                        {/* Hidden input to register the balance field, but its value is set by useEffect */}
+                        <input
+                          type="hidden"
+                          {...form.register(
+                            `items.${index}.currentPayingAccountBalance`,
+                            {
+                              valueAsNumber: true,
+                            }
+                          )}
+                        />
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <CustomFormField
+                        fieldType={FormFieldType.SELECT}
+                        control={form.control}
+                        name={`items.${index}.expenseCategoryId`}
+                        label=""
+                        placeholder="Select category"
+                        disabled={isAnyMutationLoading}
+                      >
+                        {expenseCategories.map((cat) => (
+                          <SelectItem
+                            key={cat.expenseCategory.id}
+                            value={cat.expenseCategory.id || ""}
+                            className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+                          >
+                            {cat.expenseCategory.name}
+                          </SelectItem>
+                        ))}
+                      </CustomFormField>
+                    </TableCell>
+                    <TableCell>
+                      <CustomFormField
+                        fieldType={FormFieldType.INPUT}
+                        control={form.control}
+                        name={`items.${index}.payee`}
+                        label=""
+                        placeholder="e.g., Office Depot"
+                        disabled={isAnyMutationLoading}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <CustomFormField
+                        fieldType={FormFieldType.SWITCH}
+                        control={form.control}
+                        name={`items.${index}.isAccompanyingExpense`}
+                        label=""
+                        disabled={isAnyMutationLoading}
+                      />
+                    </TableCell>
+                    {form.watch(`items.${index}.isAccompanyingExpense`) ? (
+                      <>
+                        <TableCell>
+                          <CustomFormField
+                            fieldType={FormFieldType.SELECT}
+                            control={form.control}
+                            name={`items.${index}.purchaseId`}
+                            label=""
+                            placeholder="Select purchase"
+                            disabled={isAnyMutationLoading}
+                          >
+                            {purchases.map((purchase) => (
+                              <SelectItem
+                                key={purchase.purchase.id}
+                                value={purchase.purchase.id || ""}
+                                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+                              >
+                                {purchase.purchase.purchaseNumber}
+                              </SelectItem>
+                            ))}
+                          </CustomFormField>
+                        </TableCell>
+                        <TableCell>
+                          <CustomFormField
+                            fieldType={FormFieldType.SELECT}
+                            control={form.control}
+                            name={`items.${index}.accompanyingExpenseTypeId`}
+                            label=""
+                            placeholder="Select type"
+                            disabled={isAnyMutationLoading}
+                          >
+                            {accompanyingExpenseTypes.map((type) => (
+                              <SelectItem
+                                key={type.type.id}
+                                value={type.type.id || ""}
+                                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+                              >
+                                {type.type.name}
+                              </SelectItem>
+                            ))}
+                          </CustomFormField>
+                        </TableCell>
+                      </>
+                    ) : (
+                      <>
+                        <TableCell>{"-"}</TableCell>
+                        <TableCell>{"-"}</TableCell>
+                      </>
+                    )}
+                    <TableCell>
                       <span
                         onClick={() => {
                           if (!isAnyMutationLoading)
@@ -645,10 +684,10 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
                       >
                         <DeleteIcon className="h-5 w-5" />
                       </span>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
           {form.formState.errors.items && (

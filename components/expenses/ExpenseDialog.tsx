@@ -16,6 +16,14 @@ import { cn, formatDateTime } from "@/lib/utils";
 import FormatNumber from "@/components/FormatNumber";
 import { FileText, Download } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../ui/table";
 
 interface ExpenseDialogProps {
   mode: "view" | "delete";
@@ -80,7 +88,7 @@ const ExpenseDialog: React.FC<ExpenseDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl bg-light-200">
+      <DialogContent className="sm:max-w-7xl bg-light-200 max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl text-blue-800">
             {mode === "delete"
@@ -95,29 +103,100 @@ const ExpenseDialog: React.FC<ExpenseDialogProps> = ({
         </DialogHeader>
 
         {mode === "view" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-dark-600">
-            <div>
-              <p className="font-semibold">Reference Number:</p>
-              <p>{expense.expense.referenceNumber}</p>
-            </div>
-            <div>
-              <p className="font-semibold">Date:</p>
-              <p>{formatDateTime(expense.expense.expenseDate).dateOnly}</p>
-            </div>
-            <div>
-              <p className="font-semibold">Amount:</p>
-              <p>
-                <FormatNumber value={expense.expense.amount} />
-              </p>
+          <div className="flex flex-col gap-4 text-blue-800">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <p className="font-semibold">Reference Number:</p>
+                <p>{expense.expense.referenceNumber}</p>
+              </div>
+              <div>
+                <p className="font-semibold">Date:</p>
+                <p>{formatDateTime(expense.expense.expenseDate).dateOnly}</p>
+              </div>
+              <div>
+                <p className="font-semibold">Total Amount:</p>
+                <p>
+                  <FormatNumber value={expense.expense.amount} />
+                </p>
+              </div>
             </div>
 
-            <div>
-              <p className="font-semibold">Paying Account:</p>
-              <p>
-                {expense.payingAccount?.name || "-"} (
-                {expense.payingAccount?.accountNumber || "N/A"})
-              </p>
+            <div className="flex flex-col gap-2">
+              <p className="font-semibold">Expense Items</p>
+
+              <Table className="shad-table">
+                <TableHeader className="bg-blue-800 text-white sticky top-0 z-10">
+                  <TableRow>
+                    <TableHead className="w-[2%] text-center">#</TableHead>
+                    <TableHead className="w-[20%]">Title</TableHead>
+                    <TableHead className="w-[10%]">Amount</TableHead>
+                    <TableHead className="w-[15%]">Paying Account</TableHead>
+                    <TableHead className="w-[13%]">Category</TableHead>
+                    <TableHead className="w-[12%]">Payee</TableHead>
+                    <TableHead className="w-[6%]">Accompanying?</TableHead>
+                    <TableHead className="w-[10%]">Linked Purchase</TableHead>
+                    <TableHead className="w-[10%]">Acc. Type</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="w-full bg-white text-blue-800">
+                  {expense.items.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-center py-4">
+                        {` No expense items found.`}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {expense.items.map((item, index) => {
+                    return (
+                      <TableRow
+                        key={item.expenseItem.id}
+                        className={cn("w-full", {
+                          "bg-blue-50": index % 2 === 1,
+                        })}
+                      >
+                        <TableCell className="text-center">
+                          {index + 1}
+                        </TableCell>
+                        <TableCell>{item?.expenseItem.title}</TableCell>
+                        <TableCell>{item?.expenseItem.itemAmount}</TableCell>
+                        <TableCell>{item?.payingAccount.name}</TableCell>
+                        <TableCell>{item?.category.name}</TableCell>
+                        <TableCell>{item?.expenseItem.payee || "-"}</TableCell>
+                        <TableCell>
+                          {item.accompanyingExpenseType ? (
+                            <span className="py-1 px-2 rounded-md bg-green-500 text-white">
+                              Yes
+                            </span>
+                          ) : (
+                            <span className="py-1 px-2 rounded-md bg-red-500 text-white">
+                              No
+                            </span>
+                          )}
+                        </TableCell>
+
+                        <TableCell>
+                          {item.purchase ? (
+                            <span>
+                              {item?.purchase
+                                ? item.purchase.purchaseNumber
+                                : "-"}
+                            </span>
+                          ) : (
+                            "-"
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {item?.accompanyingExpenseType
+                            ? item.accompanyingExpenseType.name
+                            : "-"}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             </div>
+
             <div className="col-span-2">
               <p className="font-semibold">Internal Notes:</p>
               <p>{expense.expense.notes || "-"}</p>
@@ -143,27 +222,29 @@ const ExpenseDialog: React.FC<ExpenseDialogProps> = ({
                   </div>
                 </div>
               )}
-            <div>
-              <p className="font-semibold">Status:</p>
-              <p>
-                <span
-                  className={cn(
-                    "text-14-medium capitalize",
-                    expense.expense.isActive ? "bg-green-500" : "bg-red-600",
-                    "text-white px-3 py-1 rounded-xl"
-                  )}
-                >
-                  {expense.expense.isActive ? "Active" : "Inactive"}
-                </span>
-              </p>
-            </div>
-            <div>
-              <p className="font-semibold">Created At:</p>
-              <p>{formatDateTime(expense.expense.createdAt).dateTime}</p>
-            </div>
-            <div>
-              <p className="font-semibold">Last Updated:</p>
-              <p>{formatDateTime(expense.expense.updatedAt).dateTime}</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <p className="font-semibold">Status:</p>
+                <p>
+                  <span
+                    className={cn(
+                      "text-14-medium capitalize",
+                      expense.expense.isActive ? "bg-green-500" : "bg-red-600",
+                      "text-white px-3 py-1 rounded-xl"
+                    )}
+                  >
+                    {expense.expense.isActive ? "Active" : "Inactive"}
+                  </span>
+                </p>
+              </div>
+              <div>
+                <p className="font-semibold">Created At:</p>
+                <p>{formatDateTime(expense.expense.createdAt).dateTime}</p>
+              </div>
+              <div>
+                <p className="font-semibold">Last Updated:</p>
+                <p>{formatDateTime(expense.expense.updatedAt).dateTime}</p>
+              </div>
             </div>
           </div>
         )}

@@ -1522,6 +1522,13 @@ export const ExpenseItemValidation = z
     isAccompanyingExpense: z.boolean().default(false),
     purchaseId: z.string().optional().nullable(),
     accompanyingExpenseTypeId: z.string().optional().nullable(),
+    payingAccountId: z
+      .string()
+      .nonempty("Paying Account is required for this item"),
+    currentPayingAccountBalance: z
+      .number()
+      .min(0, "Balance cannot be negative")
+      .optional(),
   })
   .superRefine((data, ctx) => {
     // Conditional validation for accompanying expense fields (per line item)
@@ -1541,6 +1548,21 @@ export const ExpenseItemValidation = z
         });
       }
     }
+
+    if (
+      data.currentPayingAccountBalance !== undefined &&
+      data.payingAccountId
+    ) {
+      if (data.currentPayingAccountBalance < data.itemAmount) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Insufficient funds. Available: ${data.currentPayingAccountBalance.toFixed(
+            2
+          )}, Required: ${data.itemAmount.toFixed(2)}`,
+          path: ["payingAccountId"],
+        });
+      }
+    }
   });
 
 export type ExpenseItemFormValues = z.infer<typeof ExpenseItemValidation>;
@@ -1552,13 +1574,7 @@ export const ExpenseFormValidation = z
     expenseDate: z.date().refine((date) => date <= new Date(), {
       message: "Expense date cannot be in the future",
     }),
-    payingAccountId: z
-      .string()
-      .nonempty("Paying Account (Source of Funds) is required"),
-    currentPayingAccountBalance: z
-      .number()
-      .min(0, "Balance cannot be negative")
-      .optional(),
+
     referenceNumber: z.string().nonempty("Reference number is required"),
     notes: z.string().optional().nullable(),
     attachments: z.any().optional(),
@@ -1571,45 +1587,36 @@ export const ExpenseFormValidation = z
     isEditMode: z.boolean().default(false),
   })
   .superRefine((data, ctx) => {
-    if (data.payingAccountId) {
-      if (!data.currentPayingAccountBalance) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Current Paying Account Balance is required",
-          path: ["currentPayingAccountBalance"],
-        });
-      }
+    // Validate that total amount matches sum of item amounts
+    const calculatedTotal = data.items.reduce(
+      (sum, item) => sum + item.itemAmount,
+      0
+    );
+    if (Math.abs(calculatedTotal - data.amount) > 0.01) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Total amount (${data.amount.toFixed(
+          2
+        )}) must match sum of item amounts (${calculatedTotal.toFixed(2)})`,
+        path: ["amount"],
+      });
+    }
 
-      if (data.currentPayingAccountBalance !== undefined) {
-        // Calculate the available balance
-        // In edit mode: current balance already has the original expense deducted
-        // So we add it back to get the actual available balance
-        const availableBalance =
-          data.isEditMode && data.originalAmount
-            ? data.currentPayingAccountBalance + data.originalAmount
-            : data.currentPayingAccountBalance;
-
-        if (availableBalance < data.amount) {
-          const deficit = data.amount - availableBalance;
-
+    // Validate that each item has sufficient funds in its paying account
+    data.items.forEach((item, index) => {
+      if (
+        item.payingAccountId &&
+        item.currentPayingAccountBalance !== undefined
+      ) {
+        if (item.currentPayingAccountBalance < item.itemAmount) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: `Insufficient funds. Available balance: ${availableBalance.toFixed(
-              2
-            )}, Short by: ${deficit.toFixed(2)}`,
-            path: ["currentPayingAccountBalance"],
-          });
-
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `Amount exceeds available balance by ${deficit.toFixed(
-              2
-            )}`,
-            path: ["amount"],
+            message: `Item "${item.title}" exceeds available balance in selected account`,
+            path: ["items", index, "payingAccountId"],
           });
         }
       }
-    }
+    });
   });
 export type ExpenseFormValues = z.infer<typeof ExpenseFormValidation>;
 

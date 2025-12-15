@@ -52,8 +52,8 @@ export default async function ExpensesPage({
 
   return (
     <PageWraper
-      title="Expenses"
-      buttonText="Add Expense"
+      title="Expense Tracker"
+      buttonText="Expense Register"
       buttonPath="/accounting-and-finance/expenses/create"
     >
       <Suspense fallback={<TableSkeleton />}>

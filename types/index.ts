@@ -765,13 +765,13 @@ export type ExpenseItem = typeof expenseItemsTable.$inferSelect;
 
 export interface ExpenseWithRelations {
   expense: Expense;
-  payingAccount: Account;
   items: ExpenseItemWithRelations[];
 }
 
 export interface ExpenseItemWithRelations {
   expenseItem: ExpenseItem;
   category: ExpenseCategory;
+  payingAccount: Account;
   purchase: Purchase;
   accompanyingExpenseType: AccompanyingExpenseType;
 }

@@ -363,7 +363,7 @@ export const sidebarData: SidebarDataType[] = [
           },
           {
             id: generateId(),
-            title: "Expenses",
+            title: "Expense Tracker",
             path: "/accounting-and-finance/expenses",
           },
           {
