@@ -238,6 +238,8 @@ const ProductForm = ({
           `Failed to ${mode === "create" ? "create" : "update"} product`,
           { id: loadingToastId }
         );
+      } finally {
+        toast.dismiss(loadingToastId);
       }
     } catch (error) {
       console.error("Error submitting form:", error);

@@ -602,6 +602,8 @@ const DeliveryForm = ({
           `Failed to ${mode === "create" ? "create" : "update"} delivery`,
           { id: loadingToastId }
         );
+      } finally {
+        toast.dismiss(loadingToastId);
       }
     } catch (error) {
       console.error("Error submitting form:", error);

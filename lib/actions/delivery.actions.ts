@@ -14,7 +14,6 @@ import {
 import { DeliveryStatus } from "@/types";
 import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import { DeliveryFilters } from "@/hooks/useDeliveries";
-import { getSaleById } from "./sale.actions";
 
 const buildFilterConditions = (filters: DeliveryFilters) => {
   const conditions = [];
@@ -60,14 +59,29 @@ const buildFilterConditions = (filters: DeliveryFilters) => {
 // Add a new delivery
 export const addDelivery = async (delivery: DeliveryFormValues) => {
   try {
-    // verify sale has no delivery
-    const sale = await getSaleById(delivery.saleId);
-
-    if (sale && sale.delivery) {
-      throw new Error("Sale already has a delivery");
-    }
-
     const result = await db.transaction(async (tx) => {
+      // verify sale has no delivery
+      const sale = await tx
+        .select({
+          sale: salesTable,
+          delivery: deliveriesTable,
+        })
+        .from(salesTable)
+        .leftJoin(
+          deliveriesTable,
+          and(
+            eq(salesTable.id, deliveriesTable.saleId),
+            eq(deliveriesTable.isActive, true)
+          )
+        )
+        .where(
+          and(eq(salesTable.id, delivery.saleId), eq(salesTable.isActive, true))
+        )
+        .then((res) => res[0]);
+
+      if (sale && sale.delivery) {
+        throw new Error("Sale already has a delivery");
+      }
       // Create main delivery record
       const [newDelivery] = await tx
         .insert(deliveriesTable)
@@ -146,12 +160,27 @@ export const getDeliveryById = async (deliveryId: string) => {
           store: storesTable,
         })
         .from(deliveriesTable)
-        .leftJoin(salesTable, eq(deliveriesTable.saleId, salesTable.id))
+        .leftJoin(
+          salesTable,
+          and(
+            eq(deliveriesTable.saleId, salesTable.id),
+            eq(salesTable.isActive, true)
+          )
+        )
         .leftJoin(
           customersTable,
-          eq(deliveriesTable.customerId, customersTable.id)
+          and(
+            eq(deliveriesTable.customerId, customersTable.id),
+            eq(customersTable.isActive, true)
+          )
         )
-        .leftJoin(storesTable, eq(deliveriesTable.storeId, storesTable.id))
+        .leftJoin(
+          storesTable,
+          and(
+            eq(deliveriesTable.storeId, storesTable.id),
+            eq(storesTable.isActive, true)
+          )
+        )
         .where(
           and(
             eq(deliveriesTable.id, deliveryId),
@@ -204,12 +233,27 @@ export const getDeliveries = async (
           store: storesTable,
         })
         .from(deliveriesTable)
-        .leftJoin(salesTable, eq(deliveriesTable.saleId, salesTable.id))
+        .leftJoin(
+          salesTable,
+          and(
+            eq(deliveriesTable.saleId, salesTable.id),
+            eq(salesTable.isActive, true)
+          )
+        )
         .leftJoin(
           customersTable,
-          eq(deliveriesTable.customerId, customersTable.id)
+          and(
+            eq(deliveriesTable.customerId, customersTable.id),
+            eq(customersTable.isActive, true)
+          )
         )
-        .leftJoin(storesTable, eq(deliveriesTable.storeId, storesTable.id))
+        .leftJoin(
+          storesTable,
+          and(
+            eq(deliveriesTable.storeId, storesTable.id),
+            eq(storesTable.isActive, true)
+          )
+        )
         .$dynamic();
 
       const conditions = await buildFilterConditions(filters ?? {});
@@ -255,12 +299,27 @@ export const getDeliveries = async (
       let totalQuery = tx
         .select({ count: sql<number>`count(*)` })
         .from(deliveriesTable)
-        .leftJoin(salesTable, eq(deliveriesTable.saleId, salesTable.id))
+        .leftJoin(
+          salesTable,
+          and(
+            eq(deliveriesTable.saleId, salesTable.id),
+            eq(salesTable.isActive, true)
+          )
+        )
         .leftJoin(
           customersTable,
-          eq(deliveriesTable.customerId, customersTable.id)
+          and(
+            eq(deliveriesTable.customerId, customersTable.id),
+            eq(customersTable.isActive, true)
+          )
         )
-        .leftJoin(storesTable, eq(deliveriesTable.storeId, storesTable.id))
+        .leftJoin(
+          storesTable,
+          and(
+            eq(deliveriesTable.storeId, storesTable.id),
+            eq(storesTable.isActive, true)
+          )
+        )
         .$dynamic();
 
       if (conditions.length > 0) {

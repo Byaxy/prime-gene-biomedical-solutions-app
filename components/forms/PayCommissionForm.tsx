@@ -210,6 +210,8 @@ const PayCommissionForm = ({
         id: loadingToastId,
         duration: 6000,
       });
+    } finally {
+      toast.dismiss(loadingToastId);
     }
   };
 

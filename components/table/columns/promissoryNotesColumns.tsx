@@ -88,7 +88,7 @@ export const promissoryNotesColumns: ColumnDef<PromissoryNoteWithRelations>[] =
         const promissoryNote = row.original;
         return (
           <p className="text-14-medium ">
-            {promissoryNote.sale.invoiceNumber || "-"}
+            {promissoryNote.sale ? promissoryNote.sale.invoiceNumber : "-"}
           </p>
         );
       },

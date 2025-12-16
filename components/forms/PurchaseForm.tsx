@@ -526,11 +526,12 @@ const PurchaseForm = ({
           `Failed to ${mode === "create" ? "create" : "update"} purchase`,
           { id: loadingToastId }
         );
+      } finally {
+        toast.dismiss(loadingToastId);
       }
     } catch (error) {
       console.error("Error submitting form:", error);
       toast.error("Error submitting form");
-    } finally {
     }
   };
 

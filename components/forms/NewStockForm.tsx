@@ -325,20 +325,28 @@ const NewStockForm = ({ products, stores }: NewStockFormProps) => {
         })),
       };
 
-      await addInventoryStock(
-        { data: submissionData, userId: user.id },
-        {
-          onSuccess: () => {
-            toast.success("Inventory stock added successfully!");
-            form.reset();
-            router.push("/inventory/inventory-stocks");
-          },
-          onError: (error) => {
-            console.error("Submission error:", error);
-            toast.error("Failed to add inventory stock");
-          },
-        }
-      );
+      const loadingToastId = toast.loading("Creating inventory stock...");
+
+      try {
+        await addInventoryStock(
+          { data: submissionData, userId: user.id },
+          {
+            onSuccess: () => {
+              toast.success("Inventory stock added successfully!", {
+                id: loadingToastId,
+              });
+              form.reset();
+              router.push("/inventory/inventory-stocks");
+              router.refresh();
+            },
+          }
+        );
+      } catch (error) {
+        console.error("Inventory stock operation error:", error);
+        toast.error(`Failed to create inventory stock`, { id: loadingToastId });
+      } finally {
+        toast.dismiss(loadingToastId);
+      }
     } catch (error) {
       console.error("Error in submission handler:", error);
       toast.error("An unexpected error occurred");

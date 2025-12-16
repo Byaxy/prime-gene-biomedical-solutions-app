@@ -105,7 +105,12 @@ export const addChartOfAccount = async (values: ChartOfAccountFormValues) => {
       const existingAccount = await tx
         .select({ id: chartOfAccountsTable.id })
         .from(chartOfAccountsTable)
-        .where(eq(chartOfAccountsTable.accountName, values.accountName));
+        .where(
+          and(
+            eq(chartOfAccountsTable.accountName, values.accountName),
+            eq(chartOfAccountsTable.isActive, true)
+          )
+        );
       if (existingAccount.length > 0) {
         throw new Error("Account number already exists.");
       }
@@ -120,7 +125,12 @@ export const addChartOfAccount = async (values: ChartOfAccountFormValues) => {
             path: chartOfAccountsTable.path,
           })
           .from(chartOfAccountsTable)
-          .where(eq(chartOfAccountsTable.id, values.parentId))
+          .where(
+            and(
+              eq(chartOfAccountsTable.id, values.parentId),
+              eq(chartOfAccountsTable.isActive, true)
+            )
+          )
           .then((res) => res[0]);
 
         if (parentAccount) {
@@ -255,7 +265,10 @@ export const updateChartOfAccount = async (
 
       if (values.parentId !== undefined || values.accountName !== undefined) {
         const currentAccount = await tx.query.chartOfAccountsTable.findFirst({
-          where: eq(chartOfAccountsTable.id, id),
+          where: and(
+            eq(chartOfAccountsTable.id, id),
+            eq(chartOfAccountsTable.isActive, true)
+          ),
         });
 
         const newParentId =
@@ -269,7 +282,10 @@ export const updateChartOfAccount = async (
 
         if (newParentId) {
           const parentAccount = await tx.query.chartOfAccountsTable.findFirst({
-            where: eq(chartOfAccountsTable.id, newParentId),
+            where: and(
+              eq(chartOfAccountsTable.id, newParentId),
+              eq(chartOfAccountsTable.isActive, true)
+            ),
           });
           if (parentAccount) {
             updatedDepth = (parentAccount.depth || 0) + 1;
@@ -350,7 +366,12 @@ export const softDeleteChartOfAccount = async (id: string) => {
       const linkedTransactions = await tx
         .select({ id: journalEntryLinesTable.id })
         .from(journalEntryLinesTable)
-        .where(eq(journalEntryLinesTable.chartOfAccountsId, id));
+        .where(
+          and(
+            eq(journalEntryLinesTable.chartOfAccountsId, id),
+            eq(journalEntryLinesTable.isActive, true)
+          )
+        );
 
       if (linkedTransactions.length > 0) {
         throw new Error(
@@ -425,7 +446,12 @@ export const addAccount = async (values: AccountFormValues, userId: string) => {
         const existingAccountWithNumber = await tx
           .select({ id: accountsTable.id })
           .from(accountsTable)
-          .where(eq(accountsTable.accountNumber, values.accountNumber));
+          .where(
+            and(
+              eq(accountsTable.accountNumber, values.accountNumber),
+              eq(accountsTable.isActive, true)
+            )
+          );
         if (existingAccountWithNumber.length > 0) {
           throw new Error("Account number already exists for another account.");
         }
@@ -523,7 +549,10 @@ export const getAccounts = async (
         .from(accountsTable)
         .leftJoin(
           chartOfAccountsTable,
-          eq(accountsTable.chartOfAccountsId, chartOfAccountsTable.id)
+          and(
+            eq(accountsTable.chartOfAccountsId, chartOfAccountsTable.id),
+            eq(chartOfAccountsTable.isActive, true)
+          )
         )
         .where(eq(accountsTable.isActive, true))
         .$dynamic();
@@ -560,7 +589,10 @@ export const getAccounts = async (
           .from(accountsTable)
           .leftJoin(
             chartOfAccountsTable,
-            eq(accountsTable.chartOfAccountsId, chartOfAccountsTable.id)
+            and(
+              eq(accountsTable.chartOfAccountsId, chartOfAccountsTable.id),
+              eq(chartOfAccountsTable.isActive, true)
+            )
           )
           .where(and(eq(accountsTable.isActive, true), ...conditions));
         totalCount = countResult?.count || 0;
@@ -572,7 +604,10 @@ export const getAccounts = async (
           .from(accountsTable)
           .leftJoin(
             chartOfAccountsTable,
-            eq(accountsTable.chartOfAccountsId, chartOfAccountsTable.id)
+            and(
+              eq(accountsTable.chartOfAccountsId, chartOfAccountsTable.id),
+              eq(chartOfAccountsTable.isActive, true)
+            )
           )
           .where(and(eq(accountsTable.isActive, true), ...conditions));
         totalCount = countResult?.count || 0;
@@ -607,7 +642,10 @@ export const getAccountById = async (id: string) => {
       .from(accountsTable)
       .leftJoin(
         chartOfAccountsTable,
-        eq(accountsTable.chartOfAccountsId, chartOfAccountsTable.id)
+        and(
+          eq(accountsTable.chartOfAccountsId, chartOfAccountsTable.id),
+          eq(chartOfAccountsTable.isActive, true)
+        )
       )
       .where(and(eq(accountsTable.id, id), eq(accountsTable.isActive, true)))
       .then((res) => res[0]);
@@ -626,7 +664,7 @@ export const updateAccount = async (id: string, values: AccountFormValues) => {
       const currentAccount = await tx
         .select()
         .from(accountsTable)
-        .where(eq(accountsTable.id, id))
+        .where(and(eq(accountsTable.id, id), eq(accountsTable.isActive, true)))
         .then((res) => res[0]);
       if (!currentAccount) {
         throw new Error("Account not found.");

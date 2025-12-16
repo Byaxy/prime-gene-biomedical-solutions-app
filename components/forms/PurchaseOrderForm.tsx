@@ -459,11 +459,12 @@ const PurchaseOrderForm = ({
           `Failed to ${mode === "create" ? "create" : "update"} purchase order`,
           { id: loadingToastId }
         );
+      } finally {
+        toast.dismiss(loadingToastId);
       }
     } catch (error) {
       console.error("Error submitting form:", error);
       toast.error("Error submitting form");
-    } finally {
     }
   };
 

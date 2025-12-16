@@ -149,6 +149,8 @@ export const IncomeCategoryForm: React.FC<IncomeCategoryFormProps> = ({
       toast.error("An unexpected error occurred during submission.", {
         id: loadingToastId,
       });
+    } finally {
+      toast.dismiss(loadingToastId);
     }
   };
 

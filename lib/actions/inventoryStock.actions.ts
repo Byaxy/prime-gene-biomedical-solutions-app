@@ -157,7 +157,6 @@ export const fulfillBackorders = async (
   tx: any
 ) => {
   try {
-    // Lock pending backorders for this product/store (oldest first for FIFO fulfillment)
     const pendingBackorders = await tx
       .select()
       .from(backordersTable)
@@ -170,21 +169,22 @@ export const fulfillBackorders = async (
         )
       )
       .orderBy(asc(backordersTable.createdAt))
-      .for(sql`FOR UPDATE`);
+      .for("update");
 
     if (pendingBackorders.length === 0) {
-      console.log(
-        `No pending backorders found for product ${productId} in store ${storeId}`
-      );
-      return;
+      return { provisionedCount: 0 };
     }
 
-    // Lock the newly arrived/increased inventory record
     const [newInventory] = await tx
       .select()
       .from(inventoryTable)
-      .where(eq(inventoryTable.id, newInventoryId))
-      .for(sql`FOR UPDATE`);
+      .where(
+        and(
+          eq(inventoryTable.id, newInventoryId),
+          eq(inventoryTable.isActive, true)
+        )
+      )
+      .for("update");
 
     if (
       !newInventory ||
@@ -192,9 +192,9 @@ export const fulfillBackorders = async (
       newInventory.quantity <= 0
     ) {
       console.warn(
-        `Incoming inventory batch ${newInventoryId} not found, inactive, or has no quantity. Skipping backorder fulfillment.`
+        `Inventory batch ${newInventoryId} not available for backorder fulfillment.`
       );
-      return;
+      return { provisionedCount: 0 };
     }
 
     let remainingQtyInNewBatch = newInventory.quantity;
@@ -204,39 +204,27 @@ export const fulfillBackorders = async (
     const inventoryTransactionsToInsert: (typeof inventoryTransactionsTable.$inferInsert)[] =
       [];
 
-    // Maps to aggregate updates for batching
-    const backorderUpdates = new Map<
-      string,
-      {
-        newPendingQuantity: number;
-        productId: string;
-        storeId: string;
-        saleItemId: string;
-      }
-    >();
+    const backorderUpdates = new Map<string, { newPendingQuantity: number }>();
     const saleItemBackorderUpdates = new Map<string, number>();
 
-    // Pre-fetch affected sale_items for locking
     const affectedSaleItemIds: string[] = [
       ...new Set(
         pendingBackorders.map((bo: SaleBackorder) => bo.saleItemId) as string[]
       ),
     ];
+
     const affectedSaleItems = await tx
       .select()
       .from(saleItemsTable)
       .where(inArray(saleItemsTable.id, affectedSaleItemIds))
-      .for(sql`FOR UPDATE`);
+      .for("update");
 
     const affectedSaleItemsMap = new Map<string, SaleItem>(
       affectedSaleItems.map((si: SaleItem) => [si.id, si])
     );
 
-    // Process pending backorders with the available incoming stock
     for (const backorder of pendingBackorders) {
-      if (remainingQtyInNewBatch <= 0) {
-        break;
-      }
+      if (remainingQtyInNewBatch <= 0) break;
 
       const quantityToFulfillFromThisBatch = Math.min(
         remainingQtyInNewBatch,
@@ -244,7 +232,6 @@ export const fulfillBackorders = async (
       );
 
       if (quantityToFulfillFromThisBatch > 0) {
-        // Collect sale_item_inventory record: Links the new physical stock batch to the sale item.
         saleItemInventoryToInsert.push({
           saleItemId: backorder.saleItemId,
           inventoryStockId: newInventoryId,
@@ -255,23 +242,17 @@ export const fulfillBackorders = async (
           updatedAt: new Date(),
         });
 
-        // Accumulate updates for this specific backorder record.
         backorderUpdates.set(backorder.id, {
           newPendingQuantity:
             backorder.pendingQuantity - quantityToFulfillFromThisBatch,
-          productId: backorder.productId,
-          storeId: backorder.storeId,
-          saleItemId: backorder.saleItemId,
         });
 
-        // Accumulate updates for sale_items.backorderQuantity.
         saleItemBackorderUpdates.set(
           backorder.saleItemId,
           (saleItemBackorderUpdates.get(backorder.saleItemId) || 0) +
             quantityToFulfillFromThisBatch
         );
 
-        // Log transaction: Shows the backorder being provisioned by new inventory.
         inventoryTransactionsToInsert.push({
           inventoryId: newInventoryId,
           productId: productId,
@@ -283,7 +264,7 @@ export const fulfillBackorders = async (
             backorder.pendingQuantity - quantityToFulfillFromThisBatch,
           transactionDate: new Date(),
           referenceId: backorder.saleItemId,
-          notes: `Backorder for sale item ${backorder.saleItemId} provisioned with ${quantityToFulfillFromThisBatch} units from incoming stock (Lot: ${newInventory.lotNumber}).`,
+          notes: `Backorder provisioned with ${quantityToFulfillFromThisBatch} units from lot ${newInventory.lotNumber}`,
           createdAt: new Date(),
           updatedAt: new Date(),
         });
@@ -292,7 +273,6 @@ export const fulfillBackorders = async (
       }
     }
 
-    // Execute batch updates for individual backorder records
     await Promise.all(
       Array.from(backorderUpdates.entries()).map(
         ([id, { newPendingQuantity }]) =>
@@ -307,7 +287,6 @@ export const fulfillBackorders = async (
       )
     );
 
-    // Execute batch updates for sale_items.backorderQuantity and hasBackorder
     await Promise.all(
       Array.from(saleItemBackorderUpdates.entries()).map(
         async ([saleItemId, quantityReducedFromBackorder]) => {
@@ -329,7 +308,6 @@ export const fulfillBackorders = async (
       )
     );
 
-    // Execute batch inserts for sale_item_inventory links and transactions
     if (saleItemInventoryToInsert.length > 0) {
       await tx.insert(saleItemInventoryTable).values(saleItemInventoryToInsert);
     }
@@ -343,7 +321,7 @@ export const fulfillBackorders = async (
       newInventory.quantity - remainingQtyInNewBatch;
     return { provisionedCount: totalProvisionedByThisCall };
   } catch (error) {
-    console.error("Error in fulfillBackorders:", error);
+    console.error("Error in fulfillBackorders: ", error);
     throw error;
   }
 };
@@ -358,7 +336,6 @@ export const revertBackorderFulfillment = async (
   if (quantityToRevert <= 0) return;
 
   try {
-    // Find all `saleItemInventory` links that point to this `affectedInventoryId`.
     const linkedSaleItemInventories = await tx
       .select()
       .from(saleItemInventoryTable)
@@ -370,29 +347,16 @@ export const revertBackorderFulfillment = async (
         )
       )
       .orderBy(desc(saleItemInventoryTable.createdAt))
-      .for(sql`FOR UPDATE`);
+      .for("update");
 
     if (linkedSaleItemInventories.length === 0) {
-      console.log(
-        `No active sale_item_inventory links found for inventory ${affectedInventoryId} to revert.`
-      );
       return;
     }
 
     let remainingRevertQty = quantityToRevert;
-    const backorderUpdates = new Map<
-      string,
-      {
-        newPendingQuantity: number;
-        newIsActive: boolean;
-        productId: string;
-        storeId: string;
-        saleItemId: string;
-      }
-    >();
+    const backorderUpdates = new Map<string, { newPendingQuantity: number }>();
     const saleItemBackorderUpdates = new Map<string, number>();
 
-    // Pre-fetch affected backorders and sale items for locking and initial state
     const affectedSaleItemIds = [
       ...new Set(
         linkedSaleItemInventories.map(
@@ -400,16 +364,18 @@ export const revertBackorderFulfillment = async (
         ) as string[]
       ),
     ];
+
     const affectedBackorders = await tx
       .select()
       .from(backordersTable)
       .where(inArray(backordersTable.saleItemId, affectedSaleItemIds))
-      .for(sql`FOR UPDATE`);
+      .for("update");
+
     const affectedSaleItems = await tx
       .select()
       .from(saleItemsTable)
       .where(inArray(saleItemsTable.id, affectedSaleItemIds))
-      .for(sql`FOR UPDATE`);
+      .for("update");
 
     const backorderMap = new Map<
       string,
@@ -419,6 +385,7 @@ export const revertBackorderFulfillment = async (
       if (!backorderMap.has(bo.saleItemId)) backorderMap.set(bo.saleItemId, []);
       backorderMap.get(bo.saleItemId)?.push(bo);
     });
+
     const saleItemMap = new Map<string, typeof saleItemsTable.$inferSelect>(
       affectedSaleItems.map((si: typeof saleItemsTable.$inferSelect) => [
         si.id,
@@ -429,38 +396,28 @@ export const revertBackorderFulfillment = async (
     const inventoryTransactionsToInsert: (typeof inventoryTransactionsTable.$inferInsert)[] =
       [];
 
-    // Process the linked sale_item_inventory records to reverse fulfillment
     for (const link of linkedSaleItemInventories) {
       if (remainingRevertQty <= 0) break;
 
       const saleItemId = link.saleItemId;
       const saleItem = saleItemMap.get(saleItemId);
-      if (!saleItem) {
-        console.warn(
-          `Sale item ${saleItemId} not found during backorder reversal for link ${link.id}. Skipping.`
-        );
-        continue;
-      }
+      if (!saleItem) continue;
 
-      // How much from this specific link needs to be "un-linked"
       const revertAmountForLink = Math.min(
         remainingRevertQty,
         link.quantityToTake
       );
 
       if (revertAmountForLink > 0) {
-        // Mark the sale_item_inventory link as inactive or reduce its quantityToTake
         await tx
           .update(saleItemInventoryTable)
           .set({
-            quantityToTake: sql`${saleItemInventoryTable.quantityToTake} - ${revertAmountForLink}`,
-            isActive: sql`${saleItemInventoryTable.quantityToTake} - ${revertAmountForLink} > 0`,
+            quantityToTake: link.quantityToTake - revertAmountForLink,
+            isActive: link.quantityToTake - revertAmountForLink > 0,
             updatedAt: new Date(),
           })
           .where(eq(saleItemInventoryTable.id, link.id));
 
-        // Update corresponding backorder record: find one that was previously "fulfilled" (pending=0, isActive=false)
-        // and re-increment its pendingQuantity. Priority: the one with matching productId and storeId.
         const backordersForSaleItem = backorderMap.get(saleItemId) || [];
         const targetBackorder =
           backordersForSaleItem.find(
@@ -474,27 +431,16 @@ export const revertBackorderFulfillment = async (
             (bo) =>
               bo.productId === saleItem.productId &&
               bo.storeId === saleItem.storeId
-          ); // Fallback to any matching one
+          );
 
         if (targetBackorder) {
           const currentBoUpdate = backorderUpdates.get(targetBackorder.id) || {
             newPendingQuantity: targetBackorder.pendingQuantity,
-            productId: targetBackorder.productId,
-            storeId: targetBackorder.storeId,
-            saleItemId: targetBackorder.saleItemId,
-            newIsActive: true,
           };
           currentBoUpdate.newPendingQuantity += revertAmountForLink;
           backorderUpdates.set(targetBackorder.id, currentBoUpdate);
         } else {
-          // This is a critical edge case: a sale_item_inventory existed, but no matching backorder record
-          // was found or it was already hard-deleted. We need to re-create a backorder if it truly should exist.
-          console.warn(
-            `No suitable backorder record found for sale item ${saleItemId} to revert fulfillment. Creating new backorder.`
-          );
-          const newBackorderId = crypto.randomUUID();
           await tx.insert(backordersTable).values({
-            id: newBackorderId,
             productId: saleItem.productId,
             storeId: saleItem.storeId,
             saleItemId: saleItemId,
@@ -506,13 +452,11 @@ export const revertBackorderFulfillment = async (
           });
         }
 
-        // Accumulate update for sale_items.backorderQuantity
         saleItemBackorderUpdates.set(
           saleItemId,
           (saleItemBackorderUpdates.get(saleItemId) || 0) + revertAmountForLink
         );
 
-        // Log transaction for backorder reinstatement
         inventoryTransactionsToInsert.push({
           inventoryId: affectedInventoryId,
           productId: saleItem.productId,
@@ -524,7 +468,7 @@ export const revertBackorderFulfillment = async (
             (targetBackorder?.pendingQuantity || 0) + revertAmountForLink,
           transactionDate: new Date(),
           referenceId: saleItem.id,
-          notes: `Backorder for sale item ${saleItemId} reinstated by ${revertAmountForLink} units due to inventory adjustment/deletion of batch ${affectedInventoryId}.`,
+          notes: `Backorder reinstated by ${revertAmountForLink} units due to inventory adjustment`,
           createdAt: new Date(),
           updatedAt: new Date(),
         });
@@ -533,7 +477,6 @@ export const revertBackorderFulfillment = async (
       }
     }
 
-    // Apply accumulated updates to backordersTable
     await Promise.all(
       Array.from(backorderUpdates.entries()).map(
         ([backorderId, { newPendingQuantity }]) =>
@@ -548,7 +491,6 @@ export const revertBackorderFulfillment = async (
       )
     );
 
-    // Apply accumulated updates to sale_items.backorderQuantity and hasBackorder
     await Promise.all(
       Array.from(saleItemBackorderUpdates.entries()).map(
         ([saleItemId, delta]) => {
@@ -570,7 +512,6 @@ export const revertBackorderFulfillment = async (
       )
     );
 
-    // Insert all accumulated inventory transactions
     if (inventoryTransactionsToInsert.length > 0) {
       await tx
         .insert(inventoryTransactionsTable)
@@ -591,24 +532,12 @@ export const addInventoryStock = async (
     const { storeId, receivedDate, products, notes } = data;
 
     const result = await db.transaction(async (tx) => {
-      const inventoryItemsToInsert: Array<typeof inventoryTable.$inferInsert> =
-        [];
-      const inventoryUpdates: {
-        id: string;
-        productId: string;
-        newQuantity: number;
-        oldQuantity: number;
-      }[] = [];
-      const transactionsToInsert: Array<
-        typeof inventoryTransactionsTable.$inferInsert
-      > = [];
       const backorderFulfillmentCandidates: {
         productId: string;
         storeId: string;
-        newInventoryId: string;
+        inventoryId: string;
       }[] = [];
 
-      // 1. Fetch all existing inventories for the products in one go with locks
       const productIdsInInput = products.map((p) => p.productId);
       const existingInventories = await tx
         .select()
@@ -621,7 +550,6 @@ export const addInventoryStock = async (
           )
         );
 
-      // Create a more refined map that also considers lotNumber
       const existingInventoryMap = new Map<
         string,
         typeof inventoryTable.$inferSelect
@@ -630,13 +558,13 @@ export const addInventoryStock = async (
         existingInventoryMap.set(`${inv.productId}-${inv.lotNumber}`, inv)
       );
 
-      // Process each product from the input
+      // Process each product
       for (const product of products) {
         const key = `${product.productId}-${product.lotNumber}`;
         const existingInventory = existingInventoryMap.get(key);
 
         if (existingInventory) {
-          // Update existing inventory batch
+          // UPDATE existing inventory
           const oldQuantity = existingInventory.quantity;
           const newQuantity = existingInventory.quantity + product.quantity;
 
@@ -653,15 +581,8 @@ export const addInventoryStock = async (
             })
             .where(eq(inventoryTable.id, existingInventory.id));
 
-          inventoryUpdates.push({
-            id: existingInventory.id,
-            productId: product.productId,
-            newQuantity: newQuantity,
-            oldQuantity: oldQuantity,
-          });
-
-          // Log transaction (update existing batch)
-          transactionsToInsert.push({
+          // Log transaction for update
+          await tx.insert(inventoryTransactionsTable).values({
             inventoryId: existingInventory.id,
             productId: product.productId,
             storeId,
@@ -677,35 +598,34 @@ export const addInventoryStock = async (
             updatedAt: new Date(),
           });
 
-          // This existing inventory batch now has more stock, so it can fulfill more backorders
           backorderFulfillmentCandidates.push({
             productId: product.productId,
             storeId,
-            newInventoryId: existingInventory.id,
+            inventoryId: existingInventory.id,
           });
         } else {
-          // Create new inventory batch
-          const newInventoryId = crypto.randomUUID();
+          // INSERT new inventory - let DB generate ID
+          const [newInventory] = await tx
+            .insert(inventoryTable)
+            .values({
+              productId: product.productId,
+              storeId,
+              lotNumber: product.lotNumber,
+              quantity: product.quantity,
+              costPrice: product.costPrice,
+              sellingPrice: product.sellingPrice,
+              manufactureDate: product.manufactureDate,
+              expiryDate: product.expiryDate,
+              receivedDate: receivedDate,
+              isActive: true,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .returning();
 
-          inventoryItemsToInsert.push({
-            id: newInventoryId,
-            productId: product.productId,
-            storeId,
-            lotNumber: product.lotNumber,
-            quantity: product.quantity,
-            costPrice: product.costPrice,
-            sellingPrice: product.sellingPrice,
-            manufactureDate: product.manufactureDate,
-            expiryDate: product.expiryDate,
-            receivedDate: receivedDate,
-            isActive: true,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          });
-
-          // Log transaction (new batch created)
-          transactionsToInsert.push({
-            inventoryId: newInventoryId,
+          // Now use the ACTUAL database-generated ID
+          await tx.insert(inventoryTransactionsTable).values({
+            inventoryId: newInventory.id,
             productId: product.productId,
             storeId,
             userId: userId,
@@ -720,49 +640,28 @@ export const addInventoryStock = async (
             updatedAt: new Date(),
           });
 
-          // This new inventory batch can fulfill backorders
           backorderFulfillmentCandidates.push({
             productId: product.productId,
             storeId,
-            newInventoryId: newInventoryId,
+            inventoryId: newInventory.id,
           });
         }
       }
 
-      // Execute all batch operations
-      let insertedInventoryRecords: Array<typeof inventoryTable.$inferSelect> =
-        [];
-      if (inventoryItemsToInsert.length > 0) {
-        insertedInventoryRecords = await tx
-          .insert(inventoryTable)
-          .values(inventoryItemsToInsert)
-          .returning();
-      }
-
-      // Perform all transaction inserts (after inventories are guaranteed to exist/updated)
-      if (transactionsToInsert.length > 0) {
-        await tx
-          .insert(inventoryTransactionsTable)
-          .values(transactionsToInsert);
-      }
-
-      // Trigger backorder fulfillment for newly available inventory
+      // Trigger backorder fulfillment with ACTUAL IDs
       await Promise.all(
         backorderFulfillmentCandidates.map((candidate) =>
           fulfillBackorders(
             candidate.productId,
             candidate.storeId,
-            candidate.newInventoryId,
+            candidate.inventoryId,
             userId,
             tx
           )
         )
       );
 
-      return {
-        inventoryItems: [...insertedInventoryRecords],
-        transactions: transactionsToInsert,
-      };
+      return { success: true };
     });
 
     revalidatePath("/inventory");
@@ -785,22 +684,17 @@ export const adjustInventoryStock = async (
     const { storeId, entries, notes } = data;
 
     const result = await db.transaction(async (tx) => {
-      const updatedInventoryRecords: (typeof inventoryTable.$inferSelect)[] =
-        [];
-      const transactionsToInsert: (typeof inventoryTransactionsTable.$inferInsert)[] =
-        [];
       const backorderFulfillmentCandidates: {
         productId: string;
         storeId: string;
-        newInventoryId: string;
+        inventoryId: string;
       }[] = [];
 
-      // Fetch all relevant existing inventories in one go with locks
       const inventoryIdsToFetch = entries.map(
         (entry) => entry.inventoryStockId
       );
       if (inventoryIdsToFetch.length === 0) {
-        return { inventoryItems: [], transactions: [] };
+        return { success: true };
       }
 
       const existingInventories = await tx
@@ -813,6 +707,7 @@ export const adjustInventoryStock = async (
             inArray(inventoryTable.id, inventoryIdsToFetch)
           )
         );
+
       const existingInventoryMap = new Map<
         string,
         typeof inventoryTable.$inferSelect
@@ -821,7 +716,6 @@ export const adjustInventoryStock = async (
         existingInventoryMap.set(inv.id, inv)
       );
 
-      // Process each adjustment entry
       for (const entry of entries) {
         const existingInventory = existingInventoryMap.get(
           entry.inventoryStockId
@@ -841,14 +735,12 @@ export const adjustInventoryStock = async (
           newQuantity += entry.adjustmentQuantity;
           adjustmentNote = `Added ${entry.adjustmentQuantity} units`;
 
-          // This inventory batch now has more stock, so it can fulfill more backorders
           backorderFulfillmentCandidates.push({
             productId: existingInventory.productId,
             storeId: storeId,
-            newInventoryId: existingInventory.id,
+            inventoryId: existingInventory.id,
           });
         } else {
-          // entry.adjustmentType === "SUBTRACT"
           if (entry.adjustmentQuantity > oldQuantity) {
             throw new Error(
               `Cannot subtract ${entry.adjustmentQuantity} units. Only ${oldQuantity} units available for lot ${existingInventory.lotNumber}.`
@@ -857,8 +749,6 @@ export const adjustInventoryStock = async (
           newQuantity -= entry.adjustmentQuantity;
           adjustmentNote = `Subtracted ${entry.adjustmentQuantity} units`;
 
-          // CRITICAL: If stock is subtracted, we must revert backorder fulfillments
-          // that might have been conceptually satisfied by this stock.
           await revertBackorderFulfillment(
             tx,
             existingInventory.id,
@@ -867,21 +757,16 @@ export const adjustInventoryStock = async (
           );
         }
 
-        // Update inventory record (quantity and isActive if depleted)
-        const [updatedInventory] = await tx
+        await tx
           .update(inventoryTable)
           .set({
             quantity: newQuantity,
             isActive: newQuantity > 0,
             updatedAt: new Date(),
           })
-          .where(eq(inventoryTable.id, existingInventory.id))
-          .returning();
+          .where(eq(inventoryTable.id, existingInventory.id));
 
-        updatedInventoryRecords.push(updatedInventory);
-
-        // Collect transaction for batch insert
-        transactionsToInsert.push({
+        await tx.insert(inventoryTransactionsTable).values({
           inventoryId: existingInventory.id,
           productId: existingInventory.productId,
           storeId,
@@ -896,30 +781,19 @@ export const adjustInventoryStock = async (
         });
       }
 
-      // Execute batch operations
-      if (transactionsToInsert.length > 0) {
-        await tx
-          .insert(inventoryTransactionsTable)
-          .values(transactionsToInsert);
-      }
-
-      // 4. Trigger backorder fulfillment for any inventory increases
       await Promise.all(
         backorderFulfillmentCandidates.map((candidate) =>
           fulfillBackorders(
             candidate.productId,
             candidate.storeId,
-            candidate.newInventoryId,
+            candidate.inventoryId,
             userId,
             tx
           )
         )
       );
 
-      return {
-        inventoryItems: updatedInventoryRecords,
-        transactions: transactionsToInsert,
-      };
+      return { success: true };
     });
 
     revalidatePath("/inventory");

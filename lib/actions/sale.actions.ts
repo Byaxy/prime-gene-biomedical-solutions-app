@@ -745,12 +745,33 @@ export const getSaleById = async (saleId: string) => {
           promissoryNote: promissoryNotesTable,
         })
         .from(salesTable)
-        .leftJoin(customersTable, eq(salesTable.customerId, customersTable.id))
-        .leftJoin(storesTable, eq(salesTable.storeId, storesTable.id))
-        .leftJoin(deliveriesTable, eq(salesTable.id, deliveriesTable.saleId))
+        .leftJoin(
+          customersTable,
+          and(
+            eq(salesTable.customerId, customersTable.id),
+            eq(customersTable.isActive, true)
+          )
+        )
+        .leftJoin(
+          storesTable,
+          and(
+            eq(salesTable.storeId, storesTable.id),
+            eq(storesTable.isActive, true)
+          )
+        )
+        .leftJoin(
+          deliveriesTable,
+          and(
+            eq(salesTable.id, deliveriesTable.saleId),
+            eq(deliveriesTable.isActive, true)
+          )
+        )
         .leftJoin(
           promissoryNotesTable,
-          eq(salesTable.id, promissoryNotesTable.saleId)
+          and(
+            eq(salesTable.id, promissoryNotesTable.saleId),
+            eq(promissoryNotesTable.isActive, true)
+          )
         )
         .where(and(eq(salesTable.id, saleId), eq(salesTable.isActive, true)))
         .then((res) => res[0]);
@@ -782,7 +803,13 @@ export const getSaleById = async (saleId: string) => {
               .from(saleItemInventoryTable)
               .leftJoin(
                 inventoryTable,
-                eq(saleItemInventoryTable.inventoryStockId, inventoryTable.id)
+                and(
+                  eq(
+                    saleItemInventoryTable.inventoryStockId,
+                    inventoryTable.id
+                  ),
+                  eq(inventoryTable.isActive, true)
+                )
               )
               .where(
                 and(
@@ -894,12 +921,33 @@ export const getSales = async (
           promissoryNote: promissoryNotesTable,
         })
         .from(salesTable)
-        .leftJoin(customersTable, eq(salesTable.customerId, customersTable.id))
-        .leftJoin(storesTable, eq(salesTable.storeId, storesTable.id))
-        .leftJoin(deliveriesTable, eq(salesTable.id, deliveriesTable.saleId))
+        .leftJoin(
+          customersTable,
+          and(
+            eq(salesTable.customerId, customersTable.id),
+            eq(customersTable.isActive, true)
+          )
+        )
+        .leftJoin(
+          storesTable,
+          and(
+            eq(salesTable.storeId, storesTable.id),
+            eq(storesTable.isActive, true)
+          )
+        )
+        .leftJoin(
+          deliveriesTable,
+          and(
+            eq(salesTable.id, deliveriesTable.saleId),
+            eq(deliveriesTable.isActive, true)
+          )
+        )
         .leftJoin(
           promissoryNotesTable,
-          eq(salesTable.id, promissoryNotesTable.saleId)
+          and(
+            eq(salesTable.id, promissoryNotesTable.saleId),
+            eq(promissoryNotesTable.isActive, true)
+          )
         )
         .$dynamic();
 
@@ -942,7 +990,13 @@ export const getSales = async (
               .from(saleItemInventoryTable)
               .leftJoin(
                 inventoryTable,
-                eq(saleItemInventoryTable.inventoryStockId, inventoryTable.id)
+                and(
+                  eq(
+                    saleItemInventoryTable.inventoryStockId,
+                    inventoryTable.id
+                  ),
+                  eq(inventoryTable.isActive, true)
+                )
               )
               .where(
                 and(
@@ -1032,12 +1086,33 @@ export const getSales = async (
       let totalQuery = tx
         .select({ count: sql<number>`count(*)` })
         .from(salesTable)
-        .leftJoin(customersTable, eq(salesTable.customerId, customersTable.id))
-        .leftJoin(storesTable, eq(salesTable.storeId, storesTable.id))
-        .leftJoin(deliveriesTable, eq(salesTable.id, deliveriesTable.saleId))
+        .leftJoin(
+          customersTable,
+          and(
+            eq(salesTable.customerId, customersTable.id),
+            eq(customersTable.isActive, true)
+          )
+        )
+        .leftJoin(
+          storesTable,
+          and(
+            eq(salesTable.storeId, storesTable.id),
+            eq(storesTable.isActive, true)
+          )
+        )
+        .leftJoin(
+          deliveriesTable,
+          and(
+            eq(salesTable.id, deliveriesTable.saleId),
+            eq(deliveriesTable.isActive, true)
+          )
+        )
         .leftJoin(
           promissoryNotesTable,
-          eq(salesTable.id, promissoryNotesTable.saleId)
+          and(
+            eq(salesTable.id, promissoryNotesTable.saleId),
+            eq(promissoryNotesTable.isActive, true)
+          )
         )
         .$dynamic();
 

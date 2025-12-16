@@ -81,7 +81,10 @@ export const addPromissoryNote = async (
 
         .leftJoin(
           promissoryNotesTable,
-          eq(salesTable.id, promissoryNotesTable.saleId)
+          and(
+            eq(salesTable.id, promissoryNotesTable.saleId),
+            eq(promissoryNotesTable.isActive, true)
+          )
         )
         .where(
           and(
@@ -321,10 +324,19 @@ export const getPromissoryNoteById = async (promissoryNoteId: string) => {
           customer: customersTable,
         })
         .from(promissoryNotesTable)
-        .leftJoin(salesTable, eq(promissoryNotesTable.saleId, salesTable.id))
+        .leftJoin(
+          salesTable,
+          and(
+            eq(promissoryNotesTable.saleId, salesTable.id),
+            eq(salesTable.isActive, true)
+          )
+        )
         .leftJoin(
           customersTable,
-          eq(promissoryNotesTable.customerId, customersTable.id)
+          and(
+            eq(promissoryNotesTable.customerId, customersTable.id),
+            eq(customersTable.isActive, true)
+          )
         )
         .where(
           and(
@@ -377,10 +389,19 @@ export const getPromissoryNotes = async (
           customer: customersTable,
         })
         .from(promissoryNotesTable)
-        .leftJoin(salesTable, eq(promissoryNotesTable.saleId, salesTable.id))
+        .leftJoin(
+          salesTable,
+          and(
+            eq(promissoryNotesTable.saleId, salesTable.id),
+            eq(salesTable.isActive, true)
+          )
+        )
         .leftJoin(
           customersTable,
-          eq(promissoryNotesTable.customerId, customersTable.id)
+          and(
+            eq(promissoryNotesTable.customerId, customersTable.id),
+            eq(customersTable.isActive, true)
+          )
         )
         .$dynamic();
       const conditions = await buildFilterConditions(filters ?? {});

@@ -250,20 +250,30 @@ const AdjustStockForm = ({ stores, inventoryStock }: AdjustStockFormProps) => {
         })),
       };
 
-      await adjustInventoryStock(
-        { data: submissionData, userId: user.id },
-        {
-          onSuccess: () => {
-            toast.success("Inventory stock adjusted successfully!");
-            form.reset(defaultValues);
-            router.push("/inventory/inventory-stocks");
-          },
-          onError: (error) => {
-            console.error("Error in submission handler:", error);
-            toast.error("An unexpected error occurred");
-          },
-        }
-      );
+      const loadingToastId = toast.loading("Adjusting inventory stock...");
+
+      try {
+        await adjustInventoryStock(
+          { data: submissionData, userId: user.id },
+          {
+            onSuccess: () => {
+              toast.success("Inventory stock adjusted successfully!", {
+                id: loadingToastId,
+              });
+              form.reset(defaultValues);
+              router.push("/inventory/inventory-stocks");
+              router.refresh();
+            },
+          }
+        );
+      } catch (error) {
+        console.error("Inventory stock operation error:", error);
+        toast.error(`Failed to adjust inventory stock`, {
+          id: loadingToastId,
+        });
+      } finally {
+        toast.dismiss(loadingToastId);
+      }
     } catch (error) {
       console.error("Error in submission handler:", error);
       toast.error("An unexpected error occurred");

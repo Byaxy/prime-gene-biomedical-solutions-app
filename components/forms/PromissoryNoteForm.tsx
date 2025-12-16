@@ -189,6 +189,8 @@ const PromissoryNoteForm = ({
           } Promissory Note`,
           { id: loadingToastId }
         );
+      } finally {
+        toast.dismiss(loadingToastId);
       }
     } catch (error) {
       console.error("Error submitting form:", error);

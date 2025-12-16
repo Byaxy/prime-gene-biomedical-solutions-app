@@ -906,6 +906,8 @@ const WaybillForm = ({
           `Failed to ${mode === "create" ? "create" : "update"} waybill`,
           { id: loadingToastId }
         );
+      } finally {
+        toast.dismiss(loadingToastId);
       }
     } catch (error) {
       console.error("Error submitting form:", error);

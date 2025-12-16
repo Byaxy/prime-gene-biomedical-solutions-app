@@ -891,6 +891,8 @@ const ShipmentForm = ({
           `Failed to ${mode === "create" ? "create" : "update"} shipment`,
           { id: loadingToastId }
         );
+      } finally {
+        toast.dismiss(loadingToastId);
       }
     } catch (error) {
       console.error("Error submitting form:", error);

@@ -400,6 +400,8 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
       toast.error("An unexpected error occurred during submission.", {
         id: loadingToastId,
       });
+    } finally {
+      toast.dismiss(loadingToastId);
     }
   };
   return (

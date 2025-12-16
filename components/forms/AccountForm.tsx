@@ -214,6 +214,8 @@ export const AccountForm = ({
       toast.error("An unexpected error occurred during submission.", {
         id: loadingToastId,
       });
+    } finally {
+      toast.dismiss(loadingToastId);
     }
   };
 

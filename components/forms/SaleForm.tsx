@@ -754,6 +754,8 @@ const SaleForm = ({
           `Failed to ${mode === "create" ? "create" : "update"} sale`,
           { id: loadingToastId }
         );
+      } finally {
+        toast.dismiss(loadingToastId);
       }
     } catch (error) {
       console.error("Error submitting form:", error);

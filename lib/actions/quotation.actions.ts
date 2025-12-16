@@ -170,7 +170,12 @@ export const editQuotation = async (
       const existingItems = await tx
         .select()
         .from(quotationItemsTable)
-        .where(eq(quotationItemsTable.quotationId, quotationId));
+        .where(
+          and(
+            eq(quotationItemsTable.quotationId, quotationId),
+            eq(quotationItemsTable.isActive, true)
+          )
+        );
 
       const newProductIds = new Set(
         quotation.products.map((product) => product.productId)
@@ -270,7 +275,10 @@ export const getQuotationById = async (quotationId: string) => {
         .from(quotationsTable)
         .leftJoin(
           customersTable,
-          eq(quotationsTable.customerId, customersTable.id)
+          and(
+            eq(quotationsTable.customerId, customersTable.id),
+            eq(customersTable.isActive, true)
+          )
         )
         .where(
           and(
@@ -394,7 +402,10 @@ export const getQuotations = async (
         .from(quotationsTable)
         .leftJoin(
           customersTable,
-          eq(quotationsTable.customerId, customersTable.id)
+          and(
+            eq(quotationsTable.customerId, customersTable.id),
+            eq(customersTable.isActive, true)
+          )
         )
         .$dynamic();
 
@@ -467,7 +478,10 @@ export const getQuotations = async (
         .from(quotationsTable)
         .leftJoin(
           customersTable,
-          eq(quotationsTable.customerId, customersTable.id)
+          and(
+            eq(quotationsTable.customerId, customersTable.id),
+            eq(customersTable.isActive, true)
+          )
         )
         .$dynamic();
 

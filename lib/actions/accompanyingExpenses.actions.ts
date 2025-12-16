@@ -130,9 +130,12 @@ export const getAccompanyingExpenseTypes = async (
         .from(accompanyingExpenseTypesTable)
         .leftJoin(
           expenseCategoriesTable,
-          eq(
-            accompanyingExpenseTypesTable.defaultExpenseCategoryId,
-            expenseCategoriesTable.id
+          and(
+            eq(
+              accompanyingExpenseTypesTable.defaultExpenseCategoryId,
+              expenseCategoriesTable.id
+            ),
+            eq(expenseCategoriesTable.isActive, true)
           )
         )
         .$dynamic();
@@ -155,9 +158,12 @@ export const getAccompanyingExpenseTypes = async (
         .from(accompanyingExpenseTypesTable)
         .leftJoin(
           expenseCategoriesTable,
-          eq(
-            accompanyingExpenseTypesTable.defaultExpenseCategoryId,
-            expenseCategoriesTable.id
+          and(
+            eq(
+              accompanyingExpenseTypesTable.defaultExpenseCategoryId,
+              expenseCategoriesTable.id
+            ),
+            eq(expenseCategoriesTable.isActive, true)
           )
         )
         .$dynamic();
@@ -199,9 +205,12 @@ export const getAccompanyingExpenseTypeById = async (id: string) => {
       .from(accompanyingExpenseTypesTable)
       .leftJoin(
         expenseCategoriesTable,
-        eq(
-          accompanyingExpenseTypesTable.defaultExpenseCategoryId,
-          expenseCategoriesTable.id
+        and(
+          eq(
+            accompanyingExpenseTypesTable.defaultExpenseCategoryId,
+            expenseCategoriesTable.id
+          ),
+          eq(expenseCategoriesTable.isActive, true)
         )
       )
       .where(
