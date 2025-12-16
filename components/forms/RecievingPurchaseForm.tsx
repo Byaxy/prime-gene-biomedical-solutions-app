@@ -366,7 +366,7 @@ const RecievingPurchaseForm = ({
                 toast.success("Purchase order received successfully!", {
                   id: loadingToastId,
                 });
-                router.push("/purchases/receive-inventory");
+                router.push("/purchases/received-inventory");
                 router.refresh();
                 form.reset(defaultValues);
               },
@@ -393,7 +393,7 @@ const RecievingPurchaseForm = ({
                       id: loadingToastId,
                     }
                   );
-                  router.push("/purchases/receive-inventory");
+                  router.push("/purchases/received-inventory");
                   router.refresh();
                   form.reset(defaultValues);
                 },

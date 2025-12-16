@@ -454,10 +454,19 @@ export const getPromissoryNotes = async (
       let totalQuery = tx
         .select({ count: sql<number>`count(*)` })
         .from(promissoryNotesTable)
-        .leftJoin(salesTable, eq(promissoryNotesTable.saleId, salesTable.id))
+        .leftJoin(
+          salesTable,
+          and(
+            eq(promissoryNotesTable.saleId, salesTable.id),
+            eq(salesTable.isActive, true)
+          )
+        )
         .leftJoin(
           customersTable,
-          eq(promissoryNotesTable.customerId, customersTable.id)
+          and(
+            eq(promissoryNotesTable.customerId, customersTable.id),
+            eq(customersTable.isActive, true)
+          )
         )
         .$dynamic();
 
