@@ -1326,7 +1326,7 @@ export const softDeleteSale = async (saleId: string) => {
       ) {
         await tx
           .update(backordersTable)
-          .set({ isActive: false })
+          .set({ pendingQuantity: 0, isActive: false })
           .where(eq(backordersTable.saleItemId, updatedSaleItem.id));
       }
 

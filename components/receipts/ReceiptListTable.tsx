@@ -4,12 +4,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { DataTable } from "@/components/table/DataTable";
-import { ReceiptWithRelations, Customer } from "@/types"; // Import your types
-import { ReceiptFilters } from "@/lib/validation"; // This will be defined
-import { useReceipts } from "@/hooks/useReceipts"; // This hook will be created
+import { ReceiptWithRelations, Customer } from "@/types";
+import { ReceiptFilters } from "@/lib/validation";
+import { useReceipts } from "@/hooks/useReceipts";
 
-import { receiptColumns } from "@/components/table/columns/receiptColumns"; // This will be created
-import ReceiptDialog from "./ReceiptDialog"; // This will be created
+import { receiptColumns } from "@/components/table/columns/receiptColumns";
+import ReceiptDialog from "./ReceiptDialog";
 
 interface ReceiptListTableProps {
   initialData: { documents: ReceiptWithRelations[]; total: number };
@@ -24,7 +24,6 @@ const ReceiptListTable: React.FC<ReceiptListTableProps> = ({
   const [selectedRow, setSelectedRow] = useState<ReceiptWithRelations>(
     {} as ReceiptWithRelations
   );
-  // State to determine dialog mode (view or delete for a specific receipt)
   const [dialogMode, setDialogMode] = useState<"view" | "delete">("view");
 
   const {

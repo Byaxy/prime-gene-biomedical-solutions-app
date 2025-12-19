@@ -17,7 +17,7 @@ const ReceiptListTableData = async ({
 }: ReceiptListTableDataProps) => {
   const [initialData, fetchedCustomers] = await Promise.all([
     getReceipts(currentPage, currentPageSize, currentPageSize === 0, filters),
-    getCustomers(0, 0, true), // Fetch all customers for filter options
+    getCustomers(0, 0, true), 
   ]);
 
   const allCustomers: Customer[] = fetchedCustomers.documents;

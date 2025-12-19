@@ -157,7 +157,28 @@ const ReceiveInventoryStockDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[100rem] bg-light-200 overflow-visible">
+      <DialogContent
+        className="max-w-[100rem] bg-light-200 overflow-visible"
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onInteractOutside={(e) => {
+          if (e.target instanceof Element) {
+            if (
+              e.target.closest('[role="listbox"]') ||
+              e.target.closest("[data-radix-select-viewport]") ||
+              e.target.closest("[data-radix-popper-content]")
+            ) {
+              e.preventDefault();
+              return;
+            }
+          }
+
+          const event = e.detail.originalEvent;
+          if (event instanceof PointerEvent) {
+            event.stopPropagation();
+          }
+        }}
+      >
         <DialogHeader className="pb-5">
           <DialogTitle className="pb-5">
             Receiving Stock for {productID} - {productName}

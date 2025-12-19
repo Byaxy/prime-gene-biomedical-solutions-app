@@ -2,6 +2,7 @@
 import {
   accompanyingExpenseTypesTable,
   accountsTable,
+  backordersTable,
   billPaymentAccompanyingExpensesTable,
   billPaymentAccountsTable,
   billPaymentItemsTable,
@@ -18,9 +19,11 @@ import {
   incomeCategoriesTable,
   inventoryTransactionsTable,
   paymentsReceivedTable,
+  productsTable,
   purchasesTable,
   receiptItemsTable,
   receiptsTable,
+  saleItemsTable,
   salesAgentsTable,
   salesTable,
   usersTable,
@@ -947,6 +950,29 @@ export type GetCommissionPayoutWithRelations = {
   expenseCategory: ExpenseCategory;
   relatedInvoiceNumbers: string;
 };
+
+// --- Types for Backorders ---
+// Ensure these types are correctly defined or imported from your types file
+export type Backorder = typeof backordersTable.$inferSelect;
+export type BackorderSaleItem = typeof saleItemsTable.$inferSelect;
+
+export interface SaleWithCustomer {
+  sale: Sale;
+  customer: Customer | null;
+}
+
+export interface BackorderSaleItemWithRelations {
+  saleItem: BackorderSaleItem;
+  sale: SaleWithCustomer | null;
+}
+
+// Corrected: A backorder is linked to a single sale item
+export interface BackorderWithRelations {
+  backorder: Backorder;
+  saleItem: BackorderSaleItemWithRelations | null;
+  product: typeof productsTable.$inferSelect | null;
+}
+
 // Enums
 
 // payment methods

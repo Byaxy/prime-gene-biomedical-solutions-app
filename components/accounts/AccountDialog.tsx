@@ -71,7 +71,28 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
     <>
       {mode === "delete" && (
         <Dialog open={open} onOpenChange={onOpenChange}>
-          <DialogContent className="sm:max-w-xl bg-light-200">
+          <DialogContent
+            className="sm:max-w-xl bg-light-200"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            onInteractOutside={(e) => {
+              if (e.target instanceof Element) {
+                if (
+                  e.target.closest('[role="listbox"]') ||
+                  e.target.closest("[data-radix-select-viewport]") ||
+                  e.target.closest("[data-radix-popper-content]")
+                ) {
+                  e.preventDefault();
+                  return;
+                }
+              }
+
+              const event = e.detail.originalEvent;
+              if (event instanceof PointerEvent) {
+                event.stopPropagation();
+              }
+            }}
+          >
             <DialogHeader>
               <DialogTitle className="text-xl text-blue-800">
                 Deactivate Account
@@ -109,7 +130,28 @@ const AccountDialog: React.FC<AccountDialogProps> = ({
 
       {mode === "view" && (
         <Dialog open={open} onOpenChange={onOpenChange}>
-          <DialogContent className="sm:max-w-3xl bg-light-200">
+          <DialogContent
+            className="sm:max-w-3xl bg-light-200"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            onInteractOutside={(e) => {
+              if (e.target instanceof Element) {
+                if (
+                  e.target.closest('[role="listbox"]') ||
+                  e.target.closest("[data-radix-select-viewport]") ||
+                  e.target.closest("[data-radix-popper-content]")
+                ) {
+                  e.preventDefault();
+                  return;
+                }
+              }
+
+              const event = e.detail.originalEvent;
+              if (event instanceof PointerEvent) {
+                event.stopPropagation();
+              }
+            }}
+          >
             <DialogHeader>
               <DialogTitle className="text-xl text-blue-800">
                 {`Account Details: ${account.account.name}`}

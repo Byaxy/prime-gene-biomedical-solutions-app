@@ -264,20 +264,38 @@ export const getProducts = async (
         .from(productsTable)
         .leftJoin(
           categoriesTable,
-          eq(productsTable.categoryId, categoriesTable.id)
+          and(
+            eq(productsTable.categoryId, categoriesTable.id),
+            eq(categoriesTable.isActive, true)
+          )
         )
-        .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id))
+        .leftJoin(
+          brandsTable,
+          and(
+            eq(productsTable.brandId, brandsTable.id),
+            eq(brandsTable.isActive, true)
+          )
+        )
         .leftJoin(
           productTypesTable,
-          eq(productsTable.typeId, productTypesTable.id)
+          and(
+            eq(productsTable.typeId, productTypesTable.id),
+            eq(productTypesTable.isActive, true)
+          )
         )
-        .leftJoin(unitsTable, eq(productsTable.unitId, unitsTable.id))
+        .leftJoin(
+          unitsTable,
+          and(
+            eq(productsTable.unitId, unitsTable.id),
+            eq(unitsTable.isActive, true)
+          )
+        )
         .leftJoin(
           inventoryTable,
           and(
             eq(productsTable.id, inventoryTable.productId),
             eq(inventoryTable.isActive, true),
-            gte(inventoryTable.quantity, 0)
+            gt(inventoryTable.quantity, 0)
           )
         )
         .leftJoin(
@@ -326,16 +344,34 @@ export const getProducts = async (
       let totalQuery = tx
         .select({ count: sql<number>`count(DISTINCT ${productsTable.id})` })
         .from(productsTable)
-        .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id))
+        .leftJoin(
+          brandsTable,
+          and(
+            eq(productsTable.brandId, brandsTable.id),
+            eq(brandsTable.isActive, true)
+          )
+        )
         .leftJoin(
           categoriesTable,
-          eq(productsTable.categoryId, categoriesTable.id)
+          and(
+            eq(productsTable.categoryId, categoriesTable.id),
+            eq(categoriesTable.isActive, true)
+          )
         )
         .leftJoin(
           productTypesTable,
-          eq(productsTable.typeId, productTypesTable.id)
+          and(
+            eq(productsTable.typeId, productTypesTable.id),
+            eq(productTypesTable.isActive, true)
+          )
         )
-        .leftJoin(unitsTable, eq(productsTable.unitId, unitsTable.id))
+        .leftJoin(
+          unitsTable,
+          and(
+            eq(productsTable.unitId, unitsTable.id),
+            eq(unitsTable.isActive, true)
+          )
+        )
         .$dynamic();
 
       if (conditions.length > 0) {
@@ -422,20 +458,38 @@ export const getProductById = async (productId: string) => {
         .from(productsTable)
         .leftJoin(
           categoriesTable,
-          eq(productsTable.categoryId, categoriesTable.id)
+          and(
+            eq(productsTable.categoryId, categoriesTable.id),
+            eq(categoriesTable.isActive, true)
+          )
         )
-        .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id))
+        .leftJoin(
+          brandsTable,
+          and(
+            eq(productsTable.brandId, brandsTable.id),
+            eq(brandsTable.isActive, true)
+          )
+        )
         .leftJoin(
           productTypesTable,
-          eq(productsTable.typeId, productTypesTable.id)
+          and(
+            eq(productsTable.typeId, productTypesTable.id),
+            eq(productTypesTable.isActive, true)
+          )
         )
-        .leftJoin(unitsTable, eq(productsTable.unitId, unitsTable.id))
+        .leftJoin(
+          unitsTable,
+          and(
+            eq(productsTable.unitId, unitsTable.id),
+            eq(unitsTable.isActive, true)
+          )
+        )
         .leftJoin(
           inventoryTable,
           and(
             eq(productsTable.id, inventoryTable.productId),
             eq(inventoryTable.isActive, true),
-            gte(inventoryTable.quantity, 0)
+            gt(inventoryTable.quantity, 0)
           )
         )
         .leftJoin(

@@ -2443,3 +2443,18 @@ export const CommissionPayoutFiltersSchema = z.object({
 export type CommissionPayoutFilters = z.infer<
   typeof CommissionPayoutFiltersSchema
 >;
+
+// Backorder Fulfillment Form
+export const BackorderFulfillmentValidation = z.object({
+  backorderId: z.string().nonempty("Backorder ID is required"),
+  inventoryStockId: z.string().nonempty("Inventory stock to use is required"),
+  quantityToFulfill: z
+    .number()
+    .int()
+    .min(1, "Quantity to fulfill must be at least 1"),
+  userId: z.string().nonempty("User ID is required for logging transactions"),
+});
+
+export type BackorderFulfillmentFormValues = z.infer<
+  typeof BackorderFulfillmentValidation
+>;

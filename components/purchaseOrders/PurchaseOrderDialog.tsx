@@ -186,7 +186,28 @@ const PurchaseOrderDialog = ({
 
       {mode === "view" && (
         <Dialog open={open} onOpenChange={onOpenChange}>
-          <DialogContent className="max-w-[100rem] w-full h-[96vh] p-0 bg-light-200">
+          <DialogContent
+            className="max-w-[100rem] w-full h-[96vh] p-0 bg-light-200"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            onInteractOutside={(e) => {
+              if (e.target instanceof Element) {
+                if (
+                  e.target.closest('[role="listbox"]') ||
+                  e.target.closest("[data-radix-select-viewport]") ||
+                  e.target.closest("[data-radix-popper-content]")
+                ) {
+                  e.preventDefault();
+                  return;
+                }
+              }
+
+              const event = e.detail.originalEvent;
+              if (event instanceof PointerEvent) {
+                event.stopPropagation();
+              }
+            }}
+          >
             <DialogHeader className="hidden">
               <DialogTitle></DialogTitle>
               <DialogDescription></DialogDescription>

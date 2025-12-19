@@ -203,7 +203,28 @@ export function ProductDialog({
 
       {mode === "add" && isBulkProductUpload && (
         <Dialog open={open} onOpenChange={onOpenChange}>
-          <DialogContent className="sm:max-w-3xl bg-light-200 mx-2 sm:mx-0">
+          <DialogContent
+            className="sm:max-w-3xl bg-light-200 mx-2 sm:mx-0"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            onInteractOutside={(e) => {
+              if (e.target instanceof Element) {
+                if (
+                  e.target.closest('[role="listbox"]') ||
+                  e.target.closest("[data-radix-select-viewport]") ||
+                  e.target.closest("[data-radix-popper-content]")
+                ) {
+                  e.preventDefault();
+                  return;
+                }
+              }
+
+              const event = e.detail.originalEvent;
+              if (event instanceof PointerEvent) {
+                event.stopPropagation();
+              }
+            }}
+          >
             <DialogHeader>
               <DialogTitle className="text-xl text-blue-800">
                 Bulk Inventory Upload
@@ -231,7 +252,28 @@ export function ProductDialog({
 
       {mode === "view" && (
         <Dialog open={open} onOpenChange={onOpenChange}>
-          <DialogContent className="sm:max-w-5xl bg-light-200 mx-2 sm:mx-0">
+          <DialogContent
+            className="sm:max-w-5xl bg-light-200 mx-2 sm:mx-0"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            onInteractOutside={(e) => {
+              if (e.target instanceof Element) {
+                if (
+                  e.target.closest('[role="listbox"]') ||
+                  e.target.closest("[data-radix-select-viewport]") ||
+                  e.target.closest("[data-radix-popper-content]")
+                ) {
+                  e.preventDefault();
+                  return;
+                }
+              }
+
+              const event = e.detail.originalEvent;
+              if (event instanceof PointerEvent) {
+                event.stopPropagation();
+              }
+            }}
+          >
             <DialogHeader>
               <DialogTitle className="text-xl text-blue-800">
                 Inventory Details

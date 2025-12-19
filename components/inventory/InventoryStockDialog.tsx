@@ -32,7 +32,28 @@ const InventoryStockDialog = ({
   }
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl w-full bg-light-200 space-y-4 p-8">
+      <DialogContent
+        className="max-w-6xl w-full bg-light-200 space-y-4 p-8"
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onInteractOutside={(e) => {
+          if (e.target instanceof Element) {
+            if (
+              e.target.closest('[role="listbox"]') ||
+              e.target.closest("[data-radix-select-viewport]") ||
+              e.target.closest("[data-radix-popper-content]")
+            ) {
+              e.preventDefault();
+              return;
+            }
+          }
+
+          const event = e.detail.originalEvent;
+          if (event instanceof PointerEvent) {
+            event.stopPropagation();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle className="pb-2">
             Product ID: {stock.product.productID} - Stock Batches (

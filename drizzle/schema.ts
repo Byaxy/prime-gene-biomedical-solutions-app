@@ -1228,32 +1228,6 @@ export const backordersTable = pgTable(
   })
 );
 
-// Tracks fulfillment of backorders
-export const backorderFulfillmentsTable = pgTable(
-  "backorder_fulfillments",
-  {
-    id: uuid("id")
-      .primaryKey()
-      .default(sql`gen_random_uuid()`),
-    backorderId: uuid("backorder_id")
-      .notNull()
-      .references(() => backordersTable.id, { onDelete: "cascade" }),
-    inventoryId: uuid("inventory_id")
-      .notNull()
-      .references(() => inventoryTable.id, { onDelete: "cascade" }),
-    fulfilledQuantity: integer("fulfilled_quantity").notNull(),
-    fulfillmentDate: timestamp("fulfillment_date").defaultNow().notNull(),
-  },
-  (table) => ({
-    backorderFulfillmentsBackorderIdIndex: index(
-      "backorder_fulfillments_backorder_id_idx"
-    ).on(table.backorderId),
-    backorderFulfillmentsInventoryIdIndex: index(
-      "backorder_fulfillments_inventory_id_idx"
-    ).on(table.inventoryId),
-  })
-);
-
 // Deliveries Table
 export const deliveriesTable = pgTable(
   "deliveries",

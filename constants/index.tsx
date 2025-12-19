@@ -66,6 +66,12 @@ export const sidebarData: SidebarDataType[] = [
             title: "Inventory Stocks",
             path: "/inventory/inventory-stocks",
           },
+
+          {
+            id: generateId(),
+            title: "Back Orders",
+            path: "/backorders",
+          },
         ],
       },
       {
