@@ -49,11 +49,7 @@ export default async function BackordersPage({
   };
 
   return (
-    <PageWraper
-      title="Back-orders"
-      buttonText="Create Back-order"
-      buttonPath="/inventory/backorders/create"
-    >
+    <PageWraper title="Back-orders">
       <Suspense fallback={<TableSkeleton />}>
         <BackorderListTableData
           currentPage={currentPage}
