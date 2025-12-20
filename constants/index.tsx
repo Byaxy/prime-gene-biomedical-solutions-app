@@ -31,7 +31,7 @@ export const sidebarData: SidebarDataType[] = [
   },
   {
     id: generateId(),
-    title: "Products Management",
+    title: "Product Management",
     path: "",
     icon: <Store className="h-5 w-5" />,
     subCategories: [
@@ -91,6 +91,54 @@ export const sidebarData: SidebarDataType[] = [
             path: "/services/add-services",
           },
         ],
+      },
+    ],
+  },
+  {
+    id: generateId(),
+    title: "Purchase Management",
+    path: "",
+    icon: <Receipt className="h-5 w-5" />,
+    subCategories: [
+      {
+        id: generateId(),
+        title: "Create Purchase Order",
+        path: "/purchases/create-purchase-order",
+      },
+      {
+        id: generateId(),
+        title: "Purchase Order List",
+        path: "/purchases/purchase-orders",
+      },
+      {
+        id: generateId(),
+        title: "Create Purchase",
+        path: "/purchases/create-purchase",
+      },
+      {
+        id: generateId(),
+        title: "Purchased List",
+        path: "/purchases",
+      },
+      {
+        id: generateId(),
+        title: "Manage Shipping",
+        path: "/purchases/manage-shipping",
+      },
+      {
+        id: generateId(),
+        title: "Shipping List",
+        path: "/purchases/shipments",
+      },
+      {
+        title: "Receive Purchased Inventory",
+        path: "/purchases/receive-purchased-inventory",
+        id: generateId(),
+      },
+      {
+        id: generateId(),
+        title: "Received Inventory List",
+        path: "/purchases/received-inventory",
       },
     ],
   },
@@ -180,147 +228,9 @@ export const sidebarData: SidebarDataType[] = [
       },
     ],
   },
-
   {
     id: generateId(),
-    title: "Purchases Management",
-    path: "",
-    icon: <Receipt className="h-5 w-5" />,
-    subCategories: [
-      {
-        id: generateId(),
-        title: "Create Purchase Order",
-        path: "/purchases/create-purchase-order",
-      },
-      {
-        id: generateId(),
-        title: "Purchase Order List",
-        path: "/purchases/purchase-orders",
-      },
-      {
-        id: generateId(),
-        title: "Create Purchase",
-        path: "/purchases/create-purchase",
-      },
-      {
-        id: generateId(),
-        title: "Purchased List",
-        path: "/purchases",
-      },
-      {
-        id: generateId(),
-        title: "Manage Shipping",
-        path: "/purchases/manage-shipping",
-      },
-      {
-        id: generateId(),
-        title: "Shipping List",
-        path: "/purchases/shipments",
-      },
-      {
-        title: "Receive Purchased Inventory",
-        path: "/purchases/receive-purchased-inventory",
-        id: generateId(),
-      },
-      {
-        id: generateId(),
-        title: "Received Inventory List",
-        path: "/purchases/received-inventory",
-      },
-    ],
-  },
-
-  {
-    id: generateId(),
-    title: "People",
-    path: "",
-    icon: <UsersRound className="h-5 w-5" />,
-    subCategories: [
-      {
-        id: generateId(),
-        title: "Customers",
-        path: "",
-        subCategories: [
-          {
-            id: generateId(),
-            title: "Customer List",
-            path: "/customers",
-          },
-          {
-            id: generateId(),
-            title: "Add Customer",
-            path: "/customers/add-customer",
-          },
-        ],
-      },
-      {
-        id: generateId(),
-        title: "Vendors",
-        path: "",
-        subCategories: [
-          {
-            id: generateId(),
-            title: "Vendors List",
-            path: "/vendors",
-          },
-          {
-            id: generateId(),
-            title: "Add Vendor",
-            path: "/vendors/add-vendor",
-          },
-          {
-            id: generateId(),
-            title: "Transactions",
-            path: "/vendors/transactions",
-          },
-          {
-            id: generateId(),
-            title: "Pay Bills",
-            path: "/vendors/pay-bills",
-          },
-        ],
-      },
-      {
-        id: generateId(),
-        title: "Users",
-        path: "",
-
-        subCategories: [
-          {
-            id: generateId(),
-            title: "Users List",
-            path: "/users",
-          },
-          {
-            id: generateId(),
-            title: "Add User",
-            path: "/users/add-user",
-          },
-        ],
-      },
-      {
-        id: generateId(),
-        title: "Sales Agents",
-        path: "",
-
-        subCategories: [
-          {
-            id: generateId(),
-            title: "Sales Agents List",
-            path: "/sales-agents",
-          },
-          {
-            id: generateId(),
-            title: "Add Sales Agent",
-            path: "/sales-agents/create",
-          },
-        ],
-      },
-    ],
-  },
-  {
-    id: generateId(),
-    title: "Accounting and Finance",
+    title: "Account and Finance",
     path: "",
     icon: <CircleDollarSign className="h-5 w-5" />,
     subCategories: [
@@ -416,13 +326,7 @@ export const sidebarData: SidebarDataType[] = [
   },
   {
     id: generateId(),
-    title: "Notifications",
-    path: "/notifications",
-    icon: <Bell className="h-5 w-5" />,
-  },
-  {
-    id: generateId(),
-    title: "Reporting and Analysis",
+    title: "Report and Analysis",
     path: "",
     icon: <ChartColumn className="h-5 w-5" />,
     subCategories: [
@@ -445,6 +349,100 @@ export const sidebarData: SidebarDataType[] = [
         id: generateId(),
         title: "Expenses Reports",
         path: "/reporting-and-analysis/expenses-reports",
+      },
+    ],
+  },
+  {
+    id: generateId(),
+    title: "Notifications",
+    path: "/notifications",
+    icon: <Bell className="h-5 w-5" />,
+  },
+  {
+    id: generateId(),
+    title: "People",
+    path: "",
+    icon: <UsersRound className="h-5 w-5" />,
+    subCategories: [
+      {
+        id: generateId(),
+        title: "Customers",
+        path: "",
+        subCategories: [
+          {
+            id: generateId(),
+            title: "Customer List",
+            path: "/customers",
+          },
+          {
+            id: generateId(),
+            title: "Add Customer",
+            path: "/customers/add-customer",
+          },
+        ],
+      },
+      {
+        id: generateId(),
+        title: "Vendors",
+        path: "",
+        subCategories: [
+          {
+            id: generateId(),
+            title: "Vendors List",
+            path: "/vendors",
+          },
+          {
+            id: generateId(),
+            title: "Add Vendor",
+            path: "/vendors/add-vendor",
+          },
+          {
+            id: generateId(),
+            title: "Transactions",
+            path: "/vendors/transactions",
+          },
+          {
+            id: generateId(),
+            title: "Pay Bills",
+            path: "/vendors/pay-bills",
+          },
+        ],
+      },
+      {
+        id: generateId(),
+        title: "Users",
+        path: "",
+
+        subCategories: [
+          {
+            id: generateId(),
+            title: "Users List",
+            path: "/users",
+          },
+          {
+            id: generateId(),
+            title: "Add User",
+            path: "/users/add-user",
+          },
+        ],
+      },
+      {
+        id: generateId(),
+        title: "Sales Agents",
+        path: "",
+
+        subCategories: [
+          {
+            id: generateId(),
+            title: "Sales Agents List",
+            path: "/sales-agents",
+          },
+          {
+            id: generateId(),
+            title: "Add Sales Agent",
+            path: "/sales-agents/create",
+          },
+        ],
       },
     ],
   },
