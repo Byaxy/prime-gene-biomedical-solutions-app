@@ -1487,7 +1487,7 @@ export const generateWaybillRefNumber = async (): Promise<string> => {
         .select({ waybillRefNumber: waybillsTable.waybillRefNumber })
         .from(waybillsTable)
         .where(
-          sql`waybill_ref_number LIKE ${`${config.reffNumberPrefix}WB${year}/${month}/%`}`
+          sql`waybill_ref_number LIKE ${`${config.reffNumberPrefix}WB:${year}/${month}/%`}`
         )
         .orderBy(desc(waybillsTable.createdAt))
         .limit(1);
@@ -1503,7 +1503,7 @@ export const generateWaybillRefNumber = async (): Promise<string> => {
       }
 
       const sequenceNumber = String(nextSequence).padStart(4, "0");
-      return `${config.reffNumberPrefix}WB${year}/${month}/${sequenceNumber}`;
+      return `${config.reffNumberPrefix}WB:${year}/${month}/${sequenceNumber}`;
     });
 
     return result;

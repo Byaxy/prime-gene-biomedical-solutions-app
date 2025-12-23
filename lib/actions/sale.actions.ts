@@ -1155,7 +1155,7 @@ export const generateInvoiceNumber = async (): Promise<string> => {
         .select({ invoiceNumber: salesTable.invoiceNumber })
         .from(salesTable)
         .where(
-          sql`invoice_number LIKE ${`${config.reffNumberPrefix}INV.${year}/${month}/%`}`
+          sql`invoice_number LIKE ${`${config.reffNumberPrefix}INV:${year}/${month}/%`}`
         )
         .orderBy(desc(salesTable.createdAt))
         .limit(1);
@@ -1172,7 +1172,7 @@ export const generateInvoiceNumber = async (): Promise<string> => {
 
       const sequenceNumber = String(nextSequence).padStart(4, "0");
 
-      return `${config.reffNumberPrefix}INV.${year}/${month}/${sequenceNumber}`;
+      return `${config.reffNumberPrefix}INV:${year}/${month}/${sequenceNumber}`;
     });
 
     return result;

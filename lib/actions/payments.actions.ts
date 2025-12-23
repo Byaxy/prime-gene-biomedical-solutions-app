@@ -1062,7 +1062,7 @@ export const generatePaymentReferenceNumber = async (): Promise<string> => {
         .select({ paymentRefNumber: paymentsReceivedTable.paymentRefNumber })
         .from(paymentsReceivedTable)
         .where(
-          sql`payment_ref_number LIKE ${`${config.reffNumberPrefix}PRN.${year}/${month}/%`}`
+          sql`payment_ref_number LIKE ${`${config.reffNumberPrefix}PRN:${year}/${month}/%`}`
         )
         .orderBy(desc(paymentsReceivedTable.createdAt))
         .limit(1);
@@ -1079,7 +1079,7 @@ export const generatePaymentReferenceNumber = async (): Promise<string> => {
 
       const sequenceNumber = String(nextSequence).padStart(4, "0");
 
-      return `${config.reffNumberPrefix}PRN.${year}/${month}/${sequenceNumber}`;
+      return `${config.reffNumberPrefix}PRN:${year}/${month}/${sequenceNumber}`;
     });
 
     return result;

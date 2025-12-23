@@ -578,7 +578,7 @@ export const generateReceiptNumber = async (): Promise<string> => {
         .select({ receiptNumber: receiptsTable.receiptNumber })
         .from(receiptsTable)
         .where(
-          sql`receipt_number LIKE ${`${config.reffNumberPrefix}RCPT.${year}/${month}/%`}`
+          sql`receipt_number LIKE ${`${config.reffNumberPrefix}RCPT:${year}/${month}/%`}`
         )
         .orderBy(desc(receiptsTable.createdAt))
         .limit(1);
@@ -595,7 +595,7 @@ export const generateReceiptNumber = async (): Promise<string> => {
 
       const sequenceNumber = String(nextSequence).padStart(4, "0");
 
-      return `${config.reffNumberPrefix}RCPT.${year}/${month}/${sequenceNumber}`;
+      return `${config.reffNumberPrefix}RCPT:${year}/${month}/${sequenceNumber}`;
     });
 
     return result;

@@ -473,7 +473,7 @@ export const generatePurchaseNumber = async (): Promise<string> => {
         .select({ purchaseNumber: purchasesTable.purchaseNumber })
         .from(purchasesTable)
         .where(
-          sql`purchase_number LIKE ${`${config.reffNumberPrefix}PO-${year}/${month}/%`}`
+          sql`purchase_number LIKE ${`${config.reffNumberPrefix}PO:${year}/${month}/%`}`
         )
         .orderBy(desc(purchasesTable.createdAt))
         .limit(1);
@@ -490,7 +490,7 @@ export const generatePurchaseNumber = async (): Promise<string> => {
 
       const sequenceNumber = String(nextSequence).padStart(4, "0");
 
-      return `${config.reffNumberPrefix}PO-${year}/${month}/${sequenceNumber}`;
+      return `${config.reffNumberPrefix}PO:${year}/${month}/${sequenceNumber}`;
     });
 
     return result;

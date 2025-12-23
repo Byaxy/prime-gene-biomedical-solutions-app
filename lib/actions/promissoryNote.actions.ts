@@ -291,7 +291,7 @@ export const generatePromissoryNoteRefNumber = async (): Promise<string> => {
         })
         .from(promissoryNotesTable)
         .where(
-          sql`promissory_note_ref_number LIKE ${`${config.reffNumberPrefix}PN${year}/${month}/%`}`
+          sql`promissory_note_ref_number LIKE ${`${config.reffNumberPrefix}PN:${year}/${month}/%`}`
         )
         .orderBy(desc(promissoryNotesTable.createdAt))
         .limit(1);
@@ -307,7 +307,7 @@ export const generatePromissoryNoteRefNumber = async (): Promise<string> => {
       }
 
       const sequenceNumber = String(nextSequence).padStart(4, "0");
-      return `${config.reffNumberPrefix}PN${year}/${month}/${sequenceNumber}`;
+      return `${config.reffNumberPrefix}PN:${year}/${month}/${sequenceNumber}`;
     });
 
     return result;

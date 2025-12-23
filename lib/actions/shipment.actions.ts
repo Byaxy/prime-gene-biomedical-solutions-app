@@ -846,7 +846,7 @@ export const generateShipmentRefNumber = async (): Promise<string> => {
         .select({ shipmentRefNumber: shipmentsTable.shipmentRefNumber })
         .from(shipmentsTable)
         .where(
-          sql`shipment_ref_number LIKE ${`${config.reffNumberPrefix}SHP-${year}/${month}/%`}`
+          sql`shipment_ref_number LIKE ${`${config.reffNumberPrefix}SHP:${year}/${month}/%`}`
         )
         .orderBy(desc(shipmentsTable.createdAt))
         .limit(1);
@@ -861,7 +861,7 @@ export const generateShipmentRefNumber = async (): Promise<string> => {
 
       const sequenceNumber = String(nextSequence).padStart(4, "0");
 
-      return `${config.reffNumberPrefix}SHP-${year}/${month}/${sequenceNumber}`;
+      return `${config.reffNumberPrefix}SHP:${year}/${month}/${sequenceNumber}`;
     });
 
     return result;

@@ -361,7 +361,7 @@ export const generateQuotationNumber = async (): Promise<string> => {
         .select({ quotationNumber: quotationsTable.quotationNumber })
         .from(quotationsTable)
         .where(
-          sql`quotation_number LIKE ${`${config.reffNumberPrefix}PFI${year}/${month}/%`}`
+          sql`quotation_number LIKE ${`${config.reffNumberPrefix}PFI:${year}/${month}/%`}`
         )
         .orderBy(desc(quotationsTable.createdAt))
         .limit(1);
@@ -378,7 +378,7 @@ export const generateQuotationNumber = async (): Promise<string> => {
 
       const sequenceNumber = String(nextSequence).padStart(4, "0");
 
-      return `${config.reffNumberPrefix}PFI${year}/${month}/${sequenceNumber}`;
+      return `${config.reffNumberPrefix}PFI:${year}/${month}/${sequenceNumber}`;
     });
 
     return result;

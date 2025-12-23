@@ -17,6 +17,7 @@ import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import { Account, JournalEntryReferenceType } from "@/types";
 import { createJournalEntry } from "./accounting.actions";
 import { ExpenseFilters } from "@/hooks/useExpenses";
+import { getCompanyConfig } from "../config/company-config";
 
 const buildExpenseFilterConditions = (filters: ExpenseFilters) => {
   const conditions = [];
@@ -1206,6 +1207,8 @@ function throwError(message: string): never {
 // Generate reference number
 export const generateExpenseReferenceNumber = async (): Promise<string> => {
   try {
+    const config = getCompanyConfig();
+
     const result = await db.transaction(async (tx) => {
       const now = new Date();
       const year = now.getFullYear();
@@ -1214,7 +1217,9 @@ export const generateExpenseReferenceNumber = async (): Promise<string> => {
       const lastExpense = await tx
         .select({ referenceNumber: expensesTable.referenceNumber })
         .from(expensesTable)
-        .where(sql`reference_number LIKE ${`EXP.${year}/${month}/%`}`)
+        .where(
+          sql`reference_number LIKE ${`${config.reffNumberPrefix}EXP:${year}/${month}/%`}`
+        )
         .orderBy(desc(expensesTable.createdAt))
         .limit(1);
 
@@ -1230,7 +1235,7 @@ export const generateExpenseReferenceNumber = async (): Promise<string> => {
 
       const sequenceNumber = String(nextSequence).padStart(4, "0");
 
-      return `EXP.${year}/${month}/${sequenceNumber}`;
+      return `${config.reffNumberPrefix}EXP:${year}/${month}/${sequenceNumber}`;
     });
 
     return result;
