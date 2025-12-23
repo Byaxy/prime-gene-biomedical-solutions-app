@@ -17,6 +17,8 @@ import PDFFooter from "../pdf-template/PDFFooter";
 import Signature from "../pdf-template/Signature";
 import BankDetails from "../pdf-template/BankDetails";
 import TermsAndConditions from "../pdf-template/TermsAndConditions";
+import { getCompanyConfig } from "@/lib/config/company-config";
+import CompanyAddress from "../pdf-template/CompanyAddress";
 
 // styles
 const styles = StyleSheet.create({
@@ -123,6 +125,9 @@ interface Props {
 
 const PurchaseOrderPDF = ({ purchaseOrder, companySettings }: Props) => {
   const { purchaseOrder: purchase, products, vendor } = purchaseOrder;
+
+  const config = getCompanyConfig();
+
   const termsAndConditions = [
     "Prices quoted here should be valid for 6 months.",
     "Payment Terms: 100% prepayment EXW.",
@@ -134,7 +139,7 @@ const PurchaseOrderPDF = ({ purchaseOrder, companySettings }: Props) => {
         {/* Background Image */}
         <Image
           style={styles.backgroundImage}
-          src="/assets/logos/logo3.jpeg"
+          src={config.pdfBackgroundImage}
           fixed
         />
         {/* Header */}
@@ -251,14 +256,9 @@ const PurchaseOrderPDF = ({ purchaseOrder, companySettings }: Props) => {
             country={vendor.address.country}
           />
 
-          <Address
+          <CompanyAddress
             addressTitle="Delivery Address"
-            name={companySettings.name}
-            address={companySettings.address || ""}
-            phone={companySettings.phone || ""}
-            email={companySettings.email || ""}
-            city={companySettings.city || ""}
-            country={companySettings.country || ""}
+            companySettings={companySettings}
           />
         </View>
 

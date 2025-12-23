@@ -82,7 +82,7 @@ export const receivedPurchasesColumns: ColumnDef<ReceivedPurchaseWithRelations>[
         const purchase = row.original;
         return (
           <p className="text-14-medium ">
-            {purchase.purchase.purchaseNumber || "-"}
+            {purchase?.purchase ? purchase.purchase.purchaseNumber : "-"}
           </p>
         );
       },
@@ -106,7 +106,7 @@ export const receivedPurchasesColumns: ColumnDef<ReceivedPurchaseWithRelations>[
         const purchase = row.original;
         return (
           <p className="text-14-medium ">
-            {purchase.purchase.vendorInvoiceNumber || "-"}
+            {purchase.purchase ? purchase.purchase.vendorInvoiceNumber : "-"}
           </p>
         );
       },
@@ -127,7 +127,7 @@ export const receivedPurchasesColumns: ColumnDef<ReceivedPurchaseWithRelations>[
               0
             ) || "-"}
             <div>
-              <PurchasedQnty purchaseId={purchase.purchase.id} />
+              <PurchasedQnty purchaseId={purchase?.purchase?.id} />
             </div>
           </div>
         );
@@ -326,7 +326,7 @@ export const groupedReceivedPurchasesColumns: ColumnDef<GroupedReceivedPurchases
         const purchase = row.original;
         return (
           <p className="text-14-medium ">
-            {purchase.purchase.purchaseNumber || "-"}
+            {purchase?.purchase ? purchase.purchase.purchaseNumber : "-"}
           </p>
         );
       },
@@ -350,7 +350,7 @@ export const groupedReceivedPurchasesColumns: ColumnDef<GroupedReceivedPurchases
         const purchase = row.original;
         return (
           <p className="text-14-medium ">
-            {purchase.purchase.vendorInvoiceNumber || "-"}
+            {purchase?.purchase ? purchase.purchase.vendorInvoiceNumber : "-"}
           </p>
         );
       },
@@ -382,7 +382,7 @@ export const groupedReceivedPurchasesColumns: ColumnDef<GroupedReceivedPurchases
           <div className="text-14-medium flex items-center gap-1">
             {quantityReceived}
             <div>
-              <PurchasedQnty purchaseId={purchase.purchase.id} />
+              <PurchasedQnty purchaseId={purchase?.purchase?.id} />
             </div>
           </div>
         );
@@ -415,7 +415,7 @@ export const groupedReceivedPurchasesColumns: ColumnDef<GroupedReceivedPurchases
       header: "Status",
       cell: ({ row }) => {
         const purchase = row.original;
-        return <PurchasedQntyStatus purchaseId={purchase.purchase.id} />;
+        return <PurchasedQntyStatus purchaseId={purchase?.purchase?.id} />;
       },
     },
     {

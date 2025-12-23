@@ -17,6 +17,7 @@ import Address from "../pdf-template/Address";
 import Signature from "../pdf-template/Signature";
 import BankDetails from "../pdf-template/BankDetails";
 import TermsAndConditions from "../pdf-template/TermsAndConditions";
+import { getCompanyConfig } from "@/lib/config/company-config";
 
 // styles
 const styles = StyleSheet.create({
@@ -152,6 +153,8 @@ const QuotationPDF = ({
 }) => {
   const { quotation: quot, customer, products } = quotation;
 
+  const config = getCompanyConfig();
+
   const termsAndConditions = [
     "Prices quoted here are valid for 6 months.",
     "Terms of payment is 30 days.",
@@ -165,7 +168,7 @@ const QuotationPDF = ({
         {/* Background Image */}
         <Image
           style={styles.backgroundImage}
-          src="/assets/logos/logo3.jpeg"
+          src={config.pdfBackgroundImage}
           fixed
         />
         {/* Header */}

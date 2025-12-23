@@ -26,6 +26,7 @@ import { db } from "@/drizzle/db";
 import { createJournalEntry } from "./accounting.actions";
 import { revalidatePath } from "next/cache";
 import { parseStringify } from "../utils";
+import { getCompanyConfig } from "../config/company-config";
 
 const buildIncomeFilterConditions = (filters: IncomeFilters) => {
   const conditions = [];
@@ -1051,6 +1052,7 @@ function throwError(message: string): never {
 // Generate reference number
 export const generatePaymentReferenceNumber = async (): Promise<string> => {
   try {
+    const config = getCompanyConfig();
     const result = await db.transaction(async (tx) => {
       const now = new Date();
       const year = now.getFullYear();
@@ -1059,7 +1061,9 @@ export const generatePaymentReferenceNumber = async (): Promise<string> => {
       const lastPaymnet = await tx
         .select({ paymentRefNumber: paymentsReceivedTable.paymentRefNumber })
         .from(paymentsReceivedTable)
-        .where(sql`payment_ref_number LIKE ${`PRN.${year}/${month}/%`}`)
+        .where(
+          sql`payment_ref_number LIKE ${`${config.reffNumberPrefix}PRN.${year}/${month}/%`}`
+        )
         .orderBy(desc(paymentsReceivedTable.createdAt))
         .limit(1);
 
@@ -1075,7 +1079,7 @@ export const generatePaymentReferenceNumber = async (): Promise<string> => {
 
       const sequenceNumber = String(nextSequence).padStart(4, "0");
 
-      return `PRN.${year}/${month}/${sequenceNumber}`;
+      return `${config.reffNumberPrefix}PRN.${year}/${month}/${sequenceNumber}`;
     });
 
     return result;

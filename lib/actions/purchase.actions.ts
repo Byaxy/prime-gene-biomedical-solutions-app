@@ -13,6 +13,7 @@ import {
 import { PaymentStatus, PurchaseStatus } from "@/types";
 import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import { PurchaseFilters } from "@/hooks/usePurchases";
+import { getCompanyConfig } from "../config/company-config";
 
 const buildFilterConditions = (filters: PurchaseFilters) => {
   const conditions = [];
@@ -461,6 +462,8 @@ export const softDeletePurchase = async (purchaseId: string) => {
 // Generate Purchase Order number
 export const generatePurchaseNumber = async (): Promise<string> => {
   try {
+    const config = getCompanyConfig();
+
     const result = await db.transaction(async (tx) => {
       const now = new Date();
       const year = now.getFullYear();
@@ -469,7 +472,9 @@ export const generatePurchaseNumber = async (): Promise<string> => {
       const lastPurchaseOrder = await tx
         .select({ purchaseNumber: purchasesTable.purchaseNumber })
         .from(purchasesTable)
-        .where(sql`purchase_number LIKE ${`P-${year}/${month}/%`}`)
+        .where(
+          sql`purchase_number LIKE ${`${config.reffNumberPrefix}PO-${year}/${month}/%`}`
+        )
         .orderBy(desc(purchasesTable.createdAt))
         .limit(1);
 
@@ -485,7 +490,7 @@ export const generatePurchaseNumber = async (): Promise<string> => {
 
       const sequenceNumber = String(nextSequence).padStart(4, "0");
 
-      return `P-${year}/${month}/${sequenceNumber}`;
+      return `${config.reffNumberPrefix}PO-${year}/${month}/${sequenceNumber}`;
     });
 
     return result;

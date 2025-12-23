@@ -10,20 +10,30 @@ import {
   Image,
 } from "@react-pdf/renderer";
 import PDFHeader from "../pdf-template/PDFHeader";
-import PDFTittle from "../pdf-template/PDFTittle";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDateTime } from "@/lib/utils";
 import SignatureAndBankSection from "../pdf-template/SignatureAndBankSection";
 import PDFFooter from "../pdf-template/PDFFooter";
 import { ProductWithRelations, ReceivedPurchaseWithRelations } from "@/types";
+import { getCompanyConfig } from "@/lib/config/company-config";
 // styles
 const styles = StyleSheet.create({
   page: {
     flexDirection: "column",
     backgroundColor: "#FFFFFF",
-    padding: 20,
+    padding: 15,
     fontSize: 10,
-    color: "#072a69",
+    color: "#000",
     fontFamily: "Times-Roman",
+    position: "relative",
+  },
+  backgroundImage: {
+    position: "absolute",
+    top: "25%",
+    left: "15%",
+    width: 440,
+    height: 420,
+    opacity: 0.1,
+    zIndex: -1,
   },
   row: {
     flexDirection: "row",
@@ -33,14 +43,14 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     flexDirection: "row",
-    backgroundColor: "#002060",
+    backgroundColor: "#819AC2",
     fontWeight: "bold",
-    color: "#00fdff",
+    color: "#000",
     fontSize: 9,
     paddingVertical: 4,
   },
   evenRow: {
-    backgroundColor: "#E8E9E9",
+    backgroundColor: "#D5DCE4",
   },
   col1: { width: "5%", paddingHorizontal: 5 },
   col2: { width: "10%" },
@@ -69,6 +79,11 @@ const styles = StyleSheet.create({
   pageBreakAvoidContainer: {
     marginTop: "auto",
   },
+  title: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#000",
+  },
 });
 
 const ReceivedInventoryPDF = ({
@@ -90,35 +105,37 @@ const ReceivedInventoryPDF = ({
   };
 }) => {
   const { receivedPurchase, products } = purchase;
+  const config = getCompanyConfig();
   return (
     <Document>
       <Page size="A4" style={styles.page}>
+        {/* Background Image */}
+        <Image
+          style={styles.backgroundImage}
+          src={config.pdfBackgroundImage}
+          fixed
+        />
         {/* Header */}
         <PDFHeader />
-        {/* Title */}
-        <PDFTittle title="PURCHASE RECEIPT" />
 
         {/* Info */}
         <View
           style={{
             display: "flex",
             flexDirection: "row",
-            marginVertical: 20,
+            marginBottom: 20,
             gap: 40,
           }}
         >
           <View
             style={{
               display: "flex",
-              flexDirection: "row",
-              flex: 1,
-              gap: 10,
+              flexDirection: "column",
+              alignItems: "flex-end",
+              flex: 2,
             }}
           >
-            <Image
-              src="/assets/images/qrcode.png"
-              style={{ width: 50, height: 50 }}
-            />
+            <Text style={styles.title}>PURCHASE RECEIPT</Text>
           </View>
 
           <View
@@ -126,7 +143,7 @@ const ReceivedInventoryPDF = ({
               display: "flex",
               flexDirection: "row",
               flex: 1,
-              gap: 20,
+              color: "#000",
             }}
           >
             <View
@@ -140,14 +157,23 @@ const ReceivedInventoryPDF = ({
                 style={{
                   fontWeight: "bold",
                   textAlign: "center",
-                  backgroundColor: "#E8E9E9",
-                  paddingVertical: 2,
+                  backgroundColor: "#819AC2",
+                  paddingTop: 2,
+                  paddingBottom: 2,
+                  fontSize: 10,
                 }}
               >
-                VPLN #:
+                Date
               </Text>
-              <Text style={{ ...styles.companyInfo, textAlign: "center" }}>
-                {receivedPurchase.vendorParkingListNumber || "N/A"}
+              <Text
+                style={{
+                  ...styles.companyInfo,
+                  textAlign: "center",
+                  paddingVertical: 2,
+                  fontWeight: "bold",
+                }}
+              >
+                {formatDateTime(receivedPurchase.receivingDate).dateOnly}
               </Text>
             </View>
             <View
@@ -161,14 +187,23 @@ const ReceivedInventoryPDF = ({
                 style={{
                   fontWeight: "bold",
                   textAlign: "center",
-                  backgroundColor: "#E8E9E9",
-                  paddingVertical: 2,
+                  backgroundColor: "#819AC2",
+                  paddingTop: 2,
+                  paddingBottom: 2,
+                  fontSize: 10,
                 }}
               >
-                Date:
+                VPLN #:
               </Text>
-              <Text style={{ ...styles.companyInfo, textAlign: "center" }}>
-                {new Date(receivedPurchase.receivingDate).toLocaleDateString()}
+              <Text
+                style={{
+                  ...styles.companyInfo,
+                  textAlign: "center",
+                  paddingVertical: 2,
+                  fontWeight: "bold",
+                }}
+              >
+                {receivedPurchase.vendorParkingListNumber || "N/A"}
               </Text>
             </View>
           </View>

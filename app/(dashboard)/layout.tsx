@@ -22,6 +22,7 @@ import { sidebarData } from "@/constants";
 import { theme } from "@/lib/theme";
 import Image from "next/image";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
+import { getCompanyConfig } from "@/lib/config/company-config";
 
 const drawerWidth = 320;
 
@@ -113,6 +114,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     }
   }, [matchesMidium]);
 
+  const config = getCompanyConfig();
+
   return (
     <section>
       <Box className="flex bg-light-200 text-blue-800">
@@ -163,8 +166,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               className="no-underline flex items-center justify-center gap-2 bg-primaryColor/95 p-1"
             >
               <Image
-                src={companySettings?.logoUrl || "/assets/logos/logoWhite.png"}
-                alt="Logo"
+                src={companySettings?.logoUrl || config.pdfHeader.logo}
+                alt={config.pdfHeader.name || "Logo"}
                 width={100}
                 height={50}
                 priority

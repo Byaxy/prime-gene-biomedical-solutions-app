@@ -973,6 +973,26 @@ export interface BackorderWithRelations {
   product: typeof productsTable.$inferSelect | null;
 }
 
+export interface CompanyConfig {
+  pdfHeader: {
+    logo: string;
+    name: string;
+    addressLine1: string;
+    addressLine2: string;
+    phone: string;
+    email: string;
+    website: string;
+  };
+  bankDetails: {
+    bankName: string;
+    address: string;
+    accountNumber: string;
+    swiftCode: string;
+  };
+  pdfBackgroundImage: string;
+  reffNumberPrefix: string;
+}
+
 // Enums
 
 // payment methods

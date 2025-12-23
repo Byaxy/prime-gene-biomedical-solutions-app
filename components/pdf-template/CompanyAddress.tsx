@@ -1,15 +1,6 @@
+import { getCompanyConfig } from "@/lib/config/company-config";
 import { Text, View, StyleSheet } from "@react-pdf/renderer";
-import { Country } from "country-state-city";
 
-interface AddressProps {
-  addressTitle?: string;
-  name?: string;
-  address?: string | string[];
-  phone?: string;
-  email?: string;
-  city?: string;
-  country?: string;
-}
 const styles = StyleSheet.create({
   addressInfo: {
     fontSize: 9,
@@ -17,15 +8,24 @@ const styles = StyleSheet.create({
   },
 });
 
-const Address = ({
+const CompanyAddress = ({
   addressTitle,
-  name,
-  address,
-  phone,
-  email,
-  city,
-  country,
-}: AddressProps) => {
+  companySettings,
+}: {
+  addressTitle: string;
+  companySettings: {
+    name: string;
+    email: string;
+    phone: string;
+    address: string;
+    city: string;
+    state: string;
+    country: string;
+    currencySymbol: string;
+  };
+}) => {
+  const config = getCompanyConfig();
+
   return (
     <View
       style={{
@@ -51,31 +51,34 @@ const Address = ({
         style={{
           display: "flex",
           flexDirection: "column",
-          paddingLeft: 10,
+          paddingLeft: 5,
           paddingTop: 2,
         }}
       >
         <Text
           style={{
-            ...styles.addressInfo,
+            fontSize: 8,
             fontWeight: "bold",
-            textTransform: "capitalize",
+            marginBottom: 2,
           }}
         >
-          {name}
+          {config.pdfHeader.name || companySettings.name || "N/A"}
         </Text>
         <Text style={styles.addressInfo}>
-          {Array.isArray(address) ? address.join("\n") : address}
+          {config.pdfHeader.addressLine1 || companySettings.address || "N/A"}
         </Text>
         <Text style={styles.addressInfo}>
-          {city ? `${city} -` : null}{" "}
-          {country ? Country.getCountryByCode(country)?.name : null}
+          {config.pdfHeader.addressLine2 || companySettings.city || "N/A"}
         </Text>
-        <Text style={styles.addressInfo}>{phone ? phone : null}</Text>
-        <Text style={styles.addressInfo}>{email ? email : null}</Text>
+        <Text style={styles.addressInfo}>
+          {config.pdfHeader.phone || companySettings.phone || "N/A"}
+        </Text>
+        <Text style={styles.addressInfo}>
+          {config.pdfHeader.email || companySettings.email || "N/A"}
+        </Text>
       </View>
     </View>
   );
 };
 
-export default Address;
+export default CompanyAddress;

@@ -13,6 +13,7 @@ import { eq, desc, sql, inArray, and, gte, lte, or, ilike } from "drizzle-orm";
 import { QuotationFormValues } from "../validation";
 import { QuotationStatus } from "@/types";
 import { QuotationFilters } from "@/hooks/useQuotations";
+import { getCompanyConfig } from "../config/company-config";
 
 const buildFilterConditions = (filters: QuotationFilters) => {
   const conditions = [];
@@ -350,6 +351,7 @@ export const getQuotationById = async (quotationId: string) => {
 // Generate quotation number
 export const generateQuotationNumber = async (): Promise<string> => {
   try {
+    const config = getCompanyConfig();
     const result = await db.transaction(async (tx) => {
       const now = new Date();
       const year = now.getFullYear();
@@ -358,7 +360,9 @@ export const generateQuotationNumber = async (): Promise<string> => {
       const lastQuotation = await tx
         .select({ quotationNumber: quotationsTable.quotationNumber })
         .from(quotationsTable)
-        .where(sql`quotation_number LIKE ${`PFI${year}/${month}/%`}`)
+        .where(
+          sql`quotation_number LIKE ${`${config.reffNumberPrefix}PFI${year}/${month}/%`}`
+        )
         .orderBy(desc(quotationsTable.createdAt))
         .limit(1);
 
@@ -374,7 +378,7 @@ export const generateQuotationNumber = async (): Promise<string> => {
 
       const sequenceNumber = String(nextSequence).padStart(4, "0");
 
-      return `PFI${year}/${month}/${sequenceNumber}`;
+      return `${config.reffNumberPrefix}PFI${year}/${month}/${sequenceNumber}`;
     });
 
     return result;

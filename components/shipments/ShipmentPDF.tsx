@@ -3,9 +3,8 @@
 import { Page, View, Document, StyleSheet, Text } from "@react-pdf/renderer";
 import { ShipmentWithRelations } from "@/types";
 import PDFHeader from "../pdf-template/PDFHeader";
-import PDFTittle from "../pdf-template/PDFTittle";
-import Address from "../pdf-template/Address";
 import PDFFooter from "../pdf-template/PDFFooter";
+import CompanyAddress from "../pdf-template/CompanyAddress";
 
 interface Props {
   shipment: ShipmentWithRelations;
@@ -26,10 +25,16 @@ const styles = StyleSheet.create({
   page: {
     flexDirection: "column",
     backgroundColor: "#FFFFFF",
-    padding: 20,
+    padding: 15,
     fontSize: 10,
     color: "#072a69",
     fontFamily: "Times-Roman",
+    position: "relative",
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#000",
   },
   row: {
     flexDirection: "row",
@@ -39,11 +44,12 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     flexDirection: "row",
-    backgroundColor: "#002060",
+    backgroundColor: "#819AC2",
     fontWeight: "bold",
-    color: "#00fdff",
+    color: "#000",
     fontSize: 9,
-    paddingVertical: 4,
+    paddingTop: 5,
+    paddingBottom: 5,
   },
   evenRow: {
     backgroundColor: "#E8E9E9",
@@ -78,7 +84,7 @@ const styles = StyleSheet.create({
   parcelCard: {
     border: "1px solid #E0E0E0",
     borderLeftWidth: 3,
-    borderLeftColor: "#4CAF50",
+    borderLeftColor: "#819AC2",
     marginBottom: 15,
     backgroundColor: "#FAFAFA",
     borderRadius: 6,
@@ -92,7 +98,16 @@ const ShipmentPDF = ({ shipment, companySettings }: Props) => {
         {/* Header */}
         <PDFHeader />
         {/* Title */}
-        <PDFTittle title="SHIPMENT" />
+        <View
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            marginTop: 10,
+          }}
+        >
+          <Text style={styles.title}>SHIPMENT</Text>
+        </View>
 
         {/* Address Info */}
         <View
@@ -104,24 +119,14 @@ const ShipmentPDF = ({ shipment, companySettings }: Props) => {
             gap: 40,
           }}
         >
-          <Address
+          <CompanyAddress
             addressTitle="Billing Address:"
-            name={companySettings.name}
-            address={companySettings.address}
-            phone={companySettings.phone}
-            email={companySettings.email}
-            city={companySettings.city}
-            country={companySettings.country}
+            companySettings={companySettings}
           />
 
-          <Address
-            addressTitle="Billing Address:"
-            name={companySettings.name}
-            address={companySettings.address}
-            phone={companySettings.phone}
-            email={companySettings.email}
-            city={companySettings.city}
-            country={companySettings.country}
+          <CompanyAddress
+            addressTitle="Delivery Address:"
+            companySettings={companySettings}
           />
         </View>
 

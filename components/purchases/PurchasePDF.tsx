@@ -17,6 +17,8 @@ import PDFFooter from "../pdf-template/PDFFooter";
 import BankDetails from "../pdf-template/BankDetails";
 import TermsAndConditions from "../pdf-template/TermsAndConditions";
 import Signature from "../pdf-template/Signature";
+import { getCompanyConfig } from "@/lib/config/company-config";
+import CompanyAddress from "../pdf-template/CompanyAddress";
 
 // styles
 const styles = StyleSheet.create({
@@ -146,6 +148,9 @@ const PurchasePDF = ({
   };
 }) => {
   const { purchase: purchaseOrder, vendor, products } = purchase;
+
+  const config = getCompanyConfig();
+
   const termsAndConditions = [
     "Prices quoted here should be valid for 6 months",
     "Payment Terms: 100% prepayment EXW.",
@@ -158,14 +163,13 @@ const PurchasePDF = ({
         {/* Background Image */}
         <Image
           style={styles.backgroundImage}
-          src="/assets/logos/logo3.jpeg"
+          src={config.pdfBackgroundImage}
           fixed
         />
         {/* Header */}
         <PDFHeader />
-        {/* Title */}
 
-        {/* Invoice Info */}
+        {/* Info */}
         <View
           style={{
             display: "flex",
@@ -262,7 +266,7 @@ const PurchasePDF = ({
             display: "flex",
             flexDirection: "row",
             marginBottom: 20,
-            gap: 40,
+            gap: 25,
           }}
         >
           <Address
@@ -275,24 +279,14 @@ const PurchasePDF = ({
             country={vendor.address.country}
           />
 
-          <Address
+          <CompanyAddress
             addressTitle="Billing Address"
-            name={companySettings.name.toLowerCase()}
-            address={companySettings.address || ""}
-            phone={companySettings.phone || ""}
-            email={companySettings.email || ""}
-            city={companySettings.city || ""}
-            country={companySettings.country || ""}
+            companySettings={companySettings}
           />
 
-          <Address
+          <CompanyAddress
             addressTitle="Delivery Address"
-            name={companySettings.name.toLowerCase()}
-            address={companySettings.address || ""}
-            phone={companySettings.phone || ""}
-            email={companySettings.email || ""}
-            city={companySettings.city || ""}
-            country={companySettings.country || ""}
+            companySettings={companySettings}
           />
         </View>
 

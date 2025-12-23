@@ -18,6 +18,7 @@ import {
   PromissoryNoteStatus,
   WaybillProductForPromissoryNote,
 } from "@/types";
+import { getCompanyConfig } from "../config/company-config";
 
 const buildFilterConditions = (filters: PromissoryNoteFilters) => {
   const conditions = [];
@@ -277,6 +278,8 @@ export const softDeletePromissoryNote = async (promissoryNoteId: string) => {
 // Generate promissory note reference number
 export const generatePromissoryNoteRefNumber = async (): Promise<string> => {
   try {
+    const config = getCompanyConfig();
+
     const result = await db.transaction(async (tx) => {
       const now = new Date();
       const year = now.getFullYear();
@@ -287,7 +290,9 @@ export const generatePromissoryNoteRefNumber = async (): Promise<string> => {
           promissoryNoteRefNumber: promissoryNotesTable.promissoryNoteRefNumber,
         })
         .from(promissoryNotesTable)
-        .where(sql`promissory_note_ref_number LIKE ${`PN${year}/${month}/%`}`)
+        .where(
+          sql`promissory_note_ref_number LIKE ${`${config.reffNumberPrefix}PN${year}/${month}/%`}`
+        )
         .orderBy(desc(promissoryNotesTable.createdAt))
         .limit(1);
 
@@ -302,7 +307,7 @@ export const generatePromissoryNoteRefNumber = async (): Promise<string> => {
       }
 
       const sequenceNumber = String(nextSequence).padStart(4, "0");
-      return `PN${year}/${month}/${sequenceNumber}`;
+      return `${config.reffNumberPrefix}PN${year}/${month}/${sequenceNumber}`;
     });
 
     return result;

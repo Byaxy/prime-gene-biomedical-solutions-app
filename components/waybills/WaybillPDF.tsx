@@ -16,6 +16,7 @@ import ThankYouNote from "../pdf-template/ThankYouNote";
 import Signature2 from "../pdf-template/Signature2";
 import OfficerSignature from "../pdf-template/OfficerSignature";
 import TermsAndConditions from "../pdf-template/TermsAndConditions";
+import { getCompanyConfig } from "@/lib/config/company-config";
 
 // styles
 const styles = StyleSheet.create({
@@ -96,6 +97,8 @@ const styles = StyleSheet.create({
 const WaybillPDF = ({ waybill }: { waybill: WaybillWithRelations }) => {
   const { waybill: bill, sale, products } = waybill;
 
+  const config = getCompanyConfig();
+
   const termsAndConditions = [
     "Goods Received in Good Condition.",
     "Items not supplied are captured in the Promissory Note.",
@@ -108,7 +111,7 @@ const WaybillPDF = ({ waybill }: { waybill: WaybillWithRelations }) => {
         {/* Background Image */}
         <Image
           style={styles.backgroundImage}
-          src="/assets/logos/logo3.jpeg"
+          src={config.pdfBackgroundImage}
           fixed
         />
         {/* Header */}

@@ -1,3 +1,4 @@
+import { getCompanyConfig } from "@/lib/config/company-config";
 import { Text, View, StyleSheet } from "@react-pdf/renderer";
 
 const styles = StyleSheet.create({
@@ -13,6 +14,8 @@ const styles = StyleSheet.create({
 });
 
 const BankDetails = () => {
+  const config = getCompanyConfig();
+
   return (
     <View
       style={{
@@ -44,22 +47,26 @@ const BankDetails = () => {
         <View style={{ display: "flex", flexDirection: "row", gap: 10 }}>
           <Text style={styles.bankInfo}>Bank Name:</Text>
           <Text style={{ ...styles.bankInfo, flex: 1 }}>
-            Ecobank Liberia Limited.
+            {config.bankDetails.bankName}
           </Text>
         </View>
         <View style={{ display: "flex", flexDirection: "row", gap: 10 }}>
           <Text style={styles.bankInfo}>Address:</Text>
           <Text style={{ ...styles.bankInfo, flex: 1 }}>
-            11th Street, Sinkor, Monrovia, Liberia
+            {config.bankDetails.address}
           </Text>
         </View>
         <View style={{ display: "flex", flexDirection: "row", gap: 10 }}>
           <Text style={styles.bankInfo}>Account #:</Text>
-          <Text style={{ ...styles.bankInfo, flex: 1 }}>6102122392</Text>
+          <Text style={{ ...styles.bankInfo, flex: 1 }}>
+            {config.bankDetails.accountNumber}
+          </Text>
         </View>
         <View style={{ display: "flex", flexDirection: "row", gap: 10 }}>
           <Text style={styles.bankInfo}>Swift Code:</Text>
-          <Text style={{ ...styles.bankInfo, flex: 1 }}>ECOCLRLMXXX</Text>
+          <Text style={{ ...styles.bankInfo, flex: 1 }}>
+            {config.bankDetails.swiftCode}
+          </Text>
         </View>
       </View>
     </View>

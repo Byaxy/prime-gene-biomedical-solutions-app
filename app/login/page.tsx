@@ -2,11 +2,14 @@
 
 import LoginForm from "@/components/forms/LoginForm";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
+import { getCompanyConfig } from "@/lib/config/company-config";
 import Image from "next/image";
 import Link from "next/link";
 
 const LoginPage = () => {
   const { companySettings } = useCompanySettings();
+
+  const config = getCompanyConfig();
 
   return (
     <section className="flex items-center justify-center h-screen w-full">
@@ -14,8 +17,8 @@ const LoginPage = () => {
         <div className="mx-auto w-full max-w-xl bg-white rounded-xl px-5 py-10 sm:py-16 sm:px-10 shadow-lg">
           <div className="mb-4 flex justify-center items-center p-2 rounded-lg">
             <Image
-              src={companySettings?.logoUrl || "/assets/logos/logoWhite.png"}
-              alt="Logo"
+              src={companySettings?.logoUrl || config.pdfHeader.logo}
+              alt={config.pdfHeader.name || "Logo"}
               width={200}
               height={50}
               priority

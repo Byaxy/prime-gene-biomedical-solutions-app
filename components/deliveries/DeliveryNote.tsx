@@ -17,6 +17,7 @@ import { formatDateTime } from "@/lib/utils";
 import Signature from "../pdf-template/Signature";
 import ThankYouNote from "../pdf-template/ThankYouNote";
 import TermsAndConditions from "../pdf-template/TermsAndConditions";
+import { getCompanyConfig } from "@/lib/config/company-config";
 
 // styles
 const styles = StyleSheet.create({
@@ -72,8 +73,8 @@ const styles = StyleSheet.create({
     gap: 40,
   },
   col1: { width: "5%", paddingHorizontal: 5, paddingVertical: 5 },
-  col2: { width: "10%", paddingVertical: 5 },
-  col3: { width: "50%", paddingVertical: 5 },
+  col2: { width: "15%", paddingVertical: 5 },
+  col3: { width: "45%", paddingVertical: 5 },
   col4: { width: "13%", textAlign: "center", paddingVertical: 5 },
   col5: { width: "12%", textAlign: "center", paddingVertical: 5 },
   col6: { width: "10%", textAlign: "center", paddingVertical: 5 },
@@ -97,6 +98,9 @@ const styles = StyleSheet.create({
 
 const DeliveryNote = ({ delivery }: { delivery: DeliveryWithRelations }) => {
   const { delivery: del, customer, sale, products } = delivery;
+
+  const config = getCompanyConfig();
+
   const termsAndConditions = [
     "Goods Received in Good Condition.",
     "Items not supplied are captured in the Promissory Note.",
@@ -108,7 +112,7 @@ const DeliveryNote = ({ delivery }: { delivery: DeliveryWithRelations }) => {
         {/* Background Image */}
         <Image
           style={styles.backgroundImage}
-          src="/assets/logos/logo3.jpeg"
+          src={config.pdfBackgroundImage}
           fixed
         />
         {/* Header */}

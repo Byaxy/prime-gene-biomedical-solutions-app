@@ -1,4 +1,5 @@
 /* eslint-disable jsx-a11y/alt-text */
+import { getCompanyConfig } from "@/lib/config/company-config";
 import { Text, View, StyleSheet, Image } from "@react-pdf/renderer";
 
 const styles = StyleSheet.create({
@@ -14,6 +15,8 @@ const styles = StyleSheet.create({
 });
 
 const PDFHeader = () => {
+  const config = getCompanyConfig();
+
   return (
     <View
       style={{
@@ -35,10 +38,7 @@ const PDFHeader = () => {
           justifyContent: "flex-end",
         }}
       >
-        <Image
-          src="/assets/logos/logo3.jpeg"
-          style={{ width: 130, height: 90 }}
-        />
+        <Image src={config.pdfHeader.logo} style={{ width: 130, height: 90 }} />
         <Text
           style={{
             fontSize: 10,
@@ -57,20 +57,12 @@ const PDFHeader = () => {
           width: "100%",
         }}
       >
-        <Text style={styles.title}>NORTHLAND BIOMEDICAL SOLUTIONS</Text>
-        <Text style={styles.companyInfo}>
-          Rockville Valley, Johnson Compound, Haile Selassie
-        </Text>
-        <Text style={styles.companyInfo}>
-          Avenue, Capitol Bypass, Monrovia-Liberia
-        </Text>
-        <Text style={styles.companyInfo}>+231 775508118 / +231 888725323</Text>
-        <Text style={styles.companyInfo}>
-          info@northlandbiomedicalsolutions.com
-        </Text>
-        <Text style={styles.companyInfo}>
-          www.northlandbiomedicalsolutions.com
-        </Text>
+        <Text style={styles.title}>{config.pdfHeader.name}</Text>
+        <Text style={styles.companyInfo}>{config.pdfHeader.addressLine1}</Text>
+        <Text style={styles.companyInfo}>{config.pdfHeader.addressLine2}</Text>
+        <Text style={styles.companyInfo}>{config.pdfHeader.phone}</Text>
+        <Text style={styles.companyInfo}>{config.pdfHeader.email}</Text>
+        <Text style={styles.companyInfo}>{config.pdfHeader.website}</Text>
       </View>
     </View>
   );

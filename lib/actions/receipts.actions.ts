@@ -25,6 +25,7 @@ import {
   Account,
   Customer,
 } from "@/types";
+import { getCompanyConfig } from "../config/company-config";
 
 // Build filter conditions for getReceipts
 const buildReceiptFilterConditions = (filters: ReceiptFilters) => {
@@ -567,6 +568,7 @@ export const softDeleteReceipt = async (id: string) => {
 
 export const generateReceiptNumber = async (): Promise<string> => {
   try {
+    const config = getCompanyConfig();
     const result = await db.transaction(async (tx) => {
       const now = new Date();
       const year = now.getFullYear();
@@ -575,7 +577,9 @@ export const generateReceiptNumber = async (): Promise<string> => {
       const lastReceipt = await tx
         .select({ receiptNumber: receiptsTable.receiptNumber })
         .from(receiptsTable)
-        .where(sql`receipt_number LIKE ${`NBSINV:${year}/${month}/%`}`)
+        .where(
+          sql`receipt_number LIKE ${`${config.reffNumberPrefix}RCPT.${year}/${month}/%`}`
+        )
         .orderBy(desc(receiptsTable.createdAt))
         .limit(1);
 
@@ -591,7 +595,7 @@ export const generateReceiptNumber = async (): Promise<string> => {
 
       const sequenceNumber = String(nextSequence).padStart(4, "0");
 
-      return `NBSINV:${year}/${month}/${sequenceNumber}`;
+      return `${config.reffNumberPrefix}RCPT.${year}/${month}/${sequenceNumber}`;
     });
 
     return result;

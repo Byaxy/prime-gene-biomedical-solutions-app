@@ -14,6 +14,7 @@ import {
 import { DeliveryStatus } from "@/types";
 import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import { DeliveryFilters } from "@/hooks/useDeliveries";
+import { getCompanyConfig } from "../config/company-config";
 
 const buildFilterConditions = (filters: DeliveryFilters) => {
   const conditions = [];
@@ -477,6 +478,7 @@ export const softDeleteDelivery = async (deliveryId: string) => {
 // Generate delivery reference number
 export const generateDeliveryRefNumber = async (): Promise<string> => {
   try {
+    const config = getCompanyConfig();
     const result = await db.transaction(async (tx) => {
       const now = new Date();
       const year = now.getFullYear();
@@ -485,7 +487,9 @@ export const generateDeliveryRefNumber = async (): Promise<string> => {
       const lastDelivery = await tx
         .select({ deliveryRefNumber: deliveriesTable.deliveryRefNumber })
         .from(deliveriesTable)
-        .where(sql`delivery_ref_number LIKE ${`DO${year}/${month}/%`}`)
+        .where(
+          sql`delivery_ref_number LIKE ${`${config.reffNumberPrefix}DN${year}/${month}/%`}`
+        )
         .orderBy(desc(deliveriesTable.createdAt))
         .limit(1);
 
@@ -500,7 +504,7 @@ export const generateDeliveryRefNumber = async (): Promise<string> => {
       }
 
       const sequenceNumber = String(nextSequence).padStart(4, "0");
-      return `DO${year}/${month}/${sequenceNumber}`;
+      return `${config.reffNumberPrefix}DN${year}/${month}/${sequenceNumber}`;
     });
 
     return result;

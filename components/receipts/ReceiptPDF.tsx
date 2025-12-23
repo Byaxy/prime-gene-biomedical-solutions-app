@@ -18,6 +18,7 @@ import BankDetails from "../pdf-template/BankDetails";
 import TermsAndConditions from "../pdf-template/TermsAndConditions";
 import { ToWords } from "to-words";
 import Signature2 from "../pdf-template/Signature2";
+import { getCompanyConfig } from "@/lib/config/company-config";
 
 // styles
 const styles = StyleSheet.create({
@@ -189,6 +190,8 @@ const ReceiptPDF = ({
 }) => {
   const { receipt: rec, customer, items } = receipt;
 
+  const config = getCompanyConfig();
+
   const toWords = new ToWords({
     localeCode: "en-US",
     converterOptions: {
@@ -213,7 +216,7 @@ const ReceiptPDF = ({
         {/* Background Image */}
         <Image
           style={styles.backgroundImage}
-          src="/assets/logos/logo3.jpeg"
+          src={config.pdfBackgroundImage}
           fixed
         />
 

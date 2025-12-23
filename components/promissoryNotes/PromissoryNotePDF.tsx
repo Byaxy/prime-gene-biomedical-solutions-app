@@ -15,6 +15,7 @@ import { formatCurrency, formatDateTime } from "@/lib/utils";
 import Signature from "../pdf-template/Signature";
 import ThankYouNote from "../pdf-template/ThankYouNote";
 import TermsAndConditions from "../pdf-template/TermsAndConditions";
+import { getCompanyConfig } from "@/lib/config/company-config";
 
 // styles
 const styles = StyleSheet.create({
@@ -137,6 +138,8 @@ const PromissoryNotePDF = ({
 }) => {
   const { promissoryNote: note, products, sale, customer } = promissoryNote;
 
+  const config = getCompanyConfig();
+
   const termsAndConditions = [
     "By signing above, you agree the terms on this Promissory note are correct and accurate, no other terms & conditions shall apply.",
   ];
@@ -147,7 +150,7 @@ const PromissoryNotePDF = ({
         {/* Background Image */}
         <Image
           style={styles.backgroundImage}
-          src="/assets/logos/logo3.jpeg"
+          src={config.pdfBackgroundImage}
           fixed
         />
         {/* Header */}
@@ -332,11 +335,10 @@ const PromissoryNotePDF = ({
                 lineHeight: 1.2,
               }}
             >
-              In consideration of the valued to be received, NORTHLAND
-              BIOMEDICAL SOLUTION do hereby promise to supplied the above items.
+              {`In consideration of the valued to be received, ${config.pdfHeader.name} do hereby promise to supplied the above items.
               In the event this note is in default and the collection
-              proceedings are instituted, NBS agrees to pay back the amount
-              equivalent that will be due.
+              proceedings are instituted, ${config.reffNumberPrefix} agrees to pay back the amount
+              equivalent that will be due.`}
             </Text>
           </View>
           <View wrap={false}>

@@ -40,6 +40,7 @@ import {
   sql,
 } from "drizzle-orm";
 import { SaleFilters } from "@/hooks/useSales";
+import { getCompanyConfig } from "../config/company-config";
 
 const buildFilterConditions = (filters: SaleFilters) => {
   const conditions = [];
@@ -1143,6 +1144,8 @@ export const getSales = async (
 // Generate invoice number
 export const generateInvoiceNumber = async (): Promise<string> => {
   try {
+    const config = getCompanyConfig();
+
     const result = await db.transaction(async (tx) => {
       const now = new Date();
       const year = now.getFullYear();
@@ -1151,7 +1154,9 @@ export const generateInvoiceNumber = async (): Promise<string> => {
       const lastSale = await tx
         .select({ invoiceNumber: salesTable.invoiceNumber })
         .from(salesTable)
-        .where(sql`invoice_number LIKE ${`INV.${year}/${month}/%`}`)
+        .where(
+          sql`invoice_number LIKE ${`${config.reffNumberPrefix}INV.${year}/${month}/%`}`
+        )
         .orderBy(desc(salesTable.createdAt))
         .limit(1);
 
@@ -1167,7 +1172,7 @@ export const generateInvoiceNumber = async (): Promise<string> => {
 
       const sequenceNumber = String(nextSequence).padStart(4, "0");
 
-      return `INV.${year}/${month}/${sequenceNumber}`;
+      return `${config.reffNumberPrefix}INV.${year}/${month}/${sequenceNumber}`;
     });
 
     return result;

@@ -31,6 +31,7 @@ import { db } from "@/drizzle/db";
 import { revalidatePath } from "next/cache";
 import { parseStringify } from "../utils";
 import { ShipmentFilters } from "@/hooks/useShipments";
+import { getCompanyConfig } from "../config/company-config";
 
 type NewShipment = InferInsertModel<typeof shipmentsTable>;
 
@@ -834,6 +835,8 @@ export const softDeleteShipment = async (shipmentId: string) => {
 // Generate Shipment Reference Number
 export const generateShipmentRefNumber = async (): Promise<string> => {
   try {
+    const config = getCompanyConfig();
+
     const result = await db.transaction(async (tx) => {
       const now = new Date();
       const year = now.getFullYear();
@@ -842,7 +845,9 @@ export const generateShipmentRefNumber = async (): Promise<string> => {
       const lastShipment = await tx
         .select({ shipmentRefNumber: shipmentsTable.shipmentRefNumber })
         .from(shipmentsTable)
-        .where(sql`shipment_ref_number LIKE ${`SHP-${year}/${month}/%`}`)
+        .where(
+          sql`shipment_ref_number LIKE ${`${config.reffNumberPrefix}SHP-${year}/${month}/%`}`
+        )
         .orderBy(desc(shipmentsTable.createdAt))
         .limit(1);
 
@@ -856,7 +861,7 @@ export const generateShipmentRefNumber = async (): Promise<string> => {
 
       const sequenceNumber = String(nextSequence).padStart(4, "0");
 
-      return `SHP-${year}/${month}/${sequenceNumber}`;
+      return `${config.reffNumberPrefix}SHP-${year}/${month}/${sequenceNumber}`;
     });
 
     return result;
