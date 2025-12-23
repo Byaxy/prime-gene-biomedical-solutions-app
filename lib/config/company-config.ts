@@ -27,7 +27,7 @@ const companyConfigs: Record<string, CompanyConfig> = {
       addressLine1: "GG-299-4535, ECOWAS Highway, Kwabenya",
       addressLine2: "A North, Greater Accra, Ghana",
       phone: "+233(0)244756260 | +233(0)244364439",
-      email: "info@primegenebiomedicalbiosolutions.com",
+      email: "info@primegenebiomedicalsolutions.com",
       website: "www.primegenebiomedicalsolutions.com",
     },
     bankDetails: {
