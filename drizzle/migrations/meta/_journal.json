@@ -610,6 +610,20 @@
       "when": 1765801672224,
       "tag": "0086_jittery_lockjaw",
       "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1766578094624,
+      "tag": "0087_eminent_red_wolf",
+      "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1766580210486,
+      "tag": "0088_tough_mandarin",
+      "breakpoints": true
     }
   ]
 }

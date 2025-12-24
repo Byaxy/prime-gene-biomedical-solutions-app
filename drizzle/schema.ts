@@ -191,6 +191,67 @@ export const commissionStatusEnum = pgEnum("commission_status", [
   "cancelled",
 ]);
 
+export const appActionEnum = pgEnum("app_action", [
+  "view",
+  "create",
+  "update",
+  "delete",
+  "manage",
+  "approve",
+  "process",
+  "receive",
+  "adjust",
+  "pay",
+  "convert",
+]);
+
+// Resources within the application
+export const appResourceEnum = pgEnum("app_resource", [
+  "all",
+  "dashboard",
+  "inventory_item",
+  "inventory_adjustment",
+  "service",
+  "purchase_order",
+  "purchase",
+  "shipping",
+  "received_inventory",
+  "quotation",
+  "sale",
+  "delivery_note",
+  "promissory_note",
+  "waybill",
+  "chart_of_account",
+  "bank_account",
+  "income",
+  "expense",
+  "sales_commission",
+  "employee",
+  "payroll",
+  "time_tracking",
+  "report",
+  "customer",
+  "vendor",
+  "user_account",
+  "sales_agent",
+  "system_settings",
+  "profile_settings",
+  "category",
+  "brand",
+  "product_type",
+  "unit",
+  "tax_rate",
+  "store",
+  "expense_category",
+  "income_category",
+  "accompanying_expense_type",
+  "notification",
+  "backorder",
+  "role",
+  "role_permission",
+  "permission",
+]);
+
 // Users
 export const usersTable = pgTable(
   "users",
@@ -202,6 +263,9 @@ export const usersTable = pgTable(
     email: text("email").notNull().unique(),
     phone: text("phone").notNull(),
     role: text("role").notNull(),
+    roleId: uuid("role_id").references(() => rolesTable.id, {
+      onDelete: "restrict",
+    }),
     profileImageId: text("profile_image_id"),
     profileImageUrl: text("profile_image_url"),
     isActive: boolean("is_active").notNull().default(true),
@@ -2623,3 +2687,106 @@ export const commissionPayoutsRelations = relations(
     }),
   })
 );
+
+// Roles Table
+export const rolesTable = pgTable(
+  "roles",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    name: text("name").notNull().unique(), // e.g., "admin", "sales_manager"
+    description: text("description"),
+    isSystemRole: boolean("is_system_role").notNull().default(false),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    rolesNameIndex: index("roles_name_idx").on(table.name),
+    rolesActiveIndex: index("roles_active_idx").on(table.isActive),
+  })
+);
+
+// Permissions Table
+export const permissionsTable = pgTable(
+  "permissions",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    name: text("name").notNull().unique(), // e.g., "view_inventory_item", "manage_inventory_*"
+    resource: appResourceEnum("resource").notNull(), // e.g., "inventory_item"
+    action: appActionEnum("action").notNull(), // e.g., "view", "create"
+    category: text("category").notNull(), // e.g., "Product Management" for UI grouping
+    routePath: text("route_path"), // Optional: Direct mapping for sidebar/middleware, e.g., "/inventory/add-inventory"
+    description: text("description"),
+    isSystemPermission: boolean("is_system_permission")
+      .notNull()
+      .default(false),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    permissionsNameIndex: index("permissions_name_idx").on(table.name),
+    permissionsResourceActionIndex: index("permissions_resource_action_idx").on(
+      table.resource,
+      table.action
+    ),
+    permissionsActiveIndex: index("permissions_active_idx").on(table.isActive),
+  })
+);
+
+// Role_Permissions Junction Table
+export const rolePermissionsTable = pgTable(
+  "role_permissions",
+  {
+    roleId: uuid("role_id")
+      .notNull()
+      .references(() => rolesTable.id, { onDelete: "cascade" }),
+    permissionId: uuid("permission_id")
+      .notNull()
+      .references(() => permissionsTable.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    unq: unique().on(table.roleId, table.permissionId),
+    rolePermissionsRoleIdIndex: index("role_permissions_role_id_idx").on(
+      table.roleId
+    ),
+    rolePermissionsPermissionIdIndex: index(
+      "role_permissions_permission_id_idx"
+    ).on(table.permissionId),
+  })
+);
+
+export const rolesRelations = relations(rolesTable, ({ many }) => ({
+  users: many(usersTable),
+  rolePermissions: many(rolePermissionsTable),
+}));
+
+export const permissionsRelations = relations(permissionsTable, ({ many }) => ({
+  rolePermissions: many(rolePermissionsTable),
+}));
+
+export const rolePermissionsRelations = relations(
+  rolePermissionsTable,
+  ({ one }) => ({
+    role: one(rolesTable, {
+      fields: [rolePermissionsTable.roleId],
+      references: [rolesTable.id],
+    }),
+    permission: one(permissionsTable, {
+      fields: [rolePermissionsTable.permissionId],
+      references: [permissionsTable.id],
+    }),
+  })
+);
+
+export const usersRelations = relations(usersTable, ({ one }) => ({
+  role: one(rolesTable, {
+    fields: [usersTable.roleId],
+    references: [rolesTable.id],
+  }),
+}));
