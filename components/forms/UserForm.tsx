@@ -12,10 +12,11 @@ import {
   UserFormValues,
 } from "@/lib/validation";
 import { SelectItem } from "../ui/select";
-import { RoleOptions } from "@/constants";
 import { Button } from "../ui/button";
 import { FileUploader } from "../FileUploader";
-import { User } from "@/types";
+import { RoleWithPermissions, User } from "@/types";
+import { useRoles } from "@/hooks/useRoles";
+import Loading from "@/app/(dashboard)/loading";
 
 interface UserFormProps {
   mode: "create" | "edit";
@@ -25,6 +26,8 @@ interface UserFormProps {
 const UserForm = ({ mode, initialData, onSubmit }: UserFormProps) => {
   const [isLoading, setIsLoading] = useState(false);
 
+  const { roles } = useRoles({ getAllRoles: true });
+
   const form = useForm<UserFormValues>({
     resolver: zodResolver(
       mode === "create" ? CreateUserValidation : EditUserValidation
@@ -32,7 +35,7 @@ const UserForm = ({ mode, initialData, onSubmit }: UserFormProps) => {
     defaultValues: initialData || {
       phone: "",
       name: "",
-      role: "",
+      roleId: "",
       image: [],
       ...(mode === "create" && {
         email: "",
@@ -101,18 +104,19 @@ const UserForm = ({ mode, initialData, onSubmit }: UserFormProps) => {
           <CustomFormField
             fieldType={FormFieldType.SELECT}
             control={form.control}
-            name="role"
+            name="roleId"
             label="Role"
             placeholder="Select a role"
-            key={`role-select-${form.watch("role") || ""}`}
+            key={`role-select-${form.watch("roleId") || ""}`}
           >
-            {RoleOptions.map((role, i) => (
+            {roles.length === 0 && <Loading size={20} />}
+            {roles.map((role: RoleWithPermissions) => (
               <SelectItem
-                key={role + i}
-                value={role}
+                key={role.role.id}
+                value={role.role.id}
                 className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
               >
-                {role}
+                {role.role.name}
               </SelectItem>
             ))}
           </CustomFormField>

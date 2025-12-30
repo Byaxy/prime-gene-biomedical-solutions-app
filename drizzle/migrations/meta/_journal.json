@@ -624,6 +624,13 @@
       "when": 1766580210486,
       "tag": "0088_tough_mandarin",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1767088086614,
+      "tag": "0089_lumpy_misty_knight",
+      "breakpoints": true
     }
   ]
 }

@@ -37,7 +37,7 @@ export function UserDialog({
       const deleteData: EditUserFormValues = {
         name: user.name,
         phone: user.phone,
-        role: user.role,
+        roleId: user.roleId,
         image: [],
       };
 

@@ -4,9 +4,11 @@ import UserForm from "@/components/forms/UserForm";
 import PageWraper from "@/components/PageWraper";
 import { useUsers } from "@/hooks/useUsers";
 import { CreateUserFormValues, EditUserFormValues } from "@/lib/validation";
+import { useRouter } from "next/navigation";
 
 const AddUser = () => {
   const { addUser } = useUsers();
+  const router = useRouter();
   const handleCreateUser = async (
     data: CreateUserFormValues | EditUserFormValues
   ): Promise<void> => {
@@ -19,6 +21,8 @@ const AddUser = () => {
       if (isCreateForm(data)) {
         addUser(data, {
           onSuccess: () => {
+            router.push("/users");
+            router.refresh();
             resolve();
           },
           onError: (error) => {

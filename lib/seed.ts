@@ -1,14 +1,11 @@
 import { db } from "@/drizzle/db";
-import {
-  permissionsTable,
-  rolePermissionsTable,
-  rolesTable,
-} from "@/drizzle/schema";
+import { permissionsTable, rolesTable } from "@/drizzle/schema";
+import { allParentRoutes } from "@/lib/routeUtils";
+import { inArray } from "drizzle-orm";
 
 async function seed() {
   console.log("Seeding roles and permissions...");
 
-  // 1. Create Roles
   const [superAdminRole] = await db
     .insert(rolesTable)
     .values({
@@ -16,7 +13,14 @@ async function seed() {
       description: "Full access to all system features.",
       isSystemRole: true,
     })
-    .onConflictDoNothing({ target: rolesTable.name })
+    .onConflictDoUpdate({
+      target: rolesTable.name,
+      set: {
+        description: "Full access to all system features.",
+        isSystemRole: true,
+        updatedAt: new Date(),
+      },
+    })
     .returning();
 
   const [adminRole] = await db
@@ -26,7 +30,14 @@ async function seed() {
       description: "Manage most aspects of the system.",
       isSystemRole: true,
     })
-    .onConflictDoNothing({ target: rolesTable.name })
+    .onConflictDoUpdate({
+      target: rolesTable.name,
+      set: {
+        description: "Manage most aspects of the system.",
+        isSystemRole: true,
+        updatedAt: new Date(),
+      },
+    })
     .returning();
 
   const [userRole] = await db
@@ -35,7 +46,14 @@ async function seed() {
       name: "User",
       description: "Standard user with limited access.",
     })
-    .onConflictDoNothing({ target: rolesTable.name })
+    .onConflictDoUpdate({
+      target: rolesTable.name,
+      set: {
+        description: "Standard user with limited access.",
+        isSystemRole: false,
+        updatedAt: new Date(),
+      },
+    })
     .returning();
 
   const [salesManagerRole] = await db
@@ -44,337 +62,182 @@ async function seed() {
       name: "Sales Manager",
       description: "Manages sales, quotations, and sales agents.",
     })
-    .onConflictDoNothing({ target: rolesTable.name })
-    .returning();
-
-  // 2. Create Permissions
-  // Example for a specific permission
-  const [viewDashboardPerm] = await db
-    .insert(permissionsTable)
-    .values({
-      name: "view_dashboard",
-      resource: "dashboard",
-      action: "view",
-      category: "Dashboard",
-      routePath: "/",
-      isSystemPermission: true,
+    .onConflictDoUpdate({
+      target: rolesTable.name,
+      set: {
+        description: "Manages sales, quotations, and sales agents.",
+        isSystemRole: false,
+        updatedAt: new Date(),
+      },
     })
-    .onConflictDoNothing({ target: permissionsTable.name })
     .returning();
 
-  // Example for a wildcard permission
-  const [manageAllPerm] = await db
-    .insert(permissionsTable)
-    .values({
-      name: "manage_*",
-      resource: "all",
-      action: "manage",
-      category: "System",
-      description: "Grants full control over all resources.",
-      isSystemPermission: true,
-    })
-    .onConflictDoNothing({ target: permissionsTable.name })
-    .returning();
+  if (!superAdminRole || !adminRole || !userRole || !salesManagerRole) {
+    console.error("Failed to retrieve all roles after seeding. Exiting.");
+    process.exit(1);
+  }
 
-  const [viewInventoryListPerm] = await db
-    .insert(permissionsTable)
-    .values({
-      name: "view_inventory_item_list",
-      resource: "inventory_item",
-      action: "view",
-      category: "Product Management",
-      routePath: "/inventory",
-    })
-    .onConflictDoNothing({ target: permissionsTable.name })
-    .returning();
-
-  const [addInventoryItemPerm] = await db
-    .insert(permissionsTable)
-    .values({
-      name: "create_inventory_item",
-      resource: "inventory_item",
-      action: "create",
-      category: "Product Management",
-      routePath: "/inventory/add-inventory",
-    })
-    .onConflictDoNothing({ target: permissionsTable.name })
-    .returning();
-
-  // Example for a resource wildcard
-  const [manageInventoryWildcardPerm] = await db
-    .insert(permissionsTable)
-    .values({
-      name: "manage_inventory_*",
-      resource: "inventory_item",
-      action: "manage",
-      category: "Product Management",
-      description: "Grants full control over all inventory-related resources.",
-    })
-    .onConflictDoNothing({ target: permissionsTable.name })
-    .returning();
-
-  const [manageSalesWildcardPerm] = await db
-    .insert(permissionsTable)
-    .values({
-      name: "manage_sales_*",
-      resource: "sale",
-      action: "manage",
-      category: "Sales Management",
-      description: "Grants full control over all sales-related resources.",
-    })
-    .onConflictDoNothing({ target: permissionsTable.name })
-    .returning();
-
-  const [viewSalesPerm] = await db
-    .insert(permissionsTable)
-    .values({
-      name: "view_sales_list",
-      resource: "sale",
-      action: "view",
-      category: "Sales Management",
-      routePath: "/sales",
-      description: "Allows viewing the list of sales.",
-    })
-    .onConflictDoNothing({ target: permissionsTable.name })
-    .returning();
-
-  const [addSalesPerm] = await db
-    .insert(permissionsTable)
-    .values({
-      name: "create_sales",
-      resource: "sale",
-      action: "create",
-      category: "Sales Management",
-      routePath: "/sales/add-sales",
-      description: "Allows creating new sales.",
-    })
-    .onConflictDoNothing({ target: permissionsTable.name })
-    .returning();
-
-  const [viewRolesPerm] = await db
-    .insert(permissionsTable)
-    .values({
-      name: "view_role_list",
-      resource: "role",
-      action: "view",
-      category: "Settings",
-      routePath: "/settings/roles",
-      description: "Allows viewing the list of roles.",
-    })
-    .onConflictDoNothing({ target: permissionsTable.name })
-    .returning();
-
-  const [createRolePerm] = await db
-    .insert(permissionsTable)
-    .values({
-      name: "create_role",
-      resource: "role",
-      action: "create",
-      category: "Settings",
-      routePath: "/settings/roles/create",
-      description: "Allows creating new roles.",
-    })
-    .onConflictDoNothing({ target: permissionsTable.name })
-    .returning();
-
-  const [updateRolePerm] = await db
-    .insert(permissionsTable)
-    .values({
-      name: "update_role",
-      resource: "role",
-      action: "update",
-      category: "Settings",
-      description: "Allows editing existing roles.",
-    })
-    .onConflictDoNothing({ target: permissionsTable.name })
-    .returning();
-
-  const [deleteRolePerm] = await db
-    .insert(permissionsTable)
-    .values({
-      name: "delete_role",
-      resource: "role",
-      action: "delete",
-      category: "Settings",
-      description: "Allows deleting roles.",
-    })
-    .onConflictDoNothing({ target: permissionsTable.name })
-    .returning();
-
-  const [assignRolePermissionsPerm] = await db
-    .insert(permissionsTable)
-    .values({
-      name: "assign_role_permissions",
-      resource: "role_permission",
-      action: "update",
-      category: "Settings",
-      description: "Allows assigning/revoking permissions for a role.",
-    })
-    .onConflictDoNothing({ target: permissionsTable.name })
-    .returning();
-
-  const [viewPermissionsPerm] = await db
-    .insert(permissionsTable)
-    .values({
-      name: "view_permission_list",
-      resource: "permission",
-      action: "view",
-      category: "Settings",
-      routePath: "/settings/permissions",
-      description: "Allows viewing the list of all available permissions.",
-    })
-    .onConflictDoNothing({ target: permissionsTable.name })
-    .returning();
-
-  // 3. Assign Permissions to Roles
-  if (superAdminRole) {
-    await db
-      .insert(rolePermissionsTable)
-      .values([
-        {
-          roleId: superAdminRole.id,
-          permissionId: manageAllPerm.id,
-        },
-        { roleId: superAdminRole.id, permissionId: viewRolesPerm.id },
-        { roleId: superAdminRole.id, permissionId: createRolePerm.id },
-        { roleId: superAdminRole.id, permissionId: updateRolePerm.id },
-        { roleId: superAdminRole.id, permissionId: deleteRolePerm.id },
-        {
-          roleId: superAdminRole.id,
-          permissionId: assignRolePermissionsPerm.id,
-        },
-        { roleId: superAdminRole.id, permissionId: viewPermissionsPerm.id },
+  // 2. Clear existing permissions for these roles to avoid duplicates and outdated entries
+  await db
+    .delete(permissionsTable)
+    .where(
+      inArray(permissionsTable.roleId, [
+        superAdminRole.id,
+        adminRole.id,
+        userRole.id,
+        salesManagerRole.id,
       ])
-      .onConflictDoNothing({
-        target: [
-          rolePermissionsTable.roleId,
-          rolePermissionsTable.permissionId,
-        ],
-      });
-  }
+    );
 
-  if (adminRole) {
-    // Admin gets most specific permissions, maybe a few resource wildcards, but not "manage_*"
-    // Example: Admin gets view dashboard, view/add inventory, view/create sales, etc.
-    if (viewDashboardPerm)
-      await db
-        .insert(rolePermissionsTable)
-        .values({ roleId: adminRole.id, permissionId: viewDashboardPerm.id })
-        .onConflictDoNothing({
-          target: [
-            rolePermissionsTable.roleId,
-            rolePermissionsTable.permissionId,
-          ],
-        });
-    if (viewInventoryListPerm)
-      await db
-        .insert(rolePermissionsTable)
-        .values({
-          roleId: adminRole.id,
-          permissionId: viewInventoryListPerm.id,
-        })
-        .onConflictDoNothing({
-          target: [
-            rolePermissionsTable.roleId,
-            rolePermissionsTable.permissionId,
-          ],
-        });
-    if (addInventoryItemPerm)
-      await db
-        .insert(rolePermissionsTable)
-        .values({
-          roleId: adminRole.id,
-          permissionId: addInventoryItemPerm.id,
-        })
-        .onConflictDoNothing({
-          target: [
-            rolePermissionsTable.roleId,
-            rolePermissionsTable.permissionId,
-          ],
-        });
-    // If you want Admins to have 'manage_inventory_*'
-    if (manageInventoryWildcardPerm)
-      await db
-        .insert(rolePermissionsTable)
-        .values({
-          roleId: adminRole.id,
-          permissionId: manageInventoryWildcardPerm.id,
-        })
-        .onConflictDoNothing({
-          target: [
-            rolePermissionsTable.roleId,
-            rolePermissionsTable.permissionId,
-          ],
-        });
-  }
+  const allPermissionsToInsert: Array<typeof permissionsTable.$inferInsert> =
+    [];
 
-  if (userRole) {
-    // User gets only view dashboard
-    if (viewDashboardPerm) {
-      await db
-        .insert(rolePermissionsTable)
-        .values({ roleId: userRole.id, permissionId: viewDashboardPerm.id })
-        .onConflictDoNothing({
-          target: [
-            rolePermissionsTable.roleId,
-            rolePermissionsTable.permissionId,
-          ],
+  const createRolePermissions = (
+    roleId: string,
+    routes: { route: string; actions: { [key: string]: boolean } }[]
+  ) => {
+    routes.forEach((routePerm) => {
+      const routeInfo = allParentRoutes.find((r) => r.path === routePerm.route);
+      if (routeInfo) {
+        allPermissionsToInsert.push({
+          roleId: roleId,
+          route: routeInfo.path,
+          routeTitle: routeInfo.title,
+          category: routeInfo.category,
+          canCreate: routePerm.actions.canCreate || false,
+          canRead: routePerm.actions.canRead || false,
+          canUpdate: routePerm.actions.canUpdate || false,
+          canDelete: routePerm.actions.canDelete || false,
         });
-    }
+      } else {
+        console.warn(`Route ${routePerm.route} not found in allParentRoutes`);
+      }
+    });
+  };
 
-    if (viewInventoryListPerm) {
-      await db
-        .insert(rolePermissionsTable)
-        .values({ roleId: userRole.id, permissionId: viewInventoryListPerm.id })
-        .onConflictDoNothing({
-          target: [
-            rolePermissionsTable.roleId,
-            rolePermissionsTable.permissionId,
-          ],
-        });
-    }
-  }
+  // --- Super Admin: All routes, all actions ---
+  const superAdminPermissions: {
+    route: string;
+    actions: { [key: string]: boolean };
+  }[] = allParentRoutes.map((route) => ({
+    route: route.path,
+    actions: {
+      canCreate: true,
+      canRead: true,
+      canUpdate: true,
+      canDelete: true,
+    },
+  }));
+  createRolePermissions(superAdminRole.id, superAdminPermissions);
 
-  if (salesManagerRole) {
-    // Sales Manager gets manage_sales_*
-    if (manageSalesWildcardPerm) {
-      await db
-        .insert(rolePermissionsTable)
-        .values({
-          roleId: salesManagerRole.id,
-          permissionId: manageSalesWildcardPerm.id,
-        })
-        .onConflictDoNothing({
-          target: [
-            rolePermissionsTable.roleId,
-            rolePermissionsTable.permissionId,
-          ],
-        });
-    }
+  // --- Admin: All routes, all actions (as per request) ---
+  const adminPermissions: {
+    route: string;
+    actions: { [key: string]: boolean };
+  }[] = allParentRoutes.map((route) => ({
+    route: route.path,
+    actions: {
+      canCreate: true,
+      canRead: true,
+      canUpdate: true,
+      canDelete: true,
+    },
+  }));
+  createRolePermissions(adminRole.id, adminPermissions);
 
-    if (viewSalesPerm) {
-      await db
-        .insert(rolePermissionsTable)
-        .values({ roleId: salesManagerRole.id, permissionId: viewSalesPerm.id })
-        .onConflictDoNothing({
-          target: [
-            rolePermissionsTable.roleId,
-            rolePermissionsTable.permissionId,
-          ],
-        });
-    }
+  // --- User: View Dashboard, View Inventory List ---
+  const userPermissions: {
+    route: string;
+    actions: { [key: string]: boolean };
+  }[] = [
+    { route: "/", actions: { canRead: true } },
+    { route: "/inventory", actions: { canRead: true } },
+  ];
+  createRolePermissions(userRole.id, userPermissions);
 
-    if (addSalesPerm) {
-      await db
-        .insert(rolePermissionsTable)
-        .values({ roleId: salesManagerRole.id, permissionId: addSalesPerm.id })
-        .onConflictDoNothing({
-          target: [
-            rolePermissionsTable.roleId,
-            rolePermissionsTable.permissionId,
-          ],
-        });
-    }
+  // --- Sales Manager: Sales, Quotations, Sales Agents, Deliveries, Promissory Notes, Waybills ---
+  const salesManagerPermissions: {
+    route: string;
+    actions: { [key: string]: boolean };
+  }[] = [
+    // Sales Section
+    {
+      route: "/sales",
+      actions: {
+        canCreate: true,
+        canRead: true,
+        canUpdate: true,
+        canDelete: true,
+      },
+    },
+
+    // Quotations Section
+    {
+      route: "/quotations",
+      actions: {
+        canCreate: true,
+        canRead: true,
+        canUpdate: true,
+        canDelete: true,
+      },
+    },
+
+    // Sales Agents Section
+    {
+      route: "/sales-agents",
+      actions: {
+        canCreate: true,
+        canRead: true,
+        canUpdate: true,
+        canDelete: true,
+      },
+    },
+
+    // Deliveries Section
+    {
+      route: "/deliveries",
+      actions: {
+        canCreate: true,
+        canRead: true,
+        canUpdate: true,
+        canDelete: true,
+      },
+    },
+
+    // Promissory Notes
+    {
+      route: "/promissory-notes",
+      actions: {
+        canCreate: true,
+        canRead: true,
+        canUpdate: true,
+        canDelete: true,
+      },
+    },
+
+    // Waybills
+    {
+      route: "/waybills",
+      actions: {
+        canCreate: true,
+        canRead: true,
+        canUpdate: true,
+        canDelete: true,
+      },
+    },
+
+    // Allow viewing of Dashboard and Customers as well (common for sales roles)
+    { route: "/", actions: { canRead: true } },
+    {
+      route: "/customers",
+      actions: { canRead: true, canCreate: true, canUpdate: true },
+    },
+  ];
+  createRolePermissions(salesManagerRole.id, salesManagerPermissions);
+
+  // Insert all collected permissions in one go
+  if (allPermissionsToInsert.length > 0) {
+    await db.insert(permissionsTable).values(allPermissionsToInsert);
   }
 
   console.log("Roles and permissions seeded successfully.");

@@ -33,8 +33,7 @@ const buildFilterConditions = (filters: UserFilters) => {
       or(
         ilike(usersTable.name, searchTerm),
         ilike(usersTable.email, searchTerm),
-        ilike(usersTable.phone, searchTerm),
-        ilike(usersTable.role, searchTerm)
+        ilike(usersTable.phone, searchTerm)
       )
     );
   }
@@ -65,7 +64,7 @@ export const addUser = async (user: UserDataWithImage) => {
         name: user.name,
         email: user.email,
         phone: user.phone,
-        role: user.role,
+        roleId: user.roleId,
         profileImageId: user.profileImageId || "",
         profileImageUrl: user.profileImageUrl || "",
         isActive: true,
@@ -122,7 +121,7 @@ export const editUser = async (user: EditUserWithImage, userId: string) => {
         .set({
           name: user.name,
           phone: user.phone,
-          role: user.role,
+          roleId: user.roleId,
           profileImageId: user.profileImageId,
           profileImageUrl: user.profileImageUrl,
         })
@@ -134,7 +133,7 @@ export const editUser = async (user: EditUserWithImage, userId: string) => {
         .set({
           name: user.name,
           phone: user.phone,
-          role: user.role,
+          roleId: user.roleId,
         })
         .where(eq(usersTable.id, userId))
         .returning();

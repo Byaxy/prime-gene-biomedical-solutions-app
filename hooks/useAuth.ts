@@ -1,4 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+"use client";
+
 import { useAuthStore } from "@/store/authStore";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
@@ -10,29 +12,82 @@ const COOKIE_MAX_AGE = 30; // days
 
 export const useAuth = () => {
   const searchParams = useSearchParams();
-  const { user, isAdmin, isLoading, setUser, setIsAdmin, setIsLoading } =
-    useAuthStore();
+  const {
+    user,
+    role,
+    permissions,
+    isAdmin,
+    isLoading,
+    setUser,
+    setRole,
+    setPermissions,
+    setIsAdmin,
+    setIsLoading,
+  } = useAuthStore();
 
   const supabase = createSupabaseBrowserClient();
 
-  // Check admin status
-  const checkAdminStatus = async (userId: string) => {
+  // Fetch user role and permissions
+  const fetchUserRoleAndPermissions = async (userId: string) => {
     if (!userId) {
+      setRole(null);
+      setPermissions(new Map());
       setIsAdmin(false);
       return;
     }
 
     try {
-      const { data, error } = await supabase
+      // Fetch user with role
+      const { data: userData, error: userError } = await supabase
         .from("users")
-        .select("role")
+        .select(
+          `
+          *,
+          role:roles(*)
+        `
+        )
         .eq("id", userId)
         .single();
 
-      if (error) throw error;
-      setIsAdmin(data?.role === "admin");
+      if (userError) throw userError;
+
+      if (!userData.role) {
+        console.error("User has no role assigned");
+        setRole(null);
+        setPermissions(new Map());
+        setIsAdmin(false);
+        return;
+      }
+
+      setRole(userData.role);
+      setIsAdmin(userData.role?.name === "admin");
+
+      // Fetch permissions for this role
+      const { data: permissionsData, error: permError } = await supabase
+        .from("permissions")
+        .select("*")
+        .eq("role_id", userData.role.id);
+
+      if (permError) throw permError;
+
+      // Convert to Map for easy lookup
+      const permMap = new Map();
+      if (permissionsData && permissionsData.length > 0) {
+        permissionsData.forEach((perm: any) => {
+          permMap.set(perm.route, {
+            canCreate: perm.can_create,
+            canRead: perm.can_read,
+            canUpdate: perm.can_update,
+            canDelete: perm.can_delete,
+          });
+        });
+      }
+
+      setPermissions(permMap);
     } catch (error) {
-      console.error("Error checking admin status:", error);
+      console.error("Error fetching user role and permissions:", error);
+      setRole(null);
+      setPermissions(new Map());
       setIsAdmin(false);
     }
   };
@@ -47,12 +102,13 @@ export const useAuth = () => {
         .single();
 
       if (error) throw error;
+
       setUser({
         id: data.id,
         email: data.email,
         name: data.name,
         phone: data.phone,
-        role: data.role,
+        roleId: data.role_id,
         profileImageId: data.profile_image_id,
         profileImageUrl: data.profile_image_url,
         isActive: data.is_active,
@@ -76,7 +132,7 @@ export const useAuth = () => {
         if (data.user) {
           const user = data.user;
           await getCurrentUserData(user.id);
-          await checkAdminStatus(user.id);
+          await fetchUserRoleAndPermissions(user.id);
 
           if (!Cookies.get("auth_session")) {
             Cookies.set("auth_session", "true", {
@@ -88,6 +144,8 @@ export const useAuth = () => {
           return user;
         } else {
           setUser(null);
+          setRole(null);
+          setPermissions(new Map());
           setIsAdmin(false);
           Cookies.remove("auth_session");
           return null;
@@ -95,6 +153,8 @@ export const useAuth = () => {
       } catch (error) {
         console.error("Auth check failed:", error);
         setUser(null);
+        setRole(null);
+        setPermissions(new Map());
         setIsAdmin(false);
         Cookies.remove("auth_session");
         return null;
@@ -119,7 +179,7 @@ export const useAuth = () => {
     },
     onSuccess: async (user) => {
       await getCurrentUserData(user.id);
-      await checkAdminStatus(user.id);
+      await fetchUserRoleAndPermissions(user.id);
 
       Cookies.set("auth_session", "true", {
         expires: COOKIE_MAX_AGE,
@@ -152,6 +212,8 @@ export const useAuth = () => {
     },
     onSuccess: () => {
       setUser(null);
+      setRole(null);
+      setPermissions(new Map());
       setIsAdmin(false);
       Cookies.remove("auth_session");
       window.location.href = "/login";
@@ -168,6 +230,8 @@ export const useAuth = () => {
 
   return {
     user,
+    role,
+    permissions,
     isAdmin,
     isLoading,
     login: loginMutation.mutateAsync,

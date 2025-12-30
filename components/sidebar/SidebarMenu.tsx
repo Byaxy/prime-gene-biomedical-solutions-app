@@ -2,13 +2,12 @@ import React, { useState } from "react";
 import SidebarItem from "./SidebarItem";
 import type { SidebarDataType } from "@/constants";
 
-export default function SidebarMenu({
-  data,
-  open,
-}: {
+interface SidebarMenuProps {
   data: SidebarDataType[];
   open: boolean;
-}) {
+}
+
+export default function SidebarMenu({ data, open }: SidebarMenuProps) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   const handleItemClick = (index: number) => {

@@ -7,11 +7,12 @@ import { useUsers } from "@/hooks/useUsers";
 import { getUserById } from "@/lib/actions/user.actions";
 import { EditUserFormValues } from "@/lib/validation";
 import { useQuery } from "@tanstack/react-query";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 
 const EditUser = () => {
   const { id } = useParams();
   const { editUser } = useUsers();
+  const router = useRouter();
 
   const { data: user, isLoading } = useQuery({
     queryKey: [id],
@@ -29,6 +30,8 @@ const EditUser = () => {
         { id: id as string, data },
         {
           onSuccess: () => {
+            router.push("/users");
+            router.refresh();
             resolve();
           },
           onError: (error) => {
@@ -53,6 +56,7 @@ const EditUser = () => {
             user
               ? {
                   ...user,
+                  roleId: user.roleId || "",
                   profileImageId: user.profileImageId || "",
                   profileImageUrl: user.profileImageUrl || "",
                 }

@@ -43,7 +43,7 @@ const UserProfile = () => {
           name: user.name,
           email: user.email,
           phone: user.phone || "",
-          role: user.role,
+          roleId: user.roleId || "",
           profileImageId: user.profileImageId ?? "",
           profileImageUrl: user.profileImageUrl ?? "",
           isActive: user.isActive,

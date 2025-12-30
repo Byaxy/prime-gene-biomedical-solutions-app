@@ -61,7 +61,7 @@ const UsersTable = ({ initialData }: Props) => {
         name: item.name,
         email: item.email,
         phone: item.phone,
-        role: item.role,
+        roleId: item.roleId,
         profileImageId: item.profileImageId ?? "",
         profileImageUrl: item.profileImageUrl ?? "",
         isActive: item.isActive,

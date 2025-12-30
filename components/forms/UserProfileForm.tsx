@@ -7,10 +7,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { EditUserValidation, UserFormValues } from "@/lib/validation";
 import { SelectItem } from "../ui/select";
-import { RoleOptions } from "@/constants";
 import { FileUploader } from "../FileUploader";
 import { useState } from "react";
-import { User } from "@/types";
+import { RoleWithPermissions, User } from "@/types";
+import { useRoles } from "@/hooks/useRoles";
+import Loading from "@/app/(dashboard)/loading";
 
 interface UserProfileFormProps {
   initialData: User;
@@ -26,6 +27,7 @@ const UserProfileForm = ({
   isEditing,
 }: UserProfileFormProps) => {
   const [isLoading, setIsLoading] = useState(false);
+  const { roles } = useRoles({ getAllRoles: true });
 
   const form = useForm<UserFormValues>({
     resolver: zodResolver(EditUserValidation),
@@ -33,7 +35,7 @@ const UserProfileForm = ({
       name: initialData.name,
       email: initialData.email,
       phone: initialData.phone,
-      role: initialData.role,
+      roleId: initialData.roleId,
       image: [],
     },
   });
@@ -95,19 +97,19 @@ const UserProfileForm = ({
           <CustomFormField
             fieldType={FormFieldType.SELECT}
             control={form.control}
-            name="role"
+            name="roleId"
             label="Role"
             disabled={!isAdmin}
-            key={`role-select-${form.watch("role") || ""}`}
+            key={`role-select-${form.watch("roleId") || ""}`}
           >
-            {RoleOptions.map((role) => (
+            {roles.length === 0 && <Loading size={20} />}
+            {roles.map((role: RoleWithPermissions) => (
               <SelectItem
-                disabled={!isAdmin}
-                key={role}
-                value={role}
-                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white"
+                key={role.role.id}
+                value={role.role.id}
+                className="text-14-medium text-dark-500 cursor-pointer hover:rounded hover:bg-blue-800 hover:text-white capitalize"
               >
-                {role}
+                {role.role.name}
               </SelectItem>
             ))}
           </CustomFormField>

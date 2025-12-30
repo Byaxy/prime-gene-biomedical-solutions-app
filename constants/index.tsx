@@ -1,4 +1,4 @@
-import { JSX } from "react";
+import React, { JSX } from "react";
 import { generateId } from "@/lib/utils";
 import {
   Calculator,
@@ -131,9 +131,9 @@ export const sidebarData: SidebarDataType[] = [
         path: "/purchases/shipments",
       },
       {
+        id: generateId(),
         title: "Receive Purchased Inventory",
         path: "/purchases/receive-purchased-inventory",
-        id: generateId(),
       },
       {
         id: generateId(),
@@ -464,6 +464,11 @@ export const sidebarData: SidebarDataType[] = [
       },
       {
         id: generateId(),
+        title: "Roles and Permissions",
+        path: "/settings/roles",
+      },
+      {
+        id: generateId(),
         title: "Categories",
         path: "/settings/categories",
       },
@@ -510,5 +515,3 @@ export const sidebarData: SidebarDataType[] = [
     ],
   },
 ];
-
-export const RoleOptions = ["user", "admin"];

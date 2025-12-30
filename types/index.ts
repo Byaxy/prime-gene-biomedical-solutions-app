@@ -51,12 +51,52 @@ export interface User {
   name: string;
   email: string;
   phone: string;
-  role: string;
+  roleId: string;
   profileImageId: string;
   profileImageUrl: string;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
+}
+
+// Role interface
+export interface Role {
+  id: string;
+  name: string;
+  description?: string | null;
+  isSystemRole: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Permission for a single route
+export interface RoutePermission {
+  canCreate: boolean;
+  canRead: boolean;
+  canUpdate: boolean;
+  canDelete: boolean;
+}
+
+export type PermissionAction = "create" | "read" | "update" | "delete";
+
+export interface Permission {
+  id: string;
+  roleId: string;
+  route: string;
+  routeTitle: string;
+  category: string;
+  canCreate: boolean;
+  canRead: boolean;
+  canUpdate: boolean;
+  canDelete: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RoleWithPermissions {
+  role: Role;
+  permissions: Permission[];
 }
 
 export interface Unit {

@@ -266,7 +266,7 @@ export const useUsers = ({
         name: data.name,
         email: data.email,
         phone: data.phone,
-        role: data.role,
+        roleId: data.roleId,
         password: data.password,
         confirmPassword: data.confirmPassword,
         profileImageId,
@@ -333,7 +333,7 @@ export const useUsers = ({
       const userData = {
         name: data.name,
         phone: data.phone,
-        role: data.role,
+        roleId: data.roleId,
         profileImageId,
         profileImageUrl,
       };

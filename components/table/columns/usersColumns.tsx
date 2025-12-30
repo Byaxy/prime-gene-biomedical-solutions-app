@@ -8,6 +8,7 @@ import UserActions from "@/components/users/UserActions";
 import Image from "next/image";
 import { User } from "@/types";
 import { Checkbox } from "@/components/ui/checkbox";
+import SingleRole from "@/components/roles/SingleRole";
 
 export const usersColumns: ColumnDef<User>[] = [
   {
@@ -105,7 +106,11 @@ export const usersColumns: ColumnDef<User>[] = [
     header: "Role",
     cell: ({ row }) => {
       const user = row.original;
-      return <p className="text-14-medium ">{user.role || "-"}</p>;
+      return (
+        <div className="text-14-medium ">
+          <SingleRole roleId={user.roleId} />
+        </div>
+      );
     },
   },
   {

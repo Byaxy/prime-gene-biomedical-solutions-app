@@ -191,67 +191,6 @@ export const commissionStatusEnum = pgEnum("commission_status", [
   "cancelled",
 ]);
 
-export const appActionEnum = pgEnum("app_action", [
-  "view",
-  "create",
-  "update",
-  "delete",
-  "manage",
-  "approve",
-  "process",
-  "receive",
-  "adjust",
-  "pay",
-  "convert",
-]);
-
-// Resources within the application
-export const appResourceEnum = pgEnum("app_resource", [
-  "all",
-  "dashboard",
-  "inventory_item",
-  "inventory_adjustment",
-  "service",
-  "purchase_order",
-  "purchase",
-  "shipping",
-  "received_inventory",
-  "quotation",
-  "sale",
-  "delivery_note",
-  "promissory_note",
-  "waybill",
-  "chart_of_account",
-  "bank_account",
-  "income",
-  "expense",
-  "sales_commission",
-  "employee",
-  "payroll",
-  "time_tracking",
-  "report",
-  "customer",
-  "vendor",
-  "user_account",
-  "sales_agent",
-  "system_settings",
-  "profile_settings",
-  "category",
-  "brand",
-  "product_type",
-  "unit",
-  "tax_rate",
-  "store",
-  "expense_category",
-  "income_category",
-  "accompanying_expense_type",
-  "notification",
-  "backorder",
-  "role",
-  "role_permission",
-  "permission",
-]);
-
 // Users
 export const usersTable = pgTable(
   "users",
@@ -262,7 +201,6 @@ export const usersTable = pgTable(
     name: text("name").notNull(),
     email: text("email").notNull().unique(),
     phone: text("phone").notNull(),
-    role: text("role").notNull(),
     roleId: uuid("role_id").references(() => rolesTable.id, {
       onDelete: "restrict",
     }),
@@ -2695,7 +2633,7 @@ export const rolesTable = pgTable(
     id: uuid("id")
       .primaryKey()
       .default(sql`gen_random_uuid()`),
-    name: text("name").notNull().unique(), // e.g., "admin", "sales_manager"
+    name: text("name").notNull().unique(),
     description: text("description"),
     isSystemRole: boolean("is_system_role").notNull().default(false),
     isActive: boolean("is_active").notNull().default(true),
@@ -2715,74 +2653,42 @@ export const permissionsTable = pgTable(
     id: uuid("id")
       .primaryKey()
       .default(sql`gen_random_uuid()`),
-    name: text("name").notNull().unique(), // e.g., "view_inventory_item", "manage_inventory_*"
-    resource: appResourceEnum("resource").notNull(), // e.g., "inventory_item"
-    action: appActionEnum("action").notNull(), // e.g., "view", "create"
-    category: text("category").notNull(), // e.g., "Product Management" for UI grouping
-    routePath: text("route_path"), // Optional: Direct mapping for sidebar/middleware, e.g., "/inventory/add-inventory"
-    description: text("description"),
-    isSystemPermission: boolean("is_system_permission")
+    roleId: uuid("role_id")
       .notNull()
-      .default(false),
+      .references(() => rolesTable.id, { onDelete: "cascade" }),
+
+    route: text("route").notNull(), // e.g., "/users", "/inventory"
+    routeTitle: text("route_title").notNull(), // e.g., "Users", "Inventory"
+    category: text("category").notNull(), // e.g., "People", "Product Management"
+    canCreate: boolean("can_create").notNull().default(false),
+    canRead: boolean("can_read").notNull().default(false),
+    canUpdate: boolean("can_update").notNull().default(false),
+    canDelete: boolean("can_delete").notNull().default(false),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => ({
-    permissionsNameIndex: index("permissions_name_idx").on(table.name),
-    permissionsResourceActionIndex: index("permissions_resource_action_idx").on(
-      table.resource,
-      table.action
+    uniqueRoleRoute: unique("permissions_role_route_unique").on(
+      table.roleId,
+      table.route
     ),
-    permissionsActiveIndex: index("permissions_active_idx").on(table.isActive),
-  })
-);
-
-// Role_Permissions Junction Table
-export const rolePermissionsTable = pgTable(
-  "role_permissions",
-  {
-    roleId: uuid("role_id")
-      .notNull()
-      .references(() => rolesTable.id, { onDelete: "cascade" }),
-    permissionId: uuid("permission_id")
-      .notNull()
-      .references(() => permissionsTable.id, { onDelete: "cascade" }),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-  },
-  (table) => ({
-    unq: unique().on(table.roleId, table.permissionId),
-    rolePermissionsRoleIdIndex: index("role_permissions_role_id_idx").on(
-      table.roleId
-    ),
-    rolePermissionsPermissionIdIndex: index(
-      "role_permissions_permission_id_idx"
-    ).on(table.permissionId),
+    permissionsRoleIdIndex: index("permissions_role_id_idx").on(table.roleId),
+    permissionsRouteIndex: index("permissions_route_idx").on(table.route),
   })
 );
 
 export const rolesRelations = relations(rolesTable, ({ many }) => ({
   users: many(usersTable),
-  rolePermissions: many(rolePermissionsTable),
+  permissions: many(permissionsTable),
 }));
 
-export const permissionsRelations = relations(permissionsTable, ({ many }) => ({
-  rolePermissions: many(rolePermissionsTable),
+export const permissionsRelations = relations(permissionsTable, ({ one }) => ({
+  role: one(rolesTable, {
+    fields: [permissionsTable.roleId],
+    references: [rolesTable.id],
+  }),
 }));
-
-export const rolePermissionsRelations = relations(
-  rolePermissionsTable,
-  ({ one }) => ({
-    role: one(rolesTable, {
-      fields: [rolePermissionsTable.roleId],
-      references: [rolesTable.id],
-    }),
-    permission: one(permissionsTable, {
-      fields: [rolePermissionsTable.permissionId],
-      references: [permissionsTable.id],
-    }),
-  })
-);
 
 export const usersRelations = relations(usersTable, ({ one }) => ({
   role: one(rolesTable, {

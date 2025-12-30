@@ -42,7 +42,7 @@ export const CreateUserValidation = z
       .nonempty("Password is required")
       .min(6, "Password must be at least 6 characters"),
     confirmPassword: z.string(),
-    role: z.string().nonempty("Role is required"),
+    roleId: z.string().nonempty("Role is required"),
     image: z.any().optional(),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -52,7 +52,7 @@ export const CreateUserValidation = z
 
 export const EditUserValidation = z.object({
   name: z.string().nonempty("Name is required"),
-  role: z.string().nonempty("Role is required"),
+  roleId: z.string().nonempty("Role is required"),
   phone: z.string().nonempty("Phone number is required"),
   image: z.any().optional(),
 });
@@ -2458,3 +2458,18 @@ export const BackorderFulfillmentValidation = z.object({
 export type BackorderFulfillmentFormValues = z.infer<
   typeof BackorderFulfillmentValidation
 >;
+
+export const RoleFormValidation = z.object({
+  name: z.string().min(2, "Role name must be at least 2 characters"),
+  description: z.string().optional(),
+  permissions: z.record(
+    z.object({
+      canCreate: z.boolean(),
+      canRead: z.boolean(),
+      canUpdate: z.boolean(),
+      canDelete: z.boolean(),
+    })
+  ),
+});
+
+export type RoleFormValues = z.infer<typeof RoleFormValidation>;
