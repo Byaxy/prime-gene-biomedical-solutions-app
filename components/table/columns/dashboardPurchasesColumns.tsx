@@ -38,7 +38,7 @@ export const dashboardPurchasesColumns: ColumnDef<PurchaseWithRelations>[] = [
       const purchase = row.original;
       return (
         <p className="text-14-medium ">
-          {formatDateTime(purchase.purchase.purchaseDate).dateTime}
+          {formatDateTime(purchase.purchase.purchaseDate).dateOnly}
         </p>
       );
     },

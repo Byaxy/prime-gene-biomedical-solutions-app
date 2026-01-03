@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
@@ -66,6 +67,8 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
   const router = useRouter();
   const { user } = useAuth();
 
+  console.log("ExpenseForm rendered with initialData:", initialData);
+
   const { addExpense, isAddingExpense, updateExpense, isUpdatingExpense } =
     useExpenses();
 
@@ -97,6 +100,9 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
           currentPayingAccountBalance: item.payingAccount?.currentBalance
             ? parseFloat(item.payingAccount.currentBalance as any)
             : undefined,
+
+          originalItemAmount: parseFloat(item.expenseItem.itemAmount as any),
+          originalPayingAccountId: item.expenseItem.payingAccountId || "",
         })) || [],
 
       isEditMode: mode === "edit",
@@ -246,6 +252,8 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
       accompanyingExpenseTypeId: "",
       payingAccountId: "",
       currentPayingAccountBalance: undefined,
+      originalItemAmount: undefined,
+      originalPayingAccountId: undefined,
     } as ExpenseItemFormValues);
   };
 
@@ -316,10 +324,14 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
         ...uploadedAttachments,
       ];
 
-      // Clean up items - remove balance fields
+      // Clean up items - remove validation helper fields
       const cleanedItems = values.items.map((item) => {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { currentPayingAccountBalance, ...rest } = item;
+        const {
+          currentPayingAccountBalance,
+          originalItemAmount,
+          originalPayingAccountId,
+          ...rest
+        } = item;
         return rest;
       });
 
@@ -327,7 +339,6 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
         ...values,
         attachments: allAttachments,
         items: cleanedItems,
-        // originalAmount is no longer needed
       };
 
       if (!user?.id) {

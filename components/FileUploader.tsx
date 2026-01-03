@@ -7,6 +7,7 @@ import { useDropzone } from "react-dropzone";
 import { convertFileToUrl } from "@/lib/utils";
 import { CloudUpload, FileText, File } from "lucide-react";
 import { X } from "lucide-react";
+import { Attachment } from "@/types";
 
 type FileUploaderProps = {
   files: File[] | undefined;
@@ -65,16 +66,36 @@ export const FileUploader = ({
     onChange(newFiles);
   };
 
-  const getFileIcon = (file: File) => {
-    if (file.type.includes("pdf")) {
+  // Type guard to check if item is an Attachment
+  const isAttachment = (item: File | Attachment): item is Attachment => {
+    return "url" in item && "id" in item;
+  };
+
+  const getFileName = (file: File | Attachment): string => {
+    return isAttachment(file) ? file.name : file.name;
+  };
+
+  const getFileSize = (file: File | Attachment): number => {
+    return isAttachment(file) ? file.size : file.size;
+  };
+
+  const getFileType = (file: File | Attachment): string => {
+    return isAttachment(file) ? file.type : file.type;
+  };
+
+  const getFileIcon = (file: File | Attachment) => {
+    const fileType = getFileType(file);
+    const fileName = getFileName(file);
+
+    if (fileType.includes("pdf")) {
       return <FileText className="h-6 w-6 text-red-500" />;
     } else if (
-      file.type.includes("word") ||
-      file.name.endsWith(".doc") ||
-      file.name.endsWith(".docx")
+      fileType.includes("word") ||
+      fileName.endsWith(".doc") ||
+      fileName.endsWith(".docx")
     ) {
       return <File className="h-6 w-6 text-blue-500" />;
-    } else if (file.type.includes("image")) {
+    } else if (fileType.includes("image")) {
       return null;
     }
     return <File className="h-6 w-6 text-gray-500" />;
@@ -105,15 +126,15 @@ export const FileUploader = ({
   return (
     <div {...getRootProps()} className="file-upload">
       <input {...getInputProps()} />
-      {isExcelUpload && (
+      {isExcelUpload && files?.[0] && (
         <div className="p-4 bg-green-50 rounded-md">
           <p className="text-green-800 font-medium">
-            {files?.[0]?.name} ready for upload
+            {getFileName(files[0])} ready for upload
           </p>
         </div>
       )}
       {showUploadedFiles ? (
-        files.length === 1 && files[0].type.includes("image") ? (
+        files.length === 1 && getFileType(files[0]).includes("image") ? (
           // Single image preview (existing behavior)
           <div className="flex flex-col items-center justify-center space-y-3">
             <Image
@@ -130,44 +151,56 @@ export const FileUploader = ({
         ) : (
           // Multiple files or non-image upload
           <div className="space-y-2">
-            {files.map((file, index) => (
-              <div
-                key={index}
-                className="relative flex items-center gap-3 p-3 bg-gray-50 rounded-md"
-              >
-                {getFileIcon(file)}
-                {file.type.includes("image") ? (
-                  <Image
-                    src={convertFileToUrl(file)}
-                    width={50}
-                    height={50}
-                    alt="uploaded image"
-                    className="h-12 w-12 object-cover rounded-md"
-                  />
-                ) : null}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800 truncate">
-                    {file.name}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {(file.size / 1024 / 1024).toFixed(2)} MB
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeFile(index);
-                  }}
-                  className="text-gray-500 hover:text-red-500"
+            {files.map((file, index) => {
+              const fileType = getFileType(file);
+              const fileName = getFileName(file);
+              const fileSize = getFileSize(file);
+
+              return (
+                <div
+                  key={isAttachment(file) ? file.id : `file-${index}`}
+                  className="relative flex items-center gap-3 p-3 bg-gray-50 rounded-md"
                 >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            ))}
-            <p className="text-14-regular text-blue-800">
-              Click to add more files
-            </p>
+                  {getFileIcon(file)}
+                  {fileType.includes("image") ? (
+                    <Image
+                      src={convertFileToUrl(file)}
+                      width={50}
+                      height={50}
+                      alt="uploaded image"
+                      className="h-12 w-12 object-cover rounded-md"
+                    />
+                  ) : null}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">
+                      {fileName}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {(fileSize / 1024 / 1024).toFixed(2)} MB
+                    </p>
+                    {isAttachment(file) && (
+                      <p className="text-xs text-blue-500">Existing file</p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeFile(index);
+                    }}
+                    className="text-gray-500 hover:text-red-500"
+                    disabled={disabled}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              );
+            })}
+            {files.length < maxFiles && (
+              <p className="text-14-regular text-blue-800">
+                Click to add more files ({files.length}/{maxFiles})
+              </p>
+            )}
           </div>
         )
       ) : showCurrentImage ? (

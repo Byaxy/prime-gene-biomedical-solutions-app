@@ -1529,6 +1529,9 @@ export const ExpenseItemValidation = z
       .number()
       .min(0, "Balance cannot be negative")
       .optional(),
+
+    originalItemAmount: z.number().optional(),
+    originalPayingAccountId: z.string().optional(),
   })
   .superRefine((data, ctx) => {
     // Conditional validation for accompanying expense fields (per line item)
@@ -1553,10 +1556,20 @@ export const ExpenseItemValidation = z
       data.currentPayingAccountBalance !== undefined &&
       data.payingAccountId
     ) {
-      if (data.currentPayingAccountBalance < data.itemAmount) {
+      let availableBalance = data.currentPayingAccountBalance;
+
+      if (
+        data.id &&
+        data.originalPayingAccountId === data.payingAccountId &&
+        data.originalItemAmount !== undefined
+      ) {
+        availableBalance += data.originalItemAmount;
+      }
+
+      if (availableBalance < data.itemAmount) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: `Insufficient funds. Available: ${data.currentPayingAccountBalance.toFixed(
+          message: `Insufficient funds. Available: ${availableBalance.toFixed(
             2
           )}, Required: ${data.itemAmount.toFixed(2)}`,
           path: ["payingAccountId"],
@@ -1583,7 +1596,6 @@ export const ExpenseFormValidation = z
       .array(ExpenseItemValidation)
       .min(1, "At least one expense line item is required"),
 
-    originalAmount: z.number().optional(), // Original expense amount in edit mode
     isEditMode: z.boolean().default(false),
   })
   .superRefine((data, ctx) => {
@@ -1602,21 +1614,141 @@ export const ExpenseFormValidation = z
       });
     }
 
-    // Validate that each item has sufficient funds in its paying account
-    data.items.forEach((item, index) => {
-      if (
-        item.payingAccountId &&
-        item.currentPayingAccountBalance !== undefined
-      ) {
-        if (item.currentPayingAccountBalance < item.itemAmount) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `Item "${item.title}" exceeds available balance in selected account`,
-            path: ["items", index, "payingAccountId"],
+    if (data.isEditMode) {
+      // Group items by paying account to calculate net changes
+      const accountNetChanges = new Map<
+        string,
+        {
+          currentBalance: number;
+          netChange: number;
+          items: Array<{ title: string; required: number }>;
+        }
+      >();
+
+      data.items.forEach((item) => {
+        if (
+          !item.payingAccountId ||
+          item.currentPayingAccountBalance === undefined
+        ) {
+          return;
+        }
+
+        const accountId = item.payingAccountId;
+
+        if (!accountNetChanges.has(accountId)) {
+          accountNetChanges.set(accountId, {
+            currentBalance: item.currentPayingAccountBalance,
+            netChange: 0,
+            items: [],
           });
         }
-      }
-    });
+
+        const accountData = accountNetChanges.get(accountId)!;
+
+        let itemNetChange = -item.itemAmount;
+
+        if (item.id && item.originalItemAmount !== undefined) {
+          if (item.originalPayingAccountId === accountId) {
+            itemNetChange += item.originalItemAmount;
+          }
+        }
+
+        accountData.netChange += itemNetChange;
+        accountData.items.push({
+          title: item.title,
+          required: item.itemAmount,
+        });
+      });
+
+      // Validate each account has sufficient funds after net changes
+      accountNetChanges.forEach((accountData, accountId) => {
+        const finalBalance = accountData.currentBalance + accountData.netChange;
+
+        if (finalBalance < 0) {
+          const itemTitles = accountData.items.map((i) => i.title).join(", ");
+          const affectedItemIndices = data.items
+            .map((item, idx) => (item.payingAccountId === accountId ? idx : -1))
+            .filter((idx) => idx !== -1);
+
+          affectedItemIndices.forEach((index) => {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `Insufficient funds for this account after all changes. Current: ${accountData.currentBalance.toFixed(
+                2
+              )}, Net change: ${accountData.netChange.toFixed(
+                2
+              )}, Would result in: ${finalBalance.toFixed(
+                2
+              )}. Affected items: ${itemTitles}`,
+              path: ["items", index, "payingAccountId"],
+            });
+          });
+        }
+      });
+    } else {
+      // CREATE MODE: Group by account and validate cumulative amounts
+      const accountTotals = new Map<
+        string,
+        {
+          currentBalance: number;
+          totalRequired: number;
+          items: Array<{ title: string; amount: number }>;
+        }
+      >();
+
+      data.items.forEach((item) => {
+        if (
+          !item.payingAccountId ||
+          item.currentPayingAccountBalance === undefined
+        ) {
+          return;
+        }
+
+        const accountId = item.payingAccountId;
+
+        if (!accountTotals.has(accountId)) {
+          accountTotals.set(accountId, {
+            currentBalance: item.currentPayingAccountBalance,
+            totalRequired: 0,
+            items: [],
+          });
+        }
+
+        const accountData = accountTotals.get(accountId)!;
+        accountData.totalRequired += item.itemAmount;
+        accountData.items.push({
+          title: item.title,
+          amount: item.itemAmount,
+        });
+      });
+
+      // Validate each account
+      accountTotals.forEach((accountData, accountId) => {
+        if (accountData.currentBalance < accountData.totalRequired) {
+          const itemDetails = accountData.items
+            .map((i) => `"${i.title}" ($${i.amount.toFixed(2)})`)
+            .join(", ");
+
+          const affectedItemIndices = data.items
+            .map((item, idx) => (item.payingAccountId === accountId ? idx : -1))
+            .filter((idx) => idx !== -1);
+
+          affectedItemIndices.forEach((index) => {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `Insufficient funds in this account. Available: ${accountData.currentBalance.toFixed(
+                2
+              )}, Total required for all items: ${accountData.totalRequired.toFixed(
+                2
+              )}, Shortfall: ${(
+                accountData.totalRequired - accountData.currentBalance
+              ).toFixed(2)}. Items using this account: ${itemDetails}`,
+              path: ["items", index, "payingAccountId"],
+            });
+          });
+        }
+      });
+    }
   });
 export type ExpenseFormValues = z.infer<typeof ExpenseFormValidation>;
 

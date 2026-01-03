@@ -10,7 +10,7 @@ const EditExpense = async ({ params }: { params: Promise<Params> }) => {
   const { id } = await params;
 
   return (
-    <PageWraper title="Edit Account">
+    <PageWraper title="Edit Expense">
       <Suspense fallback={<FormSkeleton />}>
         <ExpenseFormWrapper expenseId={id} mode="edit" />
       </Suspense>

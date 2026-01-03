@@ -9,7 +9,7 @@ import {
 } from "@/lib/actions/expense.actions";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ExpenseFormValues } from "@/lib/validation";
-import { ExpenseWithRelations } from "@/types"; // Your ExpenseWithRelations type
+import { ExpenseWithRelations } from "@/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useTransition } from "react";

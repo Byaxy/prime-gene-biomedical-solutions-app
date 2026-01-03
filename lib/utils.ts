@@ -18,9 +18,13 @@ export const generateId = () => {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const parseStringify = (value: any) => JSON.parse(JSON.stringify(value));
 
-export const convertFileToUrl = (file: File | string) => {
+export const convertFileToUrl = (file: File | string | { url: string }) => {
   if (typeof file === "string") {
     return file;
+  }
+
+  if (file && typeof file === "object" && "url" in file) {
+    return file.url;
   }
 
   if (file instanceof File) {

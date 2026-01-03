@@ -14,7 +14,7 @@ import {
   purchasesTable,
 } from "@/drizzle/schema";
 import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
-import { Account, JournalEntryReferenceType } from "@/types";
+import { JournalEntryReferenceType } from "@/types";
 import { createJournalEntry } from "./accounting.actions";
 import { ExpenseFilters } from "@/hooks/useExpenses";
 import { getCompanyConfig } from "../config/company-config";
@@ -78,8 +78,35 @@ const buildExpenseFilterConditions = (filters: ExpenseFilters) => {
 export const addExpense = async (userId: string, values: ExpenseFormValues) => {
   try {
     const result = await db.transaction(async (tx) => {
-      // 1. Validate all paying accounts and check balances for each item
-      const accountValidationPromises = values.items.map(async (item: any) => {
+      // 1. Group items by paying account to process cumulative amounts
+      const accountItemsMap = new Map<
+        string,
+        Array<{
+          item: any;
+          index: number;
+        }>
+      >();
+
+      values.items.forEach((item: any, index: number) => {
+        const accountId = item.payingAccountId;
+        if (!accountItemsMap.has(accountId)) {
+          accountItemsMap.set(accountId, []);
+        }
+        accountItemsMap.get(accountId)!.push({ item, index });
+      });
+
+      // 2. Validate all paying accounts and check CUMULATIVE balances
+      const accountValidationMap = new Map<
+        string,
+        {
+          payingAccount: any;
+          totalRequired: number;
+          items: Array<{ item: any; index: number }>;
+        }
+      >();
+
+      for (const [accountId, itemsForAccount] of accountItemsMap.entries()) {
+        // Fetch account details once per unique account
         const [payingAccount] = await tx
           .select({
             id: accountsTable.id,
@@ -90,42 +117,66 @@ export const addExpense = async (userId: string, values: ExpenseFormValues) => {
           .from(accountsTable)
           .where(
             and(
-              eq(accountsTable.id, item.payingAccountId),
+              eq(accountsTable.id, accountId),
               eq(accountsTable.isActive, true)
             )
           );
 
         if (!payingAccount) {
+          const itemTitles = itemsForAccount
+            .map((i) => i.item.title)
+            .join(", ");
           throw new Error(
-            `Paying Account for item '${item.title}' not found or is inactive.`
+            `Paying Account not found or is inactive for items: ${itemTitles}`
           );
         }
 
-        if (parseFloat(payingAccount.currentBalance as any) < item.itemAmount) {
+        // Calculate TOTAL required for this account across all items
+        const totalRequired = itemsForAccount.reduce(
+          (sum, { item }) => sum + item.itemAmount,
+          0
+        );
+
+        const currentBalance = parseFloat(payingAccount.currentBalance as any);
+
+        // Validate cumulative amount against account balance
+        if (currentBalance < totalRequired) {
+          const itemDetails = itemsForAccount
+            .map(
+              ({ item }) => `"${item.title}" ($${item.itemAmount.toFixed(2)})`
+            )
+            .join(", ");
+
           throw new Error(
-            `Insufficient funds in account '${payingAccount.name}' for item '${item.title}'. Available: ${payingAccount.currentBalance}, Required: ${item.itemAmount}`
+            `Insufficient funds in account "${payingAccount.name}". ` +
+              `Available: $${currentBalance.toFixed(2)}, ` +
+              `Required for items [${itemDetails}]: $${totalRequired.toFixed(
+                2
+              )}, ` +
+              `Shortfall: $${(totalRequired - currentBalance).toFixed(2)}`
           );
         }
 
-        return { item, payingAccount };
-      });
+        accountValidationMap.set(accountId, {
+          payingAccount,
+          totalRequired,
+          items: itemsForAccount,
+        });
+      }
 
-      const validatedAccountsForItems = await Promise.all(
-        accountValidationPromises
-      );
-
-      // 2. Check if reference number is unique
+      // 3. Check if reference number is unique
       const existingExpenseWithRef = await tx
         .select({ id: expensesTable.id })
         .from(expensesTable)
         .where(eq(expensesTable.referenceNumber, values.referenceNumber));
+
       if (existingExpenseWithRef.length > 0) {
         throw new Error(
           "Expense reference number already exists for an active expense report."
         );
       }
 
-      // 3. Validate all Line Item FKs and Accompanying Expense logic
+      // 4. Validate all Line Item FKs and Accompanying Expense logic
       const expenseItemValidationPromises = values.items.map(
         async (item: any) => {
           const [expenseCategory] = await tx
@@ -140,6 +191,7 @@ export const addExpense = async (userId: string, values: ExpenseFormValues) => {
                 eq(expenseCategoriesTable.isActive, true)
               )
             );
+
           if (!expenseCategory) {
             throw new Error(
               `Expense Category '${item.expenseCategoryId}' for item '${item.title}' not found or is inactive.`
@@ -152,6 +204,7 @@ export const addExpense = async (userId: string, values: ExpenseFormValues) => {
                 `Purchase ID and Accompanying Expense Type are required for accompanying expense item '${item.title}'.`
               );
             }
+
             const [purchase] = await tx
               .select({ id: purchasesTable.id })
               .from(purchasesTable)
@@ -161,11 +214,13 @@ export const addExpense = async (userId: string, values: ExpenseFormValues) => {
                   eq(purchasesTable.isActive, true)
                 )
               );
+
             if (!purchase) {
               throw new Error(
                 `Linked Purchase '${item.purchaseId}' for item '${item.title}' not found or is inactive.`
               );
             }
+
             const [accompanyingType] = await tx
               .select({ id: accompanyingExpenseTypesTable.id })
               .from(accompanyingExpenseTypesTable)
@@ -178,21 +233,24 @@ export const addExpense = async (userId: string, values: ExpenseFormValues) => {
                   eq(accompanyingExpenseTypesTable.isActive, true)
                 )
               );
+
             if (!accompanyingType) {
               throw new Error(
                 `Accompanying Expense Type '${item.accompanyingExpenseTypeId}' for item '${item.title}' not found or is inactive.`
               );
             }
           }
+
           return {
             ...item,
             expenseCategoryCoAId: expenseCategory.chartOfAccountsId,
           };
         }
       );
+
       const validatedItems = await Promise.all(expenseItemValidationPromises);
 
-      // 4. Create the Expense Header record
+      // 5. Create the Expense Header record
       const [newExpenseHeader] = await tx
         .insert(expensesTable)
         .values({
@@ -204,7 +262,7 @@ export const addExpense = async (userId: string, values: ExpenseFormValues) => {
         })
         .returning();
 
-      // 5. Create Expense Line Item records with paying account
+      // 6. Create Expense Line Item records
       const expenseItemsData = validatedItems.map((item) => ({
         expenseId: newExpenseHeader.id,
         title: item.title,
@@ -217,22 +275,27 @@ export const addExpense = async (userId: string, values: ExpenseFormValues) => {
         accompanyingExpenseTypeId: item.accompanyingExpenseTypeId || null,
         payingAccountId: item.payingAccountId,
       }));
+
       await tx.insert(expenseItemsTable).values(expenseItemsData);
 
-      // 6. Update each Paying Account balance
-      for (const { item, payingAccount } of validatedAccountsForItems) {
-        const updatedBalance =
-          parseFloat(payingAccount.currentBalance as any) - item.itemAmount;
+      // 7. Update each Paying Account balance ONCE per account with total deduction
+      for (const [
+        accountId,
+        { payingAccount, totalRequired },
+      ] of accountValidationMap.entries()) {
+        const currentBalance = parseFloat(payingAccount.currentBalance as any);
+        const updatedBalance = currentBalance - totalRequired;
+
         await tx
           .update(accountsTable)
           .set({
             currentBalance: updatedBalance,
             updatedAt: new Date(),
           })
-          .where(eq(accountsTable.id, payingAccount.id));
+          .where(eq(accountsTable.id, accountId));
       }
 
-      // 7. Create Journal Entries for double-entry accounting
+      // 8. Create Journal Entries for double-entry accounting
       const journalLines: Array<{
         chartOfAccountId: string;
         debit: number;
@@ -252,15 +315,20 @@ export const addExpense = async (userId: string, values: ExpenseFormValues) => {
         });
       });
 
-      // Credit each paying account for the amount it paid
-      for (const { item, payingAccount } of validatedAccountsForItems) {
+      // Credit each paying account ONCE with its total amount
+      for (const [
+        ,
+        { payingAccount, totalRequired, items },
+      ] of accountValidationMap.entries()) {
+        const itemTitles = items.map(({ item }) => item.title).join(", ");
+
         journalLines.push({
           chartOfAccountId:
             payingAccount.chartOfAccountsId ??
             throwError("Paying account CoA not found."),
           debit: 0,
-          credit: item.itemAmount,
-          memo: `Payment from ${payingAccount.name} for item '${item.title}' in expense report ${newExpenseHeader.referenceNumber}`,
+          credit: totalRequired,
+          memo: `Payment from ${payingAccount.name} for items [${itemTitles}] in expense report ${newExpenseHeader.referenceNumber}`,
         });
       }
 
@@ -274,7 +342,6 @@ export const addExpense = async (userId: string, values: ExpenseFormValues) => {
         lines: journalLines,
       });
 
-      revalidatePath("/expenses");
       revalidatePath("/accounting-and-finance/expenses");
 
       return newExpenseHeader;
@@ -632,10 +699,11 @@ export const updateExpense = async (
 ) => {
   try {
     const result = await db.transaction(async (tx) => {
-      // 1. Get current expense header and its line items with paying accounts
+      // Get current expense and line items
       const currentExpenseHeader = await tx.query.expensesTable.findFirst({
         where: eq(expensesTable.id, id),
       });
+
       if (!currentExpenseHeader) {
         throw new Error("Expense header not found.");
       }
@@ -656,7 +724,7 @@ export const updateExpense = async (
         currentLineItems.map((item) => item.expenseItem.id)
       );
 
-      // 2. Reference Number uniqueness check (excluding current expense)
+      // Reference Number uniqueness check
       if (
         values.referenceNumber &&
         values.referenceNumber !== currentExpenseHeader.referenceNumber
@@ -677,46 +745,12 @@ export const updateExpense = async (
         }
       }
 
-      // 3. Validate all paying accounts for new/updated items and their current balances
-      const validatedAccountsForItems: Array<{
-        item: ExpenseItemFormValues;
-        payingAccount: Pick<
-          Account,
-          "id" | "chartOfAccountsId" | "currentBalance" | "name"
-        >;
-      }> = [];
-
-      for (const item of values.items || []) {
-        const [payingAccount] = await tx
-          .select({
-            id: accountsTable.id,
-            chartOfAccountsId: accountsTable.chartOfAccountsId,
-            currentBalance: accountsTable.currentBalance,
-            name: accountsTable.name,
-          })
-          .from(accountsTable)
-          .where(
-            and(
-              eq(accountsTable.id, item.payingAccountId),
-              eq(accountsTable.isActive, true)
-            )
-          );
-
-        if (!payingAccount) {
-          throw new Error(
-            `Paying Account for item '${item.title}' not found or is inactive.`
-          );
-        }
-        validatedAccountsForItems.push({ item, payingAccount });
-      }
-
-      // 4. Process Expense Line Items (Create, Update, Delete)
+      // Categorize new items (create, update, delete)
       const lineItemsToCreate: ExpenseItemFormValues[] = [];
       const lineItemsToUpdate: ExpenseItemFormValues[] = [];
       const newLineItemIds = new Set<string>();
 
       const itemValidationPromises = (values.items || []).map(async (item) => {
-        // Validate Expense Category for the line item
         const [expenseCategory] = await tx
           .select({
             id: expenseCategoriesTable.id,
@@ -729,19 +763,20 @@ export const updateExpense = async (
               eq(expenseCategoriesTable.isActive, true)
             )
           );
+
         if (!expenseCategory) {
           throw new Error(
             `Expense Category '${item.expenseCategoryId}' for item '${item.title}' not found or is inactive.`
           );
         }
 
-        // Validate Accompanying Expense fields if applicable
         if (item.isAccompanyingExpense) {
           if (!item.purchaseId || !item.accompanyingExpenseTypeId) {
             throw new Error(
               `Purchase ID and Accompanying Expense Type are required for accompanying expense item '${item.title}'.`
             );
           }
+
           const [purchase] = await tx
             .select({ id: purchasesTable.id })
             .from(purchasesTable)
@@ -751,11 +786,13 @@ export const updateExpense = async (
                 eq(purchasesTable.isActive, true)
               )
             );
+
           if (!purchase) {
             throw new Error(
               `Linked Purchase '${item.purchaseId}' for item '${item.title}' not found or is inactive.`
             );
           }
+
           const [accompanyingType] = await tx
             .select({ id: accompanyingExpenseTypesTable.id })
             .from(accompanyingExpenseTypesTable)
@@ -768,6 +805,7 @@ export const updateExpense = async (
                 eq(accompanyingExpenseTypesTable.isActive, true)
               )
             );
+
           if (!accompanyingType) {
             throw new Error(
               `Accompanying Expense Type '${item.accompanyingExpenseTypeId}' for item '${item.title}' not found or is inactive.`
@@ -775,126 +813,216 @@ export const updateExpense = async (
           }
         }
 
-        // Distinguish between new items and existing items
         if (item.id && currentLineItemIds.has(item.id)) {
           lineItemsToUpdate.push(item);
           newLineItemIds.add(item.id);
         } else {
           lineItemsToCreate.push(item);
         }
+
         return {
           ...item,
           expenseCategoryCoAId: expenseCategory.chartOfAccountsId,
         };
       });
+
       const validatedItems = await Promise.all(itemValidationPromises);
 
-      // Identify items to delete (exist in DB but not in new form data)
       const lineItemsToDelete = currentLineItems.filter(
         (item) => !newLineItemIds.has(item.expenseItem.id)
       );
 
-      // 5. Adjust Paying Account Balances: Restore old, Deduct new
-      const accountBalancesToUpdate = new Map<string, number>(); // Map<accountId, netChange>
+      // Calculate NET balance changes per account
+      const accountBalanceChanges = new Map<
+        string,
+        {
+          netChange: number;
+          account: any;
+          operations: Array<{
+            type: string;
+            amount: number;
+            itemTitle: string;
+          }>;
+        }
+      >();
 
-      // Restore balances for deleted items
+      // Helper to update balance map
+      const updateBalanceMap = (
+        accountId: string,
+        amount: number,
+        operation: string,
+        itemTitle: string,
+        accountData?: any
+      ) => {
+        if (!accountBalanceChanges.has(accountId)) {
+          accountBalanceChanges.set(accountId, {
+            netChange: 0,
+            account: accountData,
+            operations: [],
+          });
+        }
+        const entry = accountBalanceChanges.get(accountId)!;
+        entry.netChange += amount;
+        entry.operations.push({ type: operation, amount, itemTitle });
+        if (accountData) {
+          entry.account = accountData;
+        }
+      };
+
+      // Process deleted items (RESTORE funds)
       for (const item of lineItemsToDelete) {
         if (item.payingAccount) {
-          const oldAmount = parseFloat(item.expenseItem.itemAmount as any);
-          accountBalancesToUpdate.set(
+          const amount = parseFloat(item.expenseItem.itemAmount as any);
+          updateBalanceMap(
             item.payingAccount.id,
-            (accountBalancesToUpdate.get(item.payingAccount.id) || 0) +
-              oldAmount
+            amount,
+            "DELETE",
+            item.expenseItem.title,
+            item.payingAccount
           );
         }
       }
 
-      // Process updated and created items
-      for (const { item, payingAccount } of validatedAccountsForItems) {
-        if (item.id && currentLineItemIds.has(item.id)) {
-          // Updated item
-          const oldItemWithAccount = currentLineItems.find(
-            (li) => li.expenseItem.id === item.id
-          );
-          if (oldItemWithAccount && oldItemWithAccount.payingAccount) {
-            const oldAmount = parseFloat(
-              oldItemWithAccount.expenseItem.itemAmount as any
-            );
-            const newAmount = item.itemAmount;
+      // Process updated items
+      for (const item of lineItemsToUpdate) {
+        const oldItem = currentLineItems.find(
+          (li) => li.expenseItem.id === item.id
+        );
 
-            // If paying account changed, restore from old and deduct from new
-            if (
-              item.payingAccountId !==
-              oldItemWithAccount.expenseItem.payingAccountId
-            ) {
-              // Restore to old account
-              accountBalancesToUpdate.set(
-                oldItemWithAccount.payingAccount.id,
-                (accountBalancesToUpdate.get(
-                  oldItemWithAccount.payingAccount.id
-                ) || 0) + oldAmount
-              );
-              // Deduct from new account
-              accountBalancesToUpdate.set(
-                payingAccount.id,
-                (accountBalancesToUpdate.get(payingAccount.id) || 0) - newAmount
-              );
-            } else {
-              // Same account, adjust for difference
-              const amountChange = newAmount - oldAmount;
-              accountBalancesToUpdate.set(
-                payingAccount.id,
-                (accountBalancesToUpdate.get(payingAccount.id) || 0) -
-                  amountChange
+        if (oldItem && oldItem.payingAccount) {
+          const oldAmount = parseFloat(oldItem.expenseItem.itemAmount as any);
+          const newAmount = item.itemAmount;
+          const oldAccountId = oldItem.expenseItem.payingAccountId;
+          const newAccountId = item.payingAccountId;
+
+          if (oldAccountId && newAccountId && oldAccountId !== newAccountId) {
+            updateBalanceMap(
+              oldAccountId,
+              oldAmount,
+              "UPDATE_RESTORE",
+              item.title,
+              oldItem.payingAccount
+            );
+
+            // Fetch new account
+            const [newAccount] = await tx
+              .select({
+                id: accountsTable.id,
+                chartOfAccountsId: accountsTable.chartOfAccountsId,
+                currentBalance: accountsTable.currentBalance,
+                name: accountsTable.name,
+              })
+              .from(accountsTable)
+              .where(eq(accountsTable.id, newAccountId));
+
+            if (!newAccount) {
+              throw new Error(
+                `New paying account for item '${item.title}' not found.`
               );
             }
+
+            updateBalanceMap(
+              newAccountId,
+              -newAmount,
+              "UPDATE_DEDUCT",
+              item.title,
+              newAccount
+            );
+          } else if (oldAccountId) {
+            const difference = newAmount - oldAmount;
+            updateBalanceMap(
+              oldAccountId,
+              -difference,
+              "UPDATE_ADJUST",
+              item.title,
+              oldItem.payingAccount
+            );
           }
-        } else {
-          // Newly created item: deduct from its paying account
-          accountBalancesToUpdate.set(
-            payingAccount.id,
-            (accountBalancesToUpdate.get(payingAccount.id) || 0) -
-              item.itemAmount
-          );
         }
       }
 
-      // Apply balance updates
-      for (const [accountId, netChange] of accountBalancesToUpdate.entries()) {
+      // Process new items (DEDUCT funds)
+      for (const item of lineItemsToCreate) {
         const [account] = await tx
           .select({
             id: accountsTable.id,
+            chartOfAccountsId: accountsTable.chartOfAccountsId,
             currentBalance: accountsTable.currentBalance,
             name: accountsTable.name,
           })
           .from(accountsTable)
-          .where(eq(accountsTable.id, accountId));
+          .where(eq(accountsTable.id, item.payingAccountId));
 
         if (!account) {
           throw new Error(
-            `Account ${accountId} not found for balance adjustment.`
+            `Paying account for new item '${item.title}' not found.`
           );
         }
 
-        const updatedBalance =
-          parseFloat(account.currentBalance as any) + netChange;
-        if (updatedBalance < 0) {
+        updateBalanceMap(
+          item.payingAccountId,
+          -item.itemAmount,
+          "CREATE",
+          item.title,
+          account
+        );
+      }
+
+      // Validate and apply balance changes
+      for (const [
+        accountId,
+        { netChange, operations },
+      ] of accountBalanceChanges.entries()) {
+        let account = accountBalanceChanges.get(accountId)?.account;
+
+        if (!account) {
+          const [fetchedAccount] = await tx
+            .select({
+              id: accountsTable.id,
+              currentBalance: accountsTable.currentBalance,
+              name: accountsTable.name,
+            })
+            .from(accountsTable)
+            .where(eq(accountsTable.id, accountId));
+
+          if (!fetchedAccount) {
+            throw new Error(`Account ${accountId} not found.`);
+          }
+          account = fetchedAccount;
+        }
+
+        const currentBalance = parseFloat(account.currentBalance as any);
+        const newBalance = currentBalance + netChange;
+
+        if (newBalance < 0) {
+          const operationDetails = operations
+            .map(
+              (op) =>
+                `${op.type}: "${op.itemTitle}" ($${Math.abs(op.amount).toFixed(
+                  2
+                )})`
+            )
+            .join(", ");
+
           throw new Error(
-            `Insufficient funds in account '${account.name}' for this update.`
+            `Insufficient funds in account "${account.name}". ` +
+              `Current: $${currentBalance.toFixed(2)}, ` +
+              `Net change: $${netChange.toFixed(2)}, ` +
+              `Would result in: $${newBalance.toFixed(2)}. ` +
+              `Operations: [${operationDetails}]`
           );
         }
 
         await tx
           .update(accountsTable)
           .set({
-            currentBalance: updatedBalance,
+            currentBalance: newBalance,
             updatedAt: new Date(),
           })
           .where(eq(accountsTable.id, accountId));
       }
 
-      // 6. Execute Line Item CUD Operations
-      // Delete old line items
+      // Execute Line Item CUD Operations
       if (lineItemsToDelete.length > 0) {
         await tx.delete(expenseItemsTable).where(
           inArray(
@@ -904,7 +1032,6 @@ export const updateExpense = async (
         );
       }
 
-      // Update existing line items
       await Promise.all(
         lineItemsToUpdate.map((item) =>
           tx
@@ -918,14 +1045,13 @@ export const updateExpense = async (
               isAccompanyingExpense: item.isAccompanyingExpense,
               purchaseId: item.purchaseId || null,
               accompanyingExpenseTypeId: item.accompanyingExpenseTypeId || null,
-              payingAccountId: item.payingAccountId, // Added payingAccountId update
+              payingAccountId: item.payingAccountId,
               updatedAt: new Date(),
             })
             .where(eq(expenseItemsTable.id, item.id!))
         )
       );
 
-      // Insert new line items
       if (lineItemsToCreate.length > 0) {
         const insertData = lineItemsToCreate.map((item) => ({
           expenseId: id,
@@ -942,7 +1068,7 @@ export const updateExpense = async (
         await tx.insert(expenseItemsTable).values(insertData);
       }
 
-      // 7. Update the Expense Header record (total amount based on new items)
+      // Update Expense Header
       const updatedTotalAmount = validatedItems.reduce(
         (sum, item) => sum + item.itemAmount,
         0
@@ -953,7 +1079,6 @@ export const updateExpense = async (
         .set({
           amount: updatedTotalAmount,
           expenseDate: values.expenseDate,
-          // Removed payingAccountId from here
           referenceNumber: values.referenceNumber,
           notes: values.notes || null,
           attachments: values.attachments,
@@ -966,7 +1091,7 @@ export const updateExpense = async (
         throw new Error("Expense header not found or could not be updated.");
       }
 
-      // 8. Create Adjustment Journal Entry (reversal of old, application of new)
+      // Create Adjustment Journal Entry
       const journalLines: Array<{
         chartOfAccountId: string;
         debit: number;
@@ -976,7 +1101,6 @@ export const updateExpense = async (
 
       // Reversal of old entries
       for (const item of currentLineItems) {
-        // Credit old expense categories
         const itemCategoryCoAId =
           (await tx
             .select({
@@ -990,6 +1114,7 @@ export const updateExpense = async (
           throwError(
             `CoA not found for old category ${item.expenseItem.expenseCategoryId}`
           );
+
         journalLines.push({
           chartOfAccountId: itemCategoryCoAId,
           debit: 0,
@@ -997,7 +1122,6 @@ export const updateExpense = async (
           memo: `Reversal: reduce expense for old item ${item.expenseItem.title}`,
         });
 
-        // Debit old paying accounts
         if (item.payingAccount) {
           journalLines.push({
             chartOfAccountId:
@@ -1005,14 +1129,13 @@ export const updateExpense = async (
               throwError("Old paying account CoA not found."),
             debit: parseFloat(item.expenseItem.itemAmount as any),
             credit: 0,
-            memo: `Reversal: restore funds to ${item.payingAccount.name} for old item ${item.expenseItem.title} in expense report ${currentExpenseHeader.referenceNumber}`,
+            memo: `Reversal: restore funds to ${item.payingAccount.name} for old item ${item.expenseItem.title}`,
           });
         }
       }
 
       // New entries
       for (const item of validatedItems) {
-        // Debit new expense categories
         journalLines.push({
           chartOfAccountId:
             item.expenseCategoryCoAId ??
@@ -1024,21 +1147,17 @@ export const updateExpense = async (
           memo: `New: record expense for item ${item.title}`,
         });
 
-        // Credit new paying accounts
-        const payingAccount = validatedAccountsForItems.find(
-          (va) =>
-            va.item.id === item.id ||
-            (va.item.title === item.title && !va.item.id) // For new items, match by title
-        )?.payingAccount;
-
-        if (payingAccount) {
+        const account = accountBalanceChanges.get(
+          item.payingAccountId
+        )?.account;
+        if (account) {
           journalLines.push({
             chartOfAccountId:
-              payingAccount.chartOfAccountsId ??
+              account.chartOfAccountsId ??
               throwError("New paying account CoA not found."),
             debit: 0,
             credit: item.itemAmount,
-            memo: `New: payment from ${payingAccount.name} for item '${item.title}' in expense report ${updatedExpenseHeader.referenceNumber}`,
+            memo: `New: payment from ${account.name} for item '${item.title}'`,
           });
         }
       }
@@ -1053,18 +1172,20 @@ export const updateExpense = async (
         lines: journalLines,
       });
 
+      revalidatePath("/expenses");
+      revalidatePath("/accounting-and-finance/expenses");
+      revalidatePath(`/accounting-and-finance/expenses/edit/${id}`);
+
       return updatedExpenseHeader;
     });
 
-    revalidatePath("/expenses");
-    revalidatePath("/accounting-and-finance/expenses");
-    revalidatePath(`/accounting-and-finance/expenses/edit/${id}`);
     return parseStringify(result);
   } catch (error: any) {
     console.error("Error updating expense report:", error);
     throw new Error(error.message || "Failed to update expense report.");
   }
 };
+
 // --- Soft delete an Expense (to handle multiple line items) ---
 export const softDeleteExpense = async (id: string, userId: string) => {
   try {
@@ -1073,7 +1194,7 @@ export const softDeleteExpense = async (id: string, userId: string) => {
         .select({
           id: expensesTable.id,
           referenceNumber: expensesTable.referenceNumber,
-          amount: expensesTable.amount, // Still keeping total amount on header for quick access
+          amount: expensesTable.amount,
         })
         .from(expensesTable)
         .where(eq(expensesTable.id, id))
@@ -1100,42 +1221,85 @@ export const softDeleteExpense = async (id: string, userId: string) => {
         )
         .where(eq(expenseItemsTable.expenseId, id));
 
-      // 1. Restore amounts to the respective paying accounts for each line item
+      // 1. Group items by paying account and calculate total restoration per account
+      const accountRestorationMap = new Map<
+        string,
+        {
+          account: any;
+          totalToRestore: number;
+          items: Array<{ title: string; amount: number }>;
+        }
+      >();
+
       for (const itemWithAccount of currentLineItemsWithAccounts) {
         const item = itemWithAccount.expenseItem;
         const payingAccount = itemWithAccount.payingAccount;
 
         if (!payingAccount) {
           console.warn(
-            `Paying account not found for expense item ${item.id}. Data inconsistency.`
+            `Paying account not found for expense item ${item.id}. Skipping balance restoration.`
           );
-          continue; // Skip this item but continue with others
+          continue;
         }
 
-        const restoredBalance =
-          parseFloat(payingAccount.currentBalance as any) +
-          parseFloat(item.itemAmount as any);
+        const accountId = payingAccount.id;
+        const itemAmount = parseFloat(item.itemAmount as any);
+
+        if (!accountRestorationMap.has(accountId)) {
+          accountRestorationMap.set(accountId, {
+            account: payingAccount,
+            totalToRestore: 0,
+            items: [],
+          });
+        }
+
+        const restoration = accountRestorationMap.get(accountId)!;
+        restoration.totalToRestore += itemAmount;
+        restoration.items.push({
+          title: item.title,
+          amount: itemAmount,
+        });
+      }
+
+      // 2. Restore balances (ONCE per account with cumulative total)
+      for (const [
+        accountId,
+        { account, totalToRestore, items },
+      ] of accountRestorationMap.entries()) {
+        const currentBalance = parseFloat(account.currentBalance as any);
+        const restoredBalance = currentBalance + totalToRestore;
+
         await tx
           .update(accountsTable)
           .set({
             currentBalance: restoredBalance,
             updatedAt: new Date(),
           })
-          .where(eq(accountsTable.id, payingAccount.id));
+          .where(eq(accountsTable.id, accountId));
+
+        console.log(
+          `Restored $${totalToRestore.toFixed(2)} to account "${
+            account.name
+          }" ` +
+            `(${items.length} items). New balance: $${restoredBalance.toFixed(
+              2
+            )}`
+        );
       }
 
-      // 2. Deactivate the expense header and its line items
+      // 3. Soft delete expense items and header
       await tx
         .update(expenseItemsTable)
         .set({ isActive: false, updatedAt: new Date() })
         .where(eq(expenseItemsTable.expenseId, id));
+
       const [updatedExpenseHeader] = await tx
         .update(expensesTable)
         .set({ isActive: false, updatedAt: new Date() })
         .where(eq(expensesTable.id, id))
         .returning();
 
-      // 3. Create a reversal journal entry
+      // 4. Create reversal journal entry (consolidated by account)
       const journalLines: Array<{
         chartOfAccountId: string;
         debit: number;
@@ -1143,26 +1307,36 @@ export const softDeleteExpense = async (id: string, userId: string) => {
         memo?: string;
       }> = [];
 
-      for (const itemWithAccount of currentLineItemsWithAccounts) {
-        const item = itemWithAccount.expenseItem;
-        const payingAccount = itemWithAccount.payingAccount;
-        const expenseCategory = itemWithAccount.expenseCategory;
-
-        // Debit paying account (restore funds for this item)
-        if (payingAccount?.chartOfAccountsId) {
-          journalLines.push({
-            chartOfAccountId: payingAccount.chartOfAccountsId,
-            debit: parseFloat(item.itemAmount as any),
-            credit: 0,
-            memo: `Reversal: funds restored to ${payingAccount.name} for item '${item.title}' in expense report ${currentExpenseHeader.referenceNumber}`,
-          });
-        } else {
+      // Group journal entries by account to avoid duplicates
+      for (const [
+        accountId,
+        { account, totalToRestore, items },
+      ] of accountRestorationMap.entries()) {
+        if (!account.chartOfAccountsId) {
           console.warn(
-            `Paying account CoA not found for item ${item.id} during reversal JE.`
+            `Chart of Accounts ID not found for account ${accountId}. Skipping journal entry.`
           );
+          continue;
         }
 
-        // Credit each individual expense category (reduce expenses for this item)
+        const itemTitles = items.map((i) => i.title).join(", ");
+
+        // Debit paying account (restore funds) - ONE entry per account
+        journalLines.push({
+          chartOfAccountId: account.chartOfAccountsId,
+          debit: totalToRestore,
+          credit: 0,
+          memo: `Reversal: funds restored to ${
+            account.name
+          } for items [${itemTitles}] (Total: $${totalToRestore.toFixed(2)})`,
+        });
+      }
+
+      // Credit each expense category individually
+      for (const itemWithAccount of currentLineItemsWithAccounts) {
+        const item = itemWithAccount.expenseItem;
+        const expenseCategory = itemWithAccount.expenseCategory;
+
         if (expenseCategory?.chartOfAccountsId) {
           journalLines.push({
             chartOfAccountId: expenseCategory.chartOfAccountsId,
@@ -1187,11 +1361,11 @@ export const softDeleteExpense = async (id: string, userId: string) => {
         lines: journalLines,
       });
 
+      revalidatePath("/accounting-and-finance/expenses");
+
       return updatedExpenseHeader;
     });
 
-    revalidatePath("/expenses");
-    revalidatePath("/accounting-and-finance/expenses");
     return parseStringify(result);
   } catch (error: any) {
     console.error("Error soft deleting expense report:", error);
