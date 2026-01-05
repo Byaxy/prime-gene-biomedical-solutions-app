@@ -65,25 +65,6 @@ const VendorDialog = ({
           "sm:max-w-3xl bg-light-200",
           mode === "edit" && "sm:max-w-5xl"
         )}
-        onClick={(e) => e.stopPropagation()}
-        onPointerDown={(e) => e.stopPropagation()}
-        onInteractOutside={(e) => {
-          if (e.target instanceof Element) {
-            if (
-              e.target.closest('[role="listbox"]') ||
-              e.target.closest("[data-radix-select-viewport]") ||
-              e.target.closest("[data-radix-popper-content]")
-            ) {
-              e.preventDefault();
-              return;
-            }
-          }
-
-          const event = e.detail.originalEvent;
-          if (event instanceof PointerEvent) {
-            event.stopPropagation();
-          }
-        }}
       >
         <DialogHeader className="space-y-2">
           <DialogTitle className="text-xl text-blue-800">
