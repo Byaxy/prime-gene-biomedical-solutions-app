@@ -239,8 +239,6 @@ export const payBill = async (
         })
       );
 
-      // Validate purchases to pay and calculate total purchases amount paid
-      let totalPurchasesAmountPaid = 0;
       const accountsPayableCoA =
         (await tx
           .select({ id: chartOfAccountsTable.id })
@@ -253,6 +251,10 @@ export const payBill = async (
           )
           .then((res) => res[0]?.id)) ||
         throwError("Default 'Accounts Payable' Chart of Account not found.");
+
+      // Validate purchases to pay and calculate total purchases amount paid
+      const round = (num: number) => Math.round(num * 100) / 100;
+      let totalPurchasesAmountPaid = 0;
 
       await Promise.all(
         parsedValues.data.purchasesToPay.map(async (item) => {
@@ -286,7 +288,9 @@ export const payBill = async (
               }' exceeds outstanding amount (${outstandingAmount.toFixed(2)}).`
             );
           }
-          totalPurchasesAmountPaid += item.amountToPay;
+          totalPurchasesAmountPaid = round(
+            totalPurchasesAmountPaid + item.amountToPay
+          );
         })
       );
 
@@ -483,7 +487,7 @@ export const payBill = async (
       // Credit cash/bank accounts for the amounts paid
       payingAccountDetails.forEach((acc) => {
         journalLines.push({
-          chartOfAccountId: acc.chartOfAccountsId ?? "", // Ensure CoA ID is not null
+          chartOfAccountId: acc.chartOfAccountsId ?? "",
           debit: 0,
           credit: acc.amountToDeduct,
           memo: `Payment from ${acc.name} for bill ${newBillPayment.billReferenceNo}`,
@@ -501,7 +505,7 @@ export const payBill = async (
         entryDate: newBillPayment.paymentDate,
         referenceType: JournalEntryReferenceType.BILL_PAYMENT,
         referenceId: newBillPayment.id,
-        userId, // userId passed to createJournalEntry
+        userId,
         description: `Bill Payment to Vendor ${vendor.name} (Ref: ${newBillPayment.billReferenceNo})`,
         lines: journalLines,
       });
@@ -531,7 +535,6 @@ export const getBillTrackerData = async (
   limit: number = 10,
   filters?: BillTrackerFilters
 ) => {
-  // Removed getAllBills as it's handled by limit/page = 0
   try {
     const result = await db.transaction(async (tx) => {
       // Base query for filtering and aggregation.
@@ -539,15 +542,11 @@ export const getBillTrackerData = async (
         .select({
           purchase: purchasesTable,
           vendor: vendorsTable,
-          // Aggregate total amount paid towards this specific purchase
           totalPaidOnPurchase:
             sql<number>`COALESCE(SUM(${billPaymentItemsTable.amountApplied}), 0)`.as(
-              // COALESCE for 0 if no matching items
               "total_paid_on_purchase"
             ),
-          // Get the ID and reference number of the LATEST bill payment for this purchase
-          // This requires a lateral join or correlated subquery for robust "latest" logic.
-          // Using a correlated subquery for now.
+
           latestBillPaymentInfo: sql<{
             id: string | null;
             ref: string | null;
@@ -559,7 +558,7 @@ export const getBillTrackerData = async (
               FROM ${billPaymentsTable} bp
               JOIN ${billPaymentItemsTable} bpi_latest ON bp.id = bpi_latest.bill_payment_id
               WHERE bpi_latest.purchase_id = ${purchasesTable.id}
-              AND bp.is_active = TRUE -- Only consider active bill payments
+              AND bp.is_active = TRUE
               ORDER BY bp.created_at DESC
               LIMIT 1
           )`.as("latest_bill_payment_info"),
@@ -983,9 +982,8 @@ export const updateBillPayment = async (
               newAmountPaid <= 0.001 &&
               parseFloat(purchase.totalAmount as any) > 0
             )
-              newPaymentStatus = PaymentStatus.Pending; // If purchase has total > 0 but paid is now ~0
+              newPaymentStatus = PaymentStatus.Pending;
             if (parseFloat(purchase.totalAmount as any) <= 0.001)
-              // If purchase total was 0, it's paid
               newPaymentStatus = PaymentStatus.Paid;
 
             await tx

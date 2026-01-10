@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { EllipsisVertical, Eye, Wallet } from "lucide-react";
-import { BillTrackerData } from "@/types";
+import { BillTrackerData, PaymentStatus } from "@/types";
 import BillPaymentDialog from "./BillPaymentDialog";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -71,6 +71,14 @@ const BillPaymentActions: React.FC<BillPaymentActionsProps> = ({
         <DropdownMenuContent className="w-72 bg-white py-4 px-2" align="end">
           {hasPaymentRecord ? (
             <>
+              {billTrackerData.paymentStatus === PaymentStatus.Partial && (
+                <DropdownMenuItem
+                  onClick={handlePayBill}
+                  className="text-blue-800 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
+                >
+                  <Wallet className="mr-2 h-4 w-4" /> Record Payment
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 onClick={handleView}
                 className="text-green-500 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
@@ -93,7 +101,7 @@ const BillPaymentActions: React.FC<BillPaymentActionsProps> = ({
           ) : (
             <DropdownMenuItem
               onClick={handlePayBill}
-              className="flex items-center cursor-pointer"
+              className="text-blue-800 p-2 flex items-center gap-2 hover:bg-light-200 hover:rounded-md cursor-pointer"
             >
               <Wallet className="mr-2 h-4 w-4" /> Record Payment
             </DropdownMenuItem>

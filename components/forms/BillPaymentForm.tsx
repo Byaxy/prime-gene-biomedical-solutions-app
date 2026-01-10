@@ -171,30 +171,37 @@ export const BillPaymentForm: React.FC<BillPaymentFormProps> = ({
 
   // --- Total Calculations ---
   const calculateTotalPurchasesPaid = useCallback(() => {
-    return watchedPurchasesToPay.reduce(
+    const sum = watchedPurchasesToPay.reduce(
       (sum, item) => sum + (item.amountToPay || 0),
       0
     );
+    return Math.round(sum * 100) / 100;
   }, [watchedPurchasesToPay]);
 
   const calculateTotalAccompanyingExpenses = useCallback(() => {
-    return (
+    const sum =
       watchedAccompanyingExpenses?.reduce(
         (sum, exp) => sum + (exp.amount || 0),
         0
-      ) || 0
-    );
+      ) || 0;
+    return Math.round(sum * 100) / 100;
   }, [watchedAccompanyingExpenses]);
 
   const calculateTotalPaidFromAccounts = useCallback(() => {
-    return watchedPayingAccounts.reduce(
+    const sum = watchedPayingAccounts.reduce(
       (sum, acc) => sum + (acc.amountPaidFromAccount || 0),
       0
     );
+    return Math.round(sum * 100) / 100;
   }, [watchedPayingAccounts]);
 
   const calculateGrandTotal = useCallback(() => {
-    return calculateTotalPurchasesPaid() + calculateTotalAccompanyingExpenses();
+    return (
+      Math.round(
+        (calculateTotalPurchasesPaid() + calculateTotalAccompanyingExpenses()) *
+          100
+      ) / 100
+    );
   }, [calculateTotalPurchasesPaid, calculateTotalAccompanyingExpenses]);
 
   const getAccountBalance = useCallback(
@@ -219,8 +226,8 @@ export const BillPaymentForm: React.FC<BillPaymentFormProps> = ({
 
   // Update form totals
   useEffect(() => {
-    const currentGrandTotal = calculateGrandTotal();
     const currentAccompanyingTotal = calculateTotalAccompanyingExpenses();
+    const currentGrandTotal = calculateGrandTotal();
 
     if (form.getValues("totalPaymentAmount") !== currentGrandTotal) {
       form.setValue("totalPaymentAmount", currentGrandTotal, {
@@ -238,8 +245,9 @@ export const BillPaymentForm: React.FC<BillPaymentFormProps> = ({
     watchedPurchasesToPay,
     watchedAccompanyingExpenses,
     form,
-    calculateGrandTotal,
+    calculateTotalPurchasesPaid,
     calculateTotalAccompanyingExpenses,
+    calculateGrandTotal,
   ]);
 
   const handleCancel = () => {
@@ -389,9 +397,6 @@ export const BillPaymentForm: React.FC<BillPaymentFormProps> = ({
       const dataWithAttachments = {
         ...values,
         attachments: allAttachments,
-        // The server action will re-validate and use server-side balances/totals,
-        // so `totalPaymentAmount` and `totalAccompanyingExpenses` from client are not authoritative
-        // but included for type consistency.
       };
 
       if (!user?.id) {
@@ -683,7 +688,9 @@ export const BillPaymentForm: React.FC<BillPaymentFormProps> = ({
                     Total Amount for Purchases:
                   </TableCell>
                   <TableCell className="pt-4">
-                    <FormatNumber value={calculateTotalPurchasesPaid()} />
+                    <FormatNumber
+                      value={calculateTotalPurchasesPaid().toFixed(2)}
+                    />
                   </TableCell>
                   <TableCell></TableCell>
                 </TableRow>
@@ -969,10 +976,12 @@ export const BillPaymentForm: React.FC<BillPaymentFormProps> = ({
                   </TableCell>
                   <TableCell className="pt-4">
                     <FormatNumber
-                      value={watchedPayingAccounts.reduce(
-                        (sum, acc) => sum + (acc.amountPaidFromAccount || 0),
-                        0
-                      )}
+                      value={watchedPayingAccounts
+                        .reduce(
+                          (sum, acc) => sum + (acc.amountPaidFromAccount || 0),
+                          0
+                        )
+                        .toFixed(2)}
                     />
                   </TableCell>
                   <TableCell></TableCell>
@@ -998,7 +1007,9 @@ export const BillPaymentForm: React.FC<BillPaymentFormProps> = ({
                 Total Purchased Amount:
               </span>
               <span className="font-semibold text-blue-800">
-                <FormatNumber value={calculateTotalPurchasesPaid()} />
+                <FormatNumber
+                  value={calculateTotalPurchasesPaid().toFixed(2)}
+                />
               </span>
             </div>
             <div className="flex justify-between items-center py-2 border-b border-blue-200">
@@ -1006,7 +1017,9 @@ export const BillPaymentForm: React.FC<BillPaymentFormProps> = ({
                 Total Expense Amount:
               </span>
               <span className="font-semibold text-blue-800">
-                <FormatNumber value={calculateTotalAccompanyingExpenses()} />
+                <FormatNumber
+                  value={calculateTotalAccompanyingExpenses().toFixed(2)}
+                />
               </span>
             </div>
             <div className="flex justify-between items-center py-3 bg-blue-800 text-white px-4 rounded-md">
@@ -1014,7 +1027,7 @@ export const BillPaymentForm: React.FC<BillPaymentFormProps> = ({
                 Total Cost of Purchase (Grand Total):
               </span>
               <span className="text-lg font-bold">
-                <FormatNumber value={calculateGrandTotal()} />
+                <FormatNumber value={calculateGrandTotal().toFixed(2)} />
               </span>
             </div>
 
@@ -1026,11 +1039,13 @@ export const BillPaymentForm: React.FC<BillPaymentFormProps> = ({
                 <span
                   className={`text-lg font-semibold ${
                     calculateTotalPaidFromAccounts() === calculateGrandTotal()
-                      ? "text-green-600"
+                      ? "text-green-500"
                       : "text-red-600"
                   }`}
                 >
-                  <FormatNumber value={calculateTotalPaidFromAccounts()} />
+                  <FormatNumber
+                    value={calculateTotalPaidFromAccounts().toFixed(2)}
+                  />
                 </span>
               </div>
               {calculateTotalPaidFromAccounts() !== calculateGrandTotal() && (

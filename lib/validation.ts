@@ -1894,25 +1894,35 @@ export const BillPaymentFormValidation = z
       .min(0, "Total accompanying expenses cannot be negative"),
   })
   .superRefine((data, ctx) => {
-    // Validate that total amount paid from accounts matches total purchases to pay + accompanying expenses
-    const calculatedTotalPaidFromAccounts = data.payingAccounts.reduce(
-      (sum, acc) => sum + acc.amountPaidFromAccount,
-      0
-    );
-    const calculatedTotalPurchasesPaid = data.purchasesToPay.reduce(
-      (sum, item) => sum + item.amountToPay,
-      0
-    );
-    const calculatedTotalAccompanyingExpenses = data.accompanyingExpenses
-      ? data.accompanyingExpenses.reduce((sum, exp) => sum + exp.amount, 0)
-      : 0;
+    const round = (num: number) => Math.round(num * 100) / 100;
 
-    const expectedTotalPayment =
-      calculatedTotalPurchasesPaid + calculatedTotalAccompanyingExpenses;
+    const calculatedTotalPaidFromAccounts = round(
+      data.payingAccounts.reduce(
+        (sum, acc) => sum + acc.amountPaidFromAccount,
+        0
+      )
+    );
 
-    if (
-      Math.abs(calculatedTotalPaidFromAccounts - expectedTotalPayment) > 0.001
-    ) {
+    const calculatedTotalPurchasesPaid = round(
+      data.purchasesToPay.reduce(
+        (sum, item) => sum + (item.amountToPay || 0),
+        0
+      )
+    );
+    const calculatedTotalAccompanyingExpenses = round(
+      data.accompanyingExpenses
+        ? data.accompanyingExpenses.reduce(
+            (sum, exp) => sum + (exp.amount || 0),
+            0
+          )
+        : 0
+    );
+
+    const expectedTotalPayment = round(
+      calculatedTotalPurchasesPaid + calculatedTotalAccompanyingExpenses
+    );
+
+    if (calculatedTotalPaidFromAccounts !== expectedTotalPayment) {
       // Small epsilon for floating point comparison
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -1936,23 +1946,6 @@ export const BillPaymentFormValidation = z
         code: z.ZodIssueCode.custom,
         message: "Duplicate paying accounts are not allowed.",
         path: ["payingAccounts"],
-      });
-    }
-
-    // Validate that 'totalPaymentAmount' reflects the sum of all outflows for display/summary
-    if (
-      Math.abs(data.totalPaymentAmount - expectedTotalPayment) > 0.001 &&
-      data.totalPaymentAmount !== 0
-    ) {
-      // Allow 0 for initial state if needed, otherwise enforce match
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `Displayed total payment amount (${data.totalPaymentAmount.toFixed(
-          2
-        )}) does not match calculated total outflow (${expectedTotalPayment.toFixed(
-          2
-        )}).`,
-        path: ["totalPaymentAmount"],
       });
     }
   });
