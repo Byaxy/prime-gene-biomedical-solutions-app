@@ -199,7 +199,7 @@ const ReceiptPDF = ({
       "₵": "GHS",
     };
 
-    return currencyMap[currencySymbol] || "USD";
+    return currencyMap[currencySymbol];
   };
 
   const currencyCode = getCurrencyCode(currencySymbol);
