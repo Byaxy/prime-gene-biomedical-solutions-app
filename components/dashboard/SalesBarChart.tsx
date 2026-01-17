@@ -69,7 +69,7 @@ const formatYAxis = (value: number): string => {
 export function getSalesChartData(
   sales: SaleWithRelations[] | null,
   createdAfter: Date | null = null,
-  createdBefore: Date | null = new Date()
+  createdBefore: Date | null = new Date(),
 ): ChartDataPoint[] {
   if (!sales || sales.length === 0) return [];
 
@@ -142,13 +142,13 @@ const SalesBarChart = ({
   const salesTotalAmount = chartData
     ? chartData.reduce(
         (sum: number, value: ChartDataPoint) => (sum += value.totalAmount),
-        0
+        0,
       )
     : 0;
 
   const formattedTotal = formatCurrency(
     String(salesTotalAmount),
-    currencySymbol
+    currencySymbol,
   );
 
   const setRange = (range: keyof typeof RANGE_OPTIONS | DateRange) => {
@@ -177,7 +177,9 @@ const SalesBarChart = ({
           <div className="flex flex-col gap-4 md:flex-row justify-between items-start pb-4">
             <div className="flex flex-col gap-2">
               <p className="text-lg text-dark-600 text-nowrap">Total Revenue</p>
-              <h2 className="text-xl font-semibold">{formattedTotal}</h2>
+              <h2 className="text-xl font-semibold text-nowrap">
+                {formattedTotal}
+              </h2>
             </div>
             <div className="w-full flex flex-col sm:flex-row items-start sm:items-center sm:justify-end gap-4">
               <div className="flex flex-row gap-3 items-center">

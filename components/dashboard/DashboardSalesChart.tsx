@@ -25,7 +25,7 @@ const DashboardSalesChart = ({
     getSalesChartData(
       sales,
       totalSalesRangeOptions.startDate,
-      totalSalesRangeOptions.endDate
+      totalSalesRangeOptions.endDate,
     );
   return (
     <SalesBarChart

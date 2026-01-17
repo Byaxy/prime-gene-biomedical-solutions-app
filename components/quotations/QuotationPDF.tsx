@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
   summary: {
     marginTop: 10,
     alignSelf: "flex-end",
-    width: "35%",
+    width: "40%",
   },
   summaryRow: {
     flexDirection: "row",
@@ -366,7 +366,7 @@ const QuotationPDF = ({
               <Text>
                 {formatCurrency(
                   String(quot.subTotal.toFixed(2)),
-                  currencySymbol
+                  currencySymbol,
                 )}
               </Text>
             </View>
@@ -375,7 +375,7 @@ const QuotationPDF = ({
               <Text>
                 {formatCurrency(
                   String(quot.discountAmount.toFixed(2)),
-                  currencySymbol
+                  currencySymbol,
                 )}
               </Text>
             </View>
@@ -384,7 +384,7 @@ const QuotationPDF = ({
               <Text>
                 {formatCurrency(
                   String(quot.totalTaxAmount.toFixed(2)),
-                  currencySymbol
+                  currencySymbol,
                 )}
               </Text>
             </View>
@@ -396,7 +396,7 @@ const QuotationPDF = ({
                 <Text>
                   {formatCurrency(
                     String(quot.totalAmount.toFixed(2)),
-                    currencySymbol
+                    currencySymbol,
                   )}
                 </Text>
               </View>

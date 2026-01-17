@@ -40,27 +40,33 @@ const SalesOverview = ({ sales }: SalesOverviewProps) => {
 
     const totalRevenue = sales.reduce(
       (sum, sale) => sum + sale.sale.totalAmount,
-      0
+      0,
     );
     const totalPaid = sales.reduce(
       (sum, sale) => sum + sale.sale.amountPaid,
-      0
+      0,
     );
     const outstandingBalance = totalRevenue - totalPaid;
     const uniqueCustomers = new Set(
-      sales.map((sale) => sale.customer?.id).filter(Boolean)
+      sales.map((sale) => sale.customer?.id).filter(Boolean),
     ).size;
     const averageOrderValue = totalRevenue / sales.length;
 
-    const statusCounts = sales.reduce((acc, sale) => {
-      acc[sale.sale.status] = (acc[sale.sale.status] || 0) + 1;
-      return acc;
-    }, {} as Record<SaleStatus, number>);
+    const statusCounts = sales.reduce(
+      (acc, sale) => {
+        acc[sale.sale.status] = (acc[sale.sale.status] || 0) + 1;
+        return acc;
+      },
+      {} as Record<SaleStatus, number>,
+    );
 
-    const paymentStatusCounts = sales.reduce((acc, sale) => {
-      acc[sale.sale.paymentStatus] = (acc[sale.sale.paymentStatus] || 0) + 1;
-      return acc;
-    }, {} as Record<PaymentStatus, number>);
+    const paymentStatusCounts = sales.reduce(
+      (acc, sale) => {
+        acc[sale.sale.paymentStatus] = (acc[sale.sale.paymentStatus] || 0) + 1;
+        return acc;
+      },
+      {} as Record<PaymentStatus, number>,
+    );
 
     return {
       totalRevenue,
@@ -95,7 +101,7 @@ const SalesOverview = ({ sales }: SalesOverviewProps) => {
   return (
     <div className="space-y-6 my-6">
       {/* Key Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         <StatCard
           title="Total Revenue"
           value={statistics.totalRevenue}

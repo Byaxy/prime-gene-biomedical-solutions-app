@@ -5,6 +5,7 @@ import { ShipmentWithRelations } from "@/types";
 import PDFHeader from "../pdf-template/PDFHeader";
 import PDFFooter from "../pdf-template/PDFFooter";
 import CompanyAddress from "../pdf-template/CompanyAddress";
+import { formatCurrency } from "@/lib/utils";
 
 interface Props {
   shipment: ShipmentWithRelations;
@@ -235,7 +236,7 @@ const ShipmentPDF = ({ shipment, companySettings }: Props) => {
                     {shipment.parcels
                       .reduce(
                         (sum, parcel) => sum + (parcel.volumetricWeight || 0),
-                        0
+                        0,
                       )
                       .toFixed(3)}{" "}
                     kg
@@ -272,7 +273,7 @@ const ShipmentPDF = ({ shipment, companySettings }: Props) => {
                     {shipment.parcels
                       .reduce(
                         (sum, parcel) => sum + (parcel.grossWeight || 0),
-                        0
+                        0,
                       )
                       .toFixed(3)}{" "}
                     kg
@@ -309,7 +310,7 @@ const ShipmentPDF = ({ shipment, companySettings }: Props) => {
                     {shipment.parcels
                       .reduce(
                         (sum, parcel) => sum + (parcel.chargeableWeight || 0),
-                        0
+                        0,
                       )
                       .toFixed(3)}{" "}
                     kg
@@ -343,8 +344,10 @@ const ShipmentPDF = ({ shipment, companySettings }: Props) => {
                       color: "#0D47A1",
                     }}
                   >
-                    {companySettings.currencySymbol}
-                    {shipment.shipment.totalAmount.toFixed(2)}
+                    {formatCurrency(
+                      String(shipment.shipment.totalAmount.toFixed(2)),
+                      companySettings.currencySymbol,
+                    )}
                   </Text>
                 </View>
               </View>
@@ -508,8 +511,10 @@ const ShipmentPDF = ({ shipment, companySettings }: Props) => {
                           Unit Price/kg
                         </Text>
                         <Text style={{ fontSize: 8, fontWeight: "bold" }}>
-                          {companySettings.currencySymbol}
-                          {(parcel.unitPricePerKg || 0).toFixed(2)}
+                          {formatCurrency(
+                            String((parcel.unitPricePerKg || 0).toFixed(2)),
+                            companySettings.currencySymbol,
+                          )}
                         </Text>
                       </View>
                       <View style={{ width: "20%" }}>
@@ -528,8 +533,10 @@ const ShipmentPDF = ({ shipment, companySettings }: Props) => {
                             fontWeight: "bold",
                           }}
                         >
-                          {companySettings.currencySymbol}
-                          {(parcel.totalAmount || 0).toFixed(2)}
+                          {formatCurrency(
+                            String((parcel.totalAmount || 0).toFixed(2)),
+                            companySettings.currencySymbol,
+                          )}
                         </Text>
                       </View>
                     </View>

@@ -68,22 +68,22 @@ export const formatDateTime = (dateString: Date | string) => {
 
   const formattedDateTime: string = new Date(dateString).toLocaleString(
     "en-US",
-    dateTimeOptions
+    dateTimeOptions,
   );
 
   const formattedDateDay: string = new Date(dateString).toLocaleString(
     "en-US",
-    dateDayOptions
+    dateDayOptions,
   );
 
   const formattedDate: string = new Date(dateString).toLocaleString(
     "en-US",
-    dateOptions
+    dateOptions,
   );
 
   const formattedTime: string = new Date(dateString).toLocaleString(
     "en-US",
-    timeOptions
+    timeOptions,
   );
 
   return {
@@ -96,12 +96,15 @@ export const formatDateTime = (dateString: Date | string) => {
 
 // Format numner  with currency
 export const formatCurrency = (value: string, currency: string) => {
+  const needsSpace = ["GH₵"];
+  const prefix = needsSpace.includes(currency) ? `${currency}   ` : currency;
+
   return numericFormatter(value, {
     thousandSeparator: ",",
     displayType: "text",
     thousandsGroupStyle: "thousand",
     type: "text",
-    prefix: currency,
+    prefix: prefix,
     decimalScale: 2,
     fixedDecimalScale: false,
   });
@@ -136,7 +139,7 @@ export const exportToExcel = (data: any[], fileName: string) => {
 };
 
 export const transformProductsForExport = (
-  products: ProductWithRelations[]
+  products: ProductWithRelations[],
 ) => {
   return products.map((item) => {
     const product = item.product;
@@ -167,7 +170,7 @@ export const calculateCommissionAmounts = (
   additions: number,
   deductions: number,
   commissionRate: number, // As a decimal (e.g., 0.10)
-  withholdingTaxRate: number // As a decimal (e.g., 0.03)
+  withholdingTaxRate: number, // As a decimal (e.g., 0.03)
 ) => {
   const withholdingTaxAmountCustomer = amountReceived * withholdingTaxRate;
   const actualAmountReceived = amountReceived - withholdingTaxAmountCustomer;
@@ -176,7 +179,7 @@ export const calculateCommissionAmounts = (
 
   const baseForCommission = Math.max(
     0,
-    actualAmountReceived - withholdingTaxAmount - additions
+    actualAmountReceived - withholdingTaxAmount - additions,
   );
 
   const grossCommission = baseForCommission * commissionRate;
@@ -218,7 +221,7 @@ export const parseServerError = (error: any): string => {
 };
 
 export const calculateTotalPaidForRecipient = (
-  payouts: CommissionPayout[] | undefined
+  payouts: CommissionPayout[] | undefined,
 ): number => {
   if (!payouts || payouts.length === 0) {
     return 0;
@@ -226,6 +229,6 @@ export const calculateTotalPaidForRecipient = (
   return payouts.reduce(
     (sum, payout) =>
       sum + (payout.isActive ? parseFloat(payout.amount as any) : 0),
-    0
+    0,
   );
 };

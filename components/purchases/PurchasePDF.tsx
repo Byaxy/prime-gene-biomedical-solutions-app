@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
   summary: {
     marginTop: 10,
     alignSelf: "flex-end",
-    width: "30%",
+    width: "40%",
   },
   summaryRow: {
     flexDirection: "row",
@@ -325,7 +325,7 @@ const PurchasePDF = ({
               <Text style={{ width: "32%" }}>
                 {formatCurrency(
                   String(purchaseOrder.totalAmount.toFixed(2)),
-                  companySettings.currencySymbol
+                  companySettings.currencySymbol,
                 )}
               </Text>
             </View>

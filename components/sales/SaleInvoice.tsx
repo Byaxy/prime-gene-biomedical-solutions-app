@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
   summary: {
     marginTop: 10,
     alignSelf: "flex-end",
-    width: "35%",
+    width: "40%",
   },
   summaryRow: {
     flexDirection: "row",
@@ -342,7 +342,7 @@ const SaleInvoice = ({
               <Text>
                 {formatCurrency(
                   String(sal.subTotal.toFixed(2)),
-                  currencySymbol
+                  currencySymbol,
                 )}
               </Text>
             </View>
@@ -351,7 +351,7 @@ const SaleInvoice = ({
               <Text>
                 {formatCurrency(
                   String(sal.discountAmount.toFixed(2)),
-                  currencySymbol
+                  currencySymbol,
                 )}
               </Text>
             </View>
@@ -360,7 +360,7 @@ const SaleInvoice = ({
               <Text>
                 {formatCurrency(
                   String(sal.totalTaxAmount.toFixed(2)),
-                  currencySymbol
+                  currencySymbol,
                 )}
               </Text>
             </View>
@@ -372,7 +372,7 @@ const SaleInvoice = ({
                 <Text>
                   {formatCurrency(
                     String(sal.totalAmount.toFixed(2)),
-                    currencySymbol
+                    currencySymbol,
                   )}
                 </Text>
               </View>

@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
   summary: {
     marginTop: 10,
     alignSelf: "flex-end",
-    width: "30%",
+    width: "40%",
   },
   summaryRow: {
     flexDirection: "row",

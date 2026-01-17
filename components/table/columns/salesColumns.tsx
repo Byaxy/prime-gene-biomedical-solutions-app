@@ -94,7 +94,7 @@ export const salesColumns: ColumnDef<SaleWithRelations>[] = [
               sale.sale.status === "completed" &&
                 "bg-green-500 text-white px-3 py-1 rounded-xl",
               sale.sale.status === "cancelled" &&
-                "bg-red-600 text-white px-3 py-1 rounded-xl"
+                "bg-red-600 text-white px-3 py-1 rounded-xl",
             )}
           >
             {sale.sale.status}
@@ -177,7 +177,7 @@ export const salesColumns: ColumnDef<SaleWithRelations>[] = [
               sale.sale.paymentStatus === "paid" &&
                 "bg-green-500 text-white px-3 py-1 rounded-xl",
               sale.sale.paymentStatus === "due" &&
-                "bg-red-600 text-white px-3 py-1 rounded-xl"
+                "bg-red-600 text-white px-3 py-1 rounded-xl",
             )}
           >
             {sale.sale.paymentStatus}
@@ -196,7 +196,7 @@ export const salesColumns: ColumnDef<SaleWithRelations>[] = [
             "text-14-medium",
             sale?.delivery
               ? "bg-green-500 text-white px-3 py-1 rounded-xl"
-              : "bg-red-600 text-white px-3 py-1 rounded-xl"
+              : "bg-red-600 text-white px-3 py-1 rounded-xl",
           )}
         >
           {sale?.delivery ? "Yes" : "No"}
@@ -211,11 +211,11 @@ export const salesColumns: ColumnDef<SaleWithRelations>[] = [
 
       const productsDelivered = sale.products.reduce(
         (total, product) => total + product.fulfilledQuantity,
-        0
+        0,
       );
       const totalPdctQnty = sale.products.reduce(
         (total, product) => total + product.quantity,
-        0
+        0,
       );
 
       return (

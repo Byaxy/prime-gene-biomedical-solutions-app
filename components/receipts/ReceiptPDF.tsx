@@ -192,6 +192,18 @@ const ReceiptPDF = ({
 
   const config = getCompanyConfig();
 
+  const getCurrencyCode = (currencySymbol: string): string => {
+    const currencyMap: { [key: string]: string } = {
+      $: "USD",
+      "GH₵": "GHS",
+      "₵": "GHS",
+    };
+
+    return currencyMap[currencySymbol] || "USD";
+  };
+
+  const currencyCode = getCurrencyCode(currencySymbol);
+
   const toWords = new ToWords({
     localeCode: "en-US",
     converterOptions: {
@@ -199,6 +211,16 @@ const ReceiptPDF = ({
       ignoreDecimal: false,
       ignoreZeroCurrency: true,
       doNotAddOnly: false,
+      currencyOptions: {
+        name: currencyCode === "GHS" ? "Cedi" : "Dollar",
+        plural: currencyCode === "GHS" ? "Cedis" : "Dollars",
+        symbol: currencySymbol,
+        fractionalUnit: {
+          name: currencyCode === "GHS" ? "Pesewa" : "Cent",
+          plural: currencyCode === "GHS" ? "Pesewas" : "Cents",
+          symbol: "",
+        },
+      },
     },
   });
 
@@ -372,7 +394,7 @@ const ReceiptPDF = ({
               >
                 {formatCurrency(
                   String(rec.totalAmountReceived.toFixed(2)),
-                  currencySymbol
+                  currencySymbol,
                 )}
               </Text>
             </View>
@@ -416,19 +438,19 @@ const ReceiptPDF = ({
               <Text style={styles.col4}>
                 {formatCurrency(
                   String(item.receiptItem.amountDue.toFixed(2)),
-                  currencySymbol
+                  currencySymbol,
                 )}
               </Text>
               <Text style={styles.col5}>
                 {formatCurrency(
                   String(item.receiptItem.amountReceived.toFixed(2)),
-                  currencySymbol
+                  currencySymbol,
                 )}
               </Text>
               <Text style={styles.col6}>
                 {formatCurrency(
                   String((item.receiptItem.balanceDue || 0).toFixed(2)),
-                  currencySymbol
+                  currencySymbol,
                 )}
               </Text>
             </View>
@@ -532,7 +554,7 @@ const ReceiptPDF = ({
                       {combinedCashTotal > 0
                         ? formatCurrency(
                             String(combinedCashTotal.toFixed(2)),
-                            currencySymbol
+                            currencySymbol,
                           )
                         : "-"}
                     </Text>
@@ -658,7 +680,7 @@ const ReceiptPDF = ({
                           >
                             {formatCurrency(
                               String(payment.amount.toFixed(2)),
-                              currencySymbol
+                              currencySymbol,
                             )}
                           </Text>
                         ))}
@@ -673,7 +695,7 @@ const ReceiptPDF = ({
                           >
                             {formatCurrency(
                               String(payment.amount.toFixed(2)),
-                              currencySymbol
+                              currencySymbol,
                             )}
                           </Text>
                         ))}
@@ -689,7 +711,7 @@ const ReceiptPDF = ({
                     >
                       {formatCurrency(
                         String(rec.totalAmountReceived.toFixed(2)),
-                        currencySymbol
+                        currencySymbol,
                       )}
                     </Text>
                   </View>
@@ -708,7 +730,7 @@ const ReceiptPDF = ({
                 <Text>
                   {formatCurrency(
                     String(rec.totalAmountDue.toFixed(2)),
-                    currencySymbol
+                    currencySymbol,
                   )}
                 </Text>
               </View>
@@ -721,7 +743,7 @@ const ReceiptPDF = ({
                 <Text>
                   {formatCurrency(
                     String(rec.totalAmountReceived.toFixed(2)),
-                    currencySymbol
+                    currencySymbol,
                   )}
                 </Text>
               </View>
@@ -739,7 +761,7 @@ const ReceiptPDF = ({
                 <Text>
                   {formatCurrency(
                     String(rec.totalBalanceDue.toFixed(2)),
-                    currencySymbol
+                    currencySymbol,
                   )}
                 </Text>
               </View>
