@@ -91,10 +91,10 @@ const WaybillForm = ({
   const [customerMatchingLoanWaybills, setCustomerMatchingLoanWaybills] =
     useState<WaybillWithRelations[] | null>(null);
   const [selectedSale, setSelectedSale] = useState<SaleWithRelations | null>(
-    null
+    null,
   );
   const [prevSelectedSaleId, setPrevSelectedSaleId] = useState<string | null>(
-    null
+    null,
   );
   const [prevSelectedProductId, setPrevSelectedProductId] = useState<
     string | null
@@ -142,7 +142,7 @@ const WaybillForm = ({
       conversionDate: undefined,
       conversionStatus: WaybillConversionStatus.Partial,
     }),
-    [initialGeneratedWaybillRefNumber]
+    [initialGeneratedWaybillRefNumber],
   );
   const form = useForm<WaybillFormValues>({
     resolver: zodResolver(WaybillFormValidation),
@@ -191,13 +191,13 @@ const WaybillForm = ({
             inv.product.id === product.productId &&
             inv.product.productID === product.productID &&
             inv.store.id === product.storeId &&
-            inv.inventory.quantity > 0
+            inv.inventory.quantity > 0,
         );
 
         return hasAvailableInventory;
       }, false);
     },
-    [inventoryStock]
+    [inventoryStock],
   );
 
   // Filter products
@@ -226,7 +226,7 @@ const WaybillForm = ({
         return acc;
       }, [])
       .filter(
-        (pdt: ProductWithRelations) => pdt.totalInventoryStockQuantity > 0
+        (pdt: ProductWithRelations) => pdt.totalInventoryStockQuantity > 0,
       );
   }, [products, selectedStoreId, searchQuery]);
 
@@ -275,7 +275,7 @@ const WaybillForm = ({
         return;
       }
       const selectedSale = sales?.find(
-        (sale: SaleWithRelations) => sale.sale.id === saleId
+        (sale: SaleWithRelations) => sale.sale.id === saleId,
       );
 
       if (!selectedSale) {
@@ -319,7 +319,7 @@ const WaybillForm = ({
 
             return acc;
           },
-          []
+          [],
         ) || [];
 
       if (customerLoanWaybills.length > 0 && selectedSale.products.length > 0) {
@@ -330,9 +330,9 @@ const WaybillForm = ({
                 (saleProduct: SaleItem) =>
                   saleProduct.productId === loanProduct.productId &&
                   saleProduct.productID === loanProduct.productID &&
-                  loanProduct.quantitySupplied > loanProduct.quantityConverted
+                  loanProduct.quantitySupplied > loanProduct.quantityConverted,
               );
-            }
+            },
           );
 
           if (hasMatchingProduct) {
@@ -367,7 +367,7 @@ const WaybillForm = ({
       form.setValue("deliveryAddress.city", deliveryAddress?.city || "");
       form.setValue(
         "deliveryAddress.addressName",
-        deliveryAddress?.addressName || ""
+        deliveryAddress?.addressName || "",
       );
       form.setValue("deliveryAddress.address", deliveryAddress?.address || "");
       form.setValue("deliveryAddress.email", deliveryAddress?.email || "");
@@ -396,7 +396,7 @@ const WaybillForm = ({
 
             if (availableInventory.length === 0) {
               console.warn(
-                `No inventory available for product ${product.productID}`
+                `No inventory available for product ${product.productID}`,
               );
               return;
             }
@@ -404,7 +404,7 @@ const WaybillForm = ({
             const totalAvailableQuantity = availableInventory.reduce(
               (total: number, inv: InventoryStockWithRelations) =>
                 total + inv.inventory.quantity,
-              0
+              0,
             );
 
             if (totalAvailableQuantity === 0) {
@@ -413,7 +413,7 @@ const WaybillForm = ({
 
             const quantityToSupply = Math.min(
               remainingQuantity,
-              totalAvailableQuantity
+              totalAvailableQuantity,
             );
 
             let remainingToAllocate = quantityToSupply;
@@ -424,14 +424,14 @@ const WaybillForm = ({
 
               const inventoryItem = availableInventory.find(
                 (inv: InventoryStockWithRelations) =>
-                  inv.inventory.id === stockAllocation.inventoryStockId
+                  inv.inventory.id === stockAllocation.inventoryStockId,
               );
 
               if (inventoryItem && inventoryItem.inventory.quantity > 0) {
                 const quantityFromThisStock = Math.min(
                   remainingToAllocate,
                   stockAllocation.quantityToTake,
-                  inventoryItem.inventory.quantity
+                  inventoryItem.inventory.quantity,
                 );
 
                 if (quantityFromThisStock > 0) {
@@ -455,13 +455,13 @@ const WaybillForm = ({
                 // Check if this inventory is already allocated
                 const alreadyAllocated = allocatedStock.some(
                   (stock) =>
-                    stock.inventoryStockId === inventoryItem.inventory.id
+                    stock.inventoryStockId === inventoryItem.inventory.id,
                 );
 
                 if (!alreadyAllocated && inventoryItem.inventory.quantity > 0) {
                   const quantityFromThisStock = Math.min(
                     remainingToAllocate,
-                    inventoryItem.inventory.quantity
+                    inventoryItem.inventory.quantity,
                   );
 
                   if (quantityFromThisStock > 0) {
@@ -481,7 +481,7 @@ const WaybillForm = ({
             // Calculate actual supplied quantity from allocations
             const actualSuppliedQuantity = allocatedStock.reduce(
               (total, stock) => total + stock.quantityTaken,
-              0
+              0,
             );
 
             const balanceLeft = remainingQuantity - actualSuppliedQuantity;
@@ -512,10 +512,10 @@ const WaybillForm = ({
               });
             } else {
               console.warn(
-                `Product ${product.productID} skipped - no valid inventory allocation`
+                `Product ${product.productID} skipped - no valid inventory allocation`,
               );
             }
-          }
+          },
         );
       }
 
@@ -536,7 +536,7 @@ const WaybillForm = ({
         ]);
       }, 100);
     },
-    [form, sales, inventoryStock, waybills, remove, prepend]
+    [form, sales, inventoryStock, waybills, remove, prepend],
   );
 
   useEffect(() => {
@@ -568,8 +568,8 @@ const WaybillForm = ({
             setCities(
               City.getCitiesOfState(
                 deliveryAddress.country,
-                deliveryAddress.state
-              ) || []
+                deliveryAddress.state,
+              ) || [],
             );
           }
         }
@@ -613,14 +613,14 @@ const WaybillForm = ({
           })),
         });
         setSelectedSale(
-          sales.find((s) => s.sale.id === initialData.waybill.saleId) || null
+          sales.find((s) => s.sale.id === initialData.waybill.saleId) || null,
         );
         setPrevSelectedSaleId(initialData.waybill.saleId);
       } else if (mode === "create" && sourceSale) {
         handleSaleSelection(sourceSale.sale.id);
         form.setValue(
           "waybillRefNumber",
-          initialGeneratedWaybillRefNumber || ""
+          initialGeneratedWaybillRefNumber || "",
         );
         setSelectedSale(sourceSale);
         setPrevSelectedSaleId(sourceSale.sale.id);
@@ -699,7 +699,7 @@ const WaybillForm = ({
 
     const selectedProduct = products?.find(
       (product: ProductWithRelations) =>
-        product.product.id === selectedProductId
+        product.product.id === selectedProductId,
     );
 
     if (!selectedProduct) {
@@ -785,21 +785,21 @@ const WaybillForm = ({
           })),
         });
         setSelectedSale(
-          sales.find((s) => s.sale.id === initialData.waybill.saleId) || null
+          sales.find((s) => s.sale.id === initialData.waybill.saleId) || null,
         );
         setPrevSelectedSaleId(initialData.waybill.saleId);
         if (initialData.waybill.deliveryAddress?.country) {
           setStates(
             State.getStatesOfCountry(
-              initialData.waybill.deliveryAddress.country
-            ) || []
+              initialData.waybill.deliveryAddress.country,
+            ) || [],
           );
           if (initialData.waybill.deliveryAddress?.state) {
             setCities(
               City.getCitiesOfState(
                 initialData.waybill.deliveryAddress.country,
-                initialData.waybill.deliveryAddress.state
-              ) || []
+                initialData.waybill.deliveryAddress.state,
+              ) || [],
             );
           }
         }
@@ -839,7 +839,7 @@ const WaybillForm = ({
       }
       if (values.products.some((p) => p.quantitySupplied <= 0)) {
         toast.error(
-          "Quantity supplied must be greater than zero for all products."
+          "Quantity supplied must be greater than zero for all products.",
         );
         return;
       }
@@ -847,18 +847,18 @@ const WaybillForm = ({
         values.products.some(
           (p) =>
             p.inventoryStock.reduce((sum, s) => sum + s.quantityTaken, 0) !==
-            p.quantitySupplied
+            p.quantitySupplied,
         )
       ) {
         toast.error(
-          "Total allocated inventory must match quantity supplied for all products."
+          "Total allocated inventory must match quantity supplied for all products.",
         );
         return;
       }
 
       // Show a loading toast immediately
       const loadingToastId = toast.loading(
-        mode === "create" ? "Creating waybill..." : "Updating waybill..."
+        mode === "create" ? "Creating waybill..." : "Updating waybill...",
       );
       try {
         if (mode === "create") {
@@ -873,7 +873,7 @@ const WaybillForm = ({
                 router.refresh();
                 form.reset(defaultValues);
               },
-            }
+            },
           );
         } else if (mode === "edit") {
           if (!initialData?.waybill.id) {
@@ -890,7 +890,7 @@ const WaybillForm = ({
                 router.refresh();
                 form.reset(defaultValues);
               },
-            }
+            },
           );
         }
 
@@ -904,7 +904,7 @@ const WaybillForm = ({
         console.error("Waybill operation error:", error);
         toast.error(
           `Failed to ${mode === "create" ? "create" : "update"} waybill`,
-          { id: loadingToastId }
+          { id: loadingToastId },
         );
       } finally {
         toast.dismiss(loadingToastId);
@@ -931,7 +931,7 @@ const WaybillForm = ({
 
       return Math.max(0, balanceLeft);
     },
-    [form]
+    [form],
   );
 
   const handleAddCustomer = async (data: CustomerFormValues): Promise<void> => {
@@ -982,7 +982,7 @@ const WaybillForm = ({
       const totalAllocated = allocatedStock.reduce(
         (total: number, stock: WaybillInventoryStock) =>
           total + (stock.quantityTaken || 0),
-        0
+        0,
       );
 
       if (newQuantity > totalAllocated) {
@@ -995,7 +995,7 @@ const WaybillForm = ({
       form.clearErrors(`products.${index}.quantitySupplied`);
       return true;
     },
-    [form, mode]
+    [form, mode],
   );
 
   // get entry inventory stocks based on selected product and store
@@ -1014,7 +1014,7 @@ const WaybillForm = ({
           .sort(
             (
               a: InventoryStockWithRelations,
-              b: InventoryStockWithRelations
+              b: InventoryStockWithRelations,
             ) => {
               const aExpiry: number = a.inventory.expiryDate
                 ? new Date(a.inventory.expiryDate).getTime()
@@ -1023,11 +1023,11 @@ const WaybillForm = ({
                 ? new Date(b.inventory.expiryDate).getTime()
                 : Infinity;
               return aExpiry - bExpiry;
-            }
+            },
           ) || []
       );
     },
-    [inventoryStock, selectedStoreId]
+    [inventoryStock, selectedStoreId],
   );
 
   // handle suppliedQuantity change
@@ -1064,7 +1064,7 @@ const WaybillForm = ({
       const customerId = form.watch("customerId");
       if (customerId) {
         const customer = customers?.find(
-          (cust: Customer) => cust.id === customerId
+          (cust: Customer) => cust.id === customerId,
         );
         if (customer) {
           form.setValue("deliveryAddress", {
@@ -1083,8 +1083,8 @@ const WaybillForm = ({
               setCities(
                 City.getCitiesOfState(
                   customer.address.country,
-                  customer.address.state
-                ) || []
+                  customer.address.state,
+                ) || [],
               );
             }
           }
@@ -1105,7 +1105,7 @@ const WaybillForm = ({
         form.setValue(`products.${index}.balanceLeft`, balanceLeft);
 
         const currentQuantitySupplied = form.getValues(
-          `products.${index}.quantitySupplied`
+          `products.${index}.quantitySupplied`,
         );
         validateQuantitySupplied(index, currentQuantitySupplied);
       });
@@ -1275,7 +1275,7 @@ const WaybillForm = ({
                               {filteredProducts.map(
                                 (
                                   product: ProductWithRelations,
-                                  index: number
+                                  index: number,
                                 ) => (
                                   <TableRow
                                     key={product.product.id}
@@ -1286,15 +1286,15 @@ const WaybillForm = ({
                                       if (isAnyMutationLoading) return;
                                       form.setValue(
                                         "selectedProductId",
-                                        product.product.id
+                                        product.product.id,
                                       );
                                       setPrevSelectedProductId(
-                                        product.product.id
+                                        product.product.id,
                                       );
                                       setSearchQuery("");
                                       // Find and click the hidden SelectItem with this value
                                       const selectItem = document.querySelector(
-                                        `[data-value="${product.product.id}"]`
+                                        `[data-value="${product.product.id}"]`,
                                       ) as HTMLElement;
                                       if (selectItem) {
                                         selectItem.click();
@@ -1319,7 +1319,7 @@ const WaybillForm = ({
                                       )}
                                     </TableCell>
                                   </TableRow>
-                                )
+                                ),
                               )}
                             </TableBody>
                           </Table>
@@ -1336,7 +1336,7 @@ const WaybillForm = ({
                                   {product.product.name}
                                   {}
                                 </SelectItem>
-                              )
+                              ),
                             )}
                           </div>
                         </>
@@ -1382,10 +1382,10 @@ const WaybillForm = ({
                     )}
                     {fields.map((entry, index) => {
                       const entryStock = form.watch(
-                        `products.${index}.inventoryStock`
+                        `products.${index}.inventoryStock`,
                       );
                       const entryQntyRequested = form.watch(
-                        `products.${index}.quantityRequested`
+                        `products.${index}.quantityRequested`,
                       );
 
                       return (
@@ -1404,7 +1404,7 @@ const WaybillForm = ({
                               onClick={() => setSelectedProductIndex(index)}
                               disabled={
                                 form.watch(
-                                  `products.${index}.quantityRequested`
+                                  `products.${index}.quantityRequested`,
                                 ) <= 0 || isAnyMutationLoading
                               }
                               type="button"
@@ -1413,15 +1413,15 @@ const WaybillForm = ({
                                 entryQntyRequested > 0 &&
                                   entryStock.reduce(
                                     (acc, stock) => acc + stock.quantityTaken,
-                                    0
+                                    0,
                                   ) === entryQntyRequested
                                   ? "bg-green-500"
-                                  : "bg-red-500"
+                                  : "bg-red-500",
                               )}
                               title="Manage Lot Numbers / Inventory stock"
                             >
                               {form.watch(
-                                `products.${index}.quantityRequested`
+                                `products.${index}.quantityRequested`,
                               ) <= 0
                                 ? "Add Qnty first"
                                 : "Manage Lots"}
@@ -1433,19 +1433,19 @@ const WaybillForm = ({
                               }
                               productID={entry.productID}
                               requiredQuantity={form.watch(
-                                `products.${index}.quantityRequested`
+                                `products.${index}.quantityRequested`,
                               )}
                               availableStocks={getEntryInventoryStocks(
-                                entry.productId
+                                entry.productId,
                               )}
                               selectedInventoryStock={entry.inventoryStock}
                               onSave={(stock) => {
                                 const quantityRequested = form.watch(
-                                  `products.${index}.quantityRequested`
+                                  `products.${index}.quantityRequested`,
                                 );
                                 const quantitySupplied = stock.reduce(
                                   (qnty, s) => qnty + s.quantityTaken,
-                                  0
+                                  0,
                                 );
                                 if (quantityRequested !== quantitySupplied) {
                                   form.setError(
@@ -1453,23 +1453,23 @@ const WaybillForm = ({
                                     {
                                       message:
                                         "Total allocated quantity must match supplied quantity",
-                                    }
+                                    },
                                   );
                                 }
                                 form.setValue(
                                   `products.${index}.inventoryStock`,
-                                  stock
+                                  stock,
                                 );
                                 form.setValue(
                                   `products.${index}.quantitySupplied`,
-                                  quantitySupplied
+                                  quantitySupplied,
                                 );
                                 form.setValue(
                                   `products.${index}.fulfilledQuantity`,
-                                  quantitySupplied
+                                  quantitySupplied,
                                 );
                                 form.trigger(
-                                  `products.${index}.inventoryStock`
+                                  `products.${index}.inventoryStock`,
                                 );
                               }}
                             />
@@ -1504,7 +1504,7 @@ const WaybillForm = ({
                                   "p-1 cursor-pointer",
                                   isAnyMutationLoading
                                     ? "text-gray-400 cursor-not-allowed"
-                                    : "text-red-600 hover:bg-light-200 hover:rounded-md"
+                                    : "text-red-600 hover:bg-light-200 hover:rounded-md",
                                 )}
                               >
                                 <DeleteIcon className="h-5 w-5" />
@@ -1579,7 +1579,7 @@ const WaybillForm = ({
                                     handleSaleSelection(sale.sale.id);
                                     // Find and click the hidden SelectItem with this value
                                     const selectItem = document.querySelector(
-                                      `[data-value="${sale.sale.id}"]`
+                                      `[data-value="${sale.sale.id}"]`,
                                     ) as HTMLElement;
                                     if (selectItem) {
                                       selectItem.click();
@@ -1669,11 +1669,11 @@ const WaybillForm = ({
                     )}
                     {fields.map((entry, index) => {
                       const entryStock = form.watch(
-                        `products.${index}.inventoryStock`
+                        `products.${index}.inventoryStock`,
                       );
 
                       const entryQntySupplied = form.watch(
-                        `products.${index}.quantitySupplied`
+                        `products.${index}.quantitySupplied`,
                       );
                       return (
                         <TableRow
@@ -1695,7 +1695,7 @@ const WaybillForm = ({
                           <TableCell>
                             <div className="flex items-center text-14-medium text-green-600 rounded-md border bg-white px-3 border-dark-700 h-11">
                               {formatNumber(
-                                String(entry.fulfilledQuantity || 0)
+                                String(entry.fulfilledQuantity || 0),
                               )}
                             </div>
                           </TableCell>
@@ -1708,15 +1708,15 @@ const WaybillForm = ({
                               label=""
                               placeholder="Qty supplied"
                               onValueChange={(
-                                e: React.ChangeEvent<HTMLInputElement>
+                                e: React.ChangeEvent<HTMLInputElement>,
                               ) =>
                                 handleQuantitySuppliedChange(
                                   index,
-                                  e.target.value
+                                  e.target.value,
                                 )
                               }
                               key={`qty-supplied-${form.watch(
-                                `products.${index}.quantitySupplied` || ""
+                                `products.${index}.quantitySupplied` || "",
                               )}`}
                               disabled={isAnyMutationLoading}
                             />
@@ -1731,7 +1731,7 @@ const WaybillForm = ({
                               }`}
                             >
                               {formatNumber(
-                                String(calculateEntryBalanceLeft(index))
+                                String(calculateEntryBalanceLeft(index)),
                               )}
                             </div>
                           </TableCell>
@@ -1742,14 +1742,14 @@ const WaybillForm = ({
                               productID={entry.productID}
                               isDisabled={isAnyMutationLoading}
                               qntyRequired={form.watch(
-                                `products.${index}.quantitySupplied`
+                                `products.${index}.quantitySupplied`,
                               )}
                               className={`
                                 text-white border-0 ${
                                   entryQntySupplied > 0 &&
                                   entryStock.reduce(
                                     (acc, stock) => acc + stock.quantityTaken,
-                                    0
+                                    0,
                                   ) === entryQntySupplied
                                     ? "bg-green-500"
                                     : "bg-red-500"
@@ -1759,25 +1759,25 @@ const WaybillForm = ({
                                 (inv: InventoryStockWithRelations) =>
                                   inv.product.id === entry.productId &&
                                   inv.store.id === form.watch("storeId") &&
-                                  inv.inventory.quantity > 0
+                                  inv.inventory.quantity > 0,
                               )}
                               onSave={(stock) => {
                                 form.setValue(
                                   `products.${index}.inventoryStock`,
-                                  stock
+                                  stock,
                                 );
                                 form.trigger(
-                                  `products.${index}.inventoryStock`
+                                  `products.${index}.inventoryStock`,
                                 );
 
                                 // Recalculate supplied quantity based on stock allocation
                                 const totalAllocated = stock.reduce(
                                   (total, s) => total + s.quantityTaken,
-                                  0
+                                  0,
                                 );
                                 form.setValue(
                                   `products.${index}.quantitySupplied`,
-                                  totalAllocated
+                                  totalAllocated,
                                 );
 
                                 // Recalculate balance
@@ -1785,7 +1785,7 @@ const WaybillForm = ({
                                   calculateEntryBalanceLeft(index);
                                 form.setValue(
                                   `products.${index}.balanceLeft`,
-                                  newBalance
+                                  newBalance,
                                 );
                               }}
                             />
@@ -1811,7 +1811,7 @@ const WaybillForm = ({
                                   "p-1 cursor-pointer",
                                   isAnyMutationLoading
                                     ? "text-gray-400 cursor-not-allowed"
-                                    : "text-red-600 hover:bg-light-200 hover:rounded-md"
+                                    : "text-red-600 hover:bg-light-200 hover:rounded-md",
                                 )}
                               >
                                 <DeleteIcon className="h-5 w-5" />

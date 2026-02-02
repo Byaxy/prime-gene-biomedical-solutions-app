@@ -113,9 +113,7 @@ export type ProductFormValues = z.infer<typeof ProductFormValidation>;
 // Purchase Orders
 export const PurchaseOrderFormValidation = z.object({
   purchaseOrderNumber: z.string().nonempty("Purchase order number is required"),
-  purchaseOrderDate: z.date().refine((date) => date <= new Date(), {
-    message: "Purchase order date cannot be in the future",
-  }),
+  purchaseOrderDate: z.date(),
   totalAmount: z.number().min(0, "Total amount must be 0 or more"),
   vendorId: z.string().nonempty("Vendor is required"),
   status: z
@@ -131,7 +129,7 @@ export const PurchaseOrderFormValidation = z.object({
         totalPrice: z.number().min(0, "Total price must be 0 or more"),
         productName: z.string(),
         productID: z.string(),
-      })
+      }),
     )
     .min(1, "At least one product is required"),
 
@@ -145,9 +143,7 @@ export type PurchaseOrderFormValues = z.infer<
 export const PurchaseFormValidation = z.object({
   purchaseNumber: z.string().nonempty("Purchase number is required"),
   vendorInvoiceNumber: z.string().nonempty("Vendor invoice number is required"),
-  purchaseDate: z.date().refine((date) => date <= new Date(), {
-    message: "Purchase date cannot be in the future",
-  }),
+  purchaseDate: z.date(),
   totalAmount: z.number().min(0, "Total amount must be 0 or more"),
   amountPaid: z.number().min(0, "Amount paid must be 0 or more"),
   vendorId: z.string().nonempty("Vendor is required"),
@@ -171,7 +167,7 @@ export const PurchaseFormValidation = z.object({
           .default(0),
         productName: z.string(),
         productID: z.string(),
-      })
+      }),
     )
     .min(1, "At least one product is required"),
 
@@ -207,7 +203,7 @@ export const ReceivingPurchaseFormValidation = z.object({
               quantity: z.number().int().min(1, "Quantity must be more than 0"),
               manufactureDate: z.date().optional(),
               expiryDate: z.date().optional(),
-            })
+            }),
           )
           .min(1, "At least one inventory stock is required"),
         costPrice: z.number().min(0, "Cost price must be 0 or more"),
@@ -219,7 +215,7 @@ export const ReceivingPurchaseFormValidation = z.object({
           .min(0, "Quantity pending must be 0 or more"),
         productName: z.string(),
         productID: z.string(),
-      })
+      }),
     )
     .min(1, "At least one product is required"),
 });
@@ -237,7 +233,7 @@ export const ReceivedInventoryStockValidation = z
           quantity: z.number().int().min(1, "Quantity must be more than 0"),
           manufactureDate: z.date().optional(),
           expiryDate: z.date().optional(),
-        })
+        }),
       )
       .min(1, "At least one inventory stock is required"),
     totalCost: z.number().min(0, "Total cost must be 0 or more"),
@@ -324,9 +320,7 @@ export type TaxFormValues = z.infer<typeof TaxFormValidation>;
 export const SaleFormValidation = z
   .object({
     invoiceNumber: z.string().nonempty("Invoice number is required"),
-    saleDate: z.date().refine((date) => date <= new Date(), {
-      message: "Sale date cannot be in the future",
-    }),
+    saleDate: z.date(),
     customerId: z.string().nonempty("Customer is required"),
     storeId: z.string().nonempty("Store is required"),
     totalAmount: z.number().min(0, "Total amount must be 0 or more"),
@@ -368,7 +362,7 @@ export const SaleFormValidation = z
                 .nonempty("Inventory Stock is required"),
               lotNumber: z.string().nonempty("Lot number is required"),
               quantityToTake: z.number().min(1, "Quantity must be at least 1"),
-            })
+            }),
           ),
           hasBackorder: z.boolean().default(false),
           backorderQuantity: z.number().int().optional(),
@@ -386,7 +380,7 @@ export const SaleFormValidation = z
           discountRate: z.number().min(0, "Discount rate must be 0 or more"),
           productName: z.string(),
           productID: z.string(),
-        })
+        }),
       )
       .min(1, "At least one product is required"),
 
@@ -480,7 +474,7 @@ export const InventoryStockAllocationValidation = z
           inventoryStockId: z.string().min(1, "Stock ID is required"),
           lotNumber: z.string().default(""),
           quantityToTake: z.number().min(1, "Quantity must be at least 1"),
-        })
+        }),
       )
       .min(1, "At least one stock allocation is required")
       .superRefine((items, ctx) => {
@@ -490,7 +484,7 @@ export const InventoryStockAllocationValidation = z
           .map((item) => item.inventoryStockId);
 
         const duplicates = stockIds.filter(
-          (id, index) => stockIds.indexOf(id) !== index
+          (id, index) => stockIds.indexOf(id) !== index,
         );
 
         if (duplicates.length > 0) {
@@ -518,7 +512,7 @@ export const InventoryStockAllocationValidation = z
     if (data.requiredQuantity) {
       const totalAllocated = data.inventoryStock.reduce(
         (sum, item) => sum + item.quantityToTake,
-        0
+        0,
       );
 
       if (totalAllocated > data.requiredQuantity) {
@@ -532,7 +526,7 @@ export const InventoryStockAllocationValidation = z
       // Warn if allocation is less than required and no backorder
       if (totalAllocated < data.requiredQuantity && !data.includeBackorder) {
         const hasBackorder = data.inventoryStock.some(
-          (item) => item.inventoryStockId === "BACKORDER"
+          (item) => item.inventoryStockId === "BACKORDER",
         );
 
         if (!hasBackorder) {
@@ -596,9 +590,7 @@ export const QuotationFormValidation = z
     quotationNumber: z.string().nonempty("Quotation number is required"),
     rfqNumber: z.string().nonempty("Request for quotation number is required"),
     isDeliveryAddressAdded: z.boolean().default(false),
-    quotationDate: z.date().refine((date) => date <= new Date(), {
-      message: "Quotation date cannot be in the future",
-    }),
+    quotationDate: z.date(),
     customerId: z.string().nonempty("Customer is required"),
     totalAmount: z.number().min(0, "Total amount must be 0 or more"),
     subTotal: z.number().min(0, "Sub total must be 0 or more"),
@@ -626,7 +618,7 @@ export const QuotationFormValidation = z
           discountRate: z.number().min(0, "Discount rate must be 0 or more"),
           productName: z.string(),
           productID: z.string(),
-        })
+        }),
       )
       .min(1, "At least one product is required"),
     attachments: z.any().optional(),
@@ -720,7 +712,7 @@ export const StockAdjustmentFormValidation = z.object({
         sellingPrice: z.number().min(0, "Selling price must be positive"),
         manufactureDate: z.date().optional(),
         expiryDate: z.date().optional(),
-      })
+      }),
     )
     .min(1, "At least one product is required"),
 
@@ -760,7 +752,7 @@ export const ExistingStockAdjustmentFormValidation = z.object({
           .number()
           .min(0, "Adjustment quantity must be greater than 0"),
         adjustmentType: z.enum(["ADD", "SUBTRACT"]).default("ADD"),
-      })
+      }),
     )
     .min(1, "At least one inventory stock is required"),
   selectedInventoryStockId: z.string().optional(),
@@ -773,7 +765,7 @@ export type ExistingStockAdjustmentFormValues = z.infer<
 export const BulkProductValidation = z.array(
   ProductFormValidation.omit({ image: true }).extend({
     id: z.string().optional(),
-  })
+  }),
 );
 export type BulkProductValues = z.infer<typeof BulkProductValidation>;
 
@@ -820,7 +812,7 @@ export const DeliveryFormValidation = z
             .min(0, "Balance left must be 0 or more"),
           productName: z.string(),
           productID: z.string(),
-        })
+        }),
       )
       .min(1, "At least one product is required"),
   })
@@ -879,7 +871,7 @@ export const WaybillFormValidation = z
                 lotNumber: z.string().nonempty("Lot number is required"),
                 quantityTaken: z.number().min(1, "Quantity must be at least 1"),
                 unitPrice: z.number().min(0, "Unit price must be 0 or more"),
-              })
+              }),
             )
             .min(1, "At least one inventory stock is required"),
           quantityRequested: z
@@ -904,7 +896,7 @@ export const WaybillFormValidation = z
             .min(0, "Quantity converted must be 0 or more"),
           productName: z.string(),
           productID: z.string(),
-        })
+        }),
       )
       .min(1, "At least one product is required"),
 
@@ -963,14 +955,14 @@ export const WaybillInventoryStockAllocationValidation = z
           lotNumber: z.string().nonempty("Lot number is required"),
           quantityTaken: z.number().min(1, "Quantity must be at least 1"),
           unitPrice: z.number().min(0, "Unit price must be 0 or more"),
-        })
+        }),
       )
       .min(1, "At least one stock allocation is required")
       .superRefine((items, ctx) => {
         const stockIds = items.map((item) => item.inventoryStockId);
 
         const duplicates = stockIds.filter(
-          (id, index) => stockIds.indexOf(id) !== index
+          (id, index) => stockIds.indexOf(id) !== index,
         );
 
         if (duplicates.length > 0) {
@@ -997,7 +989,7 @@ export const WaybillInventoryStockAllocationValidation = z
     if (data.requiredQuantity) {
       const totalAllocated = data.inventoryStock.reduce(
         (sum, item) => sum + item.quantityTaken,
-        0
+        0,
       );
 
       if (totalAllocated > data.requiredQuantity) {
@@ -1061,7 +1053,7 @@ export const ConvertLoanWaybillFormValidation = z
             .min(1, "Quantity converted must be more than 0"),
           productName: z.string(),
           productID: z.string(),
-        })
+        }),
       )
       .min(1, "At least one product is required"),
 
@@ -1109,7 +1101,7 @@ export const PromissoryNoteFormValidation = z.object({
         subTotal: z.number().min(0, "Subtotal must be 0 or more"),
         productName: z.string(),
         productID: z.string(),
-      })
+      }),
     )
     .min(1, "At least one product is required"),
 });
@@ -1439,7 +1431,7 @@ export const AccountFormValidationRefined = AccountFormValidation.superRefine(
         });
       }
     }
-  }
+  },
 );
 
 export type AccountFormValues = z.infer<typeof AccountFormValidationRefined>;
@@ -1570,7 +1562,7 @@ export const ExpenseItemValidation = z
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: `Insufficient funds. Available: ${availableBalance.toFixed(
-            2
+            2,
           )}, Required: ${data.itemAmount.toFixed(2)}`,
           path: ["payingAccountId"],
         });
@@ -1602,13 +1594,13 @@ export const ExpenseFormValidation = z
     // Validate that total amount matches sum of item amounts
     const calculatedTotal = data.items.reduce(
       (sum, item) => sum + item.itemAmount,
-      0
+      0,
     );
     if (Math.abs(calculatedTotal - data.amount) > 0.01) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: `Total amount (${data.amount.toFixed(
-          2
+          2,
         )}) must match sum of item amounts (${calculatedTotal.toFixed(2)})`,
         path: ["amount"],
       });
@@ -1674,11 +1666,11 @@ export const ExpenseFormValidation = z
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
               message: `Insufficient funds for this account after all changes. Current: ${accountData.currentBalance.toFixed(
-                2
+                2,
               )}, Net change: ${accountData.netChange.toFixed(
-                2
+                2,
               )}, Would result in: ${finalBalance.toFixed(
-                2
+                2,
               )}. Affected items: ${itemTitles}`,
               path: ["items", index, "payingAccountId"],
             });
@@ -1737,9 +1729,9 @@ export const ExpenseFormValidation = z
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
               message: `Insufficient funds in this account. Available: ${accountData.currentBalance.toFixed(
-                2
+                2,
               )}, Total required for all items: ${accountData.totalRequired.toFixed(
-                2
+                2,
               )}, Shortfall: ${(
                 accountData.totalRequired - accountData.currentBalance
               ).toFixed(2)}. Items using this account: ${itemDetails}`,
@@ -1899,27 +1891,27 @@ export const BillPaymentFormValidation = z
     const calculatedTotalPaidFromAccounts = round(
       data.payingAccounts.reduce(
         (sum, acc) => sum + acc.amountPaidFromAccount,
-        0
-      )
+        0,
+      ),
     );
 
     const calculatedTotalPurchasesPaid = round(
       data.purchasesToPay.reduce(
         (sum, item) => sum + (item.amountToPay || 0),
-        0
-      )
+        0,
+      ),
     );
     const calculatedTotalAccompanyingExpenses = round(
       data.accompanyingExpenses
         ? data.accompanyingExpenses.reduce(
             (sum, exp) => sum + (exp.amount || 0),
-            0
+            0,
           )
-        : 0
+        : 0,
     );
 
     const expectedTotalPayment = round(
-      calculatedTotalPurchasesPaid + calculatedTotalAccompanyingExpenses
+      calculatedTotalPurchasesPaid + calculatedTotalAccompanyingExpenses,
     );
 
     if (calculatedTotalPaidFromAccounts !== expectedTotalPayment) {
@@ -1927,11 +1919,11 @@ export const BillPaymentFormValidation = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: `Total funds from accounts (${calculatedTotalPaidFromAccounts.toFixed(
-          2
+          2,
         )}) must match total amount of purchases to pay (${calculatedTotalPurchasesPaid.toFixed(
-          2
+          2,
         )}) plus accompanying expenses (${calculatedTotalAccompanyingExpenses.toFixed(
-          2
+          2,
         )}). Expected total: ${expectedTotalPayment.toFixed(2)}`,
         path: ["payingAccounts"],
       });
@@ -1939,7 +1931,7 @@ export const BillPaymentFormValidation = z
 
     // Validate no duplicate paying accounts
     const uniquePayingAccounts = new Set(
-      data.payingAccounts.map((acc) => acc.payingAccountId)
+      data.payingAccounts.map((acc) => acc.payingAccountId),
     );
     if (uniquePayingAccounts.size !== data.payingAccounts.length) {
       ctx.addIssue({
@@ -2033,7 +2025,7 @@ export const ReceiptFormValidation = z
             .default(PaymentMethod.Cash),
           saleId: z.string().optional().nullable(),
           incomeCategoryId: z.string().optional().nullable(),
-        })
+        }),
       )
       .min(1, "At least one receipt item is required"),
 
@@ -2043,16 +2035,16 @@ export const ReceiptFormValidation = z
     // Validate that total amount received equals sum of receipt items
     const calculatedTotalReceived = data.receiptItems.reduce(
       (sum, item) => sum + item.amountReceived,
-      0
+      0,
     );
 
     if (Math.abs(calculatedTotalReceived - data.totalAmountReceived) > 0.001) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: `Total amount received (${data.totalAmountReceived.toFixed(
-          2
+          2,
         )}) must match sum of receipt items (${calculatedTotalReceived.toFixed(
-          2
+          2,
         )})`,
         path: ["totalAmountReceived"],
       });
@@ -2238,7 +2230,7 @@ export const SalesCommissionFormValidation = z
         additions,
         deductions,
         commissionRate,
-        withholdingTaxRate
+        withholdingTaxRate,
       );
 
       // Validate calculated fields for THIS sale entry
@@ -2250,7 +2242,7 @@ export const SalesCommissionFormValidation = z
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: `Base for Commission should be ${calculatedBaseForCommission.toFixed(
-            2
+            2,
           )} for this sale.`,
           path: ["commissionSales", index, "baseForCommission"],
         });
@@ -2264,7 +2256,7 @@ export const SalesCommissionFormValidation = z
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: `Gross Commission should be ${calculatedGrossCommission.toFixed(
-            2
+            2,
           )} for this sale.`,
           path: ["commissionSales", index, "grossCommission"],
         });
@@ -2279,7 +2271,7 @@ export const SalesCommissionFormValidation = z
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: `Withholding Tax Amount should be ${calculatedWithholdingTaxAmount.toFixed(
-            2
+            2,
           )} for this sale.`,
           path: ["commissionSales", index, "withholdingTaxAmount"],
         });
@@ -2289,13 +2281,13 @@ export const SalesCommissionFormValidation = z
         entry.totalCommissionPayable !== undefined &&
         entry.totalCommissionPayable !== null &&
         Math.abs(
-          entry.totalCommissionPayable - calculatedTotalCommissionPayable
+          entry.totalCommissionPayable - calculatedTotalCommissionPayable,
         ) > 0.01
       ) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: `Total Commission Payable should be ${calculatedTotalCommissionPayable.toFixed(
-            2
+            2,
           )} for this sale.`,
           path: ["commissionSales", index, "totalCommissionPayable"],
         });
@@ -2323,31 +2315,31 @@ export const SalesCommissionFormValidation = z
 
     const grandTotalAmountReceived = data.commissionSales.reduce(
       (sum, entry) => sum + (entry.amountReceived || 0),
-      0
+      0,
     );
     const grandTotalAdditions = data.commissionSales.reduce(
       (sum, entry) => sum + (entry.additions || 0),
-      0
+      0,
     );
     const grandTotalDeductions = data.commissionSales.reduce(
       (sum, entry) => sum + (entry.deductions || 0),
-      0
+      0,
     );
     const grandTotalBaseForCommission = data.commissionSales.reduce(
       (sum, entry) => sum + (entry.baseForCommission || 0),
-      0
+      0,
     );
     const grandTotalGrossCommission = data.commissionSales.reduce(
       (sum, entry) => sum + (entry.grossCommission || 0),
-      0
+      0,
     );
     const grandTotalWithholdingTaxAmount = data.commissionSales.reduce(
       (sum, entry) => sum + (entry.withholdingTaxAmount || 0),
-      0
+      0,
     );
     const grandTotalCommissionPayable = data.commissionSales.reduce(
       (sum, entry) => sum + (entry.totalCommissionPayable || 0),
-      0
+      0,
     );
 
     // If these fields are sent from frontend, validate them. Otherwise, backend computes.
@@ -2358,9 +2350,9 @@ export const SalesCommissionFormValidation = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: `Overall Total Amount Received (${data.totalAmountReceived.toFixed(
-          2
+          2,
         )}) does not match sum of entries (${grandTotalAmountReceived.toFixed(
-          2
+          2,
         )}).`,
         path: ["totalAmountReceived"],
       });
@@ -2373,7 +2365,7 @@ export const SalesCommissionFormValidation = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: `Overall Total Additions (${data.totalAdditions.toFixed(
-          2
+          2,
         )}) does not match sum of entries (${grandTotalAdditions.toFixed(2)}).`,
         path: ["totalAdditions"],
       });
@@ -2386,9 +2378,9 @@ export const SalesCommissionFormValidation = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: `Overall Total Deductions (${data.totalDeductions.toFixed(
-          2
+          2,
         )}) does not match sum of entries (${grandTotalDeductions.toFixed(
-          2
+          2,
         )}).`,
         path: ["totalDeductions"],
       });
@@ -2401,9 +2393,9 @@ export const SalesCommissionFormValidation = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: `Overall Total Base for Commission (${data.totalBaseForCommission.toFixed(
-          2
+          2,
         )}) does not match sum of entries (${grandTotalBaseForCommission.toFixed(
-          2
+          2,
         )}).`,
         path: ["totalBaseForCommission"],
       });
@@ -2416,9 +2408,9 @@ export const SalesCommissionFormValidation = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: `Overall Total Gross Commission (${data.totalGrossCommission.toFixed(
-          2
+          2,
         )}) does not match sum of entries (${grandTotalGrossCommission.toFixed(
-          2
+          2,
         )}).`,
         path: ["totalGrossCommission"],
       });
@@ -2427,15 +2419,15 @@ export const SalesCommissionFormValidation = z
     if (
       data.totalWithholdingTaxAmount !== undefined &&
       Math.abs(
-        data.totalWithholdingTaxAmount - grandTotalWithholdingTaxAmount
+        data.totalWithholdingTaxAmount - grandTotalWithholdingTaxAmount,
       ) > 0.01
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: `Overall Total Withholding Tax (${data.totalWithholdingTaxAmount.toFixed(
-          2
+          2,
         )}) does not match sum of entries (${grandTotalWithholdingTaxAmount.toFixed(
-          2
+          2,
         )}).`,
         path: ["totalWithholdingTaxAmount"],
       });
@@ -2448,9 +2440,9 @@ export const SalesCommissionFormValidation = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: `Overall Total Commission Payable (${data.totalCommissionPayable.toFixed(
-          2
+          2,
         )}) does not match sum of entries (${grandTotalCommissionPayable.toFixed(
-          2
+          2,
         )}).`,
         path: ["totalCommissionPayable"],
       });
@@ -2508,7 +2500,7 @@ export const CommissionRecipientPayoutFormValidation = z
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: `Amount to pay (${payout.amountToPay.toFixed(
-            2
+            2,
           )}) exceeds remaining due (${payout.remainingDue.toFixed(2)}).`,
           path: ["payouts", index, "amountToPay"],
         });
@@ -2593,7 +2585,7 @@ export const RoleFormValidation = z.object({
       canRead: z.boolean(),
       canUpdate: z.boolean(),
       canDelete: z.boolean(),
-    })
+    }),
   ),
 });
 
